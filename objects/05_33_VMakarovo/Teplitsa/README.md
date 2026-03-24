@@ -1,2 +1,3 @@
-SYS.objectName = "🏡 **Верхнемакарово**";
-SYS.buildingName = "Теплица";
+SYS.objectName = "🏡 **Верхнемакарово**"
+
+SYS.buildingName = "Теплица"
