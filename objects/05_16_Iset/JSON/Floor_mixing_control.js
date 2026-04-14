@@ -2,46 +2,41 @@
  * PROJECT: 05 16 Исеть
  * SCRIPT: Floor_mixing_control.js
  * -------------------------------------------------------------
- * Продвинутый регулятор узла подмеса тёплого пола для Wiren Board.
+ * Регулятор узла подмеса тёплого пола для Wiren Board.
  *
  * НАЗНАЧЕНИЕ
  * -------------------------------------------------------------
  * Этот файл управляет только узлом подмеса тёплого пола.
- * Он не заменяет Boiler_room.js и не зависит от него логически.
+ *
+ * ВАЖНО ПО ТЕРМИНОЛОГИИ
+ * -------------------------------------------------------------
+ * На объекте датчик wb-w1/28-00000ff8a3d5 стоит на подаче
+ * после узла подмеса в коллектор тёплого пола.
+ *
+ * То есть фактически регулятор держит не "температуру пола
+ * в стяжке", а температуру подачи в контур тёплого пола.
+ *
+ * Для совместимости с уже существующим объектом и панелями
+ * идентификаторы каналов floor_mixing_ctrl/* сохранены.
  *
  * ОСОБЕННОСТИ
  * -------------------------------------------------------------
- * - step-hold логика вместо "чистого PID"
+ * - ES5 / wb-rules
+ * - step-hold логика
  * - FAST / TRIM
- * - анализ тренда температуры
- * - защита от пилы
- * - deadband
+ * - фильтр 3 измерения
+ * - плавная погодная уставка
  * - паузы после движения
+ * - выдержка после движения
  * - запрет частого разворота
- * - защита от рекурсии
+ * - защита от пилы
+ * - без рекурсии
  *
- * ВАЖНО
+ * ЕДИНСТВЕННЫЙ ПИСАТЕЛЬ
  * -------------------------------------------------------------
  * Этот модуль должен быть единственным, кто пишет в:
  *   wb-mao4_131/Channel 1 Switch
  *   wb-mao4_131/Channel 1 Dimming Level
- *
- * ИСТОРИЯ
- * -------------------------------------------------------------
- * Предыдущая версия вызывала рекурсию:
- *   fmUpdatePumpState -> fmForceImmediateRecalc -> fmControlStep -> fmUpdatePumpState
- *
- * Эта версия переписана так, чтобы рекурсии не было.
- *
- * ДОПОЛНИТЕЛЬНЫЕ ИСПРАВЛЕНИЯ ДЛЯ ОБЪЕКТА 05 16 ИСЕТЬ
- * -------------------------------------------------------------
- * 1. Убран автопереход в режим manual при любом изменении канала
- *    floor_mixing_ctrl/setpoint. Теперь setpoint_mode переключается
- *    только явной командой.
- * 2. Снижена лишняя Modbus-нагрузка: запись 0-10 В выполняется только
- *    при заметном изменении положения клапана.
- * 3. Включение питания клапана выполняется с редкими повторами, а не на
- *    каждом цикле регулирования.
  ***************************************************************/
 
 
@@ -49,7 +44,7 @@
  * 1. ПРИВЯЗКА К УСТРОЙСТВАМ
  ***************************************************************/
 
-var FM_TEMP_FLOOR   = "wb-w1/28-00000ff8a3d5";
+var FM_TEMP_SUPPLY  = "wb-w1/28-00000ff8a3d5";
 var FM_TEMP_OUTDOOR = "wb-w1/28-00000fd6a9ad";
 var FM_PUMP_FLOOR   = "wb-mr6cu_37/K2";
 var FM_VALVE_ENABLE = "wb-mao4_131/Channel 1 Switch";
@@ -66,30 +61,33 @@ var FM_DEFAULT_PHASE_MODE = "auto";
 
 var FM_DEFAULT_SETPOINT = 34;
 var FM_DEFAULT_SENSOR_OFFSET = 0.0;
-var FM_DEFAULT_BAND_C = 0.8;
-var FM_DEFAULT_BIAS_C = 0.4;
-var FM_DEFAULT_FAR_ERR_C = 4.0;
 
-var FM_DEFAULT_FAST_HOLD_COLD_S = 35;
-var FM_DEFAULT_FAST_HOLD_HOT_S  = 60;
-var FM_DEFAULT_FAST_MIN_STEP = 3;
-var FM_DEFAULT_FAST_MAX_STEP = 12;
+var FM_DEFAULT_BAND_C = 1.0;
+var FM_DEFAULT_BIAS_C = 0.0;
+var FM_DEFAULT_FAR_ERR_C = 2.5;
 
-var FM_DEFAULT_TRIM_HOLD_COLD_S = 90;
-var FM_DEFAULT_TRIM_HOLD_HOT_S  = 150;
+var FM_DEFAULT_FAST_HOLD_COLD_S = 90;
+var FM_DEFAULT_FAST_HOLD_HOT_S  = 120;
+var FM_DEFAULT_FAST_MIN_STEP = 2;
+var FM_DEFAULT_FAST_MAX_STEP = 5;
+
+var FM_DEFAULT_TRIM_HOLD_COLD_S = 180;
+var FM_DEFAULT_TRIM_HOLD_HOT_S  = 240;
 var FM_DEFAULT_TRIM_MIN_STEP = 1;
-var FM_DEFAULT_TRIM_MAX_STEP = 5;
+var FM_DEFAULT_TRIM_MAX_STEP = 2;
 
-var FM_DEFAULT_PCT_PER_C_COLD = 4.0;
-var FM_DEFAULT_PCT_PER_C_HOT  = 3.0;
+var FM_DEFAULT_PCT_PER_C_COLD = 2.0;
+var FM_DEFAULT_PCT_PER_C_HOT  = 1.5;
 
-var FM_DEFAULT_REVERSE_LOCK_S = 180;
-var FM_DEFAULT_TREND_OK = 0.8;
-var FM_DEFAULT_TREND_SLOW = 0.3;
-var FM_DEFAULT_STAGNATION_S = 240;
+var FM_DEFAULT_REVERSE_LOCK_S = 420;
+var FM_DEFAULT_TREND_OK = 0.35;
+var FM_DEFAULT_TREND_SLOW = 0.12;
+var FM_DEFAULT_STAGNATION_S = 600;
+
+var FM_DEFAULT_POST_MOVE_SETTLE_S = 90;
 
 var FM_DEFAULT_MIN_POS = 0;
-var FM_DEFAULT_MAX_POS = 100;
+var FM_DEFAULT_MAX_POS = 80;
 var FM_DEFAULT_HARD_MAX_C = 45;
 var FM_DEFAULT_PERIOD_S = 15;
 var FM_DEFAULT_WRITE_EPS_PCT = 0.5;
@@ -148,6 +146,12 @@ function fmNumOr(v, dflt) {
   return isNaN(v) ? dflt : v;
 }
 
+function fmLinMap(x, x1, y1, x2, y2) {
+  if (x <= x1) return y1;
+  if (x >= x2) return y2;
+  return y1 + (y2 - y1) * (x - x1) / (x2 - x1);
+}
+
 
 /***************************************************************
  * 4. ВИРТУАЛЬНОЕ УСТРОЙСТВО
@@ -163,7 +167,7 @@ defineVirtualDevice("floor_mixing_ctrl", {
     },
 
     t_floor_raw: {
-      title: "Температура пола raw, °C",
+      title: "Подача после подмеса raw, °C",
       type: "value",
       value: 0,
       readonly: true
@@ -176,7 +180,7 @@ defineVirtualDevice("floor_mixing_ctrl", {
     },
 
     t_floor_corr: {
-      title: "Температура пола corr, °C",
+      title: "Подача после подмеса corr, °C",
       type: "value",
       value: 0,
       readonly: true
@@ -269,7 +273,7 @@ defineVirtualDevice("floor_mixing_ctrl", {
     },
 
     fast_hold_cold_s: {
-      title: "FAST: пауза после «горячее», с",
+      title: "FAST: пауза после закрытия, с",
       type: "range",
       value: FM_DEFAULT_FAST_HOLD_COLD_S,
       min: 5,
@@ -278,7 +282,7 @@ defineVirtualDevice("floor_mixing_ctrl", {
     },
 
     fast_hold_hot_s: {
-      title: "FAST: пауза после «холоднее», с",
+      title: "FAST: пауза после открытия, с",
       type: "range",
       value: FM_DEFAULT_FAST_HOLD_HOT_S,
       min: 5,
@@ -305,7 +309,7 @@ defineVirtualDevice("floor_mixing_ctrl", {
     },
 
     trim_hold_cold_s: {
-      title: "TRIM: пауза после «горячее», с",
+      title: "TRIM: пауза после закрытия, с",
       type: "range",
       value: FM_DEFAULT_TRIM_HOLD_COLD_S,
       min: 5,
@@ -314,7 +318,7 @@ defineVirtualDevice("floor_mixing_ctrl", {
     },
 
     trim_hold_hot_s: {
-      title: "TRIM: пауза после «холоднее», с",
+      title: "TRIM: пауза после открытия, с",
       type: "range",
       value: FM_DEFAULT_TRIM_HOLD_HOT_S,
       min: 5,
@@ -344,7 +348,7 @@ defineVirtualDevice("floor_mixing_ctrl", {
       title: "Недогрев: % на 1°C",
       type: "range",
       value: FM_DEFAULT_PCT_PER_C_COLD,
-      min: 1,
+      min: 0.5,
       max: 20,
       step: 0.5
     },
@@ -353,7 +357,7 @@ defineVirtualDevice("floor_mixing_ctrl", {
       title: "Перегрев: % на 1°C",
       type: "range",
       value: FM_DEFAULT_PCT_PER_C_HOT,
-      min: 1,
+      min: 0.5,
       max: 20,
       step: 0.5
     },
@@ -407,7 +411,7 @@ defineVirtualDevice("floor_mixing_ctrl", {
     },
 
     hard_max_c: {
-      title: "Жёсткий максимум пола, °C",
+      title: "Жёсткий максимум подачи, °C",
       type: "value",
       value: FM_DEFAULT_HARD_MAX_C
     },
@@ -511,6 +515,7 @@ var fmPendingImmediateReason = "";
 var fmImmediateTimer = null;
 var fmLastValveWritePct = null;
 var fmLastValveEnableWriteTs = 0;
+var fmFilterBuf = [];
 
 
 /***************************************************************
@@ -528,14 +533,17 @@ function fmSetSetpointStatus(mode) {
 function fmWriteValve(pct) {
   var minPos = fmClamp(dev["floor_mixing_ctrl/min_pos"], 0, 100);
   var maxPos = fmClamp(dev["floor_mixing_ctrl/max_pos"], 0, 100);
+  var p;
+  var aoNow;
+  var eps;
 
   if (maxPos < minPos) maxPos = minPos;
 
-  var p = fmClamp(pct, minPos, maxPos);
+  p = fmClamp(pct, minPos, maxPos);
   p = fmClamp(p, 0, 100);
 
-  var aoNow = fmReadNum(FM_VALVE_POS);
-  var eps = fmNumOr(FM_DEFAULT_WRITE_EPS_PCT, 0.5);
+  aoNow = fmReadNum(FM_VALVE_POS);
+  eps = fmNumOr(FM_DEFAULT_WRITE_EPS_PCT, 0.5);
 
   if (aoNow === null || Math.abs(aoNow - p) >= eps) {
     dev[FM_VALVE_POS] = p;
@@ -558,9 +566,29 @@ function fmEnsureValveEnabled() {
   dev["floor_mixing_ctrl/valve_enable"] = fmReadBool(FM_VALVE_ENABLE);
 }
 
-function fmReadCorrectedFloorTemp() {
-  var raw = fmReadNum(FM_TEMP_FLOOR);
+function fmFilter3(v) {
+  var i;
+  var sum = 0;
+
+  if (v === null) return null;
+
+  fmFilterBuf.push(v);
+  if (fmFilterBuf.length > 3) {
+    fmFilterBuf.shift();
+  }
+
+  for (i = 0; i < fmFilterBuf.length; i++) {
+    sum += fmFilterBuf[i];
+  }
+
+  return sum / fmFilterBuf.length;
+}
+
+function fmReadCorrectedSupplyTemp() {
+  var raw = fmReadNum(FM_TEMP_SUPPLY);
   var offset = fmReadNum("floor_mixing_ctrl/sensor_offset");
+  var corr;
+  var filt;
 
   if (raw === null) {
     dev["floor_mixing_ctrl/t_floor_raw"] = 0;
@@ -572,10 +600,13 @@ function fmReadCorrectedFloorTemp() {
 
   dev["floor_mixing_ctrl/t_floor_raw"] = fmRound1(raw);
 
-  var corr = raw + offset;
-  dev["floor_mixing_ctrl/t_floor_corr"] = fmRound1(corr);
+  corr = raw + offset;
+  filt = fmFilter3(corr);
 
-  return corr;
+  if (filt === null) return null;
+
+  dev["floor_mixing_ctrl/t_floor_corr"] = fmRound1(filt);
+  return filt;
 }
 
 function fmReadOutdoorTemp() {
@@ -600,14 +631,24 @@ function fmSyncValvePosFromAO() {
 
 function fmWeatherSetpoint() {
   var out = fmReadOutdoorTemp();
+  var sp;
 
   if (out === null) {
     return fmClamp(dev["floor_mixing_ctrl/setpoint"], 20, 45);
   }
 
-  if (out <= -15) return 40;
-  if (out <= 0)   return 36;
-  return 32;
+  if (out <= -25) return 42;
+  if (out >= 10) return 30;
+
+  if (out <= -10) {
+    sp = fmLinMap(out, -25, 42, -10, 38);
+  } else if (out <= 0) {
+    sp = fmLinMap(out, -10, 38, 0, 35);
+  } else {
+    sp = fmLinMap(out, 0, 35, 10, 30);
+  }
+
+  return fmRound1(fmClamp(sp, 20, 45));
 }
 
 function fmApplyWeatherSetpoint() {
@@ -623,9 +664,10 @@ function fmApplyWeatherSetpoint() {
 
 function fmActiveSetpoint() {
   var mode = dev["floor_mixing_ctrl/setpoint_mode"];
+  var spManual;
 
   if (mode === "manual") {
-    var spManual = fmClamp(dev["floor_mixing_ctrl/setpoint"], 20, 45);
+    spManual = fmClamp(dev["floor_mixing_ctrl/setpoint"], 20, 45);
 
     fmSuppressSetpointAutoSwitch = true;
     dev["floor_mixing_ctrl/setpoint"] = spManual;
@@ -640,11 +682,14 @@ function fmActiveSetpoint() {
 
 function fmCurrentPhaseAuto(errAbs) {
   var thr = fmNumOr(dev["floor_mixing_ctrl/far_err_c"], FM_DEFAULT_FAR_ERR_C);
-  return (errAbs >= thr) ? "FAST" : "TRIM";
+
+  if (errAbs >= thr) return "FAST";
+  return "TRIM";
 }
 
 function fmChoosePhase(errAbs) {
   var pm = dev["floor_mixing_ctrl/phase_mode"];
+
   if (pm === "fast") return "FAST";
   if (pm === "trim") return "TRIM";
   return fmCurrentPhaseAuto(errAbs);
@@ -652,13 +697,13 @@ function fmChoosePhase(errAbs) {
 
 function fmHoldSeconds(phase, lastDirLocal) {
   if (phase === "FAST") {
-    if (lastDirLocal === "hotter") return dev["floor_mixing_ctrl/fast_hold_cold_s"];
-    if (lastDirLocal === "colder") return dev["floor_mixing_ctrl/fast_hold_hot_s"];
+    if (lastDirLocal === "hotter") return dev["floor_mixing_ctrl/fast_hold_hot_s"];
+    if (lastDirLocal === "colder") return dev["floor_mixing_ctrl/fast_hold_cold_s"];
     return Math.max(dev["floor_mixing_ctrl/fast_hold_cold_s"], dev["floor_mixing_ctrl/fast_hold_hot_s"]);
   }
 
-  if (lastDirLocal === "hotter") return dev["floor_mixing_ctrl/trim_hold_cold_s"];
-  if (lastDirLocal === "colder") return dev["floor_mixing_ctrl/trim_hold_hot_s"];
+  if (lastDirLocal === "hotter") return dev["floor_mixing_ctrl/trim_hold_hot_s"];
+  if (lastDirLocal === "colder") return dev["floor_mixing_ctrl/trim_hold_cold_s"];
   return Math.max(dev["floor_mixing_ctrl/trim_hold_cold_s"], dev["floor_mixing_ctrl/trim_hold_hot_s"]);
 }
 
@@ -697,8 +742,6 @@ function fmRequestImmediateRecalc(reason) {
 
   fmImmediateTimer = setTimeout(function () {
     fmImmediateTimer = null;
-
-    fmResetMotionMemory();
     dev["floor_mixing_ctrl/status"] = "мгновенный пересчёт: " + (reason || "без причины");
     fmControlStep();
   }, 1);
@@ -711,10 +754,10 @@ function fmRequestImmediateRecalc(reason) {
 
 function fmSyncPumpState() {
   var pumpOn = fmReadBool(FM_PUMP_FLOOR);
-  dev["floor_mixing_ctrl/pump_on"] = pumpOn;
-
   var turnedOn = false;
   var turnedOff = false;
+
+  dev["floor_mixing_ctrl/pump_on"] = pumpOn;
 
   if (fmPumpWasOn === null) {
     fmPumpWasOn = pumpOn;
@@ -722,6 +765,7 @@ function fmSyncPumpState() {
     if (!pumpOn) {
       fmPosCmd = 0;
       fmWriteValve(0);
+      fmFilterBuf = [];
       dev["floor_mixing_ctrl/status"] = "насос пола выключен: клапан закрыт 0%";
     }
 
@@ -740,6 +784,7 @@ function fmSyncPumpState() {
     turnedOff = true;
     fmPosCmd = 0;
     fmWriteValve(0);
+    fmFilterBuf = [];
     dev["floor_mixing_ctrl/status"] = "насос пола выключен: клапан закрыт 0%";
   }
 
@@ -758,19 +803,50 @@ function fmSyncPumpState() {
  ***************************************************************/
 
 function fmControlStep() {
+  var pumpState;
+  var t;
+  var ts;
+  var dT_c_min = 0;
+  var hardMax;
+  var sp;
+  var band;
+  var bias;
+  var effSp;
+  var err;
+  var phase;
+  var holdS;
+  var dir;
+  var revLockS;
+  var trendOk;
+  var trendSlow;
+  var movingRight;
+  var movingWrong;
+  var absTrend;
+  var kCold;
+  var kHot;
+  var k;
+  var lim;
+  var minStep;
+  var maxStep;
+  var baseStep;
+  var step;
+  var stgS;
+  var minPos;
+  var maxPos;
+  var delta;
+  var newCmd;
+  var postMoveSettleS;
+  var sinceMove;
+  var dt;
+
   if (fmInControlStep) return;
   fmInControlStep = true;
 
   try {
-    var pumpState = fmSyncPumpState();
+    pumpState = fmSyncPumpState();
 
     if (!dev["floor_mixing_ctrl/enabled"]) {
       return;
-    }
-
-    var aoNow = fmReadNum(FM_VALVE_POS);
-    if (aoNow !== null) {
-      dev["floor_mixing_ctrl/valve_position"] = aoNow;
     }
 
     if (!pumpState.pumpOn) {
@@ -781,9 +857,9 @@ function fmControlStep() {
 
     dev["floor_mixing_ctrl/pump_on"] = true;
 
-    var t = fmReadCorrectedFloorTemp();
+    t = fmReadCorrectedSupplyTemp();
     if (t === null) {
-      dev["floor_mixing_ctrl/status"] = "нет данных датчика пола";
+      dev["floor_mixing_ctrl/status"] = "нет данных датчика подачи";
       return;
     }
 
@@ -799,20 +875,19 @@ function fmControlStep() {
 
     fmEnsureValveEnabled();
 
-    var hardMax = fmNumOr(dev["floor_mixing_ctrl/hard_max_c"], FM_DEFAULT_HARD_MAX_C);
+    hardMax = fmNumOr(dev["floor_mixing_ctrl/hard_max_c"], FM_DEFAULT_HARD_MAX_C);
     if (t >= hardMax) {
       fmPosCmd = 0;
       fmWriteValve(0);
       dev["floor_mixing_ctrl/status"] =
-        "защита: температура пола " + t.toFixed(1) + "°C >= " + hardMax.toFixed(1) + "°C, клапан закрыт";
+        "защита: подача " + t.toFixed(1) + "°C >= " + hardMax.toFixed(1) + "°C, клапан закрыт";
       return;
     }
 
-    var ts = fmNowSec();
-    var dT_c_min = 0;
+    ts = fmNowSec();
 
     if (fmLastT !== null && fmLastTs !== 0) {
-      var dt = ts - fmLastTs;
+      dt = ts - fmLastTs;
       if (dt > 0) {
         dT_c_min = (t - fmLastT) * 60.0 / dt;
       }
@@ -823,19 +898,24 @@ function fmControlStep() {
     fmLastT = t;
     fmLastTs = ts;
 
-    var sp = fmActiveSetpoint();
-    var band = fmNumOr(dev["floor_mixing_ctrl/band_c"], FM_DEFAULT_BAND_C);
-    var bias = fmNumOr(dev["floor_mixing_ctrl/bias_c"], FM_DEFAULT_BIAS_C);
+    sp = fmActiveSetpoint();
+    band = fmNumOr(dev["floor_mixing_ctrl/band_c"], FM_DEFAULT_BAND_C);
+    bias = fmNumOr(dev["floor_mixing_ctrl/bias_c"], FM_DEFAULT_BIAS_C);
 
-    var effSp = (t < sp) ? (sp + bias) : sp;
+    if (t < sp) {
+      effSp = sp + bias;
+    } else {
+      effSp = sp;
+    }
+
     dev["floor_mixing_ctrl/effective_setpoint"] = fmRound1(effSp);
 
-    var err = effSp - t;
+    err = effSp - t;
 
     if (Math.abs(err) <= band) {
       dev["floor_mixing_ctrl/phase"] = "TRIM";
       dev["floor_mixing_ctrl/status"] =
-        "в deadband; t=" + t.toFixed(1) + " sp=" + effSp.toFixed(1);
+        "в deadband; t=" + t.toFixed(1) + " sp=" + effSp.toFixed(1) + " cmd=" + fmPosCmd.toFixed(1) + "%";
 
       fmLastNonBandTs = 0;
       fmLastTWhenNonBand = null;
@@ -849,20 +929,35 @@ function fmControlStep() {
       fmLastTWhenNonBand = t;
     }
 
-    var phase = fmChoosePhase(Math.abs(err));
+    phase = fmChoosePhase(Math.abs(err));
+
+    if (phase === "FAST" && Math.abs(err) < 1.8) {
+      phase = "TRIM";
+    }
+
     dev["floor_mixing_ctrl/phase"] = phase;
 
-    var holdS = fmNumOr(fmHoldSeconds(phase, fmLastDir), 30);
+    postMoveSettleS = fmNumOr(FM_DEFAULT_POST_MOVE_SETTLE_S, 90);
+    sinceMove = fmLastMoveTs ? (ts - fmLastMoveTs) : 999999;
 
-    if (fmLastMoveTs && (ts - fmLastMoveTs < holdS)) {
+    if (sinceMove < postMoveSettleS) {
       dev["floor_mixing_ctrl/status"] =
-        "пауза " + (holdS - (ts - fmLastMoveTs)) + "с; err=" + err.toFixed(2) + " (" + phase + ")";
+        "выдержка после движения " + (postMoveSettleS - sinceMove) + "с; err=" + err.toFixed(2) + " [" + phase + "]";
       fmWriteValve(fmPosCmd);
       return;
     }
 
-    var dir = (err > 0) ? "hotter" : "colder";
-    var revLockS = fmNumOr(dev["floor_mixing_ctrl/reverse_lock_s"], FM_DEFAULT_REVERSE_LOCK_S);
+    holdS = fmNumOr(fmHoldSeconds(phase, fmLastDir), 30);
+
+    if (fmLastMoveTs && (ts - fmLastMoveTs < holdS)) {
+      dev["floor_mixing_ctrl/status"] =
+        "пауза " + (holdS - (ts - fmLastMoveTs)) + "с; err=" + err.toFixed(2) + " [" + phase + "]";
+      fmWriteValve(fmPosCmd);
+      return;
+    }
+
+    dir = (err > 0) ? "hotter" : "colder";
+    revLockS = fmNumOr(dev["floor_mixing_ctrl/reverse_lock_s"], FM_DEFAULT_REVERSE_LOCK_S);
 
     if (fmLastDir && dir !== fmLastDir && (ts - fmLastMoveTs < revLockS)) {
       dev["floor_mixing_ctrl/status"] =
@@ -871,46 +966,47 @@ function fmControlStep() {
       return;
     }
 
-    var trendOk = fmNumOr(dev["floor_mixing_ctrl/trend_ok_c_per_min"], FM_DEFAULT_TREND_OK);
-    var trendSlow = fmNumOr(dev["floor_mixing_ctrl/trend_slow_c_per_min"], FM_DEFAULT_TREND_SLOW);
+    trendOk = fmNumOr(dev["floor_mixing_ctrl/trend_ok_c_per_min"], FM_DEFAULT_TREND_OK);
+    trendSlow = fmNumOr(dev["floor_mixing_ctrl/trend_slow_c_per_min"], FM_DEFAULT_TREND_SLOW);
 
-    var movingRight = (err > 0 && dT_c_min > 0) || (err < 0 && dT_c_min < 0);
-    var absTrend = Math.abs(dT_c_min);
+    movingRight = (err > 0 && dT_c_min > 0) || (err < 0 && dT_c_min < 0);
+    movingWrong = (err > 0 && dT_c_min < 0) || (err < 0 && dT_c_min > 0);
+    absTrend = Math.abs(dT_c_min);
 
     if (movingRight && absTrend >= trendOk) {
       dev["floor_mixing_ctrl/status"] =
         "тренд достаточный → ждём; err=" + err.toFixed(2) +
-        " dT=" + dT_c_min.toFixed(2) + " (" + phase + ")";
+        " dT=" + dT_c_min.toFixed(2) + " [" + phase + "]";
       fmWriteValve(fmPosCmd);
       return;
     }
 
-    var kCold = fmNumOr(dev["floor_mixing_ctrl/pct_per_c_cold"], FM_DEFAULT_PCT_PER_C_COLD);
-    var kHot  = fmNumOr(dev["floor_mixing_ctrl/pct_per_c_hot"], FM_DEFAULT_PCT_PER_C_HOT);
-    var k = (dir === "hotter") ? kCold : kHot;
+    kCold = fmNumOr(dev["floor_mixing_ctrl/pct_per_c_cold"], FM_DEFAULT_PCT_PER_C_COLD);
+    kHot  = fmNumOr(dev["floor_mixing_ctrl/pct_per_c_hot"], FM_DEFAULT_PCT_PER_C_HOT);
+    k = (dir === "hotter") ? kCold : kHot;
 
-    var lim = fmStepLimits(phase);
-    var minStep = fmNumOr(lim.minStep, 1);
-    var maxStep = fmNumOr(lim.maxStep, 5);
+    lim = fmStepLimits(phase);
+    minStep = fmNumOr(lim.minStep, 1);
+    maxStep = fmNumOr(lim.maxStep, 5);
 
-    var baseStep = Math.abs(err) * k;
+    baseStep = Math.abs(err) * k;
 
     if (movingRight && absTrend > trendSlow && absTrend < trendOk) {
+      baseStep *= 0.45;
+    }
+
+    if (movingWrong && absTrend > trendSlow) {
+      baseStep *= 1.15;
+    }
+
+    if (Math.abs(err) < 1.5) {
       baseStep *= 0.7;
     }
 
-    var movingWrong = (err > 0 && dT_c_min < 0) || (err < 0 && dT_c_min > 0);
-    if (movingWrong && absTrend > trendSlow) {
-      baseStep *= 1.2;
-    }
-
-    var step = fmClamp(baseStep, minStep, maxStep);
-
-    var stgS = fmNumOr(dev["floor_mixing_ctrl/stagnation_s"], FM_DEFAULT_STAGNATION_S);
-
-    if (stgS > 0 && (ts - fmLastNonBandTs >= stgS) && fmLastTWhenNonBand !== null) {
+    stgS = fmNumOr(dev["floor_mixing_ctrl/stagnation_s"], FM_DEFAULT_STAGNATION_S);
+    if (stgS > 0 && fmLastNonBandTs && (ts - fmLastNonBandTs >= stgS) && fmLastTWhenNonBand !== null) {
       if (Math.abs(t - fmLastTWhenNonBand) < 0.1) {
-        step = Math.max(step, minStep);
+        baseStep = Math.max(baseStep, minStep);
         fmLastNonBandTs = ts;
         fmLastTWhenNonBand = t;
       } else {
@@ -919,13 +1015,15 @@ function fmControlStep() {
       }
     }
 
-    var minPos = fmClamp(dev["floor_mixing_ctrl/min_pos"], 0, 100);
-    var maxPos = fmClamp(dev["floor_mixing_ctrl/max_pos"], 0, 100);
+    step = fmClamp(baseStep, minStep, maxStep);
+
+    minPos = fmClamp(dev["floor_mixing_ctrl/min_pos"], 0, 100);
+    maxPos = fmClamp(dev["floor_mixing_ctrl/max_pos"], 0, 100);
     if (maxPos < minPos) maxPos = minPos;
 
-    var delta = (dir === "hotter") ? step : -step;
+    delta = (dir === "hotter") ? step : -step;
 
-    var newCmd = fmPosCmd + delta;
+    newCmd = fmPosCmd + delta;
     newCmd = fmClamp(newCmd, minPos, maxPos);
     newCmd = fmClamp(newCmd, 0, 100);
 
@@ -943,7 +1041,7 @@ function fmControlStep() {
     fmLastMoveTs = ts;
 
     dev["floor_mixing_ctrl/status"] =
-      "шаг " + (dir === "hotter" ? "ГОРЯЧЕЕ" : "ХОЛОДНЕЕ") +
+      "шаг " + (dir === "hotter" ? "ОТКРЫТЬ" : "ЗАКРЫТЬ") +
       " (" + step.toFixed(1) + "%) " +
       "t=" + t.toFixed(1) +
       " sp=" + effSp.toFixed(1) +
@@ -1026,7 +1124,6 @@ defineRule("floor_mixing_setpoint_changed", {
  * 11. РУЧНОЕ УПРАВЛЕНИЕ ФАЗОЙ
  ***************************************************************/
 
-
 defineRule("floor_mixing_phase_auto", {
   whenChanged: "floor_mixing_ctrl/phase_auto",
   then: function () {
@@ -1082,6 +1179,8 @@ defineRule("floor_mixing_pump_watch", {
     var pumpState = fmSyncPumpState();
 
     if (pumpState.turnedOn) {
+      fmFilterBuf = [];
+      fmResetMotionMemory();
       dev["floor_mixing_ctrl/status"] = "насос пола включён: регулирование восстановлено";
       fmRequestImmediateRecalc("насос пола включён");
     }
@@ -1117,6 +1216,7 @@ defineRule("floor_mixing_on_phase_mode_change", {
 defineRule("floor_mixing_on_sensor_offset_change", {
   whenChanged: "floor_mixing_ctrl/sensor_offset",
   then: function () {
+    fmFilterBuf = [];
     fmRequestImmediateRecalc("изменение offset датчика");
   }
 });
@@ -1127,9 +1227,11 @@ defineRule("floor_mixing_on_sensor_offset_change", {
  ***************************************************************/
 
 function fmStartLoop() {
+  var periodS;
+
   if (fmLoopTimer) clearInterval(fmLoopTimer);
 
-  var periodS = fmNumOr(dev["floor_mixing_ctrl/period_s"], FM_DEFAULT_PERIOD_S);
+  periodS = fmNumOr(dev["floor_mixing_ctrl/period_s"], FM_DEFAULT_PERIOD_S);
   if (periodS < 2) periodS = FM_DEFAULT_PERIOD_S;
 
   fmLoopTimer = setInterval(function () {
@@ -1148,7 +1250,7 @@ defineRule("floor_mixing_restart_loop", {
  ***************************************************************/
 
 fmReadOutdoorTemp();
-fmReadCorrectedFloorTemp();
+fmReadCorrectedSupplyTemp();
 
 if (dev["floor_mixing_ctrl/setpoint_mode"] === "weather") {
   fmApplyWeatherSetpoint();
