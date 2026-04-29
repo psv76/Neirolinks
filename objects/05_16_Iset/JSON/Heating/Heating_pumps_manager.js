@@ -6,10 +6,20 @@
  *   - wb-mr6cu_37/K2 (тёплый пол)
  *   - wb-mr6cu_37/K4 (радиаторы жилого этажа)
  *
+ * ВАЖНО
+ * -------------------------------------------------------------
+ * На этом объекте сервоприводы нормально открытые.
+ *
+ * Это значит:
+ *   - 0 на канале сервопривода = контур открыт, тепло идёт
+ *   - 1 на канале сервопривода = контур закрыт
+ *
  * Логика приоритета:
  *   1) Если dhw_priority_mgr/heating_pause_mode = priority_heat или restore,
  *      то оба насоса отопления выключаются.
- *   2) Иначе насосы управляются по сервоприводам коллектора.
+ *   2) Иначе насосы управляются по состоянию сервоприводов:
+ *      - если хотя бы один сервопривод группы = 0, насос нужен
+ *      - если все сервоприводы группы = 1, насос не нужен
  *
  * Совместимость: ES5 / wb-rules.
  ***************************************************************/
@@ -69,12 +79,20 @@ function hpmReadPauseMode() {
   }
 }
 
-function hpmHasOpenedActuator(list) {
+function hpmHasHeatDemandNO(list) {
   var i;
   for (i = 0; i < list.length; i++) {
-    if (hpmReadBool(list[i])) return true;
+    if (!hpmReadBool(list[i])) return true;
   }
   return false;
+}
+
+function hpmAllActuatorsClosedNO(list) {
+  var i;
+  for (i = 0; i < list.length; i++) {
+    if (!hpmReadBool(list[i])) return false;
+  }
+  return true;
 }
 
 function hpmSetStatus(mode, floorNeed, livingNeed, reason) {
@@ -82,6 +100,8 @@ function hpmSetStatus(mode, floorNeed, livingNeed, reason) {
   dev["heating_pumps_mgr/dhw_pause_active"] = (mode === "priority_heat" || mode === "restore");
   dev["heating_pumps_mgr/floor_heat_demand"] = floorNeed;
   dev["heating_pumps_mgr/living_radiators_heat_demand"] = livingNeed;
+  dev["heating_pumps_mgr/floor_all_closed"] = hpmAllActuatorsClosedNO(HPM_FLOOR_ACTUATORS);
+  dev["heating_pumps_mgr/living_radiators_all_closed"] = hpmAllActuatorsClosedNO(HPM_LIVING_RAD_ACTUATORS);
   dev["heating_pumps_mgr/floor_pump_state"] = hpmReadBool(HPM_PUMP_FLOOR);
   dev["heating_pumps_mgr/living_radiators_pump_state"] = hpmReadBool(HPM_PUMP_RAD_LIVING);
   dev["heating_pumps_mgr/status_text"] = reason;
@@ -99,28 +119,80 @@ function hpmApply() {
     return;
   }
 
-  floorNeed = hpmHasOpenedActuator(HPM_FLOOR_ACTUATORS);
-  livingNeed = hpmHasOpenedActuator(HPM_LIVING_RAD_ACTUATORS);
+  floorNeed = hpmHasHeatDemandNO(HPM_FLOOR_ACTUATORS);
+  livingNeed = hpmHasHeatDemandNO(HPM_LIVING_RAD_ACTUATORS);
 
   hpmWriteBoolIfNeeded(HPM_PUMP_FLOOR, floorNeed);
   hpmWriteBoolIfNeeded(HPM_PUMP_RAD_LIVING, livingNeed);
 
-  hpmSetStatus(pauseMode, floorNeed, livingNeed, "Насосы управляются от сервоприводов");
+  hpmSetStatus(pauseMode, floorNeed, livingNeed, "Насосы управляются от нормально открытых сервоприводов");
 }
 
 defineVirtualDevice("heating_pumps_mgr", {
   title: "Насосы отопления: жилой этаж",
   cells: {
-    dhw_pause_mode: { type: "text", value: "no_pause", readonly: true, title: "Режим ГВС (no_pause/priority_heat/restore)" },
-    dhw_pause_active: { type: "switch", value: false, readonly: true, title: "Пауза отопления из-за ГВС" },
+    dhw_pause_mode: {
+      type: "text",
+      value: "no_pause",
+      readonly: true,
+      title: "Режим ГВС (no_pause/priority_heat/restore)"
+    },
 
-    floor_heat_demand: { type: "switch", value: false, readonly: true, title: "Запрос ТП по сервоприводам K12..K16" },
-    living_radiators_heat_demand: { type: "switch", value: false, readonly: true, title: "Запрос радиаторов по сервоприводам K1..K11" },
+    dhw_pause_active: {
+      type: "switch",
+      value: false,
+      readonly: true,
+      title: "Пауза отопления из-за ГВС"
+    },
 
-    floor_pump_state: { type: "switch", value: false, readonly: true, title: "Состояние насоса тёплого пола K2" },
-    living_radiators_pump_state: { type: "switch", value: false, readonly: true, title: "Состояние насоса радиаторов K4" },
+    floor_heat_demand: {
+      type: "switch",
+      value: false,
+      readonly: true,
+      title: "Запрос ТП (хотя бы один NO-сервопривод открыт)"
+    },
 
-    status_text: { type: "text", value: "", readonly: true, title: "Статус" }
+    living_radiators_heat_demand: {
+      type: "switch",
+      value: false,
+      readonly: true,
+      title: "Запрос радиаторов (хотя бы один NO-сервопривод открыт)"
+    },
+
+    floor_all_closed: {
+      type: "switch",
+      value: false,
+      readonly: true,
+      title: "Все сервоприводы ТП закрыты"
+    },
+
+    living_radiators_all_closed: {
+      type: "switch",
+      value: false,
+      readonly: true,
+      title: "Все сервоприводы радиаторов закрыты"
+    },
+
+    floor_pump_state: {
+      type: "switch",
+      value: false,
+      readonly: true,
+      title: "Состояние насоса тёплого пола K2"
+    },
+
+    living_radiators_pump_state: {
+      type: "switch",
+      value: false,
+      readonly: true,
+      title: "Состояние насоса радиаторов K4"
+    },
+
+    status_text: {
+      type: "text",
+      value: "",
+      readonly: true,
+      title: "Статус"
+    }
   }
 });
 
