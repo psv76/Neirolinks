@@ -46,6 +46,7 @@
 
 var FM_TEMP_SUPPLY  = "wb-w1/28-00000ff8a3d5";
 var FM_TEMP_OUTDOOR = "wb-w1/28-00000fd6a9ad";
+var FM_TEMP_SOURCE  = "wb-w1/28-00000ff8446c"; // подача от котла / после гидрострелки
 var FM_PUMP_FLOOR   = "wb-mr6cu_37/K2";
 var FM_VALVE_ENABLE = "wb-mao4_131/Channel 1 Switch";
 var FM_VALVE_POS    = "wb-mao4_131/Channel 1 Dimming Level";
@@ -92,6 +93,21 @@ var FM_DEFAULT_HARD_MAX_C = 45;
 var FM_DEFAULT_PERIOD_S = 15;
 var FM_DEFAULT_WRITE_EPS_PCT = 0.5;
 var FM_DEFAULT_ENABLE_RETRY_S = 60;
+
+var FM_DEFAULT_SUPPLY_VALID_MIN_C = 10;
+var FM_DEFAULT_SUPPLY_VALID_MAX_C = 60;
+var FM_DEFAULT_SENSOR_BAD_LIMIT = 3;
+
+var FM_DEFAULT_SOURCE_GUARD_ENABLED = true;
+var FM_DEFAULT_SOURCE_MARGIN_C = 2.0;
+var FM_DEFAULT_SOURCE_VALID_MIN_C = 5;
+var FM_DEFAULT_SOURCE_VALID_MAX_C = 95;
+
+var FM_DEFAULT_STARTUP_CAP_ENABLED = true;
+var FM_DEFAULT_STARTUP_DURATION_S = 40 * 60;
+var FM_DEFAULT_STARTUP_MAX_POS = 45;
+
+var FM_DEFAULT_SAFE_CLOSE_ON_DISABLE = true;
 
 
 /***************************************************************
@@ -188,6 +204,13 @@ defineVirtualDevice("floor_mixing_ctrl", {
 
     t_outdoor: {
       title: "Уличная температура, °C",
+      type: "value",
+      value: 0,
+      readonly: true
+    },
+
+    t_source: {
+      title: "Источник тепла / подача от котла, °C",
       type: "value",
       value: 0,
       readonly: true
@@ -416,6 +439,100 @@ defineVirtualDevice("floor_mixing_ctrl", {
       value: FM_DEFAULT_HARD_MAX_C
     },
 
+    safe_close_on_disable: {
+      title: "При отключении закрывать клапан",
+      type: "switch",
+      value: FM_DEFAULT_SAFE_CLOSE_ON_DISABLE
+    },
+
+    supply_valid_min_c: {
+      title: "Датчик подачи: мин. достоверная, °C",
+      type: "value",
+      value: FM_DEFAULT_SUPPLY_VALID_MIN_C
+    },
+
+    supply_valid_max_c: {
+      title: "Датчик подачи: макс. достоверная, °C",
+      type: "value",
+      value: FM_DEFAULT_SUPPLY_VALID_MAX_C
+    },
+
+    sensor_bad_limit: {
+      title: "Датчик подачи: плохих замеров до аварии",
+      type: "range",
+      value: FM_DEFAULT_SENSOR_BAD_LIMIT,
+      min: 1,
+      max: 10,
+      step: 1
+    },
+
+    source_guard_enabled: {
+      title: "Контроль горячего источника",
+      type: "switch",
+      value: FM_DEFAULT_SOURCE_GUARD_ENABLED
+    },
+
+    source_margin_c: {
+      title: "Запас источника над уставкой, °C",
+      type: "range",
+      value: FM_DEFAULT_SOURCE_MARGIN_C,
+      min: 0,
+      max: 15,
+      step: 0.5
+    },
+
+    source_guard_active: {
+      title: "Открытие заблокировано: нет горячего источника",
+      type: "switch",
+      value: false,
+      readonly: true
+    },
+
+    startup_cap_enabled: {
+      title: "Ограничение открытия после старта насоса",
+      type: "switch",
+      value: FM_DEFAULT_STARTUP_CAP_ENABLED
+    },
+
+    startup_duration_s: {
+      title: "Длительность стартового ограничения, с",
+      type: "range",
+      value: FM_DEFAULT_STARTUP_DURATION_S,
+      min: 0,
+      max: 7200,
+      step: 60
+    },
+
+    startup_max_pos: {
+      title: "Макс. клапан на старте, %",
+      type: "range",
+      value: FM_DEFAULT_STARTUP_MAX_POS,
+      min: 0,
+      max: 100,
+      step: 1
+    },
+
+    startup_remaining_s: {
+      title: "Осталось стартового ограничения, с",
+      type: "value",
+      value: 0,
+      readonly: true
+    },
+
+    sensor_fault: {
+      title: "Авария/сбой датчика подачи",
+      type: "switch",
+      value: false,
+      readonly: true
+    },
+
+    bad_sensor_count: {
+      title: "Плохих замеров датчика подачи подряд",
+      type: "value",
+      value: 0,
+      readonly: true
+    },
+
     phase_mode: {
       title: "Фаза: авто/ручная",
       type: "enum",
@@ -485,6 +602,25 @@ defineVirtualDevice("floor_mixing_ctrl", {
       type: "pushbutton"
     },
 
+    resume_auto: {
+      title: "ПРОДОЛЖИТЬ АВТО",
+      type: "pushbutton"
+    },
+
+    alarm_active: {
+      title: "Авария регулятора",
+      type: "switch",
+      value: false,
+      readonly: true
+    },
+
+    alarm_text: {
+      title: "Текст аварии",
+      type: "text",
+      value: "",
+      readonly: true
+    },
+
     status: {
       title: "Статус",
       type: "text",
@@ -516,6 +652,9 @@ var fmImmediateTimer = null;
 var fmLastValveWritePct = null;
 var fmLastValveEnableWriteTs = 0;
 var fmFilterBuf = [];
+var fmBadSupplyReadCount = 0;
+var fmLastGoodSupplyT = null;
+var fmPumpOnTs = 0;
 
 
 /***************************************************************
@@ -530,20 +669,10 @@ function fmSetSetpointStatus(mode) {
   }
 }
 
-function fmWriteValve(pct) {
-  var minPos = fmClamp(dev["floor_mixing_ctrl/min_pos"], 0, 100);
-  var maxPos = fmClamp(dev["floor_mixing_ctrl/max_pos"], 0, 100);
-  var p;
-  var aoNow;
-  var eps;
-
-  if (maxPos < minPos) maxPos = minPos;
-
-  p = fmClamp(pct, minPos, maxPos);
-  p = fmClamp(p, 0, 100);
-
-  aoNow = fmReadNum(FM_VALVE_POS);
-  eps = fmNumOr(FM_DEFAULT_WRITE_EPS_PCT, 0.5);
+function fmWriteValveRaw(pct) {
+  var p = fmClamp(pct, 0, 100);
+  var aoNow = fmReadNum(FM_VALVE_POS);
+  var eps = fmNumOr(FM_DEFAULT_WRITE_EPS_PCT, 0.5);
 
   if (aoNow === null || Math.abs(aoNow - p) >= eps) {
     dev[FM_VALVE_POS] = p;
@@ -551,6 +680,31 @@ function fmWriteValve(pct) {
   }
 
   dev["floor_mixing_ctrl/valve_position"] = p;
+}
+
+function fmWriteValve(pct) {
+  var minPos = fmClamp(dev["floor_mixing_ctrl/min_pos"], 0, 100);
+  var maxPos = fmClamp(dev["floor_mixing_ctrl/max_pos"], 0, 100);
+  var p;
+
+  if (maxPos < minPos) maxPos = minPos;
+
+  p = fmClamp(pct, minPos, maxPos);
+  p = fmClamp(p, 0, 100);
+
+  fmWriteValveRaw(p);
+}
+
+function fmSetAlarm(active, text) {
+  dev["floor_mixing_ctrl/alarm_active"] = !!active;
+  dev["floor_mixing_ctrl/alarm_text"] = active ? String(text || "Авария регулятора подмеса") : "";
+}
+
+function fmCloseValveSafe(reason) {
+  fmPosCmd = 0;
+  fmWriteValveRaw(0);
+  fmResetMotionMemory();
+  if (reason) dev["floor_mixing_ctrl/status"] = reason;
 }
 
 function fmEnsureValveEnabled() {
@@ -587,26 +741,86 @@ function fmFilter3(v) {
 function fmReadCorrectedSupplyTemp() {
   var raw = fmReadNum(FM_TEMP_SUPPLY);
   var offset = fmReadNum("floor_mixing_ctrl/sensor_offset");
+  var minValid = fmNumOr(dev["floor_mixing_ctrl/supply_valid_min_c"], FM_DEFAULT_SUPPLY_VALID_MIN_C);
+  var maxValid = fmNumOr(dev["floor_mixing_ctrl/supply_valid_max_c"], FM_DEFAULT_SUPPLY_VALID_MAX_C);
+  var badLimit = Math.round(fmClamp(dev["floor_mixing_ctrl/sensor_bad_limit"], 1, 10));
   var corr;
   var filt;
+  var reason;
+
+  if (maxValid < minValid) maxValid = minValid;
 
   if (raw === null) {
-    dev["floor_mixing_ctrl/t_floor_raw"] = 0;
-    dev["floor_mixing_ctrl/t_floor_corr"] = 0;
+    reason = "нет данных датчика подачи";
+  } else {
+    dev["floor_mixing_ctrl/t_floor_raw"] = fmRound1(raw);
+    if (raw < minValid || raw > maxValid) {
+      reason = "недостоверная температура подачи " + raw.toFixed(1) + "°C";
+    }
+  }
+
+  if (reason) {
+    fmBadSupplyReadCount += 1;
+    dev["floor_mixing_ctrl/sensor_fault"] = true;
+    dev["floor_mixing_ctrl/bad_sensor_count"] = fmBadSupplyReadCount;
+
+    if (fmBadSupplyReadCount >= badLimit) {
+      fmSetAlarm(true, reason + " (" + fmBadSupplyReadCount + " подряд)");
+      return null;
+    }
+
+    if (fmLastGoodSupplyT !== null) {
+      dev["floor_mixing_ctrl/t_floor_corr"] = fmRound1(fmLastGoodSupplyT);
+      return fmLastGoodSupplyT;
+    }
+
     return null;
   }
 
   if (offset === null) offset = FM_DEFAULT_SENSOR_OFFSET;
 
-  dev["floor_mixing_ctrl/t_floor_raw"] = fmRound1(raw);
-
   corr = raw + offset;
-  filt = fmFilter3(corr);
+  if (corr < minValid || corr > maxValid) {
+    fmBadSupplyReadCount += 1;
+    dev["floor_mixing_ctrl/sensor_fault"] = true;
+    dev["floor_mixing_ctrl/bad_sensor_count"] = fmBadSupplyReadCount;
 
+    if (fmBadSupplyReadCount >= badLimit) {
+      fmSetAlarm(true, "недостоверная скорректированная подача " + corr.toFixed(1) + "°C");
+      return null;
+    }
+
+    if (fmLastGoodSupplyT !== null) {
+      return fmLastGoodSupplyT;
+    }
+
+    return null;
+  }
+
+  filt = fmFilter3(corr);
   if (filt === null) return null;
 
+  fmBadSupplyReadCount = 0;
+  fmLastGoodSupplyT = filt;
+  dev["floor_mixing_ctrl/sensor_fault"] = false;
+  dev["floor_mixing_ctrl/bad_sensor_count"] = 0;
   dev["floor_mixing_ctrl/t_floor_corr"] = fmRound1(filt);
+
   return filt;
+}
+
+function fmReadSourceTemp() {
+  var t = fmReadNum(FM_TEMP_SOURCE);
+  var minValid = FM_DEFAULT_SOURCE_VALID_MIN_C;
+  var maxValid = FM_DEFAULT_SOURCE_VALID_MAX_C;
+
+  if (t === null || t < minValid || t > maxValid) {
+    dev["floor_mixing_ctrl/t_source"] = 0;
+    return null;
+  }
+
+  dev["floor_mixing_ctrl/t_source"] = fmRound1(t);
+  return t;
 }
 
 function fmReadOutdoorTemp() {
@@ -678,6 +892,54 @@ function fmActiveSetpoint() {
   }
 
   return fmApplyWeatherSetpoint();
+}
+
+function fmEffectiveMaxPos(baseMaxPos, ts) {
+  var enabled = fmReadBool("floor_mixing_ctrl/startup_cap_enabled");
+  var durationS = fmClamp(dev["floor_mixing_ctrl/startup_duration_s"], 0, 7200);
+  var startupMax = fmClamp(dev["floor_mixing_ctrl/startup_max_pos"], 0, 100);
+  var elapsed;
+  var remaining = 0;
+
+  if (enabled && fmPumpOnTs > 0 && durationS > 0) {
+    elapsed = ts - fmPumpOnTs;
+    if (elapsed < durationS) {
+      remaining = Math.max(0, Math.round(durationS - elapsed));
+      if (startupMax < baseMaxPos) baseMaxPos = startupMax;
+    }
+  }
+
+  dev["floor_mixing_ctrl/startup_remaining_s"] = remaining;
+  return baseMaxPos;
+}
+
+function fmSourceGuardBlocksOpening(effSp) {
+  var guardEnabled = fmReadBool("floor_mixing_ctrl/source_guard_enabled");
+  var source;
+  var margin;
+  var required;
+
+  if (!guardEnabled) {
+    dev["floor_mixing_ctrl/source_guard_active"] = false;
+    return false;
+  }
+
+  source = fmReadSourceTemp();
+  margin = fmClamp(dev["floor_mixing_ctrl/source_margin_c"], 0, 15);
+  required = effSp + margin;
+
+  if (source === null) {
+    dev["floor_mixing_ctrl/source_guard_active"] = true;
+    return true;
+  }
+
+  if (source < required) {
+    dev["floor_mixing_ctrl/source_guard_active"] = true;
+    return true;
+  }
+
+  dev["floor_mixing_ctrl/source_guard_active"] = false;
+  return false;
 }
 
 function fmCurrentPhaseAuto(errAbs) {
@@ -762,11 +1024,17 @@ function fmSyncPumpState() {
   if (fmPumpWasOn === null) {
     fmPumpWasOn = pumpOn;
 
-    if (!pumpOn) {
-      fmPosCmd = 0;
-      fmWriteValve(0);
+    if (pumpOn) {
+      /*
+       * При старте wb-rules насос уже может быть включён давно.
+       * Не считаем это новым пуском, иначе стартовое ограничение
+       * откроется после каждого рестарта правил.
+       */
+      fmPumpOnTs = 0;
+    } else {
+      fmPumpOnTs = 0;
       fmFilterBuf = [];
-      dev["floor_mixing_ctrl/status"] = "насос пола выключен: клапан закрыт 0%";
+      fmCloseValveSafe("насос пола выключен: клапан закрыт 0%");
     }
 
     return {
@@ -778,14 +1046,14 @@ function fmSyncPumpState() {
 
   if (!fmPumpWasOn && pumpOn) {
     turnedOn = true;
+    fmPumpOnTs = fmNowSec();
   }
 
   if (fmPumpWasOn && !pumpOn) {
     turnedOff = true;
-    fmPosCmd = 0;
-    fmWriteValve(0);
+    fmPumpOnTs = 0;
     fmFilterBuf = [];
-    dev["floor_mixing_ctrl/status"] = "насос пола выключен: клапан закрыт 0%";
+    fmCloseValveSafe("насос пола выключен: клапан закрыт 0%");
   }
 
   fmPumpWasOn = pumpOn;
@@ -838,6 +1106,9 @@ function fmControlStep() {
   var postMoveSettleS;
   var sinceMove;
   var dt;
+  var source;
+  var sourceMargin;
+  var sourceRequired;
 
   if (fmInControlStep) return;
   fmInControlStep = true;
@@ -846,11 +1117,22 @@ function fmControlStep() {
     pumpState = fmSyncPumpState();
 
     if (!dev["floor_mixing_ctrl/enabled"]) {
+      dev["floor_mixing_ctrl/source_guard_active"] = false;
+      dev["floor_mixing_ctrl/startup_remaining_s"] = 0;
+
+      if (fmReadBool("floor_mixing_ctrl/safe_close_on_disable")) {
+        fmCloseValveSafe("регулятор отключён: клапан закрыт 0%");
+      } else {
+        dev["floor_mixing_ctrl/status"] = "регулятор отключён: выход не изменяется";
+      }
+
       return;
     }
 
     if (!pumpState.pumpOn) {
       dev["floor_mixing_ctrl/pump_on"] = false;
+      dev["floor_mixing_ctrl/source_guard_active"] = false;
+      dev["floor_mixing_ctrl/startup_remaining_s"] = 0;
       dev["floor_mixing_ctrl/status"] = "насос пола выключен: клапан закрыт 0%";
       return;
     }
@@ -859,11 +1141,27 @@ function fmControlStep() {
 
     t = fmReadCorrectedSupplyTemp();
     if (t === null) {
-      dev["floor_mixing_ctrl/status"] = "нет данных датчика подачи";
+      dev["floor_mixing_ctrl/source_guard_active"] = false;
+
+      if (fmReadBool("floor_mixing_ctrl/alarm_active")) {
+        fmCloseValveSafe("авария датчика подачи: клапан закрыт 0%");
+      } else {
+        dev["floor_mixing_ctrl/status"] =
+          "нет достоверной температуры подачи: держим клапан " + fmPosCmd.toFixed(1) + "%";
+        fmWriteValve(fmPosCmd);
+      }
+      return;
+    }
+
+    if (fmReadBool("floor_mixing_ctrl/sensor_fault")) {
+      dev["floor_mixing_ctrl/status"] =
+        "плохой замер датчика подачи: держим клапан " + fmPosCmd.toFixed(1) + "%";
+      fmWriteValve(fmPosCmd);
       return;
     }
 
     fmReadOutdoorTemp();
+    fmReadSourceTemp();
 
     if (fmFrozen) {
       var holdPos = fmClamp(dev["floor_mixing_ctrl/manual_valve"], 0, 100);
@@ -877,12 +1175,12 @@ function fmControlStep() {
 
     hardMax = fmNumOr(dev["floor_mixing_ctrl/hard_max_c"], FM_DEFAULT_HARD_MAX_C);
     if (t >= hardMax) {
-      fmPosCmd = 0;
-      fmWriteValve(0);
-      dev["floor_mixing_ctrl/status"] =
-        "защита: подача " + t.toFixed(1) + "°C >= " + hardMax.toFixed(1) + "°C, клапан закрыт";
+      fmSetAlarm(true, "превышен жёсткий максимум подачи: " + t.toFixed(1) + "°C");
+      fmCloseValveSafe("защита: подача " + t.toFixed(1) + "°C >= " + hardMax.toFixed(1) + "°C, клапан закрыт");
       return;
     }
+
+    fmSetAlarm(false, "");
 
     ts = fmNowSec();
 
@@ -911,6 +1209,21 @@ function fmControlStep() {
     dev["floor_mixing_ctrl/effective_setpoint"] = fmRound1(effSp);
 
     err = effSp - t;
+    dev["floor_mixing_ctrl/source_guard_active"] = false;
+
+    minPos = fmClamp(dev["floor_mixing_ctrl/min_pos"], 0, 100);
+    maxPos = fmClamp(dev["floor_mixing_ctrl/max_pos"], 0, 100);
+    if (maxPos < minPos) maxPos = minPos;
+    maxPos = fmEffectiveMaxPos(maxPos, ts);
+    if (maxPos < minPos) maxPos = minPos;
+
+    if (fmPosCmd > maxPos) {
+      fmPosCmd = maxPos;
+      fmWriteValve(fmPosCmd);
+      dev["floor_mixing_ctrl/status"] =
+        "ограничение открытия: cmd снижен до " + fmPosCmd.toFixed(1) + "%";
+      return;
+    }
 
     if (Math.abs(err) <= band) {
       dev["floor_mixing_ctrl/phase"] = "TRIM";
@@ -957,6 +1270,21 @@ function fmControlStep() {
     }
 
     dir = (err > 0) ? "hotter" : "colder";
+
+    if (dir === "hotter" && fmSourceGuardBlocksOpening(effSp)) {
+      source = fmReadSourceTemp();
+      sourceMargin = fmClamp(dev["floor_mixing_ctrl/source_margin_c"], 0, 15);
+      sourceRequired = effSp + sourceMargin;
+
+      dev["floor_mixing_ctrl/status"] =
+        "нет горячего источника: клапан не открываем; source=" +
+        (source === null ? "нет данных" : source.toFixed(1) + "°C") +
+        " нужно>=" + sourceRequired.toFixed(1) + "°C" +
+        " err=" + err.toFixed(2);
+      fmWriteValve(fmPosCmd);
+      return;
+    }
+
     revLockS = fmNumOr(dev["floor_mixing_ctrl/reverse_lock_s"], FM_DEFAULT_REVERSE_LOCK_S);
 
     if (fmLastDir && dir !== fmLastDir && (ts - fmLastMoveTs < revLockS)) {
@@ -1017,10 +1345,6 @@ function fmControlStep() {
 
     step = fmClamp(baseStep, minStep, maxStep);
 
-    minPos = fmClamp(dev["floor_mixing_ctrl/min_pos"], 0, 100);
-    maxPos = fmClamp(dev["floor_mixing_ctrl/max_pos"], 0, 100);
-    if (maxPos < minPos) maxPos = minPos;
-
     delta = (dir === "hotter") ? step : -step;
 
     newCmd = fmPosCmd + delta;
@@ -1071,6 +1395,22 @@ defineRule("floor_mixing_stop_now", {
   then: function () {
     fmFrozen = true;
     dev["floor_mixing_ctrl/status"] = "СТОП: выход заморожен";
+  }
+});
+
+defineRule("floor_mixing_resume_auto", {
+  whenChanged: "floor_mixing_ctrl/resume_auto",
+  then: function () {
+    fmFrozen = false;
+    fmResetMotionMemory();
+    fmFilterBuf = [];
+    fmBadSupplyReadCount = 0;
+    fmSetAlarm(false, "");
+    dev["floor_mixing_ctrl/sensor_fault"] = false;
+    dev["floor_mixing_ctrl/bad_sensor_count"] = 0;
+    dev["floor_mixing_ctrl/source_guard_active"] = false;
+    dev["floor_mixing_ctrl/status"] = "автоматическое регулирование продолжено";
+    fmRequestImmediateRecalc("продолжить авто");
   }
 });
 
@@ -1180,6 +1520,10 @@ defineRule("floor_mixing_pump_watch", {
 
     if (pumpState.turnedOn) {
       fmFilterBuf = [];
+      fmBadSupplyReadCount = 0;
+      fmSetAlarm(false, "");
+      dev["floor_mixing_ctrl/sensor_fault"] = false;
+      dev["floor_mixing_ctrl/bad_sensor_count"] = 0;
       fmResetMotionMemory();
       dev["floor_mixing_ctrl/status"] = "насос пола включён: регулирование восстановлено";
       fmRequestImmediateRecalc("насос пола включён");
@@ -1201,7 +1545,17 @@ defineRule("floor_mixing_on_enabled_change", {
   then: function () {
     if (dev["floor_mixing_ctrl/enabled"]) {
       fmFrozen = false;
+      fmSetAlarm(false, "");
+      dev["floor_mixing_ctrl/source_guard_active"] = false;
       fmRequestImmediateRecalc("включено");
+    } else {
+      dev["floor_mixing_ctrl/source_guard_active"] = false;
+      dev["floor_mixing_ctrl/startup_remaining_s"] = 0;
+      if (fmReadBool("floor_mixing_ctrl/safe_close_on_disable")) {
+        fmCloseValveSafe("регулятор отключён: клапан закрыт 0%");
+      } else {
+        dev["floor_mixing_ctrl/status"] = "регулятор отключён: выход не изменяется";
+      }
     }
   }
 });
@@ -1250,6 +1604,7 @@ defineRule("floor_mixing_restart_loop", {
  ***************************************************************/
 
 fmReadOutdoorTemp();
+fmReadSourceTemp();
 fmReadCorrectedSupplyTemp();
 
 if (dev["floor_mixing_ctrl/setpoint_mode"] === "weather") {
