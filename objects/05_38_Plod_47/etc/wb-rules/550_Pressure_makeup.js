@@ -246,6 +246,17 @@ function stopCycle(reason)
     STATE.cycleStartPressureBar = null;
 }
 
+function rejectPulse(reason, stopActiveCycle)
+{
+    if (stopActiveCycle)
+    {
+        stopCycle(reason);
+        return;
+    }
+
+    setEvent(reason);
+}
+
 function resetAllAlarmsAndCycle()
 {
     stopCycle("Сброс аварийного состояния");
@@ -352,35 +363,66 @@ function checkPressureRise(settings, pressureState)
     }
 }
 
+function canStartPulse(settings, pressureState, manualMode)
+{
+    if (!manualMode && !settings.enabled)
+        return "Импульс отклонен: подпитка отключена";
+
+    if (!manualMode && !settings.autoMode)
+        return "Импульс отклонен: автоматический режим отключен";
+
+    if (STATE.watchdogAlarm)
+        return "Импульс отклонен: активна авария watchdog";
+
+    if (settings.minRiseBar > 0 && STATE.noRiseAlarm)
+        return "Импульс отклонен: активна авария отсутствия роста давления";
+
+    if (STATE.makeupFailedAlarm || STATE.pulseCount >= settings.maxPulses)
+        return "Импульс отклонен: превышено количество импульсов";
+
+    if (STATE.heatCurrentAlarm || STATE.coldCurrentAlarm)
+        return "Импульс отклонен: ток датчика давления ниже порога";
+
+    if (STATE.heatPressureSensorAlarm || STATE.coldPressureSensorAlarm)
+        return "Импульс отклонен: ошибка значения давления";
+
+    if (STATE.coldPressureAlarm)
+        return "Импульс отклонен: давление ХВС недостаточно";
+
+    if (STATE.valveOpening || STATE.waitingPause || readBool(dev[CH.valveMakeup]))
+        return "Импульс отклонен: клапан уже открыт или цикл ещё не завершён";
+
+    if (pressureState.heatPressureBar !== null && pressureState.heatPressureBar >= settings.pressureTargetBar)
+        return "Импульс отклонен: уже достигнуто целевое давление";
+
+    return "";
+}
+
 function openPulse(settings, manualMode)
 {
     var pressureState = readPressureState();
+    var rejectReason = "";
+    var stopActiveCycle = false;
 
     updateSafetyAlarms(settings, pressureState);
 
-    if (STATE.heatCurrentAlarm || STATE.coldCurrentAlarm)
+    rejectReason = canStartPulse(settings, pressureState, manualMode);
+    if (rejectReason)
     {
-        stopCycle("Импульс отклонен: ток датчика давления ниже порога");
+        stopActiveCycle = STATE.watchdogAlarm ||
+            (settings.minRiseBar > 0 && STATE.noRiseAlarm) ||
+            STATE.makeupFailedAlarm ||
+            STATE.pulseCount >= settings.maxPulses ||
+            STATE.heatCurrentAlarm ||
+            STATE.coldCurrentAlarm ||
+            STATE.heatPressureSensorAlarm ||
+            STATE.coldPressureSensorAlarm ||
+            STATE.coldPressureAlarm;
+
+        rejectPulse(rejectReason, stopActiveCycle);
         updateVirtualState(pressureState);
         return;
     }
-
-    if (STATE.heatPressureSensorAlarm || STATE.coldPressureSensorAlarm)
-    {
-        stopCycle("Импульс отклонен: ошибка значения давления");
-        updateVirtualState(pressureState);
-        return;
-    }
-
-    if (STATE.coldPressureAlarm)
-    {
-        stopCycle("Импульс отклонен: давление ХВС недостаточно");
-        updateVirtualState(pressureState);
-        return;
-    }
-
-    if (STATE.valveOpening || STATE.waitingPause || readBool(dev[CH.valveMakeup]))
-        return;
 
     STATE.active = true;
     STATE.valveOpening = true;
