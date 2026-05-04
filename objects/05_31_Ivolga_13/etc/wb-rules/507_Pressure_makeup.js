@@ -218,10 +218,10 @@ function evaluate()
     var pressureRaw = readNumber(CH.pressureBar, null);
     var pressureBar = filterPressure(pressureRaw);
 
-    if (currentMa !== null && currentMa < settings.currentBreakMa)
+    if (currentMa === null || currentMa < settings.currentBreakMa)
     {
         STATE.sensorAlarm = true;
-        stopCycle("Ошибка датчика: ток ниже порога");
+        stopCycle("Ошибка датчика: ток ниже порога или отсутствует");
     }
 
     if (pressureBar !== null && pressureBar < settings.pressureAlarmBar)
@@ -236,46 +236,41 @@ function evaluate()
     }
     else if (!STATE.sensorAlarm)
     {
-        if (STATE.valveOpening || STATE.waitingPause)
-        {
-            if (pressureBar !== null && pressureBar >= settings.pressureTargetBar)
-            {
-                stopCycle("Успешное завершение: достигнуто целевое давление");
-                STATE.pulseCount = 0;
-                STATE.makeupFailedAlarm = false;
-            }
-        }
-        else if (pressureBar !== null && pressureBar >= settings.pressureTargetBar)
+        if (pressureBar !== null && pressureBar >= settings.pressureTargetBar)
         {
             if (STATE.active)
-                stopCycle("Успешное завершение");
+                stopCycle("Успешное завершение: достигнуто целевое давление");
 
             STATE.active = false;
             STATE.pulseCount = 0;
             STATE.makeupFailedAlarm = false;
         }
-        else if (pressureBar !== null && pressureBar < settings.pressureMinBar)
+        else if (!STATE.valveOpening && !STATE.waitingPause)
         {
-            if (!STATE.active)
+            if (!STATE.active && pressureBar !== null && pressureBar < settings.pressureMinBar)
             {
+                STATE.active = true;
                 STATE.pulseCount = 0;
                 setEvent("Старт цикла подпитки");
             }
 
-            if (STATE.pulseCount >= settings.maxPulses)
+            if (STATE.active)
             {
-                STATE.makeupFailedAlarm = true;
-                stopCycle("Неуспешное завершение: превышено количество импульсов");
-                sendAlertIfAllowed(
-                    settings,
-                    "Подпитка не дала результата",
-                    "Превышено допустимое количество импульсов.",
-                    "Проверьте наличие воды и клапан подпитки."
-                );
-            }
-            else
-            {
-                openPulse(settings, false);
+                if (STATE.pulseCount >= settings.maxPulses)
+                {
+                    STATE.makeupFailedAlarm = true;
+                    stopCycle("Неуспешное завершение: превышено количество импульсов");
+                    sendAlertIfAllowed(
+                        settings,
+                        "Подпитка не дала результата",
+                        "Превышено допустимое количество импульсов.",
+                        "Проверьте наличие воды и клапан подпитки."
+                    );
+                }
+                else if (pressureBar !== null && pressureBar < settings.pressureTargetBar)
+                {
+                    openPulse(settings, false);
+                }
             }
         }
     }
