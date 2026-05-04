@@ -6,10 +6,10 @@ function setCell(cell, value)
         dev["notification_service/" + cell] = value;
 }
 
-function setStatus(eventText, statusText)
+function setSendResult(eventName, success, details)
 {
-    setCell("last_event", eventText);
-    setCell("status_text", statusText);
+    setCell("last_event", eventName + ": " + details);
+    setCell("status_text", success ? "Отправка выполнена" : "Ошибка отправки");
 }
 
 defineVirtualDevice("notification_service", {
@@ -25,20 +25,38 @@ defineVirtualDevice("notification_service", {
 defineRule("notification_service_test_sms_me", {
     whenChanged: "notification_service/test_sms_me",
     then: function (newValue) {
+        var message;
+        var success;
+
         if (!newValue)
             return;
-        var msg = System.buildMessage({ buildingName: "Котельная", eventText: "ИНФО: Тест сервиса уведомлений", detailsText: "Отправка только на сервисный номер." });
-        Notify.sendSMS("+79193691755", msg);
-        setStatus("test_sms_me", "Отправлен тест на сервисный номер");
+
+        message = System.buildMessage({
+            buildingName: "Котельная",
+            eventText: "ИНФО: Тест сервиса уведомлений",
+            detailsText: "Отправка только на сервисный номер."
+        });
+
+        success = System.sendSMSToPhone("+79193691755", message);
+        setSendResult("test_sms_me", success, "Номер: +79193691755");
     }
 });
 
 defineRule("notification_service_test_sms_all", {
     whenChanged: "notification_service/test_sms_all",
     then: function (newValue) {
+        var sent;
+
         if (!newValue)
             return;
-        System.sendInfo("Котельная", "Тест сервиса уведомлений", "Отправка на все номера из списка.", "");
-        setStatus("test_sms_all", "Отправлен тест на все номера");
+
+        sent = System.sendInfo(
+            "Котельная",
+            "Тест сервиса уведомлений",
+            "Отправка на все номера из списка.",
+            ""
+        );
+
+        setSendResult("test_sms_all", sent > 0, "Отправлено: " + sent);
     }
 });

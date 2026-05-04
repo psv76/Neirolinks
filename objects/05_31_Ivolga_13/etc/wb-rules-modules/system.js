@@ -151,6 +151,7 @@ exports.safeLog = safeLog;
 exports.normalizeText = normalizeText;
 exports.trimText = trimText;
 exports.buildMessage = buildMessage;
+exports.sendSMSToPhone = sendSMSToPhone;
 exports.sendSMS = sendSMS;
 exports.sendMessage = sendMessage;
 exports.sendAlert = sendAlert;
