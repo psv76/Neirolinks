@@ -14,9 +14,9 @@ try {
 
 var CH = {
     valveMakeup: "wb-mr6cu_219/K5",                       // 550 Клапан подпитки отопления
-    heatPressureBar: "wb-mai2-mini_210/input_1_value",     // Давление в системе отопления, бар
+    heatPressureBar: "wb-mai2-mini_210/input_1_value",     // Давление отопления, бар × 1000
     heatPressureCurrent: "wb-mai2-mini_210/input_1_current", // Ток датчика давления отопления, мА
-    coldPressureBar: "wb-mai2-mini_210/input_2_value",     // Давление в системе ХВС, бар
+    coldPressureBar: "wb-mai2-mini_210/input_2_value",     // Давление ХВС, бар × 1000
     coldPressureCurrent: "wb-mai2-mini_210/input_2_current", // Ток датчика давления ХВС, мА
     secBlock: null                                         // Если есть power_monitor, можно указать канал блокировки уведомлений
 };
@@ -38,7 +38,7 @@ var CFG = {
 
     filterSize: 3,
     pressureClampMinBar: 0,
-    pressureClampMaxBar: 10,
+    pressureClampMaxBar: 6,
 
     minRiseBar: 0              // 0 = контроль роста давления отключен
 };
@@ -157,6 +157,14 @@ function filterValue(rawValue, buffer)
     );
 }
 
+function round2(value)
+{
+    if (value === null)
+        return null;
+
+    return Math.round(value * 100) / 100;
+}
+
 function getSettings()
 {
     return {
@@ -187,14 +195,16 @@ function readPressureState()
 {
     var heatRaw = readNumber(CH.heatPressureBar, null);
     var coldRaw = readNumber(CH.coldPressureBar, null);
+    var heatRawBar = heatRaw === null ? null : heatRaw / 1000;
+    var coldRawBar = coldRaw === null ? null : coldRaw / 1000;
     var heatCurrentMa = readNumber(CH.heatPressureCurrent, null);
     var coldCurrentMa = readNumber(CH.coldPressureCurrent, null);
-    var heatPressureBar = filterValue(heatRaw, STATE.heatPressureBuffer);
-    var coldPressureBar = filterValue(coldRaw, STATE.coldPressureBuffer);
+    var heatPressureBar = round2(filterValue(heatRawBar, STATE.heatPressureBuffer));
+    var coldPressureBar = round2(filterValue(coldRawBar, STATE.coldPressureBuffer));
     var pressureDeltaBar = null;
 
     if (heatPressureBar !== null && coldPressureBar !== null)
-        pressureDeltaBar = coldPressureBar - heatPressureBar;
+        pressureDeltaBar = round2(coldPressureBar - heatPressureBar);
 
     return {
         heatPressureRaw: heatRaw,
@@ -547,56 +557,52 @@ function evaluate()
 defineVirtualDevice("pressure_makeup", {
     title: "550 Подпитка давления отопления",
     cells: {
-        enabled: { type: "switch", value: true, order: 1 },
-        auto_mode: { type: "switch", value: true, order: 2 },
+        enabled: { type: "switch", value: true, order: 1, title: "Подпитка разрешена" },
+        auto_mode: { type: "switch", value: true, order: 2, title: "Автоматический режим" },
+        manual_pulse: { type: "pushbutton", order: 3, title: "Ручной импульс" },
+        manual_close: { type: "pushbutton", order: 4, title: "Закрыть клапан" },
+        reset_alarm: { type: "pushbutton", order: 5, title: "Сбросить аварии" },
 
-        current_break_ma: { type: "value", value: CFG.currentBreakMa, order: 9 },
-        pressure_min_bar: { type: "value", value: CFG.pressureMinBar, order: 10 },
-        pressure_target_bar: { type: "value", value: CFG.pressureTargetBar, order: 11 },
-        pressure_alarm_bar: { type: "value", value: CFG.pressureAlarmBar, order: 12 },
+        heat_pressure_bar: { type: "value", readonly: true, value: 0, order: 10, title: "Давление отопления, бар" },
+        heat_pressure_current_ma: { type: "value", readonly: true, value: 0, order: 11, title: "Ток датчика отопления, мА" },
+        cold_pressure_bar: { type: "value", readonly: true, value: 0, order: 12, title: "Давление ХВС, бар" },
+        cold_pressure_current_ma: { type: "value", readonly: true, value: 0, order: 13, title: "Ток датчика ХВС, мА" },
+        pressure_delta_bar: { type: "value", readonly: true, value: 0, order: 14, title: "Запас давления ХВС, бар" },
+        valve_open: { type: "switch", readonly: true, value: false, order: 15, title: "Клапан подпитки открыт" },
+        active: { type: "switch", readonly: true, value: false, order: 16, title: "Цикл подпитки активен" },
+        valve_opening: { type: "switch", readonly: true, value: false, order: 17, title: "Идёт импульс открытия" },
+        waiting_pause: { type: "switch", readonly: true, value: false, order: 18, title: "Пауза после импульса" },
+        pulse_count: { type: "value", readonly: true, value: 0, order: 19, title: "Импульсов в цикле" },
 
-        cold_min_delta_bar: { type: "value", value: CFG.coldMinDeltaBar, order: 20 },
-        cold_min_abs_bar: { type: "value", value: CFG.coldMinAbsBar, order: 21 },
+        heat_pressure_sensor_alarm: { type: "switch", readonly: true, value: false, order: 30, title: "Ошибка давления отопления" },
+        cold_pressure_sensor_alarm: { type: "switch", readonly: true, value: false, order: 31, title: "Ошибка давления ХВС" },
+        heat_current_alarm: { type: "switch", readonly: true, value: false, order: 32, title: "Обрыв датчика отопления" },
+        cold_current_alarm: { type: "switch", readonly: true, value: false, order: 33, title: "Обрыв датчика ХВС" },
+        cold_pressure_alarm: { type: "switch", readonly: true, value: false, order: 34, title: "Недостаточное давление ХВС" },
+        low_pressure_alarm: { type: "switch", readonly: true, value: false, order: 35, title: "Аварийно низкое давление отопления" },
+        makeup_failed_alarm: { type: "switch", readonly: true, value: false, order: 36, title: "Подпитка не дала результата" },
+        no_rise_alarm: { type: "switch", readonly: true, value: false, order: 37, title: "Давление не растёт" },
+        watchdog_alarm: { type: "switch", readonly: true, value: false, order: 38, title: "Watchdog клапана" },
 
-        pulse_open_s: { type: "value", value: CFG.pulseOpenS, order: 30 },
-        pulse_pause_s: { type: "value", value: CFG.pulsePauseS, order: 31 },
-        max_pulses: { type: "value", value: CFG.maxPulses, order: 32 },
-        watchdog_s: { type: "value", value: CFG.watchdogS, order: 33 },
-        min_rise_bar: { type: "value", value: CFG.minRiseBar, order: 34 },
+        last_event: { type: "text", readonly: true, value: "", order: 60, title: "Последнее событие" },
+        status_line1: { type: "text", readonly: true, value: "", order: 61, title: "Статус 1" },
+        status_line2: { type: "text", readonly: true, value: "", order: 62, title: "Статус 2" },
+        status_line3: { type: "text", readonly: true, value: "", order: 63, title: "Статус 3" },
+        status_line4: { type: "text", readonly: true, value: "", order: 64, title: "Статус 4" },
+        status_line5: { type: "text", readonly: true, value: "", order: 65, title: "Статус 5" },
+        status_text: { type: "text", readonly: true, value: "", order: 66, title: "Текущий статус" },
 
-        manual_close: { type: "pushbutton", order: 40 },
-        reset_alarm: { type: "pushbutton", order: 41 },
-        manual_pulse: { type: "pushbutton", order: 42 },
-
-        heat_pressure_bar: { type: "value", readonly: true, value: 0, order: 50 },
-        heat_pressure_current_ma: { type: "value", readonly: true, value: 0, order: 51 },
-        cold_pressure_bar: { type: "value", readonly: true, value: 0, order: 52 },
-        cold_pressure_current_ma: { type: "value", readonly: true, value: 0, order: 53 },
-        pressure_delta_bar: { type: "value", readonly: true, value: 0, order: 54 },
-
-        valve_open: { type: "switch", readonly: true, value: false, order: 60 },
-        active: { type: "switch", readonly: true, value: false, order: 61 },
-        valve_opening: { type: "switch", readonly: true, value: false, order: 62 },
-        waiting_pause: { type: "switch", readonly: true, value: false, order: 63 },
-        pulse_count: { type: "value", readonly: true, value: 0, order: 64 },
-
-        heat_pressure_sensor_alarm: { type: "switch", readonly: true, value: false, order: 70 },
-        cold_pressure_sensor_alarm: { type: "switch", readonly: true, value: false, order: 71 },
-        heat_current_alarm: { type: "switch", readonly: true, value: false, order: 72 },
-        cold_current_alarm: { type: "switch", readonly: true, value: false, order: 73 },
-        cold_pressure_alarm: { type: "switch", readonly: true, value: false, order: 74 },
-        low_pressure_alarm: { type: "switch", readonly: true, value: false, order: 75 },
-        makeup_failed_alarm: { type: "switch", readonly: true, value: false, order: 76 },
-        no_rise_alarm: { type: "switch", readonly: true, value: false, order: 77 },
-        watchdog_alarm: { type: "switch", readonly: true, value: false, order: 78 },
-
-        last_event: { type: "text", readonly: true, value: "", order: 80 },
-        status_line1: { type: "text", readonly: true, value: "", order: 81 },
-        status_line2: { type: "text", readonly: true, value: "", order: 82 },
-        status_line3: { type: "text", readonly: true, value: "", order: 83 },
-        status_line4: { type: "text", readonly: true, value: "", order: 84 },
-        status_line5: { type: "text", readonly: true, value: "", order: 85 },
-        status_text: { type: "text", readonly: true, value: "", order: 86 }
+        pressure_min_bar: { type: "value", value: CFG.pressureMinBar, order: 100, title: "Старт подпитки, бар" },
+        pressure_target_bar: { type: "value", value: CFG.pressureTargetBar, order: 101, title: "Целевое давление, бар" },
+        pressure_alarm_bar: { type: "value", value: CFG.pressureAlarmBar, order: 102, title: "Аварийный минимум, бар" },
+        cold_min_delta_bar: { type: "value", value: CFG.coldMinDeltaBar, order: 103, title: "Минимальный запас ХВС, бар" },
+        cold_min_abs_bar: { type: "value", value: CFG.coldMinAbsBar, order: 104, title: "Минимальное давление ХВС, бар" },
+        pulse_open_s: { type: "value", value: CFG.pulseOpenS, order: 105, title: "Открытие клапана, сек" },
+        pulse_pause_s: { type: "value", value: CFG.pulsePauseS, order: 106, title: "Пауза после импульса, сек" },
+        max_pulses: { type: "value", value: CFG.maxPulses, order: 107, title: "Максимум импульсов" },
+        watchdog_s: { type: "value", value: CFG.watchdogS, order: 108, title: "Watchdog открытия, сек" },
+        current_break_ma: { type: "value", value: CFG.currentBreakMa, order: 109, title: "Порог обрыва датчика, мА" },
+        min_rise_bar: { type: "value", value: CFG.minRiseBar, order: 110, title: "Минимальный рост давления, бар" }
     }
 });
 
