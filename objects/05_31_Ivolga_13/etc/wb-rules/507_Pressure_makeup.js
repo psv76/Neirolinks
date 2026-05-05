@@ -1,40 +1,46 @@
 var System = require("system");
 var safeLog = System.safeLog;
 
+// Каналы объекта 507 (Иволга)
+// Читается: pressureBar, pressureCurrent, secBlock
+// Пишется: valveMakeup
 var CH = {
-    valveMakeup: "A04/K1",
-    pressureBar: "905.3/input_1_value",
+    valveMakeup:     "A04/K1",
+    pressureBar:     "905.3/input_1_value",
     pressureCurrent: "905.3/input_1_current",
-    secBlock: "power_monitor/secondary_alerts_blocked"
+    secBlock:        "power_monitor/secondary_alerts_blocked"
 };
 
+// Настройки — менять здесь, не в интерфейсе
 var CFG = {
-    currentBreakMa: 3.6,
-    pressureMinBar: 1.2,
-    pressureTargetBar: 1.5,
-    pressureAlarmBar: 0.8,
-    pulseOpenS: 3,
-    pulsePauseS: 20,
-    maxPulses: 5,
-    watchdogS: 15,
-    filterSize: 3
+    currentBreakMa:   3.6,   // мА — минимальный ток датчика (ниже = обрыв)
+    pressureMinBar:   1.2,   // бар — старт подпитки ниже этого порога
+    pressureTargetBar: 1.5,  // бар — стоп подпитки при достижении
+    pressureAlarmBar: 1.0,   // бар — аварийный порог (отображается в интерфейсе)
+    pulseOpenS:       3,     // с  — время открытия клапана за один импульс
+    pulsePauseS:      20,    // с  — пауза между импульсами
+    maxPulses:        5,     // шт — максимум импульсов за один цикл
+    watchdogS:        15,    // с  — таймаут watchdog (клапан завис)
+    filterSize:       3      // шт — размер буфера фильтра давления
 };
 
 var STATE = {
-    pressureBuffer: [],
-    active: false,
-    valveOpening: false,
-    waitingPause: false,
-    pulseCount: 0,
-    sensorAlarm: false,
-    lowPressureAlarm: false,
+    pressureBuffer:    [],
+    active:            false,
+    valveOpening:      false,
+    waitingPause:      false,
+    pulseCount:        0,
+    sensorAlarm:       false,
+    lowPressureAlarm:  false,
     makeupFailedAlarm: false,
-    watchdogAlarm: false,
-    lastEvent: "",
-    valveCloseTimer: null,
-    pauseTimer: null,
-    watchdogTimer: null
+    watchdogAlarm:     false,
+    lastEvent:         "",
+    valveCloseTimer:   null,
+    pauseTimer:        null,
+    watchdogTimer:     null
 };
+
+// --- Утилиты ---
 
 function readBool(value)
 {
@@ -47,6 +53,13 @@ function readNumber(path, fallback)
     if (isNaN(value))
         return fallback;
     return value;
+}
+
+function round2(value)
+{
+    if (value === null)
+        return null;
+    return Math.round(value * 100) / 100;
 }
 
 function setCell(name, value)
@@ -73,12 +86,12 @@ function clearTimer(timerName)
 
 function clamp(value, minValue, maxValue)
 {
-    if (value < minValue)
-        return minValue;
-    if (value > maxValue)
-        return maxValue;
+    if (value < minValue) return minValue;
+    if (value > maxValue) return maxValue;
     return value;
 }
+
+// --- Фильтрация ---
 
 function filterPressure(rawValue)
 {
@@ -98,22 +111,26 @@ function filterPressure(rawValue)
     return clamp(sum / STATE.pressureBuffer.length, 0, 6);
 }
 
+// --- Настройки (читаются из CFG, не из интерфейса) ---
+
 function getSettings()
 {
     return {
-        enabled: readBool(dev["pressure_makeup/enabled"]),
-        autoMode: readBool(dev["pressure_makeup/auto_mode"]),
-        pressureMinBar: readNumber("pressure_makeup/pressure_min_bar", CFG.pressureMinBar),
-        pressureTargetBar: readNumber("pressure_makeup/pressure_target_bar", CFG.pressureTargetBar),
-        pressureAlarmBar: readNumber("pressure_makeup/pressure_alarm_bar", CFG.pressureAlarmBar),
-        currentBreakMa: readNumber("pressure_makeup/current_break_ma", CFG.currentBreakMa),
-        pulseOpenS: readNumber("pressure_makeup/pulse_open_s", CFG.pulseOpenS),
-        pulsePauseS: readNumber("pressure_makeup/pulse_pause_s", CFG.pulsePauseS),
-        maxPulses: readNumber("pressure_makeup/max_pulses", CFG.maxPulses),
-        watchdogS: readNumber("pressure_makeup/watchdog_s", CFG.watchdogS),
-        smsAllowed: !readBool(dev[CH.secBlock])
+        pressureMinBar:    CFG.pressureMinBar,
+        pressureTargetBar: CFG.pressureTargetBar,
+        pressureAlarmBar:  CFG.pressureAlarmBar,
+        currentBreakMa:    CFG.currentBreakMa,
+        pulseOpenS:        CFG.pulseOpenS,
+        pulsePauseS:       CFG.pulsePauseS,
+        maxPulses:         CFG.maxPulses,
+        watchdogS:         CFG.watchdogS,
+        enabled:           readBool(dev["pressure_makeup/enabled"]),
+        autoMode:          readBool(dev["pressure_makeup/auto_mode"]),
+        smsAllowed:        !readBool(dev[CH.secBlock])
     };
 }
+
+// --- Алерты ---
 
 function sendAlertIfAllowed(settings, eventText, detailsText, recommendationText)
 {
@@ -121,6 +138,8 @@ function sendAlertIfAllowed(settings, eventText, detailsText, recommendationText
         return;
     System.sendAlert("Котельная", eventText, detailsText, recommendationText);
 }
+
+// --- Управление клапаном ---
 
 function closeValve(reason)
 {
@@ -146,11 +165,11 @@ function stopCycle(reason)
 function resetAllAlarmsAndCycle()
 {
     stopCycle("Сброс аварийного состояния");
-    STATE.sensorAlarm = false;
-    STATE.lowPressureAlarm = false;
+    STATE.sensorAlarm       = false;
+    STATE.lowPressureAlarm  = false;
     STATE.makeupFailedAlarm = false;
-    STATE.watchdogAlarm = false;
-    STATE.pulseCount = 0;
+    STATE.watchdogAlarm     = false;
+    STATE.pulseCount        = 0;
 }
 
 function openPulse(settings, manualMode)
@@ -158,9 +177,9 @@ function openPulse(settings, manualMode)
     if (STATE.sensorAlarm || STATE.valveOpening || STATE.waitingPause || readBool(dev[CH.valveMakeup]))
         return;
 
-    STATE.active = true;
+    STATE.active       = true;
     STATE.valveOpening = true;
-    STATE.pulseCount = STATE.pulseCount + 1;
+    STATE.pulseCount   = STATE.pulseCount + 1;
 
     dev[CH.valveMakeup] = true;
     setEvent(manualMode ? "Открытие клапана: ручной импульс" : "Открытие клапана");
@@ -168,11 +187,11 @@ function openPulse(settings, manualMode)
     STATE.valveCloseTimer = setTimeout(function () {
         closeValve("Закрытие клапана");
         STATE.waitingPause = true;
-        setEvent("Начало паузы");
+        setEvent("Пауза между импульсами");
 
         STATE.pauseTimer = setTimeout(function () {
             STATE.waitingPause = false;
-            setEvent("Окончание паузы");
+            setEvent("Пауза завершена");
             evaluate();
         }, settings.pulsePauseS * 1000);
     }, settings.pulseOpenS * 1000);
@@ -192,44 +211,49 @@ function openPulse(settings, manualMode)
     }, settings.watchdogS * 1000);
 }
 
-function updateVirtualState(stateData)
+// --- Обновление интерфейса ---
+
+function updateVirtualState(pressureBar, currentMa)
 {
-    setCell("pressure_bar", stateData.pressureBar);
-    setCell("pressure_current_ma", stateData.currentMa);
-    setCell("valve_open", readBool(dev[CH.valveMakeup]));
-    setCell("active", STATE.active);
-    setCell("valve_opening", STATE.valveOpening);
-    setCell("waiting_pause", STATE.waitingPause);
-    setCell("pulse_count", STATE.pulseCount);
-    setCell("sensor_alarm", STATE.sensorAlarm);
-    setCell("low_pressure_alarm", STATE.lowPressureAlarm);
+    // Показания
+    setCell("pressure_bar",      round2(pressureBar));
+    setCell("sensor_current_ma", round2(currentMa));
+    setCell("valve_open",        readBool(dev[CH.valveMakeup]));
+    setCell("pulse_count",       STATE.pulseCount);
+    setCell("active",            STATE.active);
+    setCell("last_event",        STATE.lastEvent);
+
+    // Аварии
+    setCell("sensor_alarm",        STATE.sensorAlarm);
+    setCell("low_pressure_alarm",  STATE.lowPressureAlarm);
     setCell("makeup_failed_alarm", STATE.makeupFailedAlarm);
-    setCell("watchdog_alarm", STATE.watchdogAlarm);
-    setCell("status_line1", "Давление: " + stateData.pressureBar + " бар; ток: " + stateData.currentMa + " mA");
-    setCell("status_line2", "Цикл: " + (STATE.active ? "активен" : "остановлен") + ", импульсы " + STATE.pulseCount + ".");
-    setCell("status_line3", "Клапан: " + (readBool(dev[CH.valveMakeup]) ? "открыт" : "закрыт") + ".");
-    setCell("status_text", STATE.lastEvent);
+    setCell("watchdog_alarm",      STATE.watchdogAlarm);
 }
+
+// --- Основная логика ---
 
 function evaluate()
 {
-    var settings = getSettings();
-    var currentMa = readNumber(CH.pressureCurrent, null);
+    var settings    = getSettings();
+    var currentMa   = readNumber(CH.pressureCurrent, null);
     var pressureRaw = readNumber(CH.pressureBar, null);
     var pressureBar = filterPressure(pressureRaw);
 
+    // Проверка датчика
     if (currentMa === null || currentMa < settings.currentBreakMa)
     {
         STATE.sensorAlarm = true;
-        stopCycle("Ошибка датчика: ток ниже порога или отсутствует");
+        stopCycle("Авария датчика: ток ниже порога или обрыв");
     }
 
+    // Аварийный порог давления
     if (pressureBar !== null && pressureBar < settings.pressureAlarmBar)
         STATE.lowPressureAlarm = true;
 
     if (pressureBar !== null && pressureBar >= settings.pressureMinBar)
         STATE.lowPressureAlarm = false;
 
+    // Основная логика
     if (!settings.enabled || !settings.autoMode)
     {
         stopCycle("Подпитка отключена");
@@ -239,17 +263,17 @@ function evaluate()
         if (pressureBar !== null && pressureBar >= settings.pressureTargetBar)
         {
             if (STATE.active)
-                stopCycle("Успешное завершение: достигнуто целевое давление");
+                stopCycle("Цикл завершён: давление достигнуто");
 
-            STATE.active = false;
-            STATE.pulseCount = 0;
+            STATE.active            = false;
+            STATE.pulseCount        = 0;
             STATE.makeupFailedAlarm = false;
         }
         else if (!STATE.valveOpening && !STATE.waitingPause)
         {
             if (!STATE.active && pressureBar !== null && pressureBar < settings.pressureMinBar)
             {
-                STATE.active = true;
+                STATE.active     = true;
                 STATE.pulseCount = 0;
                 setEvent("Старт цикла подпитки");
             }
@@ -259,7 +283,7 @@ function evaluate()
                 if (STATE.pulseCount >= settings.maxPulses)
                 {
                     STATE.makeupFailedAlarm = true;
-                    stopCycle("Неуспешное завершение: превышено количество импульсов");
+                    stopCycle("Цикл завершён: превышено количество импульсов");
                     sendAlertIfAllowed(
                         settings,
                         "Подпитка не дала результата",
@@ -275,46 +299,120 @@ function evaluate()
         }
     }
 
-    updateVirtualState({
-        pressureBar: pressureBar,
-        currentMa: currentMa
-    });
+    updateVirtualState(pressureBar, currentMa);
 }
 
+// --- Виртуальное устройство ---
+
 defineVirtualDevice("pressure_makeup", {
-    title: "Подпитка давления",
+    title: "Подпитка давления (507)",
     cells: {
-        enabled: { type: "switch", value: true },
-        auto_mode: { type: "switch", value: true },
-        pressure_min_bar: { type: "value", value: CFG.pressureMinBar },
-        pressure_target_bar: { type: "value", value: CFG.pressureTargetBar },
-        pressure_alarm_bar: { type: "value", value: CFG.pressureAlarmBar },
-        current_break_ma: { type: "value", value: CFG.currentBreakMa },
-        pulse_open_s: { type: "value", value: CFG.pulseOpenS },
-        pulse_pause_s: { type: "value", value: CFG.pulsePauseS },
-        max_pulses: { type: "value", value: CFG.maxPulses },
-        watchdog_s: { type: "value", value: CFG.watchdogS },
-        manual_close: { type: "pushbutton" },
-        reset_alarm: { type: "pushbutton" },
-        manual_pulse: { type: "pushbutton" },
-        pressure_bar: { type: "value", readonly: true, value: 0 },
-        pressure_current_ma: { type: "value", readonly: true, value: 0 },
-        valve_open: { type: "switch", readonly: true, value: false },
-        active: { type: "switch", readonly: true, value: false },
-        valve_opening: { type: "switch", readonly: true, value: false },
-        waiting_pause: { type: "switch", readonly: true, value: false },
-        pulse_count: { type: "value", readonly: true, value: 0 },
-        sensor_alarm: { type: "switch", readonly: true, value: false },
-        low_pressure_alarm: { type: "switch", readonly: true, value: false },
-        makeup_failed_alarm: { type: "switch", readonly: true, value: false },
-        watchdog_alarm: { type: "switch", readonly: true, value: false },
-        last_event: { type: "text", readonly: true, value: "" },
-        status_line1: { type: "text", readonly: true, value: "" },
-        status_line2: { type: "text", readonly: true, value: "" },
-        status_line3: { type: "text", readonly: true, value: "" },
-        status_text: { type: "text", readonly: true, value: "" }
+        // Группа 1: Показания
+        pressure_bar: {
+            title:    "Давление СО, бар  [цель ≥" + CFG.pressureTargetBar + "]",
+            type:     "value",
+            readonly: true,
+            value:    0,
+            order:    1
+        },
+        sensor_current_ma: {
+            title:    "Ток датчика, мА  [норма ≥" + CFG.currentBreakMa + "]",
+            type:     "value",
+            readonly: true,
+            value:    0,
+            order:    2
+        },
+        valve_open: {
+            title:    "Клапан открыт",
+            type:     "switch",
+            readonly: true,
+            value:    false,
+            order:    3
+        },
+        pulse_count: {
+            title:    "Импульсов в цикле",
+            type:     "value",
+            readonly: true,
+            value:    0,
+            order:    4
+        },
+        active: {
+            title:    "Цикл активен",
+            type:     "switch",
+            readonly: true,
+            value:    false,
+            order:    5
+        },
+        last_event: {
+            title:    "Последнее событие",
+            type:     "text",
+            readonly: true,
+            value:    "",
+            order:    6
+        },
+
+        // Группа 2: Аварии
+        sensor_alarm: {
+            title:    "Авария датчика давления",
+            type:     "switch",
+            readonly: true,
+            value:    false,
+            order:    10
+        },
+        low_pressure_alarm: {
+            title:    "Давление ниже аварийного  [<" + CFG.pressureAlarmBar + " бар]",
+            type:     "switch",
+            readonly: true,
+            value:    false,
+            order:    11
+        },
+        makeup_failed_alarm: {
+            title:    "Подпитка не дала результата",
+            type:     "switch",
+            readonly: true,
+            value:    false,
+            order:    12
+        },
+        watchdog_alarm: {
+            title:    "Watchdog: клапан завис",
+            type:     "switch",
+            readonly: true,
+            value:    false,
+            order:    13
+        },
+
+        // Группа 3: Управление
+        enabled: {
+            title: "Подпитка включена",
+            type:  "switch",
+            value: true,
+            order: 20
+        },
+        auto_mode: {
+            title: "Авторежим",
+            type:  "switch",
+            value: true,
+            order: 21
+        },
+        manual_pulse: {
+            title: "Ручной импульс",
+            type:  "pushbutton",
+            order: 22
+        },
+        manual_close: {
+            title: "Закрыть клапан",
+            type:  "pushbutton",
+            order: 23
+        },
+        reset_alarm: {
+            title: "Сбросить аварии",
+            type:  "pushbutton",
+            order: 24
+        }
     }
 });
+
+// --- Правила ---
 
 defineRule("pressure_makeup_eval_507", {
     whenChanged: [
@@ -322,12 +420,6 @@ defineRule("pressure_makeup_eval_507", {
         CH.pressureCurrent,
         "pressure_makeup/enabled",
         "pressure_makeup/auto_mode",
-        "pressure_makeup/pressure_min_bar",
-        "pressure_makeup/pressure_target_bar",
-        "pressure_makeup/current_break_ma",
-        "pressure_makeup/pulse_open_s",
-        "pressure_makeup/pulse_pause_s",
-        "pressure_makeup/max_pulses",
         CH.secBlock
     ],
     then: function () {
@@ -341,11 +433,11 @@ defineRule("pressure_makeup_manual_close_507", {
         if (!newValue)
             return;
 
-        stopCycle("Ручное закрытие");
-        updateVirtualState({
-            pressureBar: filterPressure(readNumber(CH.pressureBar, null)),
-            currentMa: readNumber(CH.pressureCurrent, null)
-        });
+        stopCycle("Ручное закрытие клапана");
+        updateVirtualState(
+            filterPressure(readNumber(CH.pressureBar, null)),
+            readNumber(CH.pressureCurrent, null)
+        );
     }
 });
 
@@ -370,7 +462,7 @@ defineRule("pressure_makeup_manual_pulse_507", {
 
         if (STATE.sensorAlarm || readBool(dev[CH.valveMakeup]))
         {
-            setEvent("Ручной импульс отклонен");
+            setEvent("Ручной импульс отклонён: авария или клапан уже открыт");
             evaluate();
             return;
         }
@@ -381,9 +473,11 @@ defineRule("pressure_makeup_manual_pulse_507", {
     }
 });
 
+// --- Старт ---
+
 setTimeout(function () {
     safeLog("[507_Pressure_makeup] Запуск скрипта");
     dev[CH.valveMakeup] = false;
-    setEvent("Принудительное закрытие клапана на старте");
+    setEvent("Инициализация: клапан закрыт");
     evaluate();
 }, 3000);
