@@ -3,13 +3,12 @@
 ## Состав папки
 
 ```
-objects/05_16_Iset/JSON/Heating/
+objects/05_16_Iset/etc/wb-rules/
   Boiler_room.js
   DHW_priority_manager.js
   Floor_mixing_control.js
   Heating_pumps_manager.js
   Basement_radiator_thermostat.js
-  README.md
 ```
 
 ## Назначение файлов
