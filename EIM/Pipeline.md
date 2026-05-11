@@ -129,14 +129,28 @@ scripts_required:
 
 В репозитории также хранится библиотека шаблонов скриптов.
 
-пример
+принятая структура шаблонов:
 
-```
-scripts_templates
- ├ lighting
- ├ heating
- ├ ventilation
- ├ alarms
+```text
+Templates/
+├─ WB-rules/
+│  ├─ heating/
+│  ├─ ventilation/
+│  ├─ lighting/
+│  ├─ water/
+│  ├─ gates/
+│  └─ alarms/
+└─ Sprut/
+   ├─ heating/
+   │  ├─ NL_simple_thermostat.json
+   │  ├─ NL_combo_thermostat.json
+   │  ├─ NL_climate_thermostat.json
+   │  └─ README.md
+   ├─ ventilation/
+   │  └─ README.md
+   ├─ gates/
+   │  └─ README.md
+   └─ README.md
 ```
 
 ChatGPT получает:

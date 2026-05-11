@@ -1,8 +1,8 @@
 # Инструкция для ИИ-ассистента
 
-@README.md
-@EIM/README.md
-@EIM/Pipeline.md
+@../../README.md
+@../README.md
+@../Pipeline.md
 
 ## 1. Назначение репозитория
 
