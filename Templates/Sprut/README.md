@@ -8,16 +8,16 @@
 
 ```text
 Templates/Sprut/
-├─ heating/
-├─ ventilation/
-└─ gates/
+├─ Heating/
+├─ Ventilation/
+└─ Gates/
 ```
 
 ## Назначение разделов
 
-- `heating/` — отопление, термостаты и климатические зоны.
-- `ventilation/` — будущие шаблоны вентиляции.
-- `gates/` — будущие шаблоны ворот, калиток и приводов.
+- `Heating/` — отопление, термостаты и климатические зоны.
+- `Ventilation/` — будущие шаблоны вентиляции.
+- `Gates/` — будущие шаблоны ворот, калиток и приводов.
 
 ## Правило размещения
 
@@ -25,7 +25,7 @@ Templates/Sprut/
 
 Например, описание шаблонов термостатов находится здесь:
 
-Templates/Sprut/heating/README.md
+Templates/Sprut/Heating/README.md
 
 ## Связь с Wiren Board
 

@@ -134,21 +134,21 @@ scripts_required:
 ```text
 Templates/
 ├─ WB-rules/
-│  ├─ heating/
-│  ├─ ventilation/
-│  ├─ lighting/
-│  ├─ water/
-│  ├─ gates/
-│  └─ alarms/
+│  ├─ Heating/
+│  ├─ Ventilation/
+│  ├─ Lighting/
+│  ├─ Water/
+│  ├─ Gates/
+│  └─ Alarms/
 └─ Sprut/
-   ├─ heating/
+   ├─ Heating/
    │  ├─ NL_simple_thermostat.json
    │  ├─ NL_combo_thermostat.json
    │  ├─ NL_climate_thermostat.json
    │  └─ README.md
-   ├─ ventilation/
+   ├─ Ventilation/
    │  └─ README.md
-   ├─ gates/
+   ├─ Gates/
    │  └─ README.md
    └─ README.md
 ```
