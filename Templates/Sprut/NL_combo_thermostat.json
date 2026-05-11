@@ -1,0 +1,116 @@
+{
+  "name": "Термостат",
+  "manufacturer": "NEIROLINKS",
+  "model": "NL_combo_thermostat",
+  "modelIds": [
+    "/devices/(NL_combo_thermostat_[0-9]{3})/controls/air_temperature/meta/type"
+  ],
+  "services": [
+    {
+      "name": "Термостат",
+      "type": "Thermostat",
+      "characteristics": [
+        {
+          "type": "CurrentTemperature",
+          "link": [
+            {
+              "type": "Double",
+              "topicGet": "/devices/(1)/controls/air_temperature"
+            }
+          ]
+        },
+        {
+          "type": "TargetTemperature",
+          "link": [
+            {
+              "type": "Double",
+              "topicGet": "/devices/(1)/controls/target_temperature",
+              "topicSet": "/devices/(1)/controls/target_temperature/on"
+            }
+          ],
+          "minValue": 15,
+          "maxValue": 30,
+          "minStep": 0.5
+        },
+        {
+          "type": "TargetHeatingCoolingState",
+          "link": [
+            {
+              "type": "Integer",
+              "topicGet": "/devices/(1)/controls/target_state",
+              "topicSet": "/devices/(1)/controls/target_state/on",
+              "map": {
+                "OFF": "0",
+                "HEAT": "1"
+              }
+            }
+          ],
+          "validValues": "OFF,HEAT"
+        },
+        {
+          "type": "CurrentHeatingCoolingState",
+          "link": [
+            {
+              "type": "Integer",
+              "topicGet": "/devices/(1)/controls/current_state",
+              "map": {
+                "OFF": "0",
+                "HEAT": "1"
+              }
+            }
+          ],
+          "validValues": "OFF,HEAT"
+        }
+      ]
+    },
+    {
+      "name": "Пол",
+      "type": "TemperatureSensor",
+      "characteristics": [
+        {
+          "type": "CurrentTemperature",
+          "link": [
+            {
+              "type": "Double",
+              "topicGet": "/devices/(1)/controls/floor_temperature"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "link": [
+        {
+          "type": "Double",
+          "topicGet": "/devices/(1)/controls/floor_min_temperature",
+          "topicSet": "/devices/(1)/controls/floor_min_temperature/on"
+        }
+      ],
+      "type": "Double",
+      "name": "Пол при поддержании",
+      "init": false,
+      "value": 25,
+      "minValue": 18,
+      "maxValue": 30,
+      "minStep": 0.5
+    },
+    {
+      "link": [
+        {
+          "type": "Double",
+          "topicGet": "/devices/(1)/controls/floor_max_temperature",
+          "topicSet": "/devices/(1)/controls/floor_max_temperature/on"
+        }
+      ],
+      "type": "Double",
+      "name": "Пол при нагреве",
+      "init": false,
+      "value": 29,
+      "minValue": 20,
+      "maxValue": 35,
+      "minStep": 0.5
+    }
+  ]
+}
