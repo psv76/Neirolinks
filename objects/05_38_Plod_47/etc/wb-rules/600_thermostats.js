@@ -6,8 +6,8 @@
 // - wb-mr6cu_218/K1, wb-mr6cu_218/K2, wb-mr6cu_218/K3, wb-mr6cu_218/K4, wb-mr6cu_218/K5, wb-mr6cu_218/K6
 // - wb-mr6cu_224/K1, wb-mr6cu_224/K2, wb-mr6cu_224/K3, wb-mr6cu_224/K4, wb-mr6cu_224/K5, wb-mr6cu_224/K6
 // - wb-mr6cu_219/K1
-// - ONOKOM-AIR-GR-3-MB-B_10/Active mode, ONOKOM-AIR-GR-3-MB-B_10/Target temperature, ONOKOM-AIR-GR-3-MB-B_10/Horizontal vanes
-// - ONOKOM-AIR-GR-3-MB-B_20/Active mode, ONOKOM-AIR-GR-3-MB-B_20/Target temperature, ONOKOM-AIR-GR-3-MB-B_20/Horizontal vanes
+// - ONOKOM-AIR-GR-3-MB-B_10/Active mode, ONOKOM-AIR-GR-3-MB-B_10/Target temperature, ONOKOM-AIR-GR-3-MB-B_10/Horizontal vanes, ONOKOM-AIR-GR-3-MB-B_10/Smart fan speed
+// - ONOKOM-AIR-GR-3-MB-B_20/Active mode, ONOKOM-AIR-GR-3-MB-B_20/Target temperature, ONOKOM-AIR-GR-3-MB-B_20/Horizontal vanes, ONOKOM-AIR-GR-3-MB-B_20/Smart fan speed
 
 // -------------------- ПАСПОРТ СКРИПТА --------------------
 
@@ -103,7 +103,8 @@ var ZONES = [
             indoorTemperatureTopic: "ONOKOM-AIR-GR-3-MB-B_10/Indoor air temperature",
             thermostatStateTopic: "ONOKOM-AIR-GR-3-MB-B_10/Thermostat state",
             connectedTopic: "ONOKOM-AIR-GR-3-MB-B_10/AC connected",
-            horizontalVanesTopic: "ONOKOM-AIR-GR-3-MB-B_10/Horizontal vanes"
+            horizontalVanesTopic: "ONOKOM-AIR-GR-3-MB-B_10/Horizontal vanes",
+            smartFanSpeedTopic: "ONOKOM-AIR-GR-3-MB-B_10/Smart fan speed"
         },
         defaultTarget: 22,
         defaultFloorHold: 25,
@@ -201,7 +202,8 @@ var ZONES = [
             indoorTemperatureTopic: "ONOKOM-AIR-GR-3-MB-B_20/Indoor air temperature",
             thermostatStateTopic: "ONOKOM-AIR-GR-3-MB-B_20/Thermostat state",
             connectedTopic: "ONOKOM-AIR-GR-3-MB-B_20/AC connected",
-            horizontalVanesTopic: "ONOKOM-AIR-GR-3-MB-B_20/Horizontal vanes"
+            horizontalVanesTopic: "ONOKOM-AIR-GR-3-MB-B_20/Horizontal vanes",
+            smartFanSpeedTopic: "ONOKOM-AIR-GR-3-MB-B_20/Smart fan speed"
         },
         defaultTarget: 22,
         defaultFloorHold: 25,
@@ -262,6 +264,11 @@ var AC_MODE_OFF = 0;
 var AC_MODE_COOL = 2;
 
 var AC_HORIZONTAL_VANES_DOWN = 5; // базовое положение жалюзи при включённом контроле: выше среднего
+var AC_NIGHT_FAN_SPEED_QUIET = 1;
+var AC_NIGHT_FAN_SPEED_MIN = 0;
+var AC_NIGHT_FAN_SPEED_MAX = 7;
+var DAY_NIGHT_TOPIC = "day_night/is_night";
+var NIGHT_CHANNEL_MISSING_LOGGED = false;
 var AC_MIN_ON_TIME_MS = 10 * 60 * 1000;
 var AC_MIN_OFF_TIME_MS = 10 * 60 * 1000;
 var AC_MANUAL_OFF_PAUSE_MS = 2 * 60 * 60 * 1000;
@@ -544,6 +551,9 @@ function defineClimateDevice(zone) {
             ac_min_off_timer_sec: makeReadonlyValueCell("Пауза между включениями, сек", 0, 78),
             ac_manual_pause_timer_sec: makeReadonlyValueCell("Ручная пауза охлаждения, сек", 0, 79),
             ac_timer_status: makeTextCell("Статус таймеров охлаждения", "Таймеры не активны", 80),
+            ac_night_mode_enabled: makeSwitchCell("Ночной режим кондиционера", true, false, 81),
+            ac_night_fan_speed: makeRangeCell("Ночная скорость вентилятора", AC_NIGHT_FAN_SPEED_QUIET, AC_NIGHT_FAN_SPEED_MIN, AC_NIGHT_FAN_SPEED_MAX, 82),
+            ac_night_mode_status: makeTextCell("Статус ночного режима", "Инициализация", 83),
             current_state: makeValueEnumCell("Sprut: текущий режим", CLIMATE_CURRENT_OFF, climateCurrentModeEnum(), true, 800)
         }
     });
@@ -594,6 +604,9 @@ function makeRuntimeState() {
         lastAcTargetCommand: null,
         lastAcVanesCommand: null,
         lastAcVanesControlLog: null,
+        lastNightFanCommand: null,
+        lastNightValue: null,
+        lastCoolingTargetCorrection: null,
         lastAirPublishTs: 0,
         lastFloorPublishTs: 0,
         lastPublishedAir: null,
@@ -646,6 +659,40 @@ function readClimateTargetMode(zone) {
     return CLIMATE_MODE_AUTO;
 }
 
+function normalizeCoolingTarget(zone, target) {
+    var raw = dev[zone.vdevice + "/cooling_temperature"];
+    var requested = round1(clamp(raw, COOLING_MIN, COOLING_MAX));
+    var corrected = requested;
+    var correctionKey;
+
+    if (corrected < target + CLIMATE_MIN_HEAT_COOL_GAP) {
+        corrected = round1(target + CLIMATE_MIN_HEAT_COOL_GAP);
+    }
+
+    if (corrected > target + CLIMATE_MAX_HEAT_COOL_GAP) {
+        corrected = round1(target + CLIMATE_MIN_HEAT_COOL_GAP);
+    }
+
+    if (corrected > COOLING_MAX) {
+        corrected = COOLING_MAX;
+    }
+
+    correctionKey = String(requested) + "->" + String(corrected) + "@" + String(target);
+
+    if (Math.abs(Number(requested) - Number(corrected)) > 0.001 && zone.state.lastCoolingTargetCorrection !== correctionKey) {
+        zone.state.lastCoolingTargetCorrection = correctionKey;
+        writeLog(zone, "НАСТРОЙКА", "Порог охлаждения скорректирован", {
+            "причина": "защита от старого или случайно завышенного значения",
+            "уставка": formatNumber(target),
+            "старое_значение": formatNumber(requested),
+            "новое_значение": formatNumber(corrected)
+        });
+    }
+
+    setNumberIfChanged(zone.vdevice + "/cooling_temperature", corrected);
+    return corrected;
+}
+
 function readZoneState(zone) {
     var airRaw = hasTopic(zone.airTopic) ? dev[zone.airTopic] : undefined;
     var floorRaw = hasTopic(zone.floorTopic) ? dev[zone.floorTopic] : undefined;
@@ -680,21 +727,7 @@ function readZoneState(zone) {
 
     if (zone.model === "NL_climate_thermostat") {
         targetMode = readClimateTargetMode(zone);
-        coolingTarget = round1(clamp(dev[zone.vdevice + "/cooling_temperature"], COOLING_MIN, COOLING_MAX));
-
-        if (coolingTarget < target + CLIMATE_MIN_HEAT_COOL_GAP) {
-            coolingTarget = round1(target + CLIMATE_MIN_HEAT_COOL_GAP);
-        }
-
-        if (coolingTarget > target + CLIMATE_MAX_HEAT_COOL_GAP) {
-            coolingTarget = round1(target + CLIMATE_MIN_HEAT_COOL_GAP);
-        }
-
-        if (coolingTarget > COOLING_MAX) {
-            coolingTarget = COOLING_MAX;
-        }
-
-        setNumberIfChanged(zone.vdevice + "/cooling_temperature", coolingTarget);
+        coolingTarget = normalizeCoolingTarget(zone, target);
     }
 
     return {
@@ -884,7 +917,8 @@ function setAcManualPause(zone, reason) {
 
     writeLog(zone, "СОСТОЯНИЕ", "Охлаждение поставлено на ручную паузу", {
         "причина": reason,
-        "пауза_сек": Math.ceil(AC_MANUAL_OFF_PAUSE_MS / 1000)
+        "пауза_сек": Math.ceil(AC_MANUAL_OFF_PAUSE_MS / 1000),
+        "таймер": Math.ceil(AC_MANUAL_OFF_PAUSE_MS / 1000)
     });
 
     updateClimateTimers(zone);
@@ -1539,6 +1573,138 @@ function writeAcHorizontalVanesOnCoolingStart(zone, zoneState, reason) {
     return true;
 }
 
+function readNightMode(zone) {
+    var statusTopic;
+
+    statusTopic = zone.vdevice + "/ac_night_mode_status";
+
+    if (!isControlAvailable(DAY_NIGHT_TOPIC)) {
+        setIfChanged(statusTopic, "Канал day_night/is_night недоступен, скорость не управляется");
+
+        if (!NIGHT_CHANNEL_MISSING_LOGGED) {
+            NIGHT_CHANNEL_MISSING_LOGGED = true;
+            writeLog(zone, "ОШИБКА", "Канал ночного режима недоступен", {
+                "причина": "нет day_night/is_night"
+            });
+        }
+
+        return {
+            available: false,
+            isNight: false
+        };
+    }
+
+    return {
+        available: true,
+        isNight: readBoolValue(dev[DAY_NIGHT_TOPIC])
+    };
+}
+
+function isAcNightModeEnabled(zone) {
+    return readBoolValue(dev[zone.vdevice + "/ac_night_mode_enabled"]);
+}
+
+function getAcNightFanSpeed(zone) {
+    var speed = Math.round(readNumberControl(zone.vdevice + "/ac_night_fan_speed", AC_NIGHT_FAN_SPEED_QUIET));
+
+    if (speed < AC_NIGHT_FAN_SPEED_MIN || speed > AC_NIGHT_FAN_SPEED_MAX) {
+        speed = AC_NIGHT_FAN_SPEED_QUIET;
+    }
+
+    setNumberIfChanged(zone.vdevice + "/ac_night_fan_speed", speed);
+    return speed;
+}
+
+function applyNightFanSpeed(zone, zoneState, reason, trigger) {
+    var night;
+    var topic;
+    var speed;
+    var currentValue;
+    var commandKey;
+    var params;
+
+    if (!hasAc(zone) || !hasTopic(zone.ac.smartFanSpeedTopic)) {
+        setIfChanged(zone.vdevice + "/ac_night_mode_status", "Канал скорости вентилятора не задан, скорость не управляется");
+        return true;
+    }
+
+    if (!isAcNightModeEnabled(zone)) {
+        setIfChanged(zone.vdevice + "/ac_night_mode_status", "Ночной режим кондиционера выключен");
+        return true;
+    }
+
+    night = readNightMode(zone);
+
+    if (!night.available) {
+        return false;
+    }
+
+    if (!night.isNight) {
+        zone.state.lastNightValue = false;
+        setIfChanged(zone.vdevice + "/ac_night_mode_status", "День, скорость вентилятора не меняется");
+        return true;
+    }
+
+    topic = zone.ac.smartFanSpeedTopic;
+
+    if (!isControlAvailable(topic)) {
+        setIfChanged(zone.vdevice + "/ac_night_mode_status", "Канал скорости вентилятора недоступен");
+        return false;
+    }
+
+    speed = getAcNightFanSpeed(zone);
+    currentValue = readNumberControl(topic, null);
+    commandKey = trigger + ":" + String(speed);
+
+    params = baseParams(zone, zoneState, reason);
+    params["канал"] = topic;
+    params["значение в канал"] = String(speed);
+
+    if (currentValue !== speed || zone.state.lastNightFanCommand !== commandKey) {
+        writeLog(zone, "КОМАНДА", "Установить тихую скорость кондиционера", {
+            "причина": "ночной режим охлаждения",
+            "канал": topic,
+            "значение в канал": String(speed)
+        });
+    }
+
+    if (currentValue !== speed) {
+        dev[topic] = speed;
+    }
+
+    zone.state.lastNightFanCommand = commandKey;
+    zone.state.lastNightValue = true;
+    setIfChanged(zone.vdevice + "/ac_night_mode_status", "Ночь, установлена скорость вентилятора " + speed);
+    return true;
+}
+
+function updateNightModeStatusWithoutCommand(zone) {
+    var night;
+
+    if (zone.model !== "NL_climate_thermostat") {
+        return;
+    }
+
+    if (!isAcNightModeEnabled(zone)) {
+        setIfChanged(zone.vdevice + "/ac_night_mode_status", "Ночной режим кондиционера выключен");
+        return;
+    }
+
+    night = readNightMode(zone);
+
+    if (!night.available) {
+        return;
+    }
+
+    zone.state.lastNightValue = night.isNight;
+
+    if (night.isNight) {
+        setIfChanged(zone.vdevice + "/ac_night_mode_status", "Ночь, ожидание охлаждения");
+    } else {
+        setIfChanged(zone.vdevice + "/ac_night_mode_status", "День, скорость вентилятора не меняется");
+    }
+}
+
 function applyAc(zone, mode, target, zoneState, reason) {
     var topic;
     var currentMode;
@@ -1585,6 +1751,11 @@ function applyAc(zone, mode, target, zoneState, reason) {
 
     if (coolingStart) {
         writeAcHorizontalVanesOnCoolingStart(zone, zoneState, "старт охлаждения, контроль жалюзи включен");
+        applyNightFanSpeed(zone, zoneState, "старт охлаждения", "cooling_start");
+    } else if (mode === AC_MODE_COOL && readBoolValue(dev[DAY_NIGHT_TOPIC]) && zone.state.lastNightValue !== true) {
+        applyNightFanSpeed(zone, zoneState, "наступила ночь при активном охлаждении", "night_started");
+    } else if (mode !== AC_MODE_COOL) {
+        updateNightModeStatusWithoutCommand(zone);
     }
 
     needCommandLog = (currentMode !== mode) ||
@@ -1695,8 +1866,25 @@ function logUserSetting(zone, settingName) {
     writeLog(zone, "НАСТРОЙКА", "Изменена настройка термостата", settingParams(zone, zoneState, settingName));
 }
 
+function climateZoneWantsCooling(zone, zoneState) {
+    if (!zoneState.enabled || !zoneState.airValid) {
+        return false;
+    }
+
+    if (zoneState.targetMode === CLIMATE_MODE_COOL) {
+        return true;
+    }
+
+    if (zoneState.targetMode === CLIMATE_MODE_AUTO && isCoolingRequestedByAir(zone, zoneState)) {
+        return true;
+    }
+
+    return false;
+}
+
 function handleAcActiveModeChanged(zone) {
     var currentMode;
+    var zoneState;
 
     if (!hasAc(zone)) {
         evaluateZone(zone, true);
@@ -1704,8 +1892,9 @@ function handleAcActiveModeChanged(zone) {
     }
 
     currentMode = readNumberControl(zone.ac.activeModeTopic, null);
+    zoneState = readZoneState(zone);
 
-    if (currentMode === AC_MODE_OFF && zone.state.lastAcModeCommand === AC_MODE_COOL && zone.state.climateCoolMode) {
+    if (currentMode === AC_MODE_OFF && zone.state.lastAcModeCommand === AC_MODE_COOL && zone.state.climateCoolMode && climateZoneWantsCooling(zone, zoneState)) {
         setAcManualPause(zone, "кондиционер выключен извне");
     }
 
@@ -1796,6 +1985,22 @@ function defineZoneRules(zone) {
             }
         });
 
+        defineRule("thermostat_" + zone.id + "_ac_night_mode_enabled_changed", {
+            whenChanged: zone.vdevice + "/ac_night_mode_enabled",
+            then: function () {
+                logUserSetting(zone, "Ночной режим кондиционера");
+                evaluateZone(zone, true);
+            }
+        });
+
+        defineRule("thermostat_" + zone.id + "_ac_night_fan_speed_changed", {
+            whenChanged: zone.vdevice + "/ac_night_fan_speed",
+            then: function () {
+                logUserSetting(zone, "Ночная скорость вентилятора");
+                evaluateZone(zone, true);
+            }
+        });
+
         if (hasAc(zone)) {
             defineRule("thermostat_" + zone.id + "_ac_active_mode_changed", {
                 whenChanged: zone.ac.activeModeTopic,
@@ -1838,6 +2043,19 @@ function defineZoneRules(zone) {
     }
 }
 
+function handleNightModeChanged() {
+    evaluateAllZones(true);
+}
+
+function defineNightModeRule() {
+    defineRule("thermostats_600_night_mode_changed", {
+        whenChanged: DAY_NIGHT_TOPIC,
+        then: function () {
+            handleNightModeChanged();
+        }
+    });
+}
+
 function initializeZone(zone) {
     zone.state = makeRuntimeState();
     defineZoneDevice(zone);
@@ -1861,6 +2079,7 @@ function markAllInitialized() {
 }
 
 initializeAllZones();
+defineNightModeRule();
 
 writeLog({ context: "общий" }, "СКРИПТ", "Скрипт загружен", {
     "зон": ZONES.length
