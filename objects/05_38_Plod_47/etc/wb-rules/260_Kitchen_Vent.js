@@ -1,9 +1,13 @@
-// Сценарий управления вытяжкой кухни.
+// 260_Kitchen_Vent.js
+// Управление вытяжкой кухни.
+// Система: вентиляция.
 // Логика:
-// - 4 дискретных входа выбирают режим
-// - если все входы выключены, включается общеобменный режим 16%
-// - если активны несколько входов одновременно, приоритет у максимальной скорости
-
+// - 4 дискретных входа выбирают скорость;
+// - если все входы выключены, работает общеобменный режим 16%;
+// - если активны несколько входов, приоритет у максимальной скорости.
+// Физические каналы, которые пишет скрипт:
+// - A16/Channel 1 Switch
+// - A16/Channel 1 Dimming Level
 
 var KITCHEN_HOOD_CFG = {
     enabled: true,                  // главный флаг логики
@@ -33,14 +37,114 @@ var KITCHEN_HOOD_CFG = {
     }
 };
 
-function kitchenHoodLog(message) {
-    if (KITCHEN_HOOD_CFG.enableLog) {
-        log("[Kitchen_Hood] " + message);
+var KITCHEN_HOOD_LOG_SYSTEM = "вентиляция";
+var KITCHEN_HOOD_LOG_SCRIPT = "260_Kitchen_Vent";
+var KITCHEN_HOOD_LOG_CONTEXT = "кухня";
+
+var KITCHEN_HOOD_STATE = {
+    lastDisabledLog: false,
+    lastSwitchCommand: null,
+    lastLevelCommand: null
+};
+
+function kitchenHoodFormatParams(params) {
+    var list = [];
+    var k;
+
+    if (!params) {
+        return "";
     }
+
+    for (k in params) {
+        if (params.hasOwnProperty(k)) {
+            if (params[k] !== undefined && params[k] !== null && params[k] !== "") {
+                list.push(k + "=" + params[k]);
+            }
+        }
+    }
+
+    if (list.length === 0) {
+        return "";
+    }
+
+    return "; " + list.join("; ");
+}
+
+function kitchenHoodWriteJournal(level, message) {
+    if (level === "error" && log.error) {
+        log.error(message);
+        return;
+    }
+
+    if (level === "warning" && log.warning) {
+        log.warning(message);
+        return;
+    }
+
+    if (log.info) {
+        log.info(message);
+        return;
+    }
+
+    log(message);
+}
+
+function kitchenHoodWriteLog(eventName, eventText, params) {
+    var message;
+
+    if (!KITCHEN_HOOD_CFG.enableLog) {
+        return;
+    }
+
+    message = "[" + KITCHEN_HOOD_LOG_SYSTEM + "][" + KITCHEN_HOOD_LOG_SCRIPT + "][" + KITCHEN_HOOD_LOG_CONTEXT + "]; " +
+        eventName + "=" + eventText + kitchenHoodFormatParams(params);
+
+    if (eventName === "АВАРИЯ" || eventName === "WATCHDOG") {
+        kitchenHoodWriteJournal("error", message);
+        return;
+    }
+
+    if (eventName === "ОШИБКА") {
+        kitchenHoodWriteJournal("warning", message);
+        return;
+    }
+
+    kitchenHoodWriteJournal("info", message);
+}
+
+function kitchenHoodLog(message) {
+    kitchenHoodWriteLog("СОСТОЯНИЕ", message, null);
 }
 
 function getBool(cell) {
     return !!dev[cell];
+}
+
+function isKitchenHoodControlAvailable(cell) {
+    return cell && dev[cell] !== null && dev[cell] !== undefined;
+}
+
+function getKitchenHoodLevel(cell, fallback) {
+    var raw;
+    var value;
+
+    if (!cell) {
+        return fallback;
+    }
+
+    raw = dev[cell];
+
+    if (raw === null || raw === undefined || raw === "") {
+        return fallback;
+    }
+
+    value = Number(raw);
+
+    if (!isFinite(value)) {
+        return fallback;
+    }
+
+    return value;
 }
 
 function getTargetLevel() {
@@ -89,49 +193,87 @@ function getActiveInputsText() {
     }
 
     if (active.length === 0) {
-        return "none";
+        return "нет";
     }
 
     return active.join(",");
 }
 
+function kitchenHoodBaseParams(reason, activeInputsText, targetLevel) {
+    return {
+        "причина": reason,
+        "входы": activeInputsText,
+        "цель": targetLevel + "%"
+    };
+}
+
+function writeKitchenHoodSwitch(value, reason, activeInputsText, targetLevel) {
+    var topic = KITCHEN_HOOD_CFG.output.switchControl;
+    var params = kitchenHoodBaseParams(reason, activeInputsText, targetLevel);
+
+    params["канал"] = topic;
+    params["значение в канал"] = value ? "ON" : "OFF";
+
+    if (!isKitchenHoodControlAvailable(topic)) {
+        kitchenHoodWriteLog("ОШИБКА", "Канал включения вытяжки недоступен", params);
+        return false;
+    }
+
+    if (!!dev[topic] !== !!value) {
+        dev[topic] = !!value;
+        KITCHEN_HOOD_STATE.lastSwitchCommand = value;
+        kitchenHoodWriteLog("КОМАНДА", value ? "Включить канал вытяжки" : "Выключить канал вытяжки", params);
+    }
+
+    return true;
+}
+
+function writeKitchenHoodLevel(value, reason, activeInputsText) {
+    var topic = KITCHEN_HOOD_CFG.output.levelControl;
+    var currentLevel = getKitchenHoodLevel(topic, null);
+    var params = kitchenHoodBaseParams(reason, activeInputsText, value);
+
+    params["канал"] = topic;
+    params["значение в канал"] = value + "%";
+
+    if (!isKitchenHoodControlAvailable(topic)) {
+        kitchenHoodWriteLog("ОШИБКА", "Канал задания скорости вытяжки недоступен", params);
+        return false;
+    }
+
+    if (currentLevel === null || currentLevel !== value) {
+        dev[topic] = value;
+        KITCHEN_HOOD_STATE.lastLevelCommand = value;
+        kitchenHoodWriteLog("КОМАНДА", "Установить скорость вытяжки", params);
+    }
+
+    return true;
+}
+
 function applyKitchenHoodState(reason) {
     var targetLevel;
-    var currentSwitch;
-    var currentLevel;
     var activeInputsText;
 
     if (!KITCHEN_HOOD_CFG.enabled) {
-        kitchenHoodLog("Сценарий отключён флагом enabled");
+        if (!KITCHEN_HOOD_STATE.lastDisabledLog) {
+            KITCHEN_HOOD_STATE.lastDisabledLog = true;
+            kitchenHoodWriteLog("СОСТОЯНИЕ", "Сценарий отключён", {
+                "причина": "enabled=false"
+            });
+        }
         return;
     }
 
+    KITCHEN_HOOD_STATE.lastDisabledLog = false;
+
     targetLevel = getTargetLevel();
-    currentSwitch = !!dev[KITCHEN_HOOD_CFG.output.switchControl];
-    currentLevel = Number(dev[KITCHEN_HOOD_CFG.output.levelControl]);
     activeInputsText = getActiveInputsText();
 
     if (KITCHEN_HOOD_CFG.forceSwitchOn) {
-        if (!currentSwitch) {
-            dev[KITCHEN_HOOD_CFG.output.switchControl] = true;
-            kitchenHoodLog("Включен канал управления");
-        }
+        writeKitchenHoodSwitch(true, reason, activeInputsText, targetLevel);
     }
 
-    if (currentLevel !== targetLevel) {
-        dev[KITCHEN_HOOD_CFG.output.levelControl] = targetLevel;
-        kitchenHoodLog(
-            "Причина=" + reason +
-            "; входы=" + activeInputsText +
-            "; установлен уровень=" + targetLevel + "%"
-        );
-    } else {
-        kitchenHoodLog(
-            "Причина=" + reason +
-            "; входы=" + activeInputsText +
-            "; уровень без изменений=" + targetLevel + "%"
-        );
-    }
+    writeKitchenHoodLevel(targetLevel, reason, activeInputsText);
 }
 
 defineRule("kitchen_hood_apply_on_inputs_change", {
@@ -142,12 +284,18 @@ defineRule("kitchen_hood_apply_on_inputs_change", {
         KITCHEN_HOOD_CFG.inputs.speed4
     ],
     then: function () {
-        applyKitchenHoodState("inputs_changed");
+        applyKitchenHoodState("изменение входов");
     }
+});
+
+kitchenHoodWriteLog("СКРИПТ", "Скрипт загружен", {
+    "входы": KITCHEN_HOOD_CFG.inputs.speed1 + ", " + KITCHEN_HOOD_CFG.inputs.speed2 + ", " + KITCHEN_HOOD_CFG.inputs.speed3 + ", " + KITCHEN_HOOD_CFG.inputs.speed4,
+    "канал_включения": KITCHEN_HOOD_CFG.output.switchControl,
+    "канал_скорости": KITCHEN_HOOD_CFG.output.levelControl
 });
 
 if (KITCHEN_HOOD_CFG.applyOnStart) {
     setTimeout(function () {
-        applyKitchenHoodState("startup");
+        applyKitchenHoodState("старт скрипта");
     }, KITCHEN_HOOD_CFG.startDelayMs);
 }

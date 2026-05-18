@@ -3,6 +3,8 @@
 // Автоматическая импульсная подпитка давления отопления.
 // Защита: клапан не открывается, если давление ХВС недостаточно выше давления отопления.
 // Защита: клапан не открывается при ошибке тока датчиков давления 4-20 мА.
+// Защита: автоподпитка блокируется при слишком частых циклах подпитки.
+// Физический канал, который пишет скрипт: wb-mr6cu_219/K5
 
 var System = null;
 
@@ -11,6 +13,13 @@ try {
 } catch (e) {
     System = null;
 }
+
+var LOG_SYSTEM_NAME = "отопление";
+var LOG_SCRIPT_NAME = "550_Pressure_makeup";
+var LOG_CONTEXT_NAME = "давление";
+
+var HOUR_MS = 60 * 60 * 1000;
+var DAY_MS = 24 * HOUR_MS;
 
 var CH = {
     valveMakeup: "wb-mr6cu_219/K5",                       // 550 Клапан подпитки отопления
@@ -40,7 +49,11 @@ var CFG = {
     pressureClampMinBar: 0,
     pressureClampMaxBar: 6,
 
-    minRiseBar: 0              // 0 = контроль роста давления отключен
+    minRiseBar: 0,             // 0 = контроль роста давления отключен
+    autoStartBlockMs: 60000,    // блокировка автоматической подпитки после старта wb-rules
+
+    maxCycles1h: 3,             // максимум автоматических циклов подпитки за 1 час; 0 = контроль отключен
+    maxCycles24h: 6             // максимум автоматических циклов подпитки за 24 часа; 0 = контроль отключен
 };
 
 var STATE = {
@@ -61,13 +74,24 @@ var STATE = {
     makeupFailedAlarm: false,
     noRiseAlarm: false,
     watchdogAlarm: false,
+    frequentMakeupAlarm: false,
+
+    autoStartBlocked: true,
+
+    makeupCycleTimestamps: [],
+    makeupCycles1h: 0,
+    makeupCycles24h: 0,
 
     cycleStartPressureBar: null,
     lastEvent: "",
+    lastLoggedEvent: "",
+
+    alarmLogState: {},
 
     valveCloseTimer: null,
     pauseTimer: null,
-    watchdogTimer: null
+    watchdogTimer: null,
+    autoStartBlockTimer: null
 };
 
 function safeLog(text)
@@ -81,6 +105,72 @@ function safeLog(text)
     log(text);
 }
 
+function writeJournal(level, message)
+{
+    if (level === "error" && log.error)
+    {
+        log.error(message);
+        return;
+    }
+
+    if (level === "warning" && log.warning)
+    {
+        log.warning(message);
+        return;
+    }
+
+    if (log.info)
+    {
+        log.info(message);
+        return;
+    }
+
+    safeLog(message);
+}
+
+function formatParams(params)
+{
+    var list = [];
+    var k;
+
+    if (!params)
+        return "";
+
+    for (k in params)
+    {
+        if (params.hasOwnProperty(k))
+        {
+            if (params[k] !== undefined && params[k] !== null && params[k] !== "")
+                list.push(k + "=" + params[k]);
+        }
+    }
+
+    if (list.length === 0)
+        return "";
+
+    return "; " + list.join("; ");
+}
+
+function writeLog(eventName, eventText, params)
+{
+    var message = "[" + LOG_SYSTEM_NAME + "][" + LOG_SCRIPT_NAME + "][" + LOG_CONTEXT_NAME + "]; " +
+        eventName + "=" + eventText + formatParams(params);
+
+    if (eventName === "АВАРИЯ" || eventName === "WATCHDOG")
+    {
+        writeJournal("error", message);
+        return;
+    }
+
+    if (eventName === "ОШИБКА")
+    {
+        writeJournal("warning", message);
+        return;
+    }
+
+    writeJournal("info", message);
+}
+
 function readBool(value)
 {
     return value === true || value === 1 || value === "1" || value === "true";
@@ -88,14 +178,20 @@ function readBool(value)
 
 function readNumber(path, fallback)
 {
+    var raw;
     var value;
 
     if (!path)
         return fallback;
 
-    value = Number(dev[path]);
+    raw = dev[path];
 
-    if (isNaN(value))
+    if (raw === null || raw === undefined || raw === "")
+        return fallback;
+
+    value = Number(raw);
+
+    if (!isFinite(value))
         return fallback;
 
     return value;
@@ -107,11 +203,57 @@ function setCell(name, value)
         dev["pressure_makeup/" + name] = value;
 }
 
-function setEvent(text)
+function formatNumber(value)
+{
+    if (value === null || value === undefined || !isFinite(Number(value)))
+        return "нет данных";
+
+    return String(value);
+}
+
+function makePressureParams(settings, pressureState, reason)
+{
+    var params = {
+        "причина": reason,
+        "отопление": pressureState ? formatNumber(pressureState.heatPressureBar) : "нет данных",
+        "хвс": pressureState ? formatNumber(pressureState.coldPressureBar) : "нет данных",
+        "запас_хвс": pressureState ? formatNumber(pressureState.pressureDeltaBar) : "нет данных",
+        "ток_отопление": pressureState ? formatNumber(pressureState.heatCurrentMa) : "нет данных",
+        "ток_хвс": pressureState ? formatNumber(pressureState.coldCurrentMa) : "нет данных",
+        "клапан": readBool(dev[CH.valveMakeup]) ? "ON" : "OFF",
+        "импульсы": STATE.pulseCount,
+        "канал": CH.valveMakeup
+    };
+
+    if (settings)
+    {
+        params["старт"] = settings.pressureMinBar;
+        params["цель"] = settings.pressureTargetBar;
+        params["мин_хвс"] = settings.coldMinAbsBar;
+        params["мин_запас_хвс"] = settings.coldMinDeltaBar;
+        params["лимит_циклов_1ч"] = settings.maxCycles1h;
+        params["лимит_циклов_24ч"] = settings.maxCycles24h;
+    }
+
+    params["циклов_1ч"] = STATE.makeupCycles1h;
+    params["циклов_24ч"] = STATE.makeupCycles24h;
+
+    return params;
+}
+
+function setEvent(text, eventName, params, forceLog)
 {
     STATE.lastEvent = text;
     setCell("last_event", text);
-    safeLog("[550_Pressure_makeup] " + text);
+
+    if (!eventName)
+        eventName = "СОСТОЯНИЕ";
+
+    if (forceLog || STATE.lastLoggedEvent !== eventName + ":" + text)
+    {
+        STATE.lastLoggedEvent = eventName + ":" + text;
+        writeLog(eventName, text, params);
+    }
 }
 
 function clearTimer(timerName)
@@ -186,6 +328,8 @@ function getSettings()
         watchdogS: readNumber("pressure_makeup/watchdog_s", CFG.watchdogS),
 
         minRiseBar: readNumber("pressure_makeup/min_rise_bar", CFG.minRiseBar),
+        maxCycles1h: readNumber("pressure_makeup/max_cycles_1h", CFG.maxCycles1h),
+        maxCycles24h: readNumber("pressure_makeup/max_cycles_24h", CFG.maxCycles24h),
 
         smsAllowed: CH.secBlock ? !readBool(dev[CH.secBlock]) : true
     };
@@ -228,13 +372,48 @@ function sendAlertIfAllowed(settings, eventText, detailsText, recommendationText
         return;
     }
 
-    safeLog("[550_Pressure_makeup] ALERT: " + eventText + " " + detailsText + " " + recommendationText);
+    writeLog("ОШИБКА", "Уведомление не отправлено через system.js", {
+        "событие": eventText,
+        "детали": detailsText,
+        "рекомендация": recommendationText
+    });
+}
+
+function isControlAvailable(topic)
+{
+    return topic && dev[topic] !== null && dev[topic] !== undefined;
+}
+
+function writeValve(value, eventText, settings, pressureState, reason)
+{
+    var params = makePressureParams(settings, pressureState, reason);
+
+    params["канал"] = CH.valveMakeup;
+    params["значение в канал"] = value ? "ON" : "OFF";
+
+    if (!isControlAvailable(CH.valveMakeup))
+    {
+        setEvent("Канал клапана подпитки недоступен", "ОШИБКА", params, true);
+        return false;
+    }
+
+    if (readBool(dev[CH.valveMakeup]) !== value)
+        dev[CH.valveMakeup] = value;
+
+    setEvent(eventText, "КОМАНДА", params, true);
+    return true;
 }
 
 function closeValve(reason)
 {
-    if (readBool(dev[CH.valveMakeup]))
-        dev[CH.valveMakeup] = false;
+    var settings = getSettings();
+    var pressureState = readPressureState();
+    var wasOpen = readBool(dev[CH.valveMakeup]);
+
+    if (wasOpen)
+        writeValve(false, "Закрыть клапан подпитки", settings, pressureState, reason || "закрытие клапана");
+    else if (!isControlAvailable(CH.valveMakeup))
+        setEvent("Канал клапана подпитки недоступен", "ОШИБКА", makePressureParams(settings, pressureState, reason || "закрытие клапана"), false);
 
     clearTimer("valveCloseTimer");
     clearTimer("watchdogTimer");
@@ -242,7 +421,7 @@ function closeValve(reason)
     STATE.valveOpening = false;
 
     if (reason)
-        setEvent(reason);
+        setEvent(reason, classifyEvent(reason), makePressureParams(settings, pressureState, reason), false);
 }
 
 function stopCycle(reason)
@@ -256,15 +435,32 @@ function stopCycle(reason)
     STATE.cycleStartPressureBar = null;
 }
 
+function classifyEvent(text)
+{
+    if (text.indexOf("Watchdog") >= 0)
+        return "WATCHDOG";
+
+    if (text.indexOf("Неуспешное") >= 0 || text.indexOf("не растёт") >= 0)
+        return "АВАРИЯ";
+
+    if (text.indexOf("Ошибка") >= 0 || text.indexOf("отклонен") >= 0 || text.indexOf("недостаточно") >= 0)
+        return "ОШИБКА";
+
+    return "СОСТОЯНИЕ";
+}
+
 function rejectPulse(reason, stopActiveCycle)
 {
+    var settings = getSettings();
+    var pressureState = readPressureState();
+
     if (stopActiveCycle)
     {
         stopCycle(reason);
         return;
     }
 
-    setEvent(reason);
+    setEvent(reason, "ОШИБКА", makePressureParams(settings, pressureState, reason), false);
 }
 
 function resetAllAlarmsAndCycle()
@@ -280,10 +476,15 @@ function resetAllAlarmsAndCycle()
     STATE.makeupFailedAlarm = false;
     STATE.noRiseAlarm = false;
     STATE.watchdogAlarm = false;
+    STATE.frequentMakeupAlarm = false;
 
     STATE.pulseCount = 0;
     STATE.heatPressureBuffer = [];
     STATE.coldPressureBuffer = [];
+    STATE.makeupCycleTimestamps = [];
+    STATE.makeupCycles1h = 0;
+    STATE.makeupCycles24h = 0;
+    STATE.alarmLogState = {};
 }
 
 function isColdPressureAllowed(settings, pressureState)
@@ -320,6 +521,100 @@ function updateSafetyAlarms(settings, pressureState)
     STATE.coldPressureAlarm = !isColdPressureAllowed(settings, pressureState);
 }
 
+function logAlarmFlag(name, active, eventText, settings, pressureState)
+{
+    var previous = STATE.alarmLogState[name];
+    var params;
+
+    if (previous === active)
+        return;
+
+    STATE.alarmLogState[name] = active;
+    params = makePressureParams(settings, pressureState, active ? "активна" : "восстановление");
+
+    if (active)
+        writeLog(name === "lowPressureAlarm" ? "АВАРИЯ" : "ОШИБКА", eventText, params);
+    else
+        writeLog("РЕЗУЛЬТАТ", eventText + " снята", params);
+}
+
+function logSafetyAlarms(settings, pressureState)
+{
+    logAlarmFlag("heatCurrentAlarm", STATE.heatCurrentAlarm, "Ток датчика давления отопления ниже порога", settings, pressureState);
+    logAlarmFlag("coldCurrentAlarm", STATE.coldCurrentAlarm, "Ток датчика давления ХВС ниже порога", settings, pressureState);
+    logAlarmFlag("heatPressureSensorAlarm", STATE.heatPressureSensorAlarm, "Нет корректного давления отопления", settings, pressureState);
+    logAlarmFlag("coldPressureSensorAlarm", STATE.coldPressureSensorAlarm, "Нет корректного давления ХВС", settings, pressureState);
+    logAlarmFlag("coldPressureAlarm", STATE.coldPressureAlarm, "Давление ХВС недостаточно для подпитки", settings, pressureState);
+    logAlarmFlag("lowPressureAlarm", STATE.lowPressureAlarm, "Аварийно низкое давление отопления", settings, pressureState);
+    logAlarmFlag("frequentMakeupAlarm", STATE.frequentMakeupAlarm, "Слишком частая подпитка отопления", settings, pressureState);
+}
+
+
+function updateMakeupCycleStats()
+{
+    var now = nowMs();
+    var i;
+    var fresh = [];
+    var cycles1h = 0;
+    var cycles24h = 0;
+
+    for (i = 0; i < STATE.makeupCycleTimestamps.length; i++)
+    {
+        if (now - STATE.makeupCycleTimestamps[i] <= DAY_MS)
+        {
+            fresh.push(STATE.makeupCycleTimestamps[i]);
+
+            if (now - STATE.makeupCycleTimestamps[i] <= HOUR_MS)
+                cycles1h = cycles1h + 1;
+
+            cycles24h = cycles24h + 1;
+        }
+    }
+
+    STATE.makeupCycleTimestamps = fresh;
+    STATE.makeupCycles1h = cycles1h;
+    STATE.makeupCycles24h = cycles24h;
+}
+
+function checkFrequentMakeupLimit(settings, pressureState)
+{
+    var over1h = settings.maxCycles1h > 0 && STATE.makeupCycles1h > settings.maxCycles1h;
+    var over24h = settings.maxCycles24h > 0 && STATE.makeupCycles24h > settings.maxCycles24h;
+    var params;
+
+    if (!over1h && !over24h)
+        return false;
+
+    STATE.frequentMakeupAlarm = true;
+
+    params = makePressureParams(settings, pressureState, over1h ? "превышен лимит циклов за 1 час" : "превышен лимит циклов за 24 часа");
+    writeLog("АВАРИЯ", "Слишком частая подпитка отопления", params);
+
+    sendAlertIfAllowed(
+        settings,
+        "Слишком частая подпитка отопления",
+        "Автоподпитка заблокирована: циклов за 1 час=" + STATE.makeupCycles1h + ", за 24 часа=" + STATE.makeupCycles24h + ".",
+        "Проверьте протечки, расширительный бак, предохранительный клапан и давление в системе."
+    );
+
+    return true;
+}
+
+function registerMakeupCycleStart(settings, pressureState)
+{
+    updateMakeupCycleStats();
+    STATE.makeupCycleTimestamps.push(nowMs());
+    updateMakeupCycleStats();
+
+    setCell("makeup_cycles_1h", STATE.makeupCycles1h);
+    setCell("makeup_cycles_24h", STATE.makeupCycles24h);
+
+    if (checkFrequentMakeupLimit(settings, pressureState))
+        return false;
+
+    return true;
+}
+
 function updateVirtualState(pressureState)
 {
     setCell("heat_pressure_bar", pressureState.heatPressureBar);
@@ -333,6 +628,10 @@ function updateVirtualState(pressureState)
     setCell("valve_opening", STATE.valveOpening);
     setCell("waiting_pause", STATE.waitingPause);
     setCell("pulse_count", STATE.pulseCount);
+    updateMakeupCycleStats();
+    setCell("auto_start_blocked", STATE.autoStartBlocked);
+    setCell("makeup_cycles_1h", STATE.makeupCycles1h);
+    setCell("makeup_cycles_24h", STATE.makeupCycles24h);
 
     setCell("heat_pressure_sensor_alarm", STATE.heatPressureSensorAlarm);
     setCell("cold_pressure_sensor_alarm", STATE.coldPressureSensorAlarm);
@@ -343,6 +642,7 @@ function updateVirtualState(pressureState)
     setCell("makeup_failed_alarm", STATE.makeupFailedAlarm);
     setCell("no_rise_alarm", STATE.noRiseAlarm);
     setCell("watchdog_alarm", STATE.watchdogAlarm);
+    setCell("frequent_makeup_alarm", STATE.frequentMakeupAlarm);
 
     setCell("status_line1", "Отопление: " + pressureState.heatPressureBar + " бар; " + pressureState.heatCurrentMa + " мА.");
     setCell("status_line2", "ХВС: " + pressureState.coldPressureBar + " бар; " + pressureState.coldCurrentMa + " мА.");
@@ -381,8 +681,17 @@ function canStartPulse(settings, pressureState, manualMode)
     if (!manualMode && !settings.autoMode)
         return "Импульс отклонен: автоматический режим отключен";
 
+    if (!manualMode && STATE.autoStartBlocked)
+        return "Импульс отклонен: автоподпитка заблокирована после запуска скрипта";
+
+    if (!isControlAvailable(CH.valveMakeup))
+        return "Импульс отклонен: канал клапана подпитки недоступен";
+
     if (STATE.watchdogAlarm)
         return "Импульс отклонен: активна авария watchdog";
+
+    if (STATE.frequentMakeupAlarm)
+        return "Импульс отклонен: слишком частая подпитка, автоподпитка заблокирована";
 
     if (settings.minRiseBar > 0 && STATE.noRiseAlarm)
         return "Импульс отклонен: активна авария отсутствия роста давления";
@@ -415,11 +724,14 @@ function openPulse(settings, manualMode)
     var stopActiveCycle = false;
 
     updateSafetyAlarms(settings, pressureState);
+    updateMakeupCycleStats();
+    logSafetyAlarms(settings, pressureState);
 
     rejectReason = canStartPulse(settings, pressureState, manualMode);
     if (rejectReason)
     {
         stopActiveCycle = STATE.watchdogAlarm ||
+            STATE.frequentMakeupAlarm ||
             (settings.minRiseBar > 0 && STATE.noRiseAlarm) ||
             STATE.makeupFailedAlarm ||
             STATE.pulseCount >= settings.maxPulses ||
@@ -438,18 +750,22 @@ function openPulse(settings, manualMode)
     STATE.valveOpening = true;
     STATE.pulseCount = STATE.pulseCount + 1;
 
-    dev[CH.valveMakeup] = true;
-    setEvent(manualMode ? "Открытие клапана: ручной импульс" : "Открытие клапана");
+    if (!writeValve(true, manualMode ? "Открыть клапан подпитки: ручной импульс" : "Открыть клапан подпитки", settings, pressureState, manualMode ? "ручной импульс" : "автоматический импульс"))
+    {
+        STATE.valveOpening = false;
+        updateVirtualState(pressureState);
+        return;
+    }
 
     STATE.valveCloseTimer = setTimeout(function () {
-        closeValve("Закрытие клапана");
+        closeValve("Закрытие клапана после импульса");
 
         STATE.waitingPause = true;
-        setEvent("Начало паузы");
+        setEvent("Начало паузы после импульса", "СОСТОЯНИЕ", makePressureParams(settings, readPressureState(), "пауза после импульса"), true);
 
         STATE.pauseTimer = setTimeout(function () {
             STATE.waitingPause = false;
-            setEvent("Окончание паузы");
+            setEvent("Окончание паузы после импульса", "СОСТОЯНИЕ", makePressureParams(settings, readPressureState(), "окончание паузы"), true);
             evaluate();
         }, settings.pulsePauseS * 1000);
     }, settings.pulseOpenS * 1000);
@@ -476,6 +792,8 @@ function evaluate()
     var pressureState = readPressureState();
 
     updateSafetyAlarms(settings, pressureState);
+    updateMakeupCycleStats();
+    logSafetyAlarms(settings, pressureState);
 
     if (STATE.heatCurrentAlarm)
     {
@@ -498,9 +816,23 @@ function evaluate()
         if (STATE.active || readBool(dev[CH.valveMakeup]))
             stopCycle("Подпитка остановлена: давление ХВС недостаточно");
     }
+    else if (STATE.frequentMakeupAlarm)
+    {
+        if (STATE.active || readBool(dev[CH.valveMakeup]))
+            stopCycle("Подпитка остановлена: слишком частые срабатывания");
+        else
+            setEvent("Автоподпитка заблокирована: слишком частые срабатывания", "АВАРИЯ", makePressureParams(settings, pressureState, "превышен лимит циклов подпитки"), false);
+    }
     else if (!settings.enabled || !settings.autoMode)
     {
-        stopCycle("Подпитка отключена");
+        if (STATE.active || readBool(dev[CH.valveMakeup]))
+            stopCycle("Подпитка отключена");
+        else
+            setEvent("Подпитка отключена", "СОСТОЯНИЕ", makePressureParams(settings, pressureState, "enabled=false или auto_mode=false"), false);
+    }
+    else if (STATE.autoStartBlocked)
+    {
+        setEvent("Автоподпитка заблокирована после запуска скрипта", "СОСТОЯНИЕ", makePressureParams(settings, pressureState, "стартовая блокировка"), false);
     }
     else
     {
@@ -521,10 +853,17 @@ function evaluate()
 
             if (!STATE.active && pressureState.heatPressureBar !== null && pressureState.heatPressureBar < settings.pressureMinBar)
             {
+                if (!registerMakeupCycleStart(settings, pressureState))
+                {
+                    stopCycle("Подпитка остановлена: слишком частые срабатывания");
+                    updateVirtualState(pressureState);
+                    return;
+                }
+
                 STATE.active = true;
                 STATE.pulseCount = 0;
                 STATE.cycleStartPressureBar = pressureState.heatPressureBar;
-                setEvent("Старт цикла подпитки");
+                setEvent("Старт цикла подпитки", "СОСТОЯНИЕ", makePressureParams(settings, pressureState, "давление отопления ниже порога старта"), true);
             }
 
             if (STATE.active && !STATE.noRiseAlarm)
@@ -546,6 +885,7 @@ function evaluate()
                     openPulse(settings, false);
                     pressureState = readPressureState();
                     updateSafetyAlarms(settings, pressureState);
+                    logSafetyAlarms(settings, pressureState);
                 }
             }
         }
@@ -573,6 +913,9 @@ defineVirtualDevice("pressure_makeup", {
         valve_opening: { type: "switch", readonly: true, value: false, order: 17, title: "Идёт импульс открытия" },
         waiting_pause: { type: "switch", readonly: true, value: false, order: 18, title: "Пауза после импульса" },
         pulse_count: { type: "value", readonly: true, value: 0, order: 19, title: "Импульсов в цикле" },
+        auto_start_blocked: { type: "switch", readonly: true, value: true, order: 20, title: "Блокировка автоподпитки после запуска" },
+        makeup_cycles_1h: { type: "value", readonly: true, value: 0, order: 21, title: "Циклов подпитки за 1 час" },
+        makeup_cycles_24h: { type: "value", readonly: true, value: 0, order: 22, title: "Циклов подпитки за 24 часа" },
 
         heat_pressure_sensor_alarm: { type: "switch", readonly: true, value: false, order: 30, title: "Ошибка давления отопления" },
         cold_pressure_sensor_alarm: { type: "switch", readonly: true, value: false, order: 31, title: "Ошибка давления ХВС" },
@@ -583,6 +926,7 @@ defineVirtualDevice("pressure_makeup", {
         makeup_failed_alarm: { type: "switch", readonly: true, value: false, order: 36, title: "Подпитка не дала результата" },
         no_rise_alarm: { type: "switch", readonly: true, value: false, order: 37, title: "Давление не растёт" },
         watchdog_alarm: { type: "switch", readonly: true, value: false, order: 38, title: "Watchdog клапана" },
+        frequent_makeup_alarm: { type: "switch", readonly: true, value: false, order: 39, title: "Слишком частая подпитка" },
 
         last_event: { type: "text", readonly: true, value: "", order: 60, title: "Последнее событие" },
         status_line1: { type: "text", readonly: true, value: "", order: 61, title: "Статус 1" },
@@ -602,7 +946,9 @@ defineVirtualDevice("pressure_makeup", {
         max_pulses: { type: "value", value: CFG.maxPulses, order: 107, title: "Максимум импульсов" },
         watchdog_s: { type: "value", value: CFG.watchdogS, order: 108, title: "Watchdog открытия, сек" },
         current_break_ma: { type: "value", value: CFG.currentBreakMa, order: 109, title: "Порог обрыва датчика, мА" },
-        min_rise_bar: { type: "value", value: CFG.minRiseBar, order: 110, title: "Минимальный рост давления, бар" }
+        min_rise_bar: { type: "value", value: CFG.minRiseBar, order: 110, title: "Минимальный рост давления, бар" },
+        max_cycles_1h: { type: "value", value: CFG.maxCycles1h, order: 111, title: "Максимум циклов за 1 час" },
+        max_cycles_24h: { type: "value", value: CFG.maxCycles24h, order: 112, title: "Максимум циклов за 24 часа" }
     }
 });
 
@@ -624,7 +970,9 @@ defineRule("pressure_makeup_eval_550", {
         "pressure_makeup/pulse_pause_s",
         "pressure_makeup/max_pulses",
         "pressure_makeup/watchdog_s",
-        "pressure_makeup/min_rise_bar"
+        "pressure_makeup/min_rise_bar",
+        "pressure_makeup/max_cycles_1h",
+        "pressure_makeup/max_cycles_24h"
     ],
     then: function () {
         evaluate();
@@ -657,15 +1005,17 @@ defineRule("pressure_makeup_manual_pulse_550", {
     whenChanged: "pressure_makeup/manual_pulse",
     then: function (newValue) {
         var settings;
+        var pressureState;
 
         if (!newValue)
             return;
 
         settings = getSettings();
+        pressureState = readPressureState();
 
         if (readBool(dev[CH.valveMakeup]))
         {
-            setEvent("Ручной импульс отклонен: клапан уже открыт");
+            setEvent("Ручной импульс отклонен: клапан уже открыт", "ОШИБКА", makePressureParams(settings, pressureState, "ручной импульс"), true);
             evaluate();
             return;
         }
@@ -675,9 +1025,24 @@ defineRule("pressure_makeup_manual_pulse_550", {
     }
 });
 
+writeLog("СКРИПТ", "Скрипт загружен", {
+    "канал_клапана": CH.valveMakeup,
+    "давление_отопления": CH.heatPressureBar,
+    "давление_хвс": CH.coldPressureBar
+});
+
 setTimeout(function () {
-    safeLog("[550_Pressure_makeup] Запуск скрипта");
-    dev[CH.valveMakeup] = false;
-    setEvent("Принудительное закрытие клапана на старте");
+    var settings = getSettings();
+    var pressureState = readPressureState();
+
+    writeValve(false, "Принудительно выключить канал клапана на старте", settings, pressureState, "старт скрипта");
+    setEvent("Стартовая инициализация", "СКРИПТ", makePressureParams(settings, pressureState, "старт скрипта"), true);
     evaluate();
 }, 3000);
+
+STATE.autoStartBlockTimer = setTimeout(function () {
+    STATE.autoStartBlocked = false;
+    setCell("auto_start_blocked", false);
+    setEvent("Блокировка автоподпитки после запуска снята", "СОСТОЯНИЕ", makePressureParams(getSettings(), readPressureState(), "таймер стартовой блокировки"), true);
+    evaluate();
+}, CFG.autoStartBlockMs);
