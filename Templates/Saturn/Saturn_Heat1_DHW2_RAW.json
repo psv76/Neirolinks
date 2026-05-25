@@ -1,0 +1,65 @@
+{
+  "title": "Saturn-PLC Heat1+DHW2 RAW",
+  "device_type": "saturn_plc_heat1_dhw2_raw",
+  "group": "g-climate-control",
+  "device": {
+    "name": "Saturn-PLC RAW",
+    "id": "saturn_lower_raw",
+    "guard_interval_us": 4000,
+    "response_timeout_ms": 1000,
+    "frame_timeout_ms": 5,
+    "max_read_registers": 20,
+    "max_write_registers": 20,
+    "groups": [
+      {"title":"AI/датчики","id":"analog_inputs"},
+      {"title":"Ошибки датчиков","id":"input_errors"},
+      {"title":"Схема 1 Отопление","id":"s1_heating"},
+      {"title":"Схема 2 ГВС","id":"s2_dhw"},
+      {"title":"Сервис","id":"service"}
+    ],
+    "channels": [
+      {"name":"T1","id":"T1","reg_type":"holding","address":16,"type":"value","group":"analog_inputs","format":"float","units":"°C","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+      {"name":"T2","id":"T2","reg_type":"holding","address":18,"type":"value","group":"analog_inputs","format":"float","units":"°C","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+      {"name":"T3","id":"T3","reg_type":"holding","address":20,"type":"value","group":"analog_inputs","format":"float","units":"°C","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+      {"name":"T4","id":"T4","reg_type":"holding","address":22,"type":"value","group":"analog_inputs","format":"float","units":"°C","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+      {"name":"T5","id":"T5","reg_type":"holding","address":24,"type":"value","group":"analog_inputs","format":"float","units":"°C","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+      {"name":"AI1","id":"AI1","reg_type":"holding","address":26,"type":"value","group":"analog_inputs","format":"float","units":"bar","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+      {"name":"AI2","id":"AI2","reg_type":"holding","address":28,"type":"value","group":"analog_inputs","format":"float","units":"bar","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+      {"name":"T1_error","id":"T1_error","reg_type":"discrete","address":272,"type":"switch","group":"input_errors","format":"u16"},
+      {"name":"T2_error","id":"T2_error","reg_type":"discrete","address":273,"type":"switch","group":"input_errors","format":"u16"},
+      {"name":"T3_error","id":"T3_error","reg_type":"discrete","address":274,"type":"switch","group":"input_errors","format":"u16"},
+      {"name":"T4_error","id":"T4_error","reg_type":"discrete","address":275,"type":"switch","group":"input_errors","format":"u16"},
+      {"name":"AI1_error","id":"AI1_error","reg_type":"discrete","address":277,"type":"switch","group":"input_errors","format":"u16"},
+
+      {"name":"S1_ID","id":"S1_ID","reg_type":"holding","address":134,"type":"value","group":"s1_heating","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S1_Status","id":"S1_Status","reg_type":"holding","address":135,"type":"value","group":"s1_heating","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S1_T_correct","id":"S1_T_correct","reg_type":"holding","address":136,"type":"value","group":"s1_heating","format":"s16","word_order":"little_endian","byte_order":"little_endian","scale":0.1},
+      {"name":"S1_T_preset","id":"S1_T_preset","reg_type":"holding","address":137,"type":"value","group":"s1_heating","format":"s16","word_order":"little_endian","byte_order":"little_endian","scale":0.1},
+      {"name":"S1_Pump1","id":"S1_Pump1","reg_type":"holding","address":138,"type":"value","group":"s1_heating","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S1_Pump2","id":"S1_Pump2","reg_type":"holding","address":139,"type":"value","group":"s1_heating","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S1_ValvePercent","id":"S1_ValvePercent","reg_type":"holding","address":141,"type":"value","group":"s1_heating","format":"u16","units":"%","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S1_HS_FeedPump1","id":"S1_HS_FeedPump1","reg_type":"holding","address":143,"type":"value","group":"s1_heating","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S1_HS_FeedPump2","id":"S1_HS_FeedPump2","reg_type":"holding","address":144,"type":"value","group":"s1_heating","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S1_HS_FeedOnCount","id":"S1_HS_FeedOnCount","reg_type":"holding","address":145,"type":"value","group":"s1_heating","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S1_HS_FeedWorkTime","id":"S1_HS_FeedWorkTime","reg_type":"holding","address":146,"type":"value","group":"s1_heating","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S1_RemoteStop","id":"S1_RemoteStop","reg_type":"holding","address":154,"type":"switch","group":"s1_heating","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+
+      {"name":"S2_ID","id":"S2_ID","reg_type":"holding","address":166,"type":"value","group":"s2_dhw","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S2_Status","id":"S2_Status","reg_type":"holding","address":167,"type":"value","group":"s2_dhw","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S2_T_correct","id":"S2_T_correct","reg_type":"holding","address":168,"type":"value","group":"s2_dhw","format":"s16","word_order":"little_endian","byte_order":"little_endian","scale":0.1},
+      {"name":"S2_T_preset","id":"S2_T_preset","reg_type":"holding","address":169,"type":"value","group":"s2_dhw","format":"s16","word_order":"little_endian","byte_order":"little_endian","scale":0.1},
+      {"name":"S2_Pump1","id":"S2_Pump1","reg_type":"holding","address":170,"type":"value","group":"s2_dhw","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S2_Pump2","id":"S2_Pump2","reg_type":"holding","address":171,"type":"value","group":"s2_dhw","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S2_ValvePercent","id":"S2_ValvePercent","reg_type":"holding","address":173,"type":"value","group":"s2_dhw","format":"u16","units":"%","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S2_RemoteStop","id":"S2_RemoteStop","reg_type":"holding","address":176,"type":"switch","group":"s2_dhw","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S2_HWS_Pump1Work","id":"S2_HWS_Pump1Work","reg_type":"holding","address":177,"type":"value","group":"s2_dhw","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S2_HWS_Pump2Work","id":"S2_HWS_Pump2Work","reg_type":"holding","address":178,"type":"value","group":"s2_dhw","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S2_Prior_On","id":"S2_Prior_On","reg_type":"holding","address":179,"type":"switch","group":"s2_dhw","format":"u16","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S2_Prior_Value","id":"S2_Prior_Value","reg_type":"holding","address":180,"type":"value","group":"s2_dhw","format":"s16","word_order":"little_endian","byte_order":"little_endian","scale":0.1},
+      {"name":"S2_Prior_Time","id":"S2_Prior_Time","reg_type":"holding","address":181,"type":"value","group":"s2_dhw","format":"u16","units":"min","word_order":"little_endian","byte_order":"little_endian"},
+      {"name":"S2_Prior_Correct","id":"S2_Prior_Correct","reg_type":"holding","address":182,"type":"value","group":"s2_dhw","format":"s16","word_order":"little_endian","byte_order":"little_endian","scale":0.1},
+
+      {"name":"V_battery","id":"V_battery","reg_type":"holding","address":100,"type":"value","group":"service","format":"float","units":"V","word_order":"little_endian","byte_order":"little_endian","round_to":0.01}
+    ]
+  }
+}
