@@ -1,0 +1,69 @@
+{
+  "title": "Saturn-PLC Heat1+DHW2 RAW",
+  "device_type": "saturn_plc_heat1_dhw2_raw",
+  "group": "g-climate-control",
+  "device": {
+    "name": "Saturn-PLC RAW",
+    "id": "saturn_plc_raw",
+    "guard_interval_us": 4000,
+    "response_timeout_ms": 1000,
+    "frame_timeout_ms": 5,
+    "max_read_registers": 20,
+    "max_write_registers": 20,
+    "groups": [
+      {"title": "Аналоговые входы", "id": "analog_inputs"},
+      {"title": "Ошибки входов", "id": "input_errors"},
+      {"title": "Дискретные входы", "id": "discrete_inputs"},
+      {"title": "Дискретные выходы", "id": "discrete_outputs"},
+      {"title": "Аналоговые выходы", "id": "analog_outputs"},
+      {"title": "Служебные", "id": "service"}
+    ],
+    "channels": [
+      {"name":"T1","id":"T1","reg_type":"holding","address":16,"type":"value","group":"analog_inputs","format":"float","units":"°C","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+      {"name":"T2","id":"T2","reg_type":"holding","address":18,"type":"value","group":"analog_inputs","format":"float","units":"°C","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+      {"name":"T3","id":"T3","reg_type":"holding","address":20,"type":"value","group":"analog_inputs","format":"float","units":"°C","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+      {"name":"T4","id":"T4","reg_type":"holding","address":22,"type":"value","group":"analog_inputs","format":"float","units":"°C","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+      {"name":"T5","id":"T5","reg_type":"holding","address":24,"type":"value","group":"analog_inputs","format":"float","units":"°C","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+      {"name":"AI1","id":"AI1","reg_type":"holding","address":26,"type":"value","group":"analog_inputs","format":"float","units":"bar","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+      {"name":"AI2","id":"AI2","reg_type":"holding","address":28,"type":"value","group":"analog_inputs","format":"float","units":"bar","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+
+      {"name":"T1 ошибка","id":"T1_error","reg_type":"discrete","address":272,"type":"switch","group":"input_errors","format":"u16"},
+      {"name":"T2 ошибка","id":"T2_error","reg_type":"discrete","address":273,"type":"switch","group":"input_errors","format":"u16"},
+      {"name":"T3 ошибка","id":"T3_error","reg_type":"discrete","address":274,"type":"switch","group":"input_errors","format":"u16"},
+      {"name":"T4 ошибка","id":"T4_error","reg_type":"discrete","address":275,"type":"switch","group":"input_errors","format":"u16"},
+      {"name":"T5 ошибка","id":"T5_error","reg_type":"discrete","address":276,"type":"switch","group":"input_errors","format":"u16"},
+      {"name":"AI1 ошибка","id":"AI1_error","reg_type":"discrete","address":277,"type":"switch","group":"input_errors","format":"u16"},
+      {"name":"AI2 ошибка","id":"AI2_error","reg_type":"discrete","address":278,"type":"switch","group":"input_errors","format":"u16"},
+
+      {"name":"DI1","id":"DI1","reg_type":"discrete","address":256,"type":"switch","group":"discrete_inputs","format":"u16"},
+      {"name":"DI2","id":"DI2","reg_type":"discrete","address":257,"type":"switch","group":"discrete_inputs","format":"u16"},
+      {"name":"DI3","id":"DI3","reg_type":"discrete","address":258,"type":"switch","group":"discrete_inputs","format":"u16"},
+      {"name":"DI4","id":"DI4","reg_type":"discrete","address":259,"type":"switch","group":"discrete_inputs","format":"u16"},
+      {"name":"DI5","id":"DI5","reg_type":"discrete","address":260,"type":"switch","group":"discrete_inputs","format":"u16"},
+      {"name":"DI6","id":"DI6","reg_type":"discrete","address":261,"type":"switch","group":"discrete_inputs","format":"u16"},
+      {"name":"DI7","id":"DI7","reg_type":"discrete","address":262,"type":"switch","group":"discrete_inputs","format":"u16"},
+      {"name":"DI8","id":"DI8","reg_type":"discrete","address":263,"type":"switch","group":"discrete_inputs","format":"u16"},
+      {"name":"DI9","id":"DI9","reg_type":"discrete","address":264,"type":"switch","group":"discrete_inputs","format":"u16"},
+      {"name":"DI10","id":"DI10","reg_type":"discrete","address":265,"type":"switch","group":"discrete_inputs","format":"u16"},
+
+      {"name":"DO1","id":"DO1","reg_type":"coil","address":256,"type":"switch","group":"discrete_outputs","format":"u16"},
+      {"name":"DO2","id":"DO2","reg_type":"coil","address":257,"type":"switch","group":"discrete_outputs","format":"u16"},
+      {"name":"DO3","id":"DO3","reg_type":"coil","address":258,"type":"switch","group":"discrete_outputs","format":"u16"},
+      {"name":"DO4","id":"DO4","reg_type":"coil","address":259,"type":"switch","group":"discrete_outputs","format":"u16"},
+      {"name":"DO5","id":"DO5","reg_type":"coil","address":260,"type":"switch","group":"discrete_outputs","format":"u16"},
+      {"name":"DO6","id":"DO6","reg_type":"coil","address":261,"type":"switch","group":"discrete_outputs","format":"u16"},
+      {"name":"DO7","id":"DO7","reg_type":"coil","address":262,"type":"switch","group":"discrete_outputs","format":"u16"},
+      {"name":"DO8","id":"DO8","reg_type":"coil","address":263,"type":"switch","group":"discrete_outputs","format":"u16"},
+      {"name":"DO9","id":"DO9","reg_type":"coil","address":264,"type":"switch","group":"discrete_outputs","format":"u16"},
+      {"name":"DO10","id":"DO10","reg_type":"coil","address":265,"type":"switch","group":"discrete_outputs","format":"u16"},
+      {"name":"DO11","id":"DO11","reg_type":"coil","address":266,"type":"switch","group":"discrete_outputs","format":"u16"},
+
+      {"name":"AO1","id":"AO1","reg_type":"holding","address":31,"type":"value","group":"analog_outputs","format":"float","units":"V","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+      {"name":"AO2","id":"AO2","reg_type":"holding","address":33,"type":"value","group":"analog_outputs","format":"float","units":"V","word_order":"little_endian","byte_order":"little_endian","round_to":0.1},
+
+      {"name":"V_battery","id":"V_battery","reg_type":"holding","address":72,"type":"value","group":"service","format":"float","units":"V","word_order":"little_endian","byte_order":"little_endian","round_to":0.01},
+      {"name":"S1_ID","id":"S1_ID","reg_type":"holding","address":160,"type":"value","group":"service","format":"u16"},
+      {"name":"S2_ID","id":"S2_ID","reg_type":"holding","address":161,"type":"value","group":"service","format":"u16"}
+    ]
+  }
+}
