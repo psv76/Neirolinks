@@ -1,8 +1,25 @@
+/*
+ * 620_saturn_heat1_dhw2.js
+ * Создает виртуальные устройства «Отопление» и «ГВС» из RAW Saturn-PLC.
+ */
+
 var SCRIPT_ID = "620_saturn_heat1_dhw2";
 
 var SATURN_CONTROLLERS = [
-  { rawDevice: "saturn_lower_raw", titleSuffix: "нижних этажей", contextTag: "нижние", heatingDevice: "saturn_lower_heating", dhwDevice: "saturn_lower_dhw" },
-  { rawDevice: "saturn_upper_raw", titleSuffix: "верхних этажей", contextTag: "верхние", heatingDevice: "saturn_upper_heating", dhwDevice: "saturn_upper_dhw" }
+  {
+    rawDevice: "saturn_lower_raw",
+    titleSuffix: "нижних этажей",
+    contextTag: "нижние",
+    heatingDevice: "saturn_lower_heating",
+    dhwDevice: "saturn_lower_dhw"
+  },
+  {
+    rawDevice: "saturn_upper_raw",
+    titleSuffix: "верхних этажей",
+    contextTag: "верхние",
+    heatingDevice: "saturn_upper_heating",
+    dhwDevice: "saturn_upper_dhw"
+  }
 ];
 
 function logLine(level, systemTag, contextTag, eventType, message, params) {
