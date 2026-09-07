@@ -1,0 +1,27 @@
+{
+  "manufacturer": "psv76",
+  "model": "05_31_Ivolga_Relay_Lightbulb",
+  "modelIds": [
+    "/devices/(A06)/controls/(K[1-6])/meta/type",
+    "/devices/(A11)/controls/(K[1-6])/meta/type",
+    "/devices/(A12)/controls/(K[1-6])/meta/type",
+    "/devices/(A16)/controls/(K4)/meta/type"
+  ],
+  "services": [
+    {
+      "type": "Lightbulb",
+      "characteristics": [
+        {
+          "type": "On",
+          "link": [
+            {
+              "type": "Integer",
+              "topicGet": "/devices/(1)/controls/(2)",
+              "topicSet": "/devices/(1)/controls/(2)/on"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
