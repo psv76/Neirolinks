@@ -31,14 +31,14 @@ targets:
 
 # Deliberately excluded until identity/service contracts are confirmed.
 unresolved:
-  - {source_line: '441', reason: 'Live F1/F2 LeakSensor candidates exist, but current WB-MWAC MQTT identity is raw-address based and not yet mapped to Project A44.'}
-  - {source_line: '442', reason: 'Live F1/F2 LeakSensor candidates exist, but current WB-MWAC MQTT identity is raw-address based and not yet mapped to Project A44.'}
-  - {source_line: '470', reason: 'Live hub contains several raw WB-M1W2 families; Project 921.06/W1 mapping cannot be inferred safely.'}
-  - {source_line: '471', reason: 'Live hub contains several raw WB-M1W2 families; Project 921.06/W2 mapping cannot be inferred safely.'}
+  - {source_line: '441', reason: 'Project A44 is correlated with the unique live WB-MWAC slave 66 and Sprut F1 exists; final canonical MQTT identity/minimal MWAC template migration is still pending.'}
+  - {source_line: '442', reason: 'Project A44 is correlated with the unique live WB-MWAC slave 66 and Sprut F2 exists; final canonical MQTT identity/minimal MWAC template migration is still pending.'}
+  - {source_line: '470', reason: 'Live WB contains M1W2 slaves 142 and 151; Project 921.06/W1 must be matched to one of them from device controls or a controlled field test, not config order.'}
+  - {source_line: '471', reason: 'Live WB contains M1W2 slaves 142 and 151; Project 921.06/W2 must be matched to one of them from device controls or a controlled field test, not config order.'}
   - {source_line: '501', reason: 'A43/K6 physical relay is confirmed; separate Virtual FanBasic serial 133 exists but its stable binding/identity is not proven by DISCOVER.'}
-  - {source_line: '921.09', reason: 'Project confirms T+RH+Motion capability, but no WB-MSW Accessory exists in current Sprut DISCOVER.'}
-  - {source_line: '921.10', reason: 'M1W2 W1/W2 role configuration is absent in NL Project 1.0 and live raw family mapping is ambiguous.'}
-  - {source_line: '922.01', reason: 'No Project-stable motion-sensor identity is present in current Sprut DISCOVER.'}
-  - {source_line: '923.01', reason: 'No curtain Accessory with Project-stable identity is present in current Sprut DISCOVER.'}
-  - {source_line: '923.02', reason: 'No curtain Accessory with Project-stable identity is present in current Sprut DISCOVER.'}
-  - {source_line: '924.01', reason: 'No climate Accessory with Project-stable identity is present in current Sprut DISCOVER.'}
+  - {source_line: '921.09', reason: 'Unique live WB-MSW slave 120 is correlated with Project 921.09 (T+RH+Motion); current Sprut has no accessory for it, so canonical alias 921.09_MSW_THM + custom template migration/rediscovery is pending.'}
+  - {source_line: '921.10', reason: 'Second Project M1W2 must be distinguished from Project 921.06 between live slaves 142 and 151; role configuration must be read from current WB controls.'}
+  - {source_line: '922.01', reason: 'RS-485-2 contains creatrol_24g slave 1 and Project has one motion sensor on RS-485-2, but exact identity/service semantics are not yet proven.'}
+  - {source_line: '923.01', reason: 'Current /dev/ttyMOD1 has no configured wb-mqtt-serial devices; curtain physical presence/control path must be established separately.'}
+  - {source_line: '923.02', reason: 'Current /dev/ttyMOD1 has no configured wb-mqtt-serial devices; curtain physical presence/control path must be established separately.'}
+  - {source_line: '924.01', reason: 'Current /dev/ttyMOD2 has no configured wb-mqtt-serial devices; air-conditioner physical presence/control path must be established separately.'}
