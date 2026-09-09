@@ -5,13 +5,15 @@
 
 Development overlay on the frozen v0.2.2 reference.
 
-Field-confirmed write RPC:
-- Service.visible
-- Characteristic.statusVisible
-- Yandex bridge disable (delete)
+Field-confirmed on real Sprut WebUI:
+- Service.visible update
+- Characteristic.statusVisible update
+- Yandex bridge membership list
+- Yandex bridge enable/create
+- Yandex bridge disable/delete
 
-Alice read-path and enable RPC are still not fully confirmed, therefore any
-plan containing bridge.alice remains fail-closed before APPLY.
+All three presentation policies now participate in:
+DISCOVER -> diff -> DRY RUN -> APPLY -> fresh DISCOVER -> VERIFY.
 """
 
 from __future__ import annotations
@@ -28,7 +30,12 @@ from src.presentation_core import (
 from src.rpc_contract import (
     FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX,
     characteristic_status_visible_params,
+    parse_yandex_bridge_services,
     service_visible_params,
+    yandex_bridge_disable_params,
+    yandex_bridge_enable_params,
+    yandex_bridge_list_params,
+    yandex_bridge_membership,
 )
 
 ROOT = Path(__file__).resolve().parent
@@ -49,23 +56,7 @@ base.APP_VERSION = "0.3.0-dev"
 _original_validate_plan_structure = base.validate_plan_structure
 _original_make_dry_run = base.make_dry_run
 _original_update_apply_state = base.SprutConfiguratorApp._update_apply_state
-
-PRESENTATION_KINDS = {
-    "service_visible",
-    "characteristic_status_visible",
-    "bridge_alice",
-}
-
-# Exact write frames captured from the real Sprut WebUI on Issue #22:
-#
-# {"params":{"service":{"update":{"aId":118,"sId":13,"visible":false}}},...}
-# {"params":{"characteristic":{"update":{"aId":118,"sId":13,"cId":15,
-#                                       "statusVisible":false}}},...}
-# {"params":{"bridgeService":{"delete":{"bridgeIndex":"Yandex_1",
-#                                      "aId":118,"sId":13}}},...}
-#
-# The bridge delete frame is documented, but bridge.alice remains blocked until
-# the current membership read-path and enable/create frame are also confirmed.
+_original_client_discover = base.SprutClient.discover
 
 
 def _as_v1(plan: dict[str, Any]) -> dict[str, Any]:
@@ -105,22 +96,64 @@ def _presentation_action_to_base(action):
         room_id=None,
         service_type=action.service_type,
     )
-    # v0.2.2 PlanAction predates Characteristic writes; attach runtime metadata
-    # without modifying the frozen reference source.
     converted.characteristic_id = action.characteristic_id
     converted.characteristic_type = action.characteristic_type
     return converted
 
 
+def list_yandex_bridge_services(self):
+    """Read current Service membership of Yandex_1 via field-confirmed RPC."""
+    result = self.rpc(yandex_bridge_list_params())
+    return parse_yandex_bridge_services(result)
+
+
+def discover_v2(self):
+    """Extend proven v0.2.2 DISCOVER with current Yandex bridge membership."""
+    data = _original_client_discover(self)
+    services = list_yandex_bridge_services(self)
+
+    bridges = data.setdefault("bridges", {})
+    bridges[FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX] = services
+
+    meta = data.setdefault("meta", {})
+    meta["yandex_bridge_index"] = FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX
+    meta["yandex_bridge_services_count"] = len(services)
+    return data
+
+
+def _alice_state_getter_from_discover(discover: dict[str, Any]):
+    bridges = discover.get("bridges")
+    if not isinstance(bridges, dict):
+        return None
+
+    services = bridges.get(FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX)
+    if not isinstance(services, list):
+        return None
+
+    def getter(accessory: dict[str, Any], service: dict[str, Any]) -> bool | None:
+        a_id = accessory.get("id")
+        s_id = service.get("sId")
+        if not isinstance(a_id, int) or not isinstance(s_id, int):
+            return None
+        return yandex_bridge_membership(
+            services,
+            a_id,
+            s_id,
+            FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX,
+        )
+
+    return getter
+
+
 def make_dry_run_v2(plan: dict[str, Any], discover: dict[str, Any]):
     structural_errors = validate_plan_structure_v2(plan)
-
-    # Reuse the proven v0.2.2 identity/name/room/service-name engine.
     base_dry = _original_make_dry_run(_as_v1(plan), discover)
 
-    # Alice intentionally has no getter yet: a requested bridge policy yields
-    # ERROR and therefore blocks APPLY. Service.visible/statusVisible can pass.
-    presentation = make_presentation_diff(plan, discover)
+    presentation = make_presentation_diff(
+        plan,
+        discover,
+        alice_state_getter=_alice_state_getter_from_discover(discover),
+    )
 
     base_structure = set(_original_validate_plan_structure(_as_v1(plan)))
     runtime_base_errors = [
@@ -186,15 +219,6 @@ def verify_plan_v2(plan: dict[str, Any], discover: dict[str, Any]):
 def update_apply_state_v2(self):
     _original_update_apply_state(self)
 
-    dry = self.last_dry_run
-    if not dry or not dry.ok:
-        return
-
-    # A bridge policy currently makes DRY RUN fail-closed already. This second
-    # guard prevents accidental enablement if that behavior changes later.
-    if any(a.kind == "bridge_alice" for a in dry.actions):
-        self.apply_btn.configure(state="disabled")
-
 
 def _write_action(client, action):
     if action.kind == "accessory_name":
@@ -212,7 +236,6 @@ def _write_action(client, action):
         return
 
     if action.kind == "service_visible":
-        # Field-confirmed WebUI RPC shape.
         client.rpc(service_visible_params(
             action.accessory_id,
             action.service_id,
@@ -226,7 +249,6 @@ def _write_action(client, action):
             raise RuntimeError(
                 f"{action.serial}: отсутствует cId для statusVisible APPLY."
             )
-        # Field-confirmed WebUI RPC shape.
         client.rpc(characteristic_status_visible_params(
             action.accessory_id,
             action.service_id,
@@ -236,25 +258,22 @@ def _write_action(client, action):
         return
 
     if action.kind == "bridge_alice":
-        # The disable RPC below is known, but a full desired-state action is not
-        # safe until read + enable are known. Never silently perform one-way
-        # bridge changes inside a generic APPLY.
-        raise RuntimeError(
-            "Alice bridge APPLY заблокирован: подтверждено только удаление "
-            f"через bridgeService.delete/{FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX}; "
-            "нужны read-path и enable/create RPC."
-        )
+        if bool(action.expected):
+            client.rpc(yandex_bridge_enable_params(
+                action.accessory_id,
+                action.service_id,
+            ))
+        else:
+            client.rpc(yandex_bridge_disable_params(
+                action.accessory_id,
+                action.service_id,
+            ))
+        return
 
     raise RuntimeError(f"Неизвестный action kind={action.kind!r}")
 
 
 def apply_after_confirm_v2(self, auth, plan, dry):
-    if any(a.kind == "bridge_alice" for a in dry.actions):
-        raise RuntimeError(
-            "APPLY заблокирован: plan содержит bridge.alice, а полный "
-            "read/write контракт Alice ещё не подтверждён."
-        )
-
     changes = list(dry.changes)
 
     def work():
@@ -288,10 +307,10 @@ def apply_after_confirm_v2(self, auth, plan, dry):
     self._run_worker("APPLY: запись в Sprut...", work, done)
 
 
-# Patch integration points only. Frozen v0.2.2 remains untouched.
 base.load_yaml_plan = load_yaml_plan_v2
 base.make_dry_run = make_dry_run_v2
 base.verify_plan = verify_plan_v2
+base.SprutClient.discover = discover_v2
 base.SprutConfiguratorApp._update_apply_state = update_apply_state_v2
 base.SprutConfiguratorApp._apply_after_confirm = apply_after_confirm_v2
 
