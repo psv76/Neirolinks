@@ -38,6 +38,29 @@ def characteristic_status_visible_params(
     }
 
 
+def yandex_bridge_enable_params(
+    a_id: int,
+    s_id: int,
+    bridge_index: str = FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX,
+) -> dict[str, Any]:
+    """Build the captured Alice/Yandex bridge enable params.
+
+    The WebUI create frame was captured with write=true. The operation is
+    field-confirmed, but generic desired-state APPLY remains blocked until the
+    current bridge membership read-path is also confirmed for DRY RUN/VERIFY.
+    """
+    return {
+        "bridgeService": {
+            "create": {
+                "bridgeIndex": bridge_index,
+                "aId": a_id,
+                "sId": s_id,
+                "write": True,
+            }
+        }
+    }
+
+
 def yandex_bridge_disable_params(
     a_id: int,
     s_id: int,
@@ -45,9 +68,9 @@ def yandex_bridge_disable_params(
 ) -> dict[str, Any]:
     """Build the captured Alice/Yandex bridge disable params.
 
-    This is intentionally not used by generic APPLY yet because desired-state
-    support also requires a confirmed current-state read path and enable/create
-    operation for VERIFY and bidirectional reconciliation.
+    Both bridge enable/create and disable/delete operations are now
+    field-confirmed. Generic desired-state APPLY remains blocked until the
+    current bridge membership read-path is confirmed for DRY RUN/VERIFY.
     """
     return {
         "bridgeService": {
