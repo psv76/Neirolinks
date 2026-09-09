@@ -1,6 +1,12 @@
 policy_version: 1
 object: 05 31 Иволга — Беседка
 
+# Project room names and Sprut UI room names do not have to be identical.
+# The current Besedka hub has no `Фасад` room; exterior user entities live in
+# the existing `Улица` room.
+room_map:
+  Фасад: Улица
+
 # Presentation choices only. Physical room/purpose/connection_point are read
 # from the normalized NL Project source model.
 targets:
@@ -25,14 +31,14 @@ targets:
 
 # Deliberately excluded until identity/service contracts are confirmed.
 unresolved:
-  - {source_line: '441', reason: 'WB-MWAC leak service identity/template is not confirmed yet.'}
-  - {source_line: '442', reason: 'WB-MWAC leak service identity/template is not confirmed yet.'}
-  - {source_line: '470', reason: 'M1W2 W1 contact identity/template is not confirmed yet.'}
-  - {source_line: '471', reason: 'M1W2 W2 contact identity/template is not confirmed yet.'}
-  - {source_line: '501', reason: 'Final Sprut service type for exhaust fan is not chosen yet.'}
-  - {source_line: '921.09', reason: 'Project confirms T+RH+Motion capability, but current MQTT alias on WB must be confirmed.'}
-  - {source_line: '921.10', reason: 'M1W2 W1/W2 role configuration is absent in NL Project 1.0.'}
-  - {source_line: '922.01', reason: 'Current MQTT/SERIAL identity must be confirmed.'}
-  - {source_line: '923.01', reason: 'Curtain Sprut identity/template must be confirmed from live hub.'}
-  - {source_line: '923.02', reason: 'Curtain Sprut identity/template must be confirmed from live hub.'}
-  - {source_line: '924.01', reason: 'Climate device Sprut identity/template must be confirmed from live hub.'}
+  - {source_line: '441', reason: 'Live F1/F2 LeakSensor candidates exist, but current WB-MWAC MQTT identity is raw-address based and not yet mapped to Project A44.'}
+  - {source_line: '442', reason: 'Live F1/F2 LeakSensor candidates exist, but current WB-MWAC MQTT identity is raw-address based and not yet mapped to Project A44.'}
+  - {source_line: '470', reason: 'Live hub contains several raw WB-M1W2 families; Project 921.06/W1 mapping cannot be inferred safely.'}
+  - {source_line: '471', reason: 'Live hub contains several raw WB-M1W2 families; Project 921.06/W2 mapping cannot be inferred safely.'}
+  - {source_line: '501', reason: 'A43/K6 physical relay is confirmed; separate Virtual FanBasic serial 133 exists but its stable binding/identity is not proven by DISCOVER.'}
+  - {source_line: '921.09', reason: 'Project confirms T+RH+Motion capability, but no WB-MSW Accessory exists in current Sprut DISCOVER.'}
+  - {source_line: '921.10', reason: 'M1W2 W1/W2 role configuration is absent in NL Project 1.0 and live raw family mapping is ambiguous.'}
+  - {source_line: '922.01', reason: 'No Project-stable motion-sensor identity is present in current Sprut DISCOVER.'}
+  - {source_line: '923.01', reason: 'No curtain Accessory with Project-stable identity is present in current Sprut DISCOVER.'}
+  - {source_line: '923.02', reason: 'No curtain Accessory with Project-stable identity is present in current Sprut DISCOVER.'}
+  - {source_line: '924.01', reason: 'No climate Accessory with Project-stable identity is present in current Sprut DISCOVER.'}
