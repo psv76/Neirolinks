@@ -12,9 +12,12 @@ from presentation_core import (
 )
 from rpc_contract import (
     characteristic_status_visible_params,
+    parse_yandex_bridge_services,
     service_visible_params,
     yandex_bridge_disable_params,
     yandex_bridge_enable_params,
+    yandex_bridge_list_params,
+    yandex_bridge_membership,
 )
 
 
@@ -65,7 +68,6 @@ def discover():
         return {
             "id": aid,
             "serial": serial,
-            "_testAlice": alice,
             "services": [
                 {"type": "AccessoryInformation", "system": True, "sId": 1},
                 {
@@ -220,12 +222,10 @@ def test_field_confirmed_rpc_params():
         }
     }
 
-    assert yandex_bridge_disable_params(118, 13) == {
+    assert yandex_bridge_list_params() == {
         "bridgeService": {
-            "delete": {
+            "list": {
                 "bridgeIndex": "Yandex_1",
-                "aId": 118,
-                "sId": 13,
             }
         }
     }
@@ -240,6 +240,56 @@ def test_field_confirmed_rpc_params():
             }
         }
     }
+
+    assert yandex_bridge_disable_params(118, 13) == {
+        "bridgeService": {
+            "delete": {
+                "bridgeIndex": "Yandex_1",
+                "aId": 118,
+                "sId": 13,
+            }
+        }
+    }
+
+
+def test_bridge_list_response_parser_and_membership():
+    result = {
+        "bridgeService": {
+            "list": {
+                "services": [
+                    {
+                        "aId": 118,
+                        "sId": 13,
+                        "write": True,
+                        "key": "Bridge:Yandex_1",
+                        "bridgeIndex": "Yandex_1",
+                    },
+                    {
+                        "aId": 9,
+                        "sId": 18,
+                        "write": True,
+                        "key": "Bridge:Yandex_1",
+                        "bridgeIndex": "Yandex_1",
+                    },
+                ]
+            }
+        }
+    }
+
+    services = parse_yandex_bridge_services(result)
+    assert len(services) == 2
+    assert yandex_bridge_membership(services, 118, 13) is True
+    assert yandex_bridge_membership(services, 118, 18) is False
+    assert yandex_bridge_membership(services, 9, 18) is True
+
+
+def test_bridge_list_response_parser_rejects_unknown_shape():
+    try:
+        parse_yandex_bridge_services({"bridgeService": {"list": {}}})
+    except ValueError as exc:
+        assert "result.bridgeService.list.services" in str(exc)
+    else:
+        raise AssertionError("Malformed bridgeService.list response must fail")
 
 
 if __name__ == "__main__":
