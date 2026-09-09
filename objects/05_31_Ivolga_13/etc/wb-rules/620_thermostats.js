@@ -7,6 +7,7 @@
 // Не используется:
 // - A14/K4: пустой канал, ничего не подключено.
 // - NL_simple_thermostat_604: не создаётся, A08/K4 работает вместе с A08/K1.
+// - NL_simple_thermostat_011: не создаётся, A09/K4 и A09/K5 работают вместе с NL_simple_thermostat_010.
 // - NL_simple_thermostat_615: не создаётся, A14/K4 пустой.
 //
 // Первый запуск безопасный: DEFAULT_TARGET_STATE = false.
@@ -147,21 +148,7 @@ var ZONES = [
         context: "гостиная, радиаторы",
         sensor: "902.01_MSW_TH/Temperature",
         sensorKind: "air",
-        outputs: ["A09/K4"],
-        defaultTarget: 22,
-        minTarget: 15,
-        maxTarget: 28,
-        hysteresis: 0.3,
-        hardMax: null
-    },
-    {
-        id: "011",
-        deviceId: "NL_simple_thermostat_011",
-        title: "Внутрипольный радиатор гостиная",
-        context: "гостиная, внутрипольный радиатор",
-        sensor: "902.01_MSW_TH/Temperature",
-        sensorKind: "air",
-        outputs: ["A09/K5"],
+        outputs: ["A09/K4", "A09/K5"],
         defaultTarget: 22,
         minTarget: 15,
         maxTarget: 28,
