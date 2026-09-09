@@ -14,6 +14,7 @@ from rpc_contract import (
     characteristic_status_visible_params,
     service_visible_params,
     yandex_bridge_disable_params,
+    yandex_bridge_enable_params,
 )
 
 
@@ -225,6 +226,17 @@ def test_field_confirmed_rpc_params():
                 "bridgeIndex": "Yandex_1",
                 "aId": 118,
                 "sId": 13,
+            }
+        }
+    }
+
+    assert yandex_bridge_enable_params(118, 13) == {
+        "bridgeService": {
+            "create": {
+                "bridgeIndex": "Yandex_1",
+                "aId": 118,
+                "sId": 13,
+                "write": True,
             }
         }
     }
