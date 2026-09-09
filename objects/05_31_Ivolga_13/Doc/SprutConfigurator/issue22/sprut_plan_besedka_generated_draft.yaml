@@ -1,12 +1,14 @@
 # GENERATED from NL Project 1.0 normalized source + besedka_sprut_export_policy.yaml.
-# Not APPLY-ready until live Sprut.hub Беседка DISCOVER confirms identities/rooms
-# and unresolved devices are handled.
+# Live DISCOVER 2026-09-10 confirms 12 exact relay SERIAL targets.
+# A47/A48 targets remain intentionally present and must fail DRY RUN until the
+# WB-LED accessories exist in Sprut under confirmed stable identities.
+# Not APPLY-ready while unresolved devices remain.
 format_version: 2
 object: 05 31 Иволга — Беседка
 accessories:
 - serial: A41/K1
   name: 301 Свет фасад беседки
-  room: Фасад
+  room: Улица
   services:
   - type: Lightbulb
     name: 301 Свет фасад беседки
@@ -83,7 +85,7 @@ accessories:
     visible: true
 - serial: A45/K1
   name: 320 Гирлянда
-  room: Фасад
+  room: Улица
   services:
   - type: Lightbulb
     name: 320 Гирлянда
