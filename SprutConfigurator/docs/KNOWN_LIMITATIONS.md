@@ -63,11 +63,11 @@ VERIFY
 
 Object-specific whitelist допустим и field-proven, но общий механизм должен получать функциональный тип канала из Project model/явного контракта.
 
-## 7. Standalone source остаётся монолитным Tkinter prototype
+## 7. Standalone prototype пока не импортирован как source package
 
-Reference `sprut_configurator.py` подтверждает поведение v0.2.2, но ещё не разделён на UI-independent modules.
+Документационный архив Issue #21 не содержал исходник приложения, поэтому в `SprutConfigurator/` не добавлялся восстановленный или неполный код.
 
-Это не мешает дальнейшим конечным доработкам standalone версии.
+Поведение v0.2.2 зафиксировано как field-proven contract. Если source потребуется хранить в GitHub, его нужно добавить из фактического рабочего пакета в рамках отдельной доработки, а не восстанавливать по документации.
 
 ## 8. Template drift
 
