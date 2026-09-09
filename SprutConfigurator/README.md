@@ -59,15 +59,16 @@ SprutConfigurator/
 
 Общие Sprut template JSON остаются в `Templates/Sprut/`. Этот раздел описывает их контракты и связь с Configurator, но не дублирует сами template-файлы.
 
-В `reference/v0.2.2/` сохранён **оригинальный рабочий source package standalone v0.2.2**. Файл `sprut_configurator.py` проверен байт-в-байт относительно исходного рабочего ZIP:
+В `reference/v0.2.2/` сохранён **оригинальный рабочий source package standalone v0.2.2**. Все пять файлов рабочего package (`sprut_configurator.py`, `selftest.py`, `requirements.txt`, `setup.bat`, `run.bat`) проверены по Git blob SHA-1 относительно исходного ZIP.
+
+Для основного исходника дополнительно подтверждено:
 
 ```text
+sprut_configurator.py
 Git blob SHA-1: 8cacfb101f979ed51bb94a5eb86dba634e670e03
 SHA-256:        2cf996de6df1d6c3a1353faef4a2de66713d658155ec2f2ae45988dcc6e85781
 size:           51433 bytes
 ```
-
-Остальные source-package файлы (`selftest.py`, `requirements.txt`, `setup.bat`, `run.bat`) также совпадают с исходным ZIP по Git blob SHA-1.
 
 Карта переработки исходных документов:
 
