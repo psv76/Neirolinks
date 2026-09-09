@@ -2,7 +2,9 @@
 
 Статус: **field-proven standalone baseline**.
 
-Исходный reference code сохранён в:
+Механизм и поведение версии зафиксированы в этой документации. Исходный archive документации, переработанный в Issue #21, не содержал source standalone-приложения, поэтому source не восстанавливается приблизительно и не объявляется частью documentation baseline.
+
+Reference metadata:
 
 ```text
 SprutConfigurator/reference/v0.2.2/
