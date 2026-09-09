@@ -2,6 +2,8 @@
 
 Исходный documentation package от 2026-09-08 был не перенесён в GitHub как набор неизменённых файлов. Его содержание переработано и разнесено по общей разработке и объектовой зоне фактов.
 
+Отдельно от documentation package был использован реальный рабочий пакет `Sprut_Configurator_v0.2.2`, из которого в generic reference tree перенесены оригинальные source/runtime-файлы standalone Configurator.
+
 ## Общая разработка
 
 | Исходный документ | Куда перенесён смысл |
@@ -18,9 +20,44 @@
 | `09_OPEN_ISSUES_AND_ROADMAP.md` | только актуальные общие ограничения в `KNOWN_LIMITATIONS.md`; объектовый и бесконечный roadmap не перенесён в общую Issue |
 | `10_OWNERSHIP_AND_CONTRACTS.md` | `ARCHITECTURE.md` |
 
+## Реальный рабочий пакет v0.2.2
+
+Из рабочего ZIP в:
+
+```text
+SprutConfigurator/reference/v0.2.2/
+```
+
+перенесены оригинальные:
+
+```text
+sprut_configurator.py
+selftest.py
+requirements.txt
+setup.bat
+run.bat
+```
+
+Они не восстановлены по описанию. Для `sprut_configurator.py` подтверждено точное совпадение с исходным рабочим ZIP:
+
+```text
+Git blob SHA-1: 8cacfb101f979ed51bb94a5eb86dba634e670e03
+SHA-256:        2cf996de6df1d6c3a1353faef4a2de66713d658155ec2f2ae45988dcc6e85781
+size:           51433 bytes
+```
+
+Оригинальный `selftest.py` также проверен на исходном комплекте fixtures и дал:
+
+```text
+targets: 51
+changes: 167
+errors: 0
+PASS
+```
+
 ## Объектовая часть
 
-В общую папку `SprutConfigurator/` не переносились:
+В общую папку `SprutConfigurator/` не переносились как общие факты:
 
 - физические каналы Иволги;
 - объектовые relay aliases;
@@ -39,10 +76,12 @@ objects/05_31_Ivolga_13/Doc/SprutConfigurator/v0.2.2/05_31_Ivolga_sprut_plan_v3.
 
 ## Что намеренно не импортировано
 
-Большой DISCOVER JSON конкретного объекта не добавлялся в общую папку.
+Большой `Ivolga_home_sprut_2.json` из рабочего пакета не добавлялся в общую папку Configurator. Это runtime DISCOVER snapshot конкретного объекта, а не generic source/contract.
 
-Исходный documentation archive не содержал source standalone-приложения, поэтому code package не восстанавливался по описанию и не объявлялся reference source.
+Объектовый YAML также не дублируется рядом с generic source: он хранится в объектовой зоне фактов.
 
 ## Результат
 
 После переработки общая разработка может читаться без истории чатов и без знания Иволги, а объектовая информация остаётся внутри `objects/05_31_Ivolga_13/`.
+
+При этом standalone v0.2.2 теперь зафиксирован не только документально, но и исходным рабочим кодом.
