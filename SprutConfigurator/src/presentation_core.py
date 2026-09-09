@@ -10,7 +10,7 @@ SUPPORTED_FORMAT_VERSION = 2
 class PresentationAction:
     status: str          # SAME / CHANGE / ERROR
     serial: str
-    kind: str            # service_visible / characteristic_status_visible / bridge_alice
+    kind: str            # service_visible / characteristic_status_visible / bridge_alice / validation
     current: Any
     expected: Any
     detail: str
@@ -52,11 +52,11 @@ def _service_is_system(service: dict[str, Any]) -> bool:
 
 
 def validate_presentation_plan(plan: Any) -> list[str]:
-    """Validate only the v2 presentation extension.
+    """Validate format_version 2 presentation fields.
 
-    Base v1 fields (serial/name/room/service type/name) remain owned by the
-    Configurator's existing validation. This function validates the new
-    presentation fields and is intentionally strict.
+    Base v1 identity/name/room/service fields remain validated by the proven
+    v0.2.2 engine. Bridge policy is service-scoped because the field-confirmed
+    Sprut WebUI command addresses aId+sId, not Accessory alone.
     """
     errors: list[str] = []
     if not isinstance(plan, dict):
@@ -79,18 +79,13 @@ def validate_presentation_plan(plan: Any) -> list[str]:
             errors.append(f"{prefix}: должен быть объектом.")
             continue
 
-        bridge = item.get("bridge")
-        if bridge is not None:
-            if not isinstance(bridge, dict):
-                errors.append(f"{prefix}.bridge: должен быть объектом.")
-            else:
-                unknown = sorted(set(bridge) - {"alice"})
-                if unknown:
-                    errors.append(
-                        f"{prefix}.bridge: неизвестные поля: {', '.join(unknown)}."
-                    )
-                if "alice" in bridge and not isinstance(bridge["alice"], bool):
-                    errors.append(f"{prefix}.bridge.alice: ожидается true/false.")
+        # Early draft used Accessory-level bridge. The real WebUI RPC is
+        # service-scoped, so reject the ambiguous form instead of guessing sId.
+        if "bridge" in item:
+            errors.append(
+                f"{prefix}.bridge: bridge policy должен задаваться внутри services[] "
+                "(реальный Sprut WebUI RPC адресует aId+sId)."
+            )
 
         services = item.get("services", [])
         if not isinstance(services, list):
@@ -122,16 +117,23 @@ def validate_presentation_plan(plan: Any) -> list[str]:
                                 f"{sprefix}.status[{ctype!r}]: ожидается true/false."
                             )
 
+            bridge = service.get("bridge")
+            if bridge is not None:
+                if not isinstance(bridge, dict):
+                    errors.append(f"{sprefix}.bridge: должен быть объектом.")
+                else:
+                    unknown = sorted(set(bridge) - {"alice"})
+                    if unknown:
+                        errors.append(
+                            f"{sprefix}.bridge: неизвестные поля: {', '.join(unknown)}."
+                        )
+                    if "alice" in bridge and not isinstance(bridge["alice"], bool):
+                        errors.append(f"{sprefix}.bridge.alice: ожидается true/false.")
+
     return errors
 
 
 def characteristic_type(characteristic: dict[str, Any]) -> str:
-    """Return the best stable characteristic type from DISCOVER.
-
-    Current Sprut DISCOVER has been observed with type information in control.type.
-    Some dumps may also expose type directly on the Characteristic. We support
-    both read shapes without inventing a write contract.
-    """
     direct = characteristic.get("type")
     if isinstance(direct, str) and direct:
         return direct
@@ -155,18 +157,14 @@ def _unique_accessory(
     if len(matches) == 1:
         return matches[0]
 
-    if not matches:
-        msg = f"{serial}: Accessory с таким SERIAL не найден."
-    else:
-        msg = f"{serial}: найдено {len(matches)} Accessory с одинаковым SERIAL."
+    msg = (
+        f"{serial}: Accessory с таким SERIAL не найден."
+        if not matches
+        else f"{serial}: найдено {len(matches)} Accessory с одинаковым SERIAL."
+    )
     errors.append(msg)
     actions.append(PresentationAction(
-        status="ERROR",
-        serial=serial,
-        kind="validation",
-        current=len(matches),
-        expected=1,
-        detail=msg,
+        "ERROR", serial, "validation", len(matches), 1, msg
     ))
     return None
 
@@ -187,13 +185,14 @@ def _unique_service(
     if len(matches) == 1:
         return matches[0]
 
-    if not matches:
-        msg = f"{serial}: Service type={service_type!r} не найден."
-    else:
-        msg = (
+    msg = (
+        f"{serial}: Service type={service_type!r} не найден."
+        if not matches
+        else (
             f"{serial}: найдено {len(matches)} Service type={service_type!r}; "
             "выбор по type неоднозначен."
         )
+    )
     errors.append(msg)
     actions.append(PresentationAction(
         status="ERROR",
@@ -224,16 +223,14 @@ def _unique_characteristic(
     if len(matches) == 1:
         return matches[0]
 
-    if not matches:
-        msg = (
-            f"{serial}: Characteristic type={ctype!r} "
-            f"в Service {service_type!r} не найден."
-        )
-    else:
-        msg = (
+    msg = (
+        f"{serial}: Characteristic type={ctype!r} в Service {service_type!r} не найден."
+        if not matches
+        else (
             f"{serial}: найдено {len(matches)} Characteristic type={ctype!r} "
             f"в Service {service_type!r}; выбор неоднозначен."
         )
+    )
     errors.append(msg)
     actions.append(PresentationAction(
         status="ERROR",
@@ -250,7 +247,8 @@ def _unique_characteristic(
     return None
 
 
-AliceStateGetter = Callable[[dict[str, Any]], bool | None]
+# Getter receives the exact Accessory and Service selected by SERIAL + Service.type.
+AliceStateGetter = Callable[[dict[str, Any], dict[str, Any]], bool | None]
 
 
 def make_presentation_diff(
@@ -259,14 +257,14 @@ def make_presentation_diff(
     *,
     alice_state_getter: AliceStateGetter | None = None,
 ) -> PresentationDiff:
-    """Build read-only desired/current diff for v2 presentation policy.
+    """Build desired/current diff for format_version 2 presentation policy.
 
-    No write RPC is encoded here. The diff is safe to use before the WebUI write
-    frames are field-confirmed.
+    Service.visible and Characteristic.statusVisible are read directly from
+    accessory.list DISCOVER.
 
-    Alice is deliberately adapter-based because its runtime storage path has not
-    yet been confirmed. Without a getter, a requested bridge.alice policy is an
-    ERROR, preventing a false-success DRY RUN.
+    Alice membership remains fail-closed until its current-state read path is
+    field-confirmed. The write command for disabling was captured, but a write
+    command alone is insufficient for DRY RUN + VERIFY.
     """
     errors = validate_presentation_plan(plan)
     actions: list[PresentationAction] = []
@@ -275,14 +273,16 @@ def make_presentation_diff(
     if not isinstance(accessories, list):
         msg = "DISCOVER: accessories должен быть списком."
         return PresentationDiff(
-            actions=[PresentationAction("ERROR", "", "validation", "", "", msg)],
-            errors=errors + [msg],
+            [PresentationAction("ERROR", "", "validation", "", "", msg)],
+            errors + [msg],
         )
 
     accessories_by_serial: dict[str, list[dict[str, Any]]] = {}
     for accessory in accessories:
         if isinstance(accessory, dict):
-            accessories_by_serial.setdefault(_string(accessory.get("serial")), []).append(accessory)
+            accessories_by_serial.setdefault(
+                _string(accessory.get("serial")), []
+            ).append(accessory)
 
     for target in plan.get("accessories", []):
         if not isinstance(target, dict):
@@ -291,52 +291,11 @@ def make_presentation_diff(
         if not isinstance(serial, str) or not serial:
             continue
 
-        accessory = _unique_accessory(serial, accessories_by_serial, actions, errors)
+        accessory = _unique_accessory(
+            serial, accessories_by_serial, actions, errors
+        )
         if accessory is None:
             continue
-
-        bridge = target.get("bridge")
-        if isinstance(bridge, dict) and "alice" in bridge:
-            expected_alice = bridge["alice"]
-            if alice_state_getter is None:
-                msg = (
-                    f"{serial}: bridge.alice задан, но runtime getter Alice ещё не "
-                    "подтверждён реальным Sprut WebUI frame."
-                )
-                errors.append(msg)
-                actions.append(PresentationAction(
-                    status="ERROR",
-                    serial=serial,
-                    kind="bridge_alice",
-                    current="UNKNOWN",
-                    expected=expected_alice,
-                    detail=msg,
-                    accessory_id=accessory.get("id"),
-                ))
-            else:
-                current_alice = alice_state_getter(accessory)
-                if current_alice is None:
-                    msg = f"{serial}: getter Alice не смог определить текущее состояние."
-                    errors.append(msg)
-                    actions.append(PresentationAction(
-                        status="ERROR",
-                        serial=serial,
-                        kind="bridge_alice",
-                        current="UNKNOWN",
-                        expected=expected_alice,
-                        detail=msg,
-                        accessory_id=accessory.get("id"),
-                    ))
-                else:
-                    actions.append(PresentationAction(
-                        status="SAME" if current_alice == expected_alice else "CHANGE",
-                        serial=serial,
-                        kind="bridge_alice",
-                        current=current_alice,
-                        expected=expected_alice,
-                        detail="Alice bridge policy",
-                        accessory_id=accessory.get("id"),
-                    ))
 
         for service_target in target.get("services", []):
             if not isinstance(service_target, dict):
@@ -348,6 +307,7 @@ def make_presentation_diff(
             needs_service = (
                 "visible" in service_target
                 or isinstance(service_target.get("status"), dict)
+                or isinstance(service_target.get("bridge"), dict)
             )
             if not needs_service:
                 continue
@@ -359,85 +319,97 @@ def make_presentation_diff(
                 continue
 
             if "visible" in service_target:
-                expected_visible = service_target["visible"]
+                expected = service_target["visible"]
                 if "visible" not in service:
                     msg = (
-                        f"{serial}: Service {service_type!r} в DISCOVER не содержит "
-                        "поле visible."
+                        f"{serial}: Service {service_type!r} в DISCOVER "
+                        "не содержит поле visible."
                     )
                     errors.append(msg)
                     actions.append(PresentationAction(
-                        status="ERROR",
-                        serial=serial,
-                        kind="service_visible",
-                        current="MISSING",
-                        expected=expected_visible,
-                        detail=msg,
-                        accessory_id=accessory.get("id"),
-                        service_id=service.get("sId"),
+                        "ERROR", serial, "service_visible", "MISSING", expected, msg,
+                        accessory.get("id"), service.get("sId"),
                         service_type=service_type,
                     ))
                 else:
-                    current_visible = bool(service.get("visible"))
+                    current = bool(service.get("visible"))
                     actions.append(PresentationAction(
-                        status="SAME" if current_visible == expected_visible else "CHANGE",
-                        serial=serial,
-                        kind="service_visible",
-                        current=current_visible,
-                        expected=expected_visible,
-                        detail=f"Service.visible [{service_type}]",
-                        accessory_id=accessory.get("id"),
-                        service_id=service.get("sId"),
+                        "SAME" if current == expected else "CHANGE",
+                        serial, "service_visible", current, expected,
+                        f"Service.visible [{service_type}]",
+                        accessory.get("id"), service.get("sId"),
                         service_type=service_type,
                     ))
 
             status = service_target.get("status")
             if isinstance(status, dict):
-                for ctype, expected_status_visible in status.items():
-                    if not isinstance(ctype, str) or not isinstance(expected_status_visible, bool):
+                for ctype, expected in status.items():
+                    if not isinstance(ctype, str) or not isinstance(expected, bool):
                         continue
                     characteristic = _unique_characteristic(
-                        serial, accessory, service, service_type, ctype, actions, errors
+                        serial, accessory, service, service_type, ctype,
+                        actions, errors,
                     )
                     if characteristic is None:
                         continue
 
                     if "statusVisible" not in characteristic:
                         msg = (
-                            f"{serial}: Characteristic {ctype!r} в DISCOVER не содержит "
-                            "поле statusVisible."
+                            f"{serial}: Characteristic {ctype!r} в DISCOVER "
+                            "не содержит поле statusVisible."
                         )
                         errors.append(msg)
                         actions.append(PresentationAction(
-                            status="ERROR",
-                            serial=serial,
-                            kind="characteristic_status_visible",
-                            current="MISSING",
-                            expected=expected_status_visible,
-                            detail=msg,
-                            accessory_id=accessory.get("id"),
-                            service_id=service.get("sId"),
-                            characteristic_id=characteristic.get("cId"),
-                            service_type=service_type,
-                            characteristic_type=ctype,
+                            "ERROR", serial, "characteristic_status_visible",
+                            "MISSING", expected, msg,
+                            accessory.get("id"), service.get("sId"),
+                            characteristic.get("cId"), service_type, ctype,
                         ))
                     else:
                         current = bool(characteristic.get("statusVisible"))
                         actions.append(PresentationAction(
-                            status="SAME" if current == expected_status_visible else "CHANGE",
-                            serial=serial,
-                            kind="characteristic_status_visible",
-                            current=current,
-                            expected=expected_status_visible,
-                            detail=(
-                                f"Characteristic.statusVisible "
-                                f"[{service_type}/{ctype}]"
-                            ),
-                            accessory_id=accessory.get("id"),
-                            service_id=service.get("sId"),
-                            characteristic_id=characteristic.get("cId"),
+                            "SAME" if current == expected else "CHANGE",
+                            serial, "characteristic_status_visible",
+                            current, expected,
+                            f"Characteristic.statusVisible [{service_type}/{ctype}]",
+                            accessory.get("id"), service.get("sId"),
+                            characteristic.get("cId"), service_type, ctype,
+                        ))
+
+            bridge = service_target.get("bridge")
+            if isinstance(bridge, dict) and "alice" in bridge:
+                expected = bridge["alice"]
+                if alice_state_getter is None:
+                    msg = (
+                        f"{serial}: Service {service_type!r} имеет bridge.alice, "
+                        "но read-path текущего состава Yandex bridge ещё не подтверждён."
+                    )
+                    errors.append(msg)
+                    actions.append(PresentationAction(
+                        "ERROR", serial, "bridge_alice", "UNKNOWN", expected, msg,
+                        accessory.get("id"), service.get("sId"),
+                        service_type=service_type,
+                    ))
+                else:
+                    current = alice_state_getter(accessory, service)
+                    if current is None:
+                        msg = (
+                            f"{serial}: getter Alice не смог определить состояние "
+                            f"Service {service_type!r}."
+                        )
+                        errors.append(msg)
+                        actions.append(PresentationAction(
+                            "ERROR", serial, "bridge_alice", "UNKNOWN", expected, msg,
+                            accessory.get("id"), service.get("sId"),
                             service_type=service_type,
-                            characteristic_type=ctype,
+                        ))
+                    else:
+                        actions.append(PresentationAction(
+                            "SAME" if current == expected else "CHANGE",
+                            serial, "bridge_alice", current, expected,
+                            f"Alice bridge policy [{service_type}]",
+                            accessory.get("id"), service.get("sId"),
+                            service_type=service_type,
                         ))
 
     return PresentationDiff(actions=actions, errors=errors)
@@ -449,10 +421,6 @@ def verify_presentation(
     *,
     alice_state_getter: AliceStateGetter | None = None,
 ) -> list[tuple[str, str, str]]:
-    """Return (serial, PASSED|FAILED, detail) rows.
-
-    A target passes only if every requested presentation property is SAME.
-    """
     diff = make_presentation_diff(
         plan, discover, alice_state_getter=alice_state_getter
     )
@@ -471,24 +439,22 @@ def verify_presentation(
             continue
 
         requested = False
-        bridge = target.get("bridge")
-        if isinstance(bridge, dict) and "alice" in bridge:
-            requested = True
         for service in target.get("services", []):
             if isinstance(service, dict) and (
-                "visible" in service or isinstance(service.get("status"), dict)
+                "visible" in service
+                or isinstance(service.get("status"), dict)
+                or isinstance(service.get("bridge"), dict)
             ):
                 requested = True
-                break
 
         if not requested:
             continue
 
-        actions = by_serial.get(serial, [])
-        bad = [a for a in actions if a.status != "SAME"]
-        if not actions:
-            rows.append((serial, "FAILED", "Нет результатов presentation-проверки."))
-        elif bad:
+        bad = [
+            a for a in by_serial.get(serial, [])
+            if a.status in ("ERROR", "CHANGE")
+        ]
+        if bad:
             detail = "; ".join(
                 a.detail if a.status == "ERROR"
                 else f"{a.detail}: фактически={a.current!r}, ожидается={a.expected!r}"
@@ -496,6 +462,9 @@ def verify_presentation(
             )
             rows.append((serial, "FAILED", detail))
         else:
-            rows.append((serial, "PASSED", "Presentation policy соответствует плану."))
+            rows.append((
+                serial, "PASSED",
+                "Presentation policy соответствует плану."
+            ))
 
     return rows
