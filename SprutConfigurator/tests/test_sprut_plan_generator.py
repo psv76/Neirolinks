@@ -42,7 +42,7 @@ def test_besedka_fixture_generates_18_project_derived_lights():
     assert accessories[0] == {
         "serial": "A41/K1",
         "name": "301 Свет фасад беседки",
-        "room": "Фасад",
+        "room": "Улица",
         "services": [
             {
                 "type": "Lightbulb",
@@ -53,6 +53,53 @@ def test_besedka_fixture_generates_18_project_derived_lights():
     }
     assert accessories[-1]["serial"] == "A48/Channel 3"
     assert accessories[-1]["name"] == "356 LED над грилем"
+    assert any("'Фасад' -> 'Улица'" in warning for warning in result.warnings)
+
+
+def test_room_map_applies_only_when_target_room_is_not_explicit():
+    source = {
+        "source": {"object_name": "X"},
+        "lines": [
+            {
+                "id": "1",
+                "room": "Фасад",
+                "purpose": "One",
+                "connection_point": "A1/K1",
+            },
+            {
+                "id": "2",
+                "room": "Фасад",
+                "purpose": "Two",
+                "connection_point": "A1/K2",
+            },
+        ],
+    }
+    base = {
+        "serial_from": "connection_point",
+        "require_direct_output": True,
+        "services": [{"type": "Lightbulb"}],
+    }
+    policy = {
+        "policy_version": 1,
+        "room_map": {"Фасад": "Улица"},
+        "targets": [
+            {"source_line": "1", **base},
+            {"source_line": "2", "room": "Техпомещение", **base},
+        ],
+    }
+
+    result = generate_sprut_plan(source, policy)
+    assert result.ok, result.errors
+    assert result.plan["accessories"][0]["room"] == "Улица"
+    assert result.plan["accessories"][1]["room"] == "Техпомещение"
+
+
+def test_invalid_room_map_fails_closed():
+    source = {"source": {"object_name": "X"}, "lines": []}
+    policy = {"policy_version": 1, "room_map": ["bad"], "targets": []}
+    result = generate_sprut_plan(source, policy)
+    assert not result.ok
+    assert "policy.room_map must be a mapping" in result.errors
 
 
 def test_direct_output_guard_rejects_non_output_identity():
