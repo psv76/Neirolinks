@@ -16,13 +16,13 @@ Presentation core:
 SprutConfigurator/src/presentation_core.py
 ```
 
-Field-confirmed RPC builders:
+Field-confirmed RPC/read contract:
 
 ```text
 SprutConfigurator/src/rpc_contract.py
 ```
 
-Поддержан read/diff/DRY RUN/VERIFY для YAML `format_version: 2`:
+YAML `format_version: 2` поддерживает:
 
 ```text
 services[].visible
@@ -32,31 +32,21 @@ services[].bridge.alice
 
 `bridge.alice` Service-scoped, потому что реальные команды Sprut адресуют `aId + sId`.
 
-## Field-confirmed RPC 2026-09-10
+## Field-confirmed Sprut WebUI contract 2026-09-10
 
 ### Service.visible
-
-Снято с реального Sprut WebUI:
 
 ```json
 {"params":{"service":{"update":{"aId":118,"sId":13,"visible":false}}}}
 ```
 
-В v0.3.0-dev этот action уже разрешён в APPLY после успешного свежего DRY RUN.
-
 ### Characteristic.statusVisible
-
-Снято с реального Sprut WebUI:
 
 ```json
 {"params":{"characteristic":{"update":{"aId":118,"sId":13,"cId":15,"statusVisible":false}}}}
 ```
 
-В v0.3.0-dev этот action уже разрешён в APPLY. `cId` всегда берётся из свежего DISCOVER по Characteristic type.
-
 ### Alice/Yandex disable
-
-Снято с реального Sprut WebUI:
 
 ```json
 {"params":{"bridgeService":{"delete":{"bridgeIndex":"Yandex_1","aId":118,"sId":13}}}}
@@ -64,36 +54,75 @@ services[].bridge.alice
 
 ### Alice/Yandex enable
 
-Снято с реального Sprut WebUI:
-
 ```json
 {"params":{"bridgeService":{"create":{"bridgeIndex":"Yandex_1","aId":118,"sId":13,"write":true}}}}
 ```
 
-Обе write-операции Alice теперь field-confirmed и зафиксированы в `rpc_contract.py`.
+### Alice/Yandex read
 
-При этом generic APPLY для `bridge.alice` **пока остаётся заблокирован**. Причина теперь только одна: не подтверждён read-path текущего состава `Yandex_1`, поэтому Configurator пока не может достоверно выполнить:
+Запрос:
 
-```text
-DISCOVER → diff → DRY RUN → APPLY → fresh DISCOVER → VERIFY
+```json
+{"params":{"bridgeService":{"list":{"bridgeIndex":"Yandex_1"}}}}
 ```
 
-Запускать `create/delete` без надёжного определения текущего состояния нельзя: desired-state механизм обязан понимать, когда действие не требуется, и обязан подтвердить результат после записи.
+Подтверждённая форма ответа:
 
-## APPLY safety
+```json
+{
+  "result": {
+    "bridgeService": {
+      "list": {
+        "services": [
+          {
+            "aId": 118,
+            "sId": 13,
+            "write": true,
+            "key": "Bridge:Yandex_1",
+            "bridgeIndex": "Yandex_1"
+          }
+        ]
+      }
+    }
+  }
+}
+```
 
-Для `visible` и `statusVisible` действует полный существующий механизм:
+Текущее состояние Alice определяется по точному совпадению пары:
 
 ```text
-fresh DISCOVER
+(aId, sId)
+```
+
+в `result.bridgeService.list.services` для `bridgeIndex = Yandex_1`.
+
+Отсутствие пары означает `alice: false`; наличие пары — `alice: true`.
+
+## Полный presentation lifecycle
+
+После подтверждения read-path все три presentation policy включены в один desired-state цикл:
+
+```text
+DISCOVER
+→ accessory.list + bridgeService.list(Yandex_1)
+→ diff
 → DRY RUN
 → APPLY confirmation
-→ write CHANGE actions
+→ write только CHANGE
 → fresh DISCOVER
 → VERIFY
 ```
 
-Если plan содержит `bridge.alice`, DRY RUN остаётся fail-closed и APPLY не активируется до подключения подтверждённого bridge read adapter. Это предотвращает частичную запись остальных изменений перед ошибкой Alice.
+Для `bridge.alice`:
+
+```text
+false → true  : bridgeService.create(..., write=true)
+true  → false : bridgeService.delete(...)
+```
+
+Runtime `aId`, `sId`, `cId` не сохраняются в YAML и каждый раз берутся из свежего DISCOVER.
+
+Если DISCOVER JSON старого формата не содержит блока `bridges.Yandex_1`, а YAML требует `bridge.alice`, DRY RUN остаётся fail-closed: состояние не угадывается.
 
 ## Offline tests
 
@@ -104,22 +133,25 @@ fresh DISCOVER
 - Characteristic type matching;
 - `Service.visible` diff;
 - `Characteristic.statusVisible` diff;
-- Alice fail-closed без read adapter;
+- fail-closed Alice без read adapter;
 - VERIFY;
-- точное соответствие builders четырём реально снятым `params`:
-  - Service.visible;
-  - Characteristic.statusVisible;
-  - Yandex delete;
-  - Yandex create/write=true.
+- точные field-confirmed RPC для visible/statusVisible/Yandex list/create/delete;
+- parser `result.bridgeService.list.services`;
+- membership по паре `aId+sId`;
+- отказ parser при неизвестной форме ответа.
 
-После добавления create RPC ожидаемый regression-набор остаётся тем же по числу test-функций; тест `test_field_confirmed_rpc_params` теперь проверяет четыре RPC shape.
+Python-файлы, изменённые при добавлении read-path, прошли `py_compile` локально перед commit.
 
-## Следующий блокирующий capture
+## Что ещё не подтверждено реальным APPLY
 
-Остался один внешний факт из WebUI:
+Кодовый контракт presentation policy теперь полный, но Issue #22 требует отдельного полевого acceptance:
 
 ```text
-запрос/ответ, из которого WebUI узнаёт текущий состав Yandex_1
+реальный YAML Иволги
+→ clean DRY RUN
+→ APPLY
+→ fresh DISCOVER
+→ VERIFY FAILED=0
 ```
 
-После него можно реализовать bridge read adapter, включить `create/delete` в общий APPLY и завершить Alice через полноценный VERIFY без догадок.
+До этого v0.3.0-dev остаётся development build.
