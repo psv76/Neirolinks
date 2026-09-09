@@ -1,14 +1,14 @@
 # Sprut plan YAML contract — format_version 2 DRAFT
 
-Status: Issue #22 working draft. Not production-ready until write RPC are field-confirmed.
+Status: Issue #22 working draft. `Service.visible` and `Characteristic.statusVisible` have field-confirmed write RPC. Alice remains fail-closed until current-state read and enable/create RPC are confirmed.
 
 ## 1. Purpose
 
-Version 2 extends the v1 desired-state contract with user presentation policy while preserving stable matching by SERIAL and runtime resolution of Sprut internal IDs.
+Version 2 extends the proven v1 desired-state contract with Sprut presentation policy while preserving stable matching by SERIAL and runtime resolution of internal Sprut IDs.
 
-The contract describes **what Sprut must look like**, not how the WebSocket write is encoded.
+The contract describes **desired state**. It never stores `aId`, `sId`, `cId`, `roomId`, token, cid or Sprut session serial.
 
-## 2. Proposed schema
+## 2. Schema
 
 ```yaml
 format_version: 2
@@ -19,9 +19,6 @@ accessories:
     name: "<Accessory display name>"
     room: "<existing Sprut room name>"
 
-    bridge:
-      alice: true | false
-
     services:
       - type: "<Sprut Service type>"
         name: "<Service display name>"
@@ -29,9 +26,31 @@ accessories:
 
         status:
           <CharacteristicType>: true | false
+
+        bridge:
+          alice: true | false
 ```
 
-Example for a living room:
+## 3. Why `bridge` is inside Service
+
+The real Sprut WebUI command captured on 2026-09-10 disables Alice/Yandex bridge membership using both `aId` and `sId`:
+
+```json
+{"params":{"bridgeService":{"delete":{"bridgeIndex":"Yandex_1","aId":118,"sId":13}}}}
+```
+
+Therefore Alice membership is treated as **Service-scoped presentation state**, not a property of Accessory alone.
+
+The earlier draft form:
+
+```yaml
+bridge:
+  alice: true
+```
+
+at Accessory level is rejected as ambiguous.
+
+## 4. Living-room example
 
 ```yaml
 format_version: 2
@@ -41,8 +60,6 @@ accessories:
   - serial: "NL_simple_thermostat_010"
     name: "Воздух"
     room: "Гостиная"
-    bridge:
-      alice: true
     services:
       - type: "Thermostat"
         name: "Воздух"
@@ -50,12 +67,12 @@ accessories:
         status:
           CurrentHeatingCoolingState: true
           CurrentTemperature: true
+        bridge:
+          alice: true
 
   - serial: "NL_simple_thermostat_611"
     name: "Пол"
     room: "Гостиная"
-    bridge:
-      alice: false
     services:
       - type: "Thermostat"
         name: "Пол"
@@ -63,46 +80,11 @@ accessories:
         status:
           CurrentHeatingCoolingState: false
           CurrentTemperature: false
+        bridge:
+          alice: false
 ```
 
-## 3. Semantics
-
-### `services[].visible`
-
-Desired value of runtime `Service.visible`.
-
-- `true` — Service tile is visible on Sprut desktop/room UI;
-- `false` — Service remains present but its tile is hidden.
-
-This is presentation state only. It does not create or delete a Service.
-
-### `services[].status`
-
-Map keyed by Sprut Characteristic `type`.
-
-Each boolean is the desired runtime `Characteristic.statusVisible` value.
-
-Example:
-
-```yaml
-status:
-  CurrentTemperature: true
-  CurrentHeatingCoolingState: false
-```
-
-Configurator must resolve the Characteristic inside the uniquely matched Service by `type` and compare the current `statusVisible` value.
-
-If the requested Characteristic type is absent or ambiguous inside the Service, DRY RUN must fail with `ERROR`.
-
-### `bridge.alice`
-
-Desired Alice bridge exposure policy for the Accessory/Service according to the actual granularity exposed by Sprut WebUI.
-
-The final RPC shape and exact matching level are intentionally **not fixed in this draft**. They must be captured from a real outgoing WebUI message before APPLY support is enabled.
-
-If field testing shows Alice bridge membership is Service-granular rather than Accessory-granular, the schema will be adjusted before production use. The semantic requirement remains explicit per-user presentation entity.
-
-## 4. Matching rules retained from v1
+## 5. Matching
 
 Accessory:
 
@@ -110,115 +92,112 @@ Accessory:
 serial
 ```
 
-Room:
-
-```text
-exact room name
-```
-
 Service:
 
 ```text
-type inside matched Accessory
+type inside the matched Accessory
 ```
 
-Characteristic status target:
+Characteristic for status policy:
 
 ```text
-Characteristic.type inside matched Service
+Characteristic.type
+or, when DISCOVER exposes type there,
+Characteristic.control.type
 ```
 
-No Sprut internal IDs are stored in YAML.
+If matching is missing or ambiguous, DRY RUN returns `ERROR`; runtime IDs are never guessed.
 
-## 5. Required validation
+## 6. `services[].visible`
 
-In addition to v1 validation:
+Desired runtime value of `Service.visible`.
 
-- `visible` must be boolean when present;
-- `status` must be a mapping when present;
+Field-confirmed WebUI write shape:
+
+```json
+{"params":{"service":{"update":{"aId":118,"sId":13,"visible":false}}}}
+```
+
+Configurator resolves `aId` and `sId` from fresh DISCOVER.
+
+The boolean value is part of desired state and participates in:
+
+```text
+DISCOVER → diff → DRY RUN → APPLY → fresh DISCOVER → VERIFY
+```
+
+## 7. `services[].status`
+
+Map from stable Characteristic type to desired `Characteristic.statusVisible`.
+
+Example:
+
+```yaml
+status:
+  CurrentHeatingCoolingState: true
+  CurrentTemperature: false
+```
+
+Field-confirmed WebUI write shape:
+
+```json
+{"params":{"characteristic":{"update":{"aId":118,"sId":13,"cId":15,"statusVisible":false}}}}
+```
+
+Configurator resolves `aId`, `sId` and `cId` from fresh DISCOVER.
+
+If DISCOVER does not contain `statusVisible` for the requested Characteristic, the state is treated as unknown and DRY RUN fails closed.
+
+## 8. `services[].bridge.alice`
+
+Desired membership of this Service in the Alice/Yandex bridge.
+
+Captured disable command:
+
+```json
+{"params":{"bridgeService":{"delete":{"bridgeIndex":"Yandex_1","aId":118,"sId":13}}}}
+```
+
+This confirms:
+
+- operation family `bridgeService`;
+- removal operation `delete`;
+- bridge index `Yandex_1` on the current hub;
+- membership address uses `aId + sId`.
+
+It does **not** yet confirm:
+
+- how current membership is read for DRY RUN / VERIFY;
+- exact enable/create command.
+
+Therefore any plan containing `bridge.alice` remains fail-closed until those two pieces are captured from real WebUI traffic.
+
+## 9. Validation
+
+Format v2 validates at least:
+
+- `format_version == 2`;
+- all proven v1 structural/name rules;
+- `visible` must be boolean;
 - every status value must be boolean;
-- Characteristic type keys must be non-empty strings;
-- `bridge` must be a mapping when present;
-- `bridge.alice` must be boolean when present;
-- a requested status Characteristic must exist exactly once in the matched Service;
-- unsupported write properties must block APPLY rather than silently falling back to manual changes.
+- status key must be a non-empty Characteristic type string;
+- `bridge` is allowed only inside Service;
+- `bridge.alice` must be boolean;
+- unknown bridge fields are rejected.
 
-## 6. Required diff/action kinds
+## 10. Safety
 
-Configurator v2 must be able to produce at least:
-
-```text
-accessory_name
-room
-service_name
-service_visible
-characteristic_status_visible
-alice_bridge
-```
-
-Each action must participate in:
+No presentation field may bypass the established sequence:
 
 ```text
 DISCOVER
+→ structural validation
+→ diff
 → DRY RUN
-→ APPLY
+→ user confirmation APPLY
+→ write only CHANGE actions
 → fresh DISCOVER
 → VERIFY
 ```
 
-## 7. DISCOVER source fields already observed
-
-Current `accessory.list expand=services,characteristics` responses expose:
-
-Service:
-
-```text
-visible
-order
-grid
-```
-
-Characteristic:
-
-```text
-statusVisible
-control.read
-control.write
-control.visible
-```
-
-Therefore `visible` and `statusVisible` are readable desired-state properties and can already be included in diff/VERIFY logic.
-
-## 8. Write safety gate
-
-At the draft stage:
-
-- read/diff/VERIFY semantics may be implemented;
-- APPLY support for a new property is enabled only after its exact WebUI write RPC is captured and reproduced;
-- no RPC is inferred by analogy from `service.update`, `accessory.update` or `characteristic.update` value writes.
-
-Required captures:
-
-1. toggle one Service tile visibility;
-2. toggle one Characteristic in room status line;
-3. toggle Alice exposure.
-
-Only the sanitized `params` structure is needed. Session token/cid/serial must not be stored in the repository.
-
-## 9. Presentation vs capability
-
-The v2 contract enforces the architectural rule:
-
-```text
-physical device capability != mandatory Sprut presentation
-```
-
-If a physical temperature is already represented by a thermostat and is not needed as a separate user entity, the correct solution is normally not to create that standalone TemperatureSensor in the Sprut template/plan.
-
-`visible: false` is intended for Services that must remain present but should not have a tile, such as Humidity used in room status.
-
-## 10. Compatibility
-
-`format_version: 1` remains the frozen v0.2.2 baseline.
-
-A v2-capable Configurator may support both versions, but must never reinterpret a v1 plan as if missing presentation fields meant `false`. Missing v2 presentation fields mean **not managed by this plan** unless the final contract explicitly states otherwise.
+If a write or read contract is not field-confirmed, Configurator must stop before any partial APPLY rather than mix confirmed and guessed operations.
