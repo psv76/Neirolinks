@@ -1,17 +1,70 @@
+// 600_Heat_diagnostics.js
+// Объект: 05 31 Иволга 13
+//
+// Диагностика отопления.
+//
+// ВАЖНО:
+// Этот файл ничего не пишет в физические выходы.
+// Он только читает датчики/состояние зон и публикует диагностические значения
+// в виртуальное устройство heat_diagnostics.
+//
+// Обновлено 10.09.2026 после фактической сверки отопительных каналов дома:
+// - A08/K5 перенесён из ТП в радиаторы;
+// - A08/K6 добавлен в радиаторы;
+// - A14/K4 исключён, канал пустой;
+// - группы синхронизированы с HEATING_CHANNEL_MAP.md и 620_thermostats.js.
+
 var CH = {
     tBoilerSupply: "wb-m1w2_170/External Sensor 1",
     tBoilerReturn: "wb-m1w2_170/External Sensor 2",
+
     tTpDomSupply: "wb-m1w2_141/External Sensor 1",
     tTpDomReturn: "wb-m1w2_141/External Sensor 2",
+
     tGpDomSupply: "wb-m1w2_167/External Sensor 1",
     tGpDomReturn: "wb-m1w2_167/External Sensor 2",
+
     tRadDomReturn: "wb-m1w2_121/External Sensor 1",
+
     tGpBesSupply: "wb-m1w2_173/External Sensor 1",
     tGpBesReturn: "wb-m1w2_173/External Sensor 2",
+
     tRadHozReturn: "wb-m1w2_166/External Sensor 1",
-    tpDomZones: ["A08/K1", "A08/K2", "A08/K3", "A08/K4", "A08/K5"],
-    gpDomZones: ["A13/K1", "A13/K2", "A13/K3", "A13/K4", "A13/K5", "A13/K6", "A14/K1", "A14/K2", "A14/K3", "A14/K4"],
-    radDomZones: ["A09/K1", "A09/K2", "A09/K3", "A09/K4", "A09/K5"]
+
+    // 501 — ТП дом / паркет.
+    // A08/K4 включается вместе с A08/K1, но физически это отдельный выход,
+    // поэтому в диагностике открытых контуров он считается отдельно.
+    tpDomZones: [
+        "A08/K1",
+        "A08/K2",
+        "A08/K3",
+        "A08/K4"
+    ],
+
+    // 502 — ГП дом / плитка.
+    // A14/K4 исключён: канал пустой, ничего не подключено.
+    gpDomZones: [
+        "A13/K1",
+        "A13/K2",
+        "A13/K3",
+        "A13/K4",
+        "A13/K5",
+        "A13/K6",
+        "A14/K1",
+        "A14/K2",
+        "A14/K3"
+    ],
+
+    // 503 — радиаторы дома.
+    radDomZones: [
+        "A08/K5",
+        "A08/K6",
+        "A09/K1",
+        "A09/K2",
+        "A09/K3",
+        "A09/K4",
+        "A09/K5"
+    ]
 };
 
 var CFG = {
@@ -114,14 +167,54 @@ function evaluateDiagnostics()
 defineVirtualDevice("heat_diagnostics", {
     title: "Диагностика отопления",
     cells: {
-        status_text: { type: "text", title: "Состояние", value: "", readonly: true },
-        d_boiler: { type: "value", title: "ΔT котлового контура", value: 0, readonly: true },
-        d_tp_dom: { type: "value", title: "ΔT ТП дом", value: 0, readonly: true },
-        d_gp_dom: { type: "value", title: "ΔT ГП дом", value: 0, readonly: true },
-        d_gp_besedka: { type: "value", title: "ΔT ГП беседка", value: 0, readonly: true },
-        tp_dom_demand_count: { type: "value", title: "Открытых контуров в ТП дом", value: 0, readonly: true },
-        gp_dom_demand_count: { type: "value", title: "Открытых контуров в ГП дом", value: 0, readonly: true },
-        rad_dom_demand_count: { type: "value", title: "Открытых контуров радиаторов дома", value: 0, readonly: true }
+        status_text: {
+            type: "text",
+            title: "Состояние",
+            value: "",
+            readonly: true
+        },
+        d_boiler: {
+            type: "value",
+            title: "ΔT котлового контура",
+            value: 0,
+            readonly: true
+        },
+        d_tp_dom: {
+            type: "value",
+            title: "ΔT ТП дом",
+            value: 0,
+            readonly: true
+        },
+        d_gp_dom: {
+            type: "value",
+            title: "ΔT ГП дом",
+            value: 0,
+            readonly: true
+        },
+        d_gp_besedka: {
+            type: "value",
+            title: "ΔT ГП беседка",
+            value: 0,
+            readonly: true
+        },
+        tp_dom_demand_count: {
+            type: "value",
+            title: "Открытых контуров в ТП дом",
+            value: 0,
+            readonly: true
+        },
+        gp_dom_demand_count: {
+            type: "value",
+            title: "Открытых контуров в ГП дом",
+            value: 0,
+            readonly: true
+        },
+        rad_dom_demand_count: {
+            type: "value",
+            title: "Открытых контуров радиаторов дома",
+            value: 0,
+            readonly: true
+        }
     }
 });
 
