@@ -1,141 +1,125 @@
 # Sprut Configurator v0.3.0-dev — Issue #22
 
-Статус: **рабочая ветка**, не production.
+Статус: **рабочая ветка, не production**.
 
-## Что реализовано
+## Реализовано
 
-Поверх frozen reference `v0.2.2` добавлен development launcher:
+Development launcher:
 
 ```text
 SprutConfigurator/sprut_configurator_dev.py
 ```
 
-Новый presentation core:
+Presentation core:
 
 ```text
 SprutConfigurator/src/presentation_core.py
 ```
 
-Он реализует read-side для YAML `format_version: 2`:
+Field-confirmed RPC builders:
 
 ```text
-validation
-→ DISCOVER matching
-→ diff
-→ DRY RUN
-→ VERIFY
+SprutConfigurator/src/rpc_contract.py
 ```
 
-Поддерживаемые desired-state свойства:
+Поддержан read/diff/DRY RUN/VERIFY для YAML `format_version: 2`:
 
 ```text
 services[].visible
 services[].status.<CharacteristicType>
-bridge.alice
+services[].bridge.alice
 ```
 
-### `Service.visible`
+`bridge.alice` теперь Service-scoped, потому что реальная команда Sprut адресует `aId + sId`.
 
-Текущее значение читается из `Service.visible` в DISCOVER.
+## Field-confirmed RPC 2026-09-10
 
-### `Characteristic.statusVisible`
+### Service.visible
 
-Characteristic выбирается по устойчивому типу. Read parser допускает фактически встречающиеся формы:
+Снято с реального Sprut WebUI:
+
+```json
+{"params":{"service":{"update":{"aId":118,"sId":13,"visible":false}}}}
+```
+
+В v0.3.0-dev этот action уже разрешён в APPLY после успешного свежего DRY RUN.
+
+### Characteristic.statusVisible
+
+Снято с реального Sprut WebUI:
+
+```json
+{"params":{"characteristic":{"update":{"aId":118,"sId":13,"cId":15,"statusVisible":false}}}}
+```
+
+В v0.3.0-dev этот action уже разрешён в APPLY. `cId` всегда берётся из свежего DISCOVER по Characteristic type.
+
+### Alice/Yandex disable
+
+Снято с реального Sprut WebUI:
+
+```json
+{"params":{"bridgeService":{"delete":{"bridgeIndex":"Yandex_1","aId":118,"sId":13}}}}
+```
+
+Команда сохранена как field-confirmed contract, но **generic APPLY для `bridge.alice` пока заблокирован**.
+
+Причина: для полноценного desired-state цикла всё ещё нужны:
+
+1. read-path текущего состава `Yandex_1` для DRY RUN/VERIFY;
+2. exact enable/create RPC.
+
+Одностороннее `delete` без возможности надёжно прочитать состояние и вернуть `true` не считается законченной bridge policy.
+
+## APPLY safety
+
+Для `visible` и `statusVisible` теперь действует полный существующий механизм:
 
 ```text
-Characteristic.type
+fresh DISCOVER
+→ DRY RUN
+→ APPLY confirmation
+→ write CHANGE actions
+→ fresh DISCOVER
+→ VERIFY
 ```
 
-или:
-
-```text
-Characteristic.control.type
-```
-
-Текущее значение берётся только из фактического `Characteristic.statusVisible`.
-
-Если нужного поля нет, DRY RUN получает `ERROR`; значение не угадывается.
-
-### Alice
-
-Контракт и diff-механизм готовы через отдельный adapter `alice_state_getter`.
-
-Путь хранения текущего состояния Alice в runtime Sprut пока не подтверждён. Поэтому при наличии `bridge.alice` и отсутствии подтверждённого adapter система работает **fail-closed**:
-
-```text
-bridge.alice → ERROR
-```
-
-а не считает состояние известным.
-
-## Почему APPLY пока заблокирован
-
-Issue #22 прямо запрещает придумывать write RPC.
-
-Точные исходящие Sprut WebUI frames для:
-
-```text
-Service.visible
-Characteristic.statusVisible
-Alice bridge policy
-```
-
-ещё не сняты на реальном Sprut.hub.
-
-Поэтому v0.3.0-dev имеет две защиты:
-
-1. presentation policy уже участвует в DRY RUN / VERIFY;
-2. если plan содержит presentation actions, кнопка APPLY остаётся disabled;
-3. дополнительный fail-closed guard блокирует presentation APPLY до любой записи, если вызов всё же будет инициирован программно.
-
-Это исключает опасный сценарий частичного APPLY: старые name/room изменения записались, а новые presentation actions упали позже.
+Если plan содержит `bridge.alice`, DRY RUN остаётся fail-closed и APPLY не активируется. Это предотвращает частичную запись остальных изменений перед ошибкой Alice.
 
 ## Offline tests
 
-Файл:
+`SprutConfigurator/tests/test_presentation_core.py` проверяет:
 
-```text
-SprutConfigurator/tests/test_presentation_core.py
-```
+- strict boolean validation;
+- Service-scoped bridge contract;
+- Characteristic type matching;
+- `Service.visible` diff;
+- `Characteristic.statusVisible` diff;
+- Alice fail-closed без read adapter;
+- VERIFY;
+- точное соответствие builders трём реально снятым `params`.
 
-Проверяет:
-
-- строгую validation boolean-полей;
-- поиск Characteristic type;
-- diff `Service.visible`;
-- diff `Characteristic.statusVisible`;
-- Alice diff через тестовый adapter;
-- fail-closed Alice без adapter;
-- ошибку при отсутствии `statusVisible` в DISCOVER;
-- presentation VERIFY.
-
-Локальный прогон при разработке 2026-09-10:
+Локальный прогон после получения реальных frames:
 
 ```text
 PASS test_alice_without_adapter_is_fail_closed
 PASS test_characteristic_type
 PASS test_diff_with_confirmed_alice_adapter
+PASS test_field_confirmed_rpc_params
 PASS test_missing_status_visible_is_error
 PASS test_validation
 PASS test_verify
 ```
 
-## Следующий шаг
+Все изменённые Python-файлы также прошли `py_compile`.
 
-Нужны реальные outgoing WebSocket frames из Sprut WebUI для трёх операций:
+## Следующий блокирующий capture
 
-1. включить/выключить `Service.visible`;
-2. включить/выключить `Characteristic.statusVisible`;
-3. включить/выключить мост в Алису для Accessory.
-
-После подтверждения frames нужно:
+Для завершения Alice нужны два факта из WebUI:
 
 ```text
-добавить write adapter
-→ добавить action metadata cId
-→ включить APPLY
-→ fresh DISCOVER
-→ VERIFY
+A. включить обратно тот же Service в Алису → outgoing frame
+B. запрос/ответ, из которого WebUI узнаёт текущий состав Yandex_1
 ```
 
-Секретные `token`, `cid`, session `serial` в документацию и тесты не сохранять.
+После этого можно реализовать bridge read adapter, enable/delete APPLY и VERIFY без догадок.
