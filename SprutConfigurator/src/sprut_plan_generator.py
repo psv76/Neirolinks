@@ -66,6 +66,30 @@ def _resolve_serial(
     return "", "serial or supported serial_from is required"
 
 
+def _normalize_room_map(
+    raw_room_map: Any,
+    errors: list[str],
+) -> dict[str, str]:
+    if raw_room_map is None:
+        return {}
+    if not isinstance(raw_room_map, dict):
+        errors.append("policy.room_map must be a mapping")
+        return {}
+
+    result: dict[str, str] = {}
+    for raw_source, raw_target in raw_room_map.items():
+        source = _clean(raw_source)
+        target = _clean(raw_target)
+        if not source:
+            errors.append("policy.room_map contains an empty source room")
+            continue
+        if not target:
+            errors.append(f"policy.room_map[{source!r}] target room is empty")
+            continue
+        result[source] = target
+    return result
+
+
 def generate_sprut_plan(
     source_model: dict[str, Any],
     policy: dict[str, Any],
@@ -86,11 +110,13 @@ def generate_sprut_plan(
             f"Unsupported policy_version={policy.get('policy_version')!r}; expected 1."
         )
 
+    room_map = _normalize_room_map(policy.get("room_map"), errors)
+
     source_lines = source_model.get("lines")
     if not isinstance(source_lines, list):
         return GenerationResult(
             {"format_version": 2, "accessories": []},
-            ["source_model.lines must be a list"],
+            [*errors, "source_model.lines must be a list"],
             [],
         )
 
@@ -151,13 +177,25 @@ def generate_sprut_plan(
         seen_serials.add(serial)
 
         name_template = spec.get("name", "{id} {purpose}")
-        room_template = spec.get("room", "{room}")
-        if not isinstance(name_template, str) or not isinstance(room_template, str):
-            errors.append(f"{prefix}: name and room must be strings")
+        if not isinstance(name_template, str):
+            errors.append(f"{prefix}: name must be a string")
             continue
 
         name = _render(name_template, line).strip()
-        room = _render(room_template, line).strip()
+        if "room" in spec:
+            room_template = spec.get("room")
+            if not isinstance(room_template, str):
+                errors.append(f"{prefix}: room must be a string")
+                continue
+            room = _render(room_template, line).strip()
+        else:
+            source_room = _clean(line.get("room"))
+            room = room_map.get(source_room, source_room)
+            if source_room in room_map and room != source_room:
+                warnings.append(
+                    f"line {line_id}: room mapped {source_room!r} -> {room!r}"
+                )
+
         if not name:
             errors.append(f"{prefix} line {line_id}: generated name is empty")
             continue
