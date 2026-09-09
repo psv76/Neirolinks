@@ -30,7 +30,7 @@ services[].status.<CharacteristicType>
 services[].bridge.alice
 ```
 
-`bridge.alice` теперь Service-scoped, потому что реальная команда Sprut адресует `aId + sId`.
+`bridge.alice` Service-scoped, потому что реальные команды Sprut адресуют `aId + sId`.
 
 ## Field-confirmed RPC 2026-09-10
 
@@ -62,18 +62,27 @@ services[].bridge.alice
 {"params":{"bridgeService":{"delete":{"bridgeIndex":"Yandex_1","aId":118,"sId":13}}}}
 ```
 
-Команда сохранена как field-confirmed contract, но **generic APPLY для `bridge.alice` пока заблокирован**.
+### Alice/Yandex enable
 
-Причина: для полноценного desired-state цикла всё ещё нужны:
+Снято с реального Sprut WebUI:
 
-1. read-path текущего состава `Yandex_1` для DRY RUN/VERIFY;
-2. exact enable/create RPC.
+```json
+{"params":{"bridgeService":{"create":{"bridgeIndex":"Yandex_1","aId":118,"sId":13,"write":true}}}}
+```
 
-Одностороннее `delete` без возможности надёжно прочитать состояние и вернуть `true` не считается законченной bridge policy.
+Обе write-операции Alice теперь field-confirmed и зафиксированы в `rpc_contract.py`.
+
+При этом generic APPLY для `bridge.alice` **пока остаётся заблокирован**. Причина теперь только одна: не подтверждён read-path текущего состава `Yandex_1`, поэтому Configurator пока не может достоверно выполнить:
+
+```text
+DISCOVER → diff → DRY RUN → APPLY → fresh DISCOVER → VERIFY
+```
+
+Запускать `create/delete` без надёжного определения текущего состояния нельзя: desired-state механизм обязан понимать, когда действие не требуется, и обязан подтвердить результат после записи.
 
 ## APPLY safety
 
-Для `visible` и `statusVisible` теперь действует полный существующий механизм:
+Для `visible` и `statusVisible` действует полный существующий механизм:
 
 ```text
 fresh DISCOVER
@@ -84,7 +93,7 @@ fresh DISCOVER
 → VERIFY
 ```
 
-Если plan содержит `bridge.alice`, DRY RUN остаётся fail-closed и APPLY не активируется. Это предотвращает частичную запись остальных изменений перед ошибкой Alice.
+Если plan содержит `bridge.alice`, DRY RUN остаётся fail-closed и APPLY не активируется до подключения подтверждённого bridge read adapter. Это предотвращает частичную запись остальных изменений перед ошибкой Alice.
 
 ## Offline tests
 
@@ -97,29 +106,20 @@ fresh DISCOVER
 - `Characteristic.statusVisible` diff;
 - Alice fail-closed без read adapter;
 - VERIFY;
-- точное соответствие builders трём реально снятым `params`.
+- точное соответствие builders четырём реально снятым `params`:
+  - Service.visible;
+  - Characteristic.statusVisible;
+  - Yandex delete;
+  - Yandex create/write=true.
 
-Локальный прогон после получения реальных frames:
-
-```text
-PASS test_alice_without_adapter_is_fail_closed
-PASS test_characteristic_type
-PASS test_diff_with_confirmed_alice_adapter
-PASS test_field_confirmed_rpc_params
-PASS test_missing_status_visible_is_error
-PASS test_validation
-PASS test_verify
-```
-
-Все изменённые Python-файлы также прошли `py_compile`.
+После добавления create RPC ожидаемый regression-набор остаётся тем же по числу test-функций; тест `test_field_confirmed_rpc_params` теперь проверяет четыре RPC shape.
 
 ## Следующий блокирующий capture
 
-Для завершения Alice нужны два факта из WebUI:
+Остался один внешний факт из WebUI:
 
 ```text
-A. включить обратно тот же Service в Алису → outgoing frame
-B. запрос/ответ, из которого WebUI узнаёт текущий состав Yandex_1
+запрос/ответ, из которого WebUI узнаёт текущий состав Yandex_1
 ```
 
-После этого можно реализовать bridge read adapter, enable/delete APPLY и VERIFY без догадок.
+После него можно реализовать bridge read adapter, включить `create/delete` в общий APPLY и завершить Alice через полноценный VERIFY без догадок.
