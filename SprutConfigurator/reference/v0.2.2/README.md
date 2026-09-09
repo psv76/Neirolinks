@@ -1,59 +1,55 @@
-# Reference implementation — Sprut Configurator v0.2.2
+# Reference baseline — Sprut Configurator v0.2.2
 
-Здесь хранится зафиксированный standalone baseline, прошедший реальное end-to-end применение.
+Этот каталог фиксирует **версию и подтверждённое поведение** standalone Sprut Configurator v0.2.2 как reference baseline общей разработки.
 
-Файлы:
+Исходный архив документации, переработанный в Issue #21, не содержал исходник приложения. Поэтому здесь не размещается неполный или восстановленный по памяти source package.
 
-```text
-sprut_configurator.py
-requirements.txt
-setup.bat
-run.bat
-```
-
-## Запуск на Windows
-
-1. Установить Python 3.11+.
-2. Выполнить:
+## Что считается зафиксированным
 
 ```text
-setup.bat
+DISCOVER
+→ YAML validation
+→ DRY RUN
+→ fresh preflight
+→ APPLY
+→ fresh DISCOVER
+→ VERIFY
 ```
 
-3. Запустить:
+Также зафиксированы:
+
+- matching Accessory по `serial`;
+- room-by-name;
+- Service-by-type;
+- запрет APPLY при validation errors;
+- локальное явное подтверждение `APPLY`;
+- session credentials только в RAM;
+- round-trip validation имён Sprut.
+
+Подробный contract:
 
 ```text
-run.bat
+SprutConfigurator/docs/CONFIGURATOR_V0_2_2.md
+SprutConfigurator/docs/YAML_CONTRACT_V1.md
 ```
 
-Зависимости:
+## Object-specific fixture
 
-```text
-websockets>=15.0,<17
-PyYAML>=6.0.2,<7
-```
-
-## Почему здесь нет объектовых fixtures
-
-Original v0.2.2 package содержал regression data первого reference объекта. Они сознательно отделены от общей разработки.
-
-Object-specific plan/acceptance snapshot находится в:
+План и acceptance snapshot первого reference объекта сознательно вынесены из общей разработки:
 
 ```text
 objects/05_31_Ivolga_13/Doc/SprutConfigurator/v0.2.2/
 ```
 
-Большой DISCOVER JSON из исходного рабочего пакета не включён в общую папку Configurator, чтобы не смешивать runtime snapshot конкретного объекта с общим механизмом.
+Это frozen regression reference, а не источник текущей физической карты объекта.
 
-## Security
+## Source package
 
-Не добавлять в репозиторий:
+Если standalone source будет отдельно версионироваться в GitHub, его следует добавить явной самостоятельной задачей или в рамках очередной доработки Configurator, сохранив эту границу:
 
 ```text
-Sprut token
-cid/session payload
-cookies
-прочие secrets
+generic source / contracts → SprutConfigurator/
+object fixtures            → objects/<object>/
 ```
 
-Reference source рассчитан на локальную вставку WebUI WebSocket frame и хранит session credentials только в RAM.
+Не восстанавливать код из документации приблизительно и не объявлять такой восстановленный вариант reference implementation.
