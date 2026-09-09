@@ -1018,7 +1018,7 @@ class SprutConfiguratorApp:
 
     def save_discover(self):
         if not self.discover_data:
-            messagebox.showwarning("DISCOVER", "Сначала выполните или открыть DISCOVER.", parent=self.root)
+            messagebox.showwarning("DISCOVER", "Сначала выполните или откройте DISCOVER.", parent=self.root)
             return
 
         default_name = "sprut_discover_" + datetime.now().strftime("%Y%m%d_%H%M%S") + ".json"
@@ -1039,7 +1039,7 @@ class SprutConfiguratorApp:
 
     def export_csv(self):
         if not self.discover_data:
-            messagebox.showwarning("CSV", "Сначала выполните или открыть DISCOVER.", parent=self.root)
+            messagebox.showwarning("CSV", "Сначала выполните или откройте DISCOVER.", parent=self.root)
             return
 
         path = filedialog.asksaveasfilename(
@@ -1111,7 +1111,7 @@ class SprutConfiguratorApp:
 
     # ---------- plan ----------
 
-    def open_plan((self):
+    def open_plan(self):
         path = filedialog.askopenfilename(
             parent=self.root,
             title="Открыть sprut_plan.yaml",
