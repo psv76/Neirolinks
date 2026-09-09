@@ -1,0 +1,132 @@
+# GENERATED from NL Project 1.0 normalized source + besedka_sprut_export_policy.yaml.
+# Not APPLY-ready until live Sprut.hub Беседка DISCOVER confirms identities/rooms
+# and unresolved devices are handled.
+format_version: 2
+object: 05 31 Иволга — Беседка
+accessories:
+- serial: A41/K1
+  name: 301 Свет фасад беседки
+  room: Фасад
+  services:
+  - type: Lightbulb
+    name: 301 Свет фасад беседки
+    visible: true
+- serial: A41/K2
+  name: 302 Свет прихожая
+  room: Прихожая
+  services:
+  - type: Lightbulb
+    name: 302 Свет прихожая
+    visible: true
+- serial: A41/K3
+  name: 303 Свет санузел
+  room: Санузел
+  services:
+  - type: Lightbulb
+    name: 303 Свет санузел
+    visible: true
+- serial: A42/K1
+  name: 304 Свет кухня
+  room: Кухня
+  services:
+  - type: Lightbulb
+    name: 304 Свет кухня
+    visible: true
+- serial: A42/K2
+  name: 305 Люстра кухня
+  room: Кухня
+  services:
+  - type: Lightbulb
+    name: 305 Люстра кухня
+    visible: true
+- serial: A42/K3
+  name: 306 Люстра гостиная
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: 306 Люстра гостиная
+    visible: true
+- serial: A43/K1
+  name: 307 Бра мангала слева
+  room: Кухня
+  services:
+  - type: Lightbulb
+    name: 307 Бра мангала слева
+    visible: true
+- serial: A43/K2
+  name: 308 Бра мангала в центре
+  room: Кухня
+  services:
+  - type: Lightbulb
+    name: 308 Бра мангала в центре
+    visible: true
+- serial: A43/K3
+  name: 309 Бра мангала справа
+  room: Кухня
+  services:
+  - type: Lightbulb
+    name: 309 Бра мангала справа
+    visible: true
+- serial: A43/K4
+  name: 310 Бра гостиная
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: 310 Бра гостиная
+    visible: true
+- serial: A43/K5
+  name: 311 Подсветка зеркала
+  room: Санузел
+  services:
+  - type: Lightbulb
+    name: 311 Подсветка зеркала
+    visible: true
+- serial: A45/K1
+  name: 320 Гирлянда
+  room: Фасад
+  services:
+  - type: Lightbulb
+    name: 320 Гирлянда
+    visible: true
+- serial: A47/Channel 1
+  name: 351 Подсветка балки
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: 351 Подсветка балки
+    visible: true
+- serial: A47/Channel 2
+  name: 352 Подсветка балки
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: 352 Подсветка балки
+    visible: true
+- serial: A47/Channel 3
+  name: 353 Подсветка балки
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: 353 Подсветка балки
+    visible: true
+- serial: A48/Channel 1
+  name: 354 Подсветка фартук
+  room: Кухня
+  services:
+  - type: Lightbulb
+    name: 354 Подсветка фартук
+    visible: true
+- serial: A48/Channel 2
+  name: 355 Подсветка мебели
+  room: Кухня
+  services:
+  - type: Lightbulb
+    name: 355 Подсветка мебели
+    visible: true
+- serial: A48/Channel 3
+  name: 356 LED над грилем
+  room: Кухня
+  services:
+  - type: Lightbulb
+    name: 356 LED над грилем
+    visible: true
