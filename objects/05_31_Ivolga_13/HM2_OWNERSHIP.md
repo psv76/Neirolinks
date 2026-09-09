@@ -11,10 +11,11 @@
 1. `objects/05_31_Ivolga_13/HEATING_CHANNEL_MAP.md`
 2. `objects/05_31_Ivolga_13/THERMOSTAT_MAP.md`
 3. `objects/05_31_Ivolga_13/etc/wb-rules/620_thermostats.js`
-4. `objects/05_31_Ivolga_13/etc/wb-rules/507_Pressure_makeup.js`
-5. `Templates/WB-rules/Heating/HM2/MixingController/`
-6. issue `#18` — общая разработка HM2
-7. issue `#20` — объектная адаптация HM2 для Иволги
+4. `objects/05_31_Ivolga_13/etc/wb-rules/600_Heat_diagnostics.js`
+5. `objects/05_31_Ivolga_13/etc/wb-rules/507_Pressure_makeup.js`
+6. `Templates/WB-rules/Heating/HM2/MixingController/`
+7. issue `#18` — общая разработка HM2
+8. issue `#20` — объектная адаптация HM2 для Иволги
 
 Старые карты и старые подписи сантехников не использовать как источник истины, если они противоречат актуальной карте каналов.
 
@@ -49,7 +50,7 @@ consumer → атомарный request → arbiter → source manager → ед�
 |---|---|---|---|
 | Зональные термостаты дома | `etc/wb-rules/620_thermostats.js` | актуален после проверки каналов 2026-09-09 | пишет зональные выходы `A08`, `A09`, `A13`, `A14/K1…K3` |
 | Подпитка 507 | `etc/wb-rules/507_Pressure_makeup.js` | считать рабочим production после полевой проверки | единственный writer `A04/K1` |
-| Диагностика отопления | `etc/wb-rules/600_Heat_diagnostics.js` | есть, но требует правки групп зон по новой карте | только виртуальные controls |
+| Диагностика отопления | `etc/wb-rules/600_Heat_diagnostics.js` | исправлена 2026-09-10 по новой карте каналов | только виртуальные controls |
 | Состояние котла | `etc/wb-rules/610_Boiler_state.js` | диагностика | только виртуальные controls |
 | Общий регулятор смесителя | `Templates/WB-rules/Heating/HM2/MixingController/MixingController.js` | общий reusable-модуль; не object manager | не содержит MQTT-каналов; пишет клапан только через функции object manager |
 
@@ -137,11 +138,11 @@ consumer → атомарный request → arbiter → source manager → ед�
 
 Булев `true` без timestamp/TTL не считать полноценным запросом тепла.
 
-## 9. Что сделать первым
+## 9. Выполнено перед созданием managers
 
-### Шаг 1. Исправить `600_Heat_diagnostics.js`
+### 9.1. Исправлен `600_Heat_diagnostics.js`
 
-Сейчас диагностика должна соответствовать новой карте зон:
+Диагностика приведена к новой карте зон:
 
 ```js
 tpDomZones = ["A08/K1", "A08/K2", "A08/K3", "A08/K4"];
@@ -157,9 +158,11 @@ radDomZones = [
 ];
 ```
 
-`A14/K4` исключить.
+`A14/K4` исключён.
 
-### Шаг 2. Сделать первый object manager для 501
+## 10. Следующий рабочий шаг
+
+### Шаг 1. Сделать первый object manager для 501
 
 Первым контуром делать `501`:
 
@@ -175,11 +178,11 @@ MixingController как общий регулятор клапана
 
 Причина: этот контур наиболее критичен из-за паркета и ограничения температуры.
 
-### Шаг 3. После 501 повторить схему для 502 и 504
+### Шаг 2. После 501 повторить схему для 502 и 504
 
 `502` и `504` делать тем же архитектурным способом, но с их собственными каналами, датчиками и tuning.
 
-## 10. Что не делать
+## 11. Что не делать
 
 - Не копировать объектные каналы Исети.
 - Не писать новый самостоятельный PID/step-hold с нуля, если уже есть `MixingController.js`.
