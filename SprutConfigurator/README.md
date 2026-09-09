@@ -45,7 +45,8 @@ SprutConfigurator/
 │  ├─ THERMOSTATS_AND_TEMPLATES.md
 │  ├─ NL_PROJECT_BOUNDARY.md
 │  ├─ DEPLOYMENT_CHECKLIST.md
-│  └─ KNOWN_LIMITATIONS.md
+│  ├─ KNOWN_LIMITATIONS.md
+│  └─ SOURCE_ARCHIVE_MAP.md
 └─ reference/
    └─ v0.2.2/
       └─ README.md
@@ -54,6 +55,12 @@ SprutConfigurator/
 Общие Sprut template JSON остаются в `Templates/Sprut/`. Этот раздел описывает их контракты и связь с Configurator, но не дублирует сами template-файлы.
 
 Исходный пакет документации, из которого создан этот раздел, не содержал исходник standalone-приложения. Поэтому Issue #21 фиксирует механизм, контракт и field-proven поведение v0.2.2; сам source/executable не объявляется частью импортированного documentation baseline.
+
+Карта переработки исходных документов:
+
+```text
+SprutConfigurator/docs/SOURCE_ARCHIVE_MAP.md
+```
 
 ## Что сюда не входит
 
