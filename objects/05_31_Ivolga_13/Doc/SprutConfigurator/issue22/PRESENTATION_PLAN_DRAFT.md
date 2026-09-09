@@ -40,8 +40,6 @@ Alice                                no
 
 ## 2. Confirmed living-room decision: Гостиная
 
-User decision in Issue #22:
-
 ```text
 NL_simple_thermostat_010 = Воздух
 sensor                  = 902.01_MSW_TH/Temperature
@@ -52,24 +50,22 @@ sensor                  = 902.02_M1W2_TEMP_NONE/External Sensor 1
 output                  = A13/K6
 ```
 
-`NL_simple_thermostat_011` is no longer a separate zone. It must not become a third thermostat tile in Sprut.
+`NL_simple_thermostat_011` is no longer a separate zone.
 
 Target:
 
 ```text
 Гостиная
-├─ Воздух   → NL_simple_thermostat_010
-├─ Пол      → NL_simple_thermostat_611
+├─ Воздух    → NL_simple_thermostat_010
+├─ Пол       → NL_simple_thermostat_611
 └─ Влажность → 902.01_MSW_TH/Humidity (tile hidden, status only)
 ```
 
-The humidity control follows from the confirmed `902.01_MSW_TH` profile. Final inclusion in generated YAML must still be checked against the actual Sprut template/accessory identity produced for this MSW profile.
+For YAML v2, Alice policy belongs to the specific Service because the real Sprut command uses `aId + sId`.
 
 ## 3. Heating-system rooms
 
 ### ТП дом
-
-Confirmed physical sources:
 
 ```text
 pump            A03/K1
@@ -78,12 +74,7 @@ supply          wb-m1w2_141/External Sensor 1
 return          wb-m1w2_141/External Sensor 2
 ```
 
-Target presentation:
-
-- read-only Heating Circuit Monitor for pump + valve position;
-- supply temperature;
-- return temperature;
-- no physical write path from Sprut to pump/valve.
+Target: read-only Heating Circuit Monitor for pump + valve position, supply and return temperatures, with no physical write path from Sprut.
 
 ### ГП дом
 
@@ -94,8 +85,6 @@ supply          wb-m1w2_167/External Sensor 1
 return          wb-m1w2_167/External Sensor 2
 ```
 
-Same presentation policy as ТП дом.
-
 ### Радиаторы дом
 
 ```text
@@ -103,14 +92,6 @@ pump            A03/K3
 supply          wb-m1w2_170/External Sensor 1
 return          wb-m1w2_121/External Sensor 1
 ```
-
-Target presentation:
-
-- read-only pump state;
-- supply temperature;
-- return temperature.
-
-No valve-position control exists for this circuit in the current physical map.
 
 ### ГП беседка
 
@@ -121,8 +102,6 @@ supply          wb-m1w2_173/External Sensor 1
 return          wb-m1w2_173/External Sensor 2
 ```
 
-Same presentation policy as ТП дом.
-
 ### Радиаторы хозблок
 
 ```text
@@ -131,15 +110,7 @@ supply          wb-m1w2_170/External Sensor 1
 return          wb-m1w2_166/External Sensor 1
 ```
 
-Target presentation:
-
-- read-only pump state;
-- supply temperature;
-- return temperature.
-
 ### Котёл
-
-Confirmed physical sources:
 
 ```text
 system supply   wb-m1w2_170/External Sensor 1
@@ -156,23 +127,15 @@ The exact `Sprut.device + Параметр` template schema is still pending ins
 
 Target room: `Вода`.
 
-### Common water valve
+Common water valve:
 
 ```text
 A07/Output K1
 ```
 
-Target:
+Target: visible and controllable Valve. Do not expose K2, Leakage Mode, Cleaning Mode or P1/P2 counter services.
 
-- Valve;
-- visible;
-- user-controllable;
-- no K2;
-- no Leakage Mode tile;
-- no Cleaning Mode tile;
-- no P1/P2 counter Services.
-
-### Leak sensors currently recorded in object map
+Leak sensors currently recorded in the object map:
 
 ```text
 A07/Input F1                         котельная
@@ -190,17 +153,39 @@ All target LeakSensor entities belong to room `Вода` unless a fresher object
 
 Motion is not automatically exposed because an MSW profile has motion capability.
 
-The only currently explicit motion control in the physical map is:
+The currently explicit motion control in the physical map is:
 
 ```text
 902.05_MSW_THM/Current Motion → прихожая
 ```
 
-Its final Sprut/Alice presentation remains an object policy decision and is not inferred in this draft.
+Its final Sprut/Alice presentation remains an object policy decision and is not inferred.
 
-## 6. Outside / Улица
+## 6. Confirmed presentation RPC 2026-09-10
 
-Current known user lighting functions are sourced from object channels such as `A06/K1…K6`, but final Sprut target must be generated from current Project presentation data, not by automatically exposing every available relay.
+### Hide/show Service tile
+
+```json
+{"params":{"service":{"update":{"aId":118,"sId":13,"visible":false}}}}
+```
+
+`Service.visible` is now implemented in v0.3.0-dev APPLY/VERIFY.
+
+### Status line
+
+```json
+{"params":{"characteristic":{"update":{"aId":118,"sId":13,"cId":15,"statusVisible":false}}}}
+```
+
+`Characteristic.statusVisible` is now implemented in v0.3.0-dev APPLY/VERIFY.
+
+### Disable Alice bridge membership
+
+```json
+{"params":{"bridgeService":{"delete":{"bridgeIndex":"Yandex_1","aId":118,"sId":13}}}}
+```
+
+This confirms that Alice membership is Service-scoped. Generic `bridge.alice` APPLY remains blocked until current membership read-path and enable/create RPC are captured.
 
 ## 7. Non-target entities
 
@@ -215,13 +200,12 @@ Do not produce as final customer entities merely because the MQTT control exists
 
 ## 8. Remaining blockers before final YAML/APPLY
 
-1. Exact WebUI write RPC for:
-   - Service.visible;
-   - Characteristic.statusVisible;
-   - Alice bridge policy.
+1. Alice:
+   - exact enable/create outgoing frame;
+   - read-path current membership of `Yandex_1` for DRY RUN/VERIFY.
 2. Actual Sprut Catalog sample for `Sprut.device + Параметр`.
 3. Field-test of read-only Fan/mirror presentation for Heating Circuit Monitor.
 4. Current NL Project source/model needed to implement Project → `sprut_plan.yaml` generation.
-5. Confirm final identity/SERIAL produced by any new templates before writing them into object YAML.
+5. Confirm final identity/SERIAL produced by new templates before writing them into the final object plan.
 
-Until these are resolved, this document is desired presentation state, not an APPLY-ready plan.
+Until these are resolved, this document is desired presentation state, not an APPLY-ready final plan.
