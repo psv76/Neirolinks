@@ -16,6 +16,14 @@
 - [Wiren Board coding standard](EIM/Standards/WB_coding_standard.md)
 - [WB-rules logging standard](EIM/Standards/WB_logging_standard.md)
 
+### `SprutConfigurator/`
+
+Общая разработка Sprut Configurator: архитектура, MQTT/identity contracts, YAML contract, baseline standalone v0.2.2, правила templates и граница будущей интеграции с NL Project.
+
+Главный документ:
+
+- [Sprut Configurator](SprutConfigurator/README.md)
+
 ### `Templates/`
 
 Шаблоны для повторного использования между объектами.
@@ -28,3 +36,5 @@
 ### `objects/`
 
 Реальные объекты. Каждый объект хранится в отдельной папке и является отдельной зоной фактов: описание объекта, конфиги, бэкапы, скрипты, документация и рабочие материалы.
+
+Объектовые Sprut plan, whitelist и acceptance fixtures должны храниться внутри соответствующего `objects/<object>/`, а не в общей папке Configurator.
