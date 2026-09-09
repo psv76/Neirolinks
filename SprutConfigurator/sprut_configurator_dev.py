@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Sprut Configurator v0.3.0-dev.
+"""Sprut Configurator v0.3.0-dev — Issue #22.
 
-Development launcher for Issue #22.
+Development overlay on the frozen v0.2.2 reference.
 
-The frozen v0.2.2 implementation remains the proven base. This launcher overlays
-format_version 2 presentation validation/diff/DRY RUN/VERIFY.
+Field-confirmed write RPC:
+- Service.visible
+- Characteristic.statusVisible
+- Yandex bridge disable (delete)
 
-Presentation APPLY is intentionally fail-closed until exact outgoing Sprut WebUI
-write frames are captured and field-confirmed.
+Alice read-path and enable RPC are still not fully confirmed, therefore any
+plan containing bridge.alice remains fail-closed before APPLY.
 """
 
 from __future__ import annotations
@@ -23,11 +25,18 @@ from src.presentation_core import (
     make_presentation_diff,
     validate_presentation_plan,
 )
+from src.rpc_contract import (
+    FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX,
+    characteristic_status_visible_params,
+    service_visible_params,
+)
 
 ROOT = Path(__file__).resolve().parent
 BASE_PATH = ROOT / "reference" / "v0.2.2" / "sprut_configurator.py"
 
-_spec = importlib.util.spec_from_file_location("sprut_configurator_v022_base", BASE_PATH)
+_spec = importlib.util.spec_from_file_location(
+    "sprut_configurator_v022_base", BASE_PATH
+)
 if _spec is None or _spec.loader is None:
     raise RuntimeError(f"Не удалось загрузить reference Configurator: {BASE_PATH}")
 
@@ -40,7 +49,6 @@ base.APP_VERSION = "0.3.0-dev"
 _original_validate_plan_structure = base.validate_plan_structure
 _original_make_dry_run = base.make_dry_run
 _original_update_apply_state = base.SprutConfiguratorApp._update_apply_state
-_original_apply_after_confirm = base.SprutConfiguratorApp._apply_after_confirm
 
 PRESENTATION_KINDS = {
     "service_visible",
@@ -48,9 +56,19 @@ PRESENTATION_KINDS = {
     "bridge_alice",
 }
 
+# Exact write frames captured from the real Sprut WebUI on Issue #22:
+#
+# {"params":{"service":{"update":{"aId":118,"sId":13,"visible":false}}},...}
+# {"params":{"characteristic":{"update":{"aId":118,"sId":13,"cId":15,
+#                                       "statusVisible":false}}},...}
+# {"params":{"bridgeService":{"delete":{"bridgeIndex":"Yandex_1",
+#                                      "aId":118,"sId":13}}},...}
+#
+# The bridge delete frame is documented, but bridge.alice remains blocked until
+# the current membership read-path and enable/create frame are also confirmed.
+
 
 def _as_v1(plan: dict[str, Any]) -> dict[str, Any]:
-    """Reuse proven v0.2.2 validation/diff without mutating the v2 plan."""
     clone = dict(plan)
     clone["format_version"] = 1
     return clone
@@ -75,33 +93,44 @@ def load_yaml_plan_v2(path):
 
 
 def _presentation_action_to_base(action):
-    return base.PlanAction(
+    converted = base.PlanAction(
         status=action.status,
         serial=action.serial,
         kind=action.kind,
-        current=str(action.current),
-        expected=str(action.expected),
+        current=action.current,
+        expected=action.expected,
         detail=action.detail,
         accessory_id=action.accessory_id,
         service_id=action.service_id,
         room_id=None,
         service_type=action.service_type,
     )
+    # v0.2.2 PlanAction predates Characteristic writes; attach runtime metadata
+    # without modifying the frozen reference source.
+    converted.characteristic_id = action.characteristic_id
+    converted.characteristic_type = action.characteristic_type
+    return converted
 
 
 def make_dry_run_v2(plan: dict[str, Any], discover: dict[str, Any]):
     structural_errors = validate_plan_structure_v2(plan)
 
-    # The original function still sees the original v1 validator in its module
-    # globals, so this call remains a clean regression reuse of v0.2.2.
+    # Reuse the proven v0.2.2 identity/name/room/service-name engine.
     base_dry = _original_make_dry_run(_as_v1(plan), discover)
+
+    # Alice intentionally has no getter yet: a requested bridge policy yields
+    # ERROR and therefore blocks APPLY. Service.visible/statusVisible can pass.
     presentation = make_presentation_diff(plan, discover)
 
     base_structure = set(_original_validate_plan_structure(_as_v1(plan)))
-    runtime_base_errors = [e for e in base_dry.errors if e not in base_structure]
+    runtime_base_errors = [
+        e for e in base_dry.errors if e not in base_structure
+    ]
 
     actions = list(base_dry.actions)
-    actions.extend(_presentation_action_to_base(a) for a in presentation.actions)
+    actions.extend(
+        _presentation_action_to_base(a) for a in presentation.actions
+    )
 
     errors = list(structural_errors)
     for error in runtime_base_errors + presentation.errors:
@@ -115,36 +144,156 @@ def make_dry_run_v2(plan: dict[str, Any], discover: dict[str, Any]):
     )
 
 
+def verify_plan_v2(plan: dict[str, Any], discover: dict[str, Any]):
+    """VERIFY all legacy and v2 desired-state fields through one fresh diff."""
+    dry = make_dry_run_v2(plan, discover)
+    by_serial: dict[str, list[Any]] = {}
+    for action in dry.actions:
+        by_serial.setdefault(action.serial, []).append(action)
+
+    rows = []
+    for target in plan.get("accessories", []):
+        serial = target["serial"]
+        actions = by_serial.get(serial, [])
+        if not actions:
+            rows.append(base.VerifyRow(
+                serial, "FAILED", "Нет результатов проверки."
+            ))
+            continue
+
+        bad = [a for a in actions if a.status in ("ERROR", "CHANGE")]
+        if bad:
+            details = []
+            for action in bad:
+                if action.status == "ERROR":
+                    details.append(action.detail)
+                else:
+                    details.append(
+                        f"{action.detail}: фактически={action.current!r}, "
+                        f"ожидается={action.expected!r}"
+                    )
+            rows.append(base.VerifyRow(
+                serial, "FAILED", "; ".join(details)
+            ))
+        else:
+            rows.append(base.VerifyRow(
+                serial, "PASSED",
+                "Имя, комната, Service и presentation policy соответствуют плану."
+            ))
+    return rows
+
+
 def update_apply_state_v2(self):
     _original_update_apply_state(self)
 
     dry = self.last_dry_run
-    if dry and any(action.kind in PRESENTATION_KINDS for action in dry.actions):
+    if not dry or not dry.ok:
+        return
+
+    # A bridge policy currently makes DRY RUN fail-closed already. This second
+    # guard prevents accidental enablement if that behavior changes later.
+    if any(a.kind == "bridge_alice" for a in dry.actions):
         self.apply_btn.configure(state="disabled")
 
 
-def apply_after_confirm_fail_closed(self, auth, plan, dry):
-    """Second safety barrier: never partially APPLY an unconfirmed v2 write."""
-    if any(action.kind in PRESENTATION_KINDS for action in dry.actions):
-        detail = ", ".join(
-            sorted({action.kind for action in dry.actions if action.kind in PRESENTATION_KINDS})
+def _write_action(client, action):
+    if action.kind == "accessory_name":
+        client.update_accessory_name(action.accessory_id, action.expected)
+        return
+
+    if action.kind == "room":
+        client.update_accessory_room(action.accessory_id, action.room_id)
+        return
+
+    if action.kind == "service_name":
+        client.update_service_name(
+            action.accessory_id, action.service_id, action.expected
         )
+        return
+
+    if action.kind == "service_visible":
+        # Field-confirmed WebUI RPC shape.
+        client.rpc(service_visible_params(
+            action.accessory_id,
+            action.service_id,
+            bool(action.expected),
+        ))
+        return
+
+    if action.kind == "characteristic_status_visible":
+        c_id = getattr(action, "characteristic_id", None)
+        if c_id is None:
+            raise RuntimeError(
+                f"{action.serial}: отсутствует cId для statusVisible APPLY."
+            )
+        # Field-confirmed WebUI RPC shape.
+        client.rpc(characteristic_status_visible_params(
+            action.accessory_id,
+            action.service_id,
+            c_id,
+            bool(action.expected),
+        ))
+        return
+
+    if action.kind == "bridge_alice":
+        # The disable RPC below is known, but a full desired-state action is not
+        # safe until read + enable are known. Never silently perform one-way
+        # bridge changes inside a generic APPLY.
         raise RuntimeError(
-            "APPLY v0.3.0-dev заблокирован для presentation policy "
-            f"({detail}). Реальные write RPC Sprut WebUI ещё не подтверждены. "
-            "Это намеренная fail-closed защита от частичной записи."
+            "Alice bridge APPLY заблокирован: подтверждено только удаление "
+            f"через bridgeService.delete/{FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX}; "
+            "нужны read-path и enable/create RPC."
         )
 
-    return _original_apply_after_confirm(self, auth, plan, dry)
+    raise RuntimeError(f"Неизвестный action kind={action.kind!r}")
 
 
-# Patch only the integration points needed by the existing GUI.
-# Keep base.validate_plan_structure untouched so the frozen v0.2.2 engine can
-# still validate its v1 clone without recursion or format-version leakage.
+def apply_after_confirm_v2(self, auth, plan, dry):
+    if any(a.kind == "bridge_alice" for a in dry.actions):
+        raise RuntimeError(
+            "APPLY заблокирован: plan содержит bridge.alice, а полный "
+            "read/write контракт Alice ещё не подтверждён."
+        )
+
+    changes = list(dry.changes)
+
+    def work():
+        completed = 0
+        with base.SprutClient(auth, self.log) as client:
+            for action in changes:
+                _write_action(client, action)
+                completed += 1
+                self.log(
+                    f"APPLY {completed}/{len(changes)}: {action.serial} — "
+                    f"{action.detail}: {action.current!r} -> {action.expected!r}"
+                )
+            fresh = client.discover()
+        return fresh, completed
+
+    def done(payload):
+        fresh, completed = payload
+        self.discover_data = fresh
+        self.discover_source = "LIVE after APPLY"
+        self.last_dry_run = None
+        self.last_dry_plan_hash = None
+        self._update_apply_state()
+        self.refresh_discover_tree()
+        self._update_meta()
+        self.log(
+            f"APPLY завершён: выполнено {completed} RPC-изменений. "
+            "Запускаю VERIFY."
+        )
+        self._render_verify(verify_plan_v2(plan, fresh))
+
+    self._run_worker("APPLY: запись в Sprut...", work, done)
+
+
+# Patch integration points only. Frozen v0.2.2 remains untouched.
 base.load_yaml_plan = load_yaml_plan_v2
 base.make_dry_run = make_dry_run_v2
+base.verify_plan = verify_plan_v2
 base.SprutConfiguratorApp._update_apply_state = update_apply_state_v2
-base.SprutConfiguratorApp._apply_after_confirm = apply_after_confirm_fail_closed
+base.SprutConfiguratorApp._apply_after_confirm = apply_after_confirm_v2
 
 
 def main():
