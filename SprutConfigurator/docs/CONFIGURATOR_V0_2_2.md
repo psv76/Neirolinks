@@ -2,12 +2,18 @@
 
 Статус: **field-proven standalone baseline**.
 
-Механизм и поведение версии зафиксированы в этой документации. Исходный archive документации, переработанный в Issue #21, не содержал source standalone-приложения, поэтому source не восстанавливается приблизительно и не объявляется частью documentation baseline.
-
-Reference metadata:
+Оригинальный рабочий source package сохранён в:
 
 ```text
 SprutConfigurator/reference/v0.2.2/
+```
+
+Файл `sprut_configurator.py` в repository точно совпадает с исходным рабочим ZIP:
+
+```text
+Git blob SHA-1: 8cacfb101f979ed51bb94a5eb86dba634e670e03
+SHA-256:        2cf996de6df1d6c3a1353faef4a2de66713d658155ec2f2ae45988dcc6e85781
+size:           51433 bytes
 ```
 
 ## 1. Рабочий цикл
@@ -164,7 +170,20 @@ Reference v0.2.2 использует Tkinter и ориентирован на W
 
 Это UI standalone-инструмента, а не обязательная часть engine contract.
 
-## 10. Что считается проверенным ядром
+## 10. Проверка исходного selftest
+
+Оригинальный `selftest.py` из рабочего пакета проверен вместе с исходными fixtures:
+
+```text
+targets: 51
+changes: 167
+errors: 0
+PASS: YAML parsed; 51 targets resolved; no DRY RUN errors; pre-APPLY differences detected.
+```
+
+Object-specific fixtures не дублируются в generic source tree; baseline YAML вынесен в `objects/05_31_Ivolga_13/Doc/SprutConfigurator/v0.2.2/`.
+
+## 11. Что считается проверенным ядром
 
 Не нужно переизобретать без причины:
 
@@ -181,7 +200,7 @@ Reference v0.2.2 использует Tkinter и ориентирован на W
 - token-in-memory policy;
 - display-name round-trip validation.
 
-## 11. Что не входит в v0.2.2 baseline
+## 12. Что не входит в v0.2.2 baseline
 
 Configurator v0.2.2 ещё не изменяет:
 
