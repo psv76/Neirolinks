@@ -22,10 +22,10 @@
 
 Канонические документы по отоплению дома:
 
-- **[`HEATING_CHANNEL_MAP.md`](HEATING_CHANNEL_MAP.md)** — актуальная карта отопительных каналов;
-- **[`THERMOSTAT_MAP.md`](THERMOSTAT_MAP.md)** — актуальная карта simple-термостатов;
-- **[`etc/wb-webui.conf`](etc/wb-webui.conf)** — свежий WebUI;
-- **[`etc/wb-mqtt-serial.conf`](etc/wb-mqtt-serial.conf)** — свежая карта MGE / Modbus / MQTT ID.
+- **[`HEATING_CHANNEL_MAP.md`](HEATING_CHANNEL_MAP.md)** — актуальная карта отопительных каналов дома;
+- **[`THERMOSTAT_MAP.md`](THERMOSTAT_MAP.md)** — актуальная карта simple-термостатов.
+
+Файлы `etc/wb-webui.conf` и `etc/wb-mqtt-serial.conf` — конфигурационные снимки объекта в репозитории. Карта отопления от 2026-09-09 составлена по свежим файлам, присланным в рабочий чат: `wb-webui(3).conf` и `wb-mqtt-serial (2).conf`. Если старые общие карты противоречат `HEATING_CHANNEL_MAP.md`, для отопления дома использовать `HEATING_CHANNEL_MAP.md`.
 
 Старые данные от 2026-09-07 по термостатам считать историческими.
 
@@ -73,5 +73,5 @@ Sprut.hub используется как пользовательский ин�
 - `HEATING_CHANNEL_MAP.md` — актуальная карта отопления дома;
 - `THERMOSTAT_MAP.md` — актуальная карта термостатов;
 - `PHYSICAL_CHANNEL_MAP.md` — общая физическая карта объекта, часть данных может быть старше текущей проверки отопления;
-- `etc/` — фактические конфигурационные файлы;
+- `etc/` — конфигурационные файлы и сценарии;
 - `Doc/` — подробные тематические и исторические материалы.
