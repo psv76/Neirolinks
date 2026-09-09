@@ -1,0 +1,38 @@
+policy_version: 1
+object: 05 31 Иволга — Беседка
+
+# Presentation choices only. Physical room/purpose/connection_point are read
+# from the normalized NL Project source model.
+targets:
+  - {source_line: '301', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '302', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '303', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '304', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '305', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '306', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '307', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '308', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '309', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '310', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '311', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '320', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '351', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '352', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '353', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '354', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '355', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+  - {source_line: '356', serial_from: connection_point, require_direct_output: true, services: [{type: Lightbulb, visible: true}]}
+
+# Deliberately excluded until identity/service contracts are confirmed.
+unresolved:
+  - {source_line: '441', reason: 'WB-MWAC leak service identity/template is not confirmed yet.'}
+  - {source_line: '442', reason: 'WB-MWAC leak service identity/template is not confirmed yet.'}
+  - {source_line: '470', reason: 'M1W2 W1 contact identity/template is not confirmed yet.'}
+  - {source_line: '471', reason: 'M1W2 W2 contact identity/template is not confirmed yet.'}
+  - {source_line: '501', reason: 'Final Sprut service type for exhaust fan is not chosen yet.'}
+  - {source_line: '921.09', reason: 'Project confirms T+RH+Motion capability, but current MQTT alias on WB must be confirmed.'}
+  - {source_line: '921.10', reason: 'M1W2 W1/W2 role configuration is absent in NL Project 1.0.'}
+  - {source_line: '922.01', reason: 'Current MQTT/SERIAL identity must be confirmed.'}
+  - {source_line: '923.01', reason: 'Curtain Sprut identity/template must be confirmed from live hub.'}
+  - {source_line: '923.02', reason: 'Curtain Sprut identity/template must be confirmed from live hub.'}
+  - {source_line: '924.01', reason: 'Climate device Sprut identity/template must be confirmed from live hub.'}
