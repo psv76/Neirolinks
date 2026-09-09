@@ -15,12 +15,21 @@ README.md
 
 Файлы `sprut_configurator.py`, `selftest.py`, `requirements.txt`, `setup.bat` и `run.bat` взяты из реального рабочего пакета `Sprut_Configurator_v0.2.2`, а не восстановлены по документации или памяти.
 
-Контроль оригинального `sprut_configurator.py`:
+Контрольные Git blob SHA-1 относительно исходного ZIP:
 
 ```text
-Git blob SHA-1: 8cacfb101f979ed51bb94a5eb86dba634e670e03
-SHA-256:        2cf996de6df1d6c3a1353faef4a2de66713d658155ec2f2ae45988dcc6e85781
-size:           51433 bytes
+sprut_configurator.py  8cacfb101f979ed51bb94a5eb86dba634e670e03
+selftest.py            6cbcedce9a69d93530c96c3654d946438bfcb7ed
+requirements.txt       86fb42803dcbbfddc3e92349b8f3132097e618f4
+setup.bat              ccae17c8407fd506309d81bc25b9a03e0888954a
+run.bat                f6312c1cac497c8ed2725df1588b548bc729dc42
+```
+
+Дополнительный контроль оригинального `sprut_configurator.py`:
+
+```text
+SHA-256: 2cf996de6df1d6c3a1353faef4a2de66713d658155ec2f2ae45988dcc6e85781
+size:    51433 bytes
 ```
 
 ## Что считается зафиксированным
