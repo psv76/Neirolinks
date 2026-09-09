@@ -1,0 +1,27 @@
+{
+  "source": {
+    "adapter": "nl_project_v1",
+    "object_name": "05 31 Иволга",
+    "scope_note": "Regression subset extracted read-only from NLP56.zip; local workstation paths and internal SQLite IDs omitted."
+  },
+  "lines": [
+    {"id":"301","parent_id":"","kind":"Линия","board":"WB-4","room":"Фасад","purpose":"Свет фасад беседки","connection_point":"A41/K1","module_code":"A41","details":{"device_types":["LIGHT"],"physical":true}},
+    {"id":"302","parent_id":"","kind":"Линия","board":"WB-4","room":"Прихожая","purpose":"Свет прихожая","connection_point":"A41/K2","module_code":"A41","details":{"device_types":["LIGHT"],"physical":true}},
+    {"id":"303","parent_id":"","kind":"Линия","board":"WB-4","room":"Санузел","purpose":"Свет санузел","connection_point":"A41/K3","module_code":"A41","details":{"device_types":["LIGHT"],"physical":true}},
+    {"id":"304","parent_id":"","kind":"Линия","board":"WB-4","room":"Кухня","purpose":"Свет кухня","connection_point":"A42/K1","module_code":"A42","details":{"device_types":["LIGHT"],"physical":true}},
+    {"id":"305","parent_id":"","kind":"Линия","board":"WB-4","room":"Кухня","purpose":"Люстра кухня","connection_point":"A42/K2","module_code":"A42","details":{"device_types":["LIGHT"],"physical":true}},
+    {"id":"306","parent_id":"","kind":"Линия","board":"WB-4","room":"Гостиная","purpose":"Люстра гостиная","connection_point":"A42/K3","module_code":"A42","details":{"device_types":["LIGHT"],"physical":true}},
+    {"id":"307","parent_id":"","kind":"Линия","board":"WB-4","room":"Кухня","purpose":"Бра мангала слева","connection_point":"A43/K1","module_code":"A43","details":{"device_types":["LIGHT"],"physical":true}},
+    {"id":"308","parent_id":"","kind":"Линия","board":"WB-4","room":"Кухня","purpose":"Бра мангала в центре","connection_point":"A43/K2","module_code":"A43","details":{"device_types":["LIGHT"],"physical":true}},
+    {"id":"309","parent_id":"","kind":"Линия","board":"WB-4","room":"Кухня","purpose":"Бра мангала справа","connection_point":"A43/K3","module_code":"A43","details":{"device_types":["LIGHT"],"physical":true}},
+    {"id":"310","parent_id":"","kind":"Линия","board":"WB-4","room":"Гостиная","purpose":"Бра гостиная","connection_point":"A43/K4","module_code":"A43","details":{"device_types":["LIGHT"],"physical":true}},
+    {"id":"311","parent_id":"","kind":"Линия","board":"WB-4","room":"Санузел","purpose":"Подсветка зеркала","connection_point":"A43/K5","module_code":"A43","details":{"device_types":["CABLE_OUTLET"],"physical":true}},
+    {"id":"320","parent_id":"","kind":"Линия","board":"WB-4","room":"Фасад","purpose":"Гирлянда","connection_point":"A45/K1","module_code":"A45","details":{"device_types":["CABLE_OUTLET"],"physical":true}},
+    {"id":"351","parent_id":"","kind":"Линия","board":"WB-5","room":"Гостиная","purpose":"Подсветка балки","connection_point":"A47/Channel 1","module_code":"A47","details":{"device_types":["LIGHT_LED"],"physical":true}},
+    {"id":"352","parent_id":"","kind":"Линия","board":"WB-5","room":"Гостиная","purpose":"Подсветка балки","connection_point":"A47/Channel 2","module_code":"A47","details":{"device_types":["LIGHT_LED"],"physical":true}},
+    {"id":"353","parent_id":"","kind":"Линия","board":"WB-5","room":"Гостиная","purpose":"Подсветка балки","connection_point":"A47/Channel 3","module_code":"A47","details":{"device_types":["LIGHT_LED"],"physical":true}},
+    {"id":"354","parent_id":"","kind":"Линия","board":"WB-5","room":"Кухня","purpose":"Подсветка фартук","connection_point":"A48/Channel 1","module_code":"A48","details":{"device_types":["LIGHT_LED"],"physical":true}},
+    {"id":"355","parent_id":"","kind":"Линия","board":"WB-5","room":"Кухня","purpose":"Подсветка мебели","connection_point":"A48/Channel 2","module_code":"A48","details":{"device_types":["LIGHT_LED"],"physical":true}},
+    {"id":"356","parent_id":"","kind":"Линия","board":"WB-5","room":"Кухня","purpose":"LED над грилем","connection_point":"A48/Channel 3","module_code":"A48","details":{"device_types":["LIGHT_LED"],"physical":true}}
+  ]
+}
