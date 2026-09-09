@@ -38,17 +38,64 @@ def characteristic_status_visible_params(
     }
 
 
+def yandex_bridge_list_params(
+    bridge_index: str = FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX,
+) -> dict[str, Any]:
+    """Build the field-confirmed bridge membership read request."""
+    return {
+        "bridgeService": {
+            "list": {
+                "bridgeIndex": bridge_index,
+            }
+        }
+    }
+
+
+def parse_yandex_bridge_services(result: Any) -> list[dict[str, Any]]:
+    """Parse the field-confirmed bridgeService.list result shape.
+
+    Expected result:
+    {"bridgeService":{"list":{"services":[...]}}}
+    """
+    try:
+        services = result["bridgeService"]["list"]["services"]
+    except (TypeError, KeyError) as exc:
+        raise ValueError(
+            "Не удалось распознать ответ bridgeService.list: "
+            "ожидается result.bridgeService.list.services."
+        ) from exc
+
+    if not isinstance(services, list) or not all(
+        isinstance(item, dict) for item in services
+    ):
+        raise ValueError(
+            "bridgeService.list.services должен быть списком объектов."
+        )
+
+    return services
+
+
+def yandex_bridge_membership(
+    bridge_services: list[dict[str, Any]],
+    a_id: int,
+    s_id: int,
+    bridge_index: str = FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX,
+) -> bool:
+    """Return whether exact aId+sId Service is present in the bridge."""
+    return any(
+        item.get("bridgeIndex") == bridge_index
+        and item.get("aId") == a_id
+        and item.get("sId") == s_id
+        for item in bridge_services
+    )
+
+
 def yandex_bridge_enable_params(
     a_id: int,
     s_id: int,
     bridge_index: str = FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX,
 ) -> dict[str, Any]:
-    """Build the captured Alice/Yandex bridge enable params.
-
-    The WebUI create frame was captured with write=true. The operation is
-    field-confirmed, but generic desired-state APPLY remains blocked until the
-    current bridge membership read-path is also confirmed for DRY RUN/VERIFY.
-    """
+    """Build the field-confirmed Alice/Yandex bridge enable params."""
     return {
         "bridgeService": {
             "create": {
@@ -66,12 +113,7 @@ def yandex_bridge_disable_params(
     s_id: int,
     bridge_index: str = FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX,
 ) -> dict[str, Any]:
-    """Build the captured Alice/Yandex bridge disable params.
-
-    Both bridge enable/create and disable/delete operations are now
-    field-confirmed. Generic desired-state APPLY remains blocked until the
-    current bridge membership read-path is confirmed for DRY RUN/VERIFY.
-    """
+    """Build the field-confirmed Alice/Yandex bridge disable params."""
     return {
         "bridgeService": {
             "delete": {
