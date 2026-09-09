@@ -10,6 +10,11 @@ from presentation_core import (
     validate_presentation_plan,
     verify_presentation,
 )
+from rpc_contract import (
+    characteristic_status_visible_params,
+    service_visible_params,
+    yandex_bridge_disable_params,
+)
 
 
 def base_plan():
@@ -20,7 +25,6 @@ def base_plan():
                 "serial": "NL_simple_thermostat_010",
                 "name": "Воздух",
                 "room": "Гостиная",
-                "bridge": {"alice": True},
                 "services": [
                     {
                         "type": "Thermostat",
@@ -30,6 +34,7 @@ def base_plan():
                             "CurrentHeatingCoolingState": True,
                             "CurrentTemperature": True,
                         },
+                        "bridge": {"alice": True},
                     }
                 ],
             },
@@ -37,7 +42,6 @@ def base_plan():
                 "serial": "NL_simple_thermostat_611",
                 "name": "Пол",
                 "room": "Гостиная",
-                "bridge": {"alice": False},
                 "services": [
                     {
                         "type": "Thermostat",
@@ -47,6 +51,7 @@ def base_plan():
                             "CurrentHeatingCoolingState": False,
                             "CurrentTemperature": False,
                         },
+                        "bridge": {"alice": False},
                     }
                 ],
             },
@@ -67,6 +72,7 @@ def discover():
                     "name": serial,
                     "sId": 13,
                     "visible": visible,
+                    "_testAlice": alice,
                     "characteristics": [
                         {
                             "cId": 20,
@@ -91,8 +97,8 @@ def discover():
     }
 
 
-def alice_getter(accessory):
-    return accessory.get("_testAlice")
+def alice_getter(accessory, service):
+    return service.get("_testAlice")
 
 
 def test_validation():
@@ -101,10 +107,15 @@ def test_validation():
 
     bad = base_plan()
     bad["accessories"][0]["services"][0]["visible"] = "yes"
-    bad["accessories"][1]["bridge"]["alice"] = 1
+    bad["accessories"][1]["services"][0]["bridge"]["alice"] = 1
     errors = validate_presentation_plan(bad)
     assert any(".visible" in e for e in errors)
     assert any("bridge.alice" in e for e in errors)
+
+    ambiguous = base_plan()
+    ambiguous["accessories"][0]["bridge"] = {"alice": True}
+    errors = validate_presentation_plan(ambiguous)
+    assert any("bridge policy должен задаваться внутри services[]" in e for e in errors)
 
 
 def test_characteristic_type():
@@ -122,36 +133,31 @@ def test_diff_with_confirmed_alice_adapter():
     assert diff.ok
     changed = {(a.serial, a.kind, a.characteristic_type): a for a in diff.changes}
 
-    assert ("NL_simple_thermostat_010", "bridge_alice", None) in changed
+    alice = changed[("NL_simple_thermostat_010", "bridge_alice", None)]
+    assert alice.service_id == 13
+
     assert ("NL_simple_thermostat_010", "service_visible", None) in changed
     assert (
         "NL_simple_thermostat_010",
         "characteristic_status_visible",
         "CurrentHeatingCoolingState",
     ) in changed
-
     assert (
         "NL_simple_thermostat_611",
         "characteristic_status_visible",
         "CurrentHeatingCoolingState",
     ) in changed
 
-    assert (
-        "NL_simple_thermostat_010",
-        "characteristic_status_visible",
-        "CurrentTemperature",
-    ) not in changed
-    assert (
-        "NL_simple_thermostat_611",
-        "characteristic_status_visible",
-        "CurrentTemperature",
-    ) not in changed
-
 
 def test_alice_without_adapter_is_fail_closed():
     diff = make_presentation_diff(base_plan(), discover())
     assert not diff.ok
-    assert any(a.kind == "bridge_alice" and a.status == "ERROR" for a in diff.actions)
+    bridge_errors = [
+        a for a in diff.actions
+        if a.kind == "bridge_alice" and a.status == "ERROR"
+    ]
+    assert len(bridge_errors) == 2
+    assert all(a.service_id == 13 for a in bridge_errors)
 
 
 def test_missing_status_visible_is_error():
@@ -173,20 +179,55 @@ def test_verify():
     plan = base_plan()
     data = discover()
 
-    air = data["accessories"][0]
-    floor = data["accessories"][1]
+    air = data["accessories"][0]["services"][1]
+    floor = data["accessories"][1]["services"][1]
+
     air["_testAlice"] = True
-    air["services"][1]["visible"] = True
-    air["services"][1]["characteristics"][0]["statusVisible"] = True
+    air["visible"] = True
+    air["characteristics"][0]["statusVisible"] = True
+
     floor["_testAlice"] = False
-    floor["services"][1]["visible"] = True
-    floor["services"][1]["characteristics"][0]["statusVisible"] = False
+    floor["visible"] = True
+    floor["characteristics"][0]["statusVisible"] = False
 
     rows = verify_presentation(plan, data, alice_state_getter=alice_getter)
     assert rows == [
         ("NL_simple_thermostat_010", "PASSED", "Presentation policy соответствует плану."),
         ("NL_simple_thermostat_611", "PASSED", "Presentation policy соответствует плану."),
     ]
+
+
+def test_field_confirmed_rpc_params():
+    assert service_visible_params(118, 13, False) == {
+        "service": {
+            "update": {
+                "aId": 118,
+                "sId": 13,
+                "visible": False,
+            }
+        }
+    }
+
+    assert characteristic_status_visible_params(118, 13, 15, False) == {
+        "characteristic": {
+            "update": {
+                "aId": 118,
+                "sId": 13,
+                "cId": 15,
+                "statusVisible": False,
+            }
+        }
+    }
+
+    assert yandex_bridge_disable_params(118, 13) == {
+        "bridgeService": {
+            "delete": {
+                "bridgeIndex": "Yandex_1",
+                "aId": 118,
+                "sId": 13,
+            }
+        }
+    }
 
 
 if __name__ == "__main__":
