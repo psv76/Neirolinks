@@ -49,12 +49,25 @@ SprutConfigurator/
 │  └─ SOURCE_ARCHIVE_MAP.md
 └─ reference/
    └─ v0.2.2/
-      └─ README.md
+      ├─ README.md
+      ├─ sprut_configurator.py
+      ├─ selftest.py
+      ├─ requirements.txt
+      ├─ setup.bat
+      └─ run.bat
 ```
 
 Общие Sprut template JSON остаются в `Templates/Sprut/`. Этот раздел описывает их контракты и связь с Configurator, но не дублирует сами template-файлы.
 
-Исходный пакет документации, из которого создан этот раздел, не содержал исходник standalone-приложения. Поэтому Issue #21 фиксирует механизм, контракт и field-proven поведение v0.2.2; сам source/executable не объявляется частью импортированного documentation baseline.
+В `reference/v0.2.2/` сохранён **оригинальный рабочий source package standalone v0.2.2**. Файл `sprut_configurator.py` проверен байт-в-байт относительно исходного рабочего ZIP:
+
+```text
+Git blob SHA-1: 8cacfb101f979ed51bb94a5eb86dba634e670e03
+SHA-256:        2cf996de6df1d6c3a1353faef4a2de66713d658155ec2f2ae45988dcc6e85781
+size:           51433 bytes
+```
+
+Остальные source-package файлы (`selftest.py`, `requirements.txt`, `setup.bat`, `run.bat`) также совпадают с исходным ZIP по Git blob SHA-1.
 
 Карта переработки исходных документов:
 
@@ -80,6 +93,8 @@ objects/05_31_Ivolga_13/Doc/SprutConfigurator/v0.2.2/
 
 Этот snapshot не является источником текущей физической карты объекта. Актуальные объектовые факты должны браться из текущих карт и конфигов самого объекта.
 
+Большой DISCOVER JSON Иволги из исходного рабочего пакета сознательно не хранится в общей папке Configurator: это runtime snapshot конкретного объекта, а не часть общего механизма.
+
 ## Подтверждённое ядро v0.2.2
 
 Полевым применением подтверждены:
@@ -96,6 +111,17 @@ objects/05_31_Ivolga_13/Doc/SprutConfigurator/v0.2.2/
 - fresh DISCOVER + VERIFY после записи;
 - хранение Sprut session credentials только в RAM;
 - защита от известных round-trip ограничений имён Sprut.
+
+Оригинальный `selftest.py` проверен на исходном наборе fixtures:
+
+```text
+targets: 51
+changes: 167
+errors: 0
+PASS
+```
+
+В GitHub object fixtures отделены от generic source, поэтому сам `selftest.py` сохранён как часть оригинального package baseline, а объектовые YAML/DISCOVER данные не дублируются рядом с ним.
 
 ## Принцип развития
 
