@@ -1,0 +1,348 @@
+# Sprut Configurator plan — 05 31 Иволга 13
+# v3: adjusted to field-confirmed Sprut name round-trip behavior.
+#
+# Field-confirmed on Sprut.hub 1.12.8 / WebUI 1.5.58:
+# - leading numeric labels like "5. Свет ..." are stored as "5 Свет ...";
+# - accessory/service names longer than 32 characters are truncated to 32.
+#
+# Therefore:
+# - numeric prefixes in relay names do not use a dot;
+# - two long names were shortened to <=32 chars.
+#
+format_version: 1
+object: 05 31 Иволга 13
+accessories:
+- serial: 902.01_MSW_TH
+  name: Климат гостиная
+  room: Гостиная
+  services:
+  - type: TemperatureSensor
+    name: Температура гостиная
+  - type: HumiditySensor
+    name: Влажность гостиная
+- serial: 902.02_M1W2_TEMP_NONE/External Sensor 1
+  name: Пол гостиная
+  room: Гостиная
+  services:
+  - type: TemperatureSensor
+    name: Пол гостиная
+- serial: 902.03_MSW_TH
+  name: Климат санузел прихожей
+  room: Прихожая
+  services:
+  - type: TemperatureSensor
+    name: Температура санузел прихожей
+  - type: HumiditySensor
+    name: Влажность санузел прихожей
+- serial: 902.04_M1W2_LEAK_TEMP/External Sensor 2
+  name: Пол санузел прихожей
+  room: Прихожая
+  services:
+  - type: TemperatureSensor
+    name: Пол санузел прихожей
+- serial: 902.04_M1W2_LEAK_TEMP/Input 1
+  name: Протечка санузел прихожей
+  room: Прихожая
+  services:
+  - type: LeakSensor
+    name: Протечка санузел прихожей
+- serial: 902.05_MSW_THM
+  name: Климат прихожая
+  room: Прихожая
+  services:
+  - type: TemperatureSensor
+    name: Температура прихожая
+  - type: HumiditySensor
+    name: Влажность прихожая
+  - type: MotionSensor
+    name: Движение прихожая
+- serial: 902.06_M1W2_TEMP_NONE/External Sensor 1
+  name: Пол прихожая
+  room: Прихожая
+  services:
+  - type: TemperatureSensor
+    name: Пол прихожая
+- serial: 902.07_MSW_TH
+  name: Климат гардероб прихожей
+  room: Прихожая
+  services:
+  - type: TemperatureSensor
+    name: Температура гардероб прихожей
+  - type: HumiditySensor
+    name: Влажность гардероб прихожей
+- serial: 902.08_MSW_TH
+  name: Климат кабинет
+  room: Кабинет
+  services:
+  - type: TemperatureSensor
+    name: Температура кабинет
+  - type: HumiditySensor
+    name: Влажность кабинет
+- serial: 902.09_M1W2_TEMP_NONE/External Sensor 1
+  name: Пол кабинет
+  room: Кабинет
+  services:
+  - type: TemperatureSensor
+    name: Пол кабинет
+- serial: 902.10_MSW_TH
+  name: Климат гостевая спальня
+  room: Гостевая спальня
+  services:
+  - type: TemperatureSensor
+    name: Температура гостевая спальня
+  - type: HumiditySensor
+    name: Влажность гостевая спальня
+- serial: 902.11_M1W2_TEMP_NONE/External Sensor 1
+  name: Пол гостевая спальня
+  room: Гостевая спальня
+  services:
+  - type: TemperatureSensor
+    name: Пол гостевая спальня
+- serial: 902.12_MSW_TH
+  name: Климат ванная
+  room: Ванная
+  services:
+  - type: TemperatureSensor
+    name: Температура ванная
+  - type: HumiditySensor
+    name: Влажность ванная
+- serial: 902.13_M1W2_LEAK_TEMP/External Sensor 2
+  name: Пол ванная
+  room: Ванная
+  services:
+  - type: TemperatureSensor
+    name: Пол ванная
+- serial: 902.13_M1W2_LEAK_TEMP/Input 1
+  name: Протечка ванная
+  room: Ванная
+  services:
+  - type: LeakSensor
+    name: Протечка ванная
+- serial: 902.14_MSW_TH
+  name: Климат постирочная
+  room: Постирочная
+  services:
+  - type: TemperatureSensor
+    name: Температура постирочная
+  - type: HumiditySensor
+    name: Влажность постирочная
+- serial: 902.15_M1W2_LEAK_NONE/Input 1
+  name: Протечка постирочная
+  room: Постирочная
+  services:
+  - type: LeakSensor
+    name: Протечка постирочная
+- serial: A06/K1
+  name: 301 Свет парковка
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: 301 Свет парковка
+- serial: A06/K2
+  name: 302 Подсветка забора
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: 302 Подсветка забора
+- serial: A06/K3
+  name: 303 Дорожки
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: 303 Дорожки
+- serial: A06/K4
+  name: 304 Двор
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: 304 Двор
+- serial: A06/K5
+  name: 305 Фасады
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: 305 Фасады
+- serial: A06/K6
+  name: 306 Гирлянды
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: 306 Гирлянды
+- serial: A11/K1
+  name: 5 Свет кухня
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: 5 Свет кухня
+- serial: A11/K2
+  name: 6 Свет кухня
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: 6 Свет кухня
+- serial: A11/K3
+  name: 7 Свет остров
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: 7 Свет остров
+- serial: A11/K4
+  name: 8 Люстра над столом
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: 8 Люстра над столом
+- serial: A11/K5
+  name: 9 Люстра камин
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: 9 Люстра камин
+- serial: A11/K6
+  name: 10 Люстры гостиная
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: 10 Люстры гостиная
+- serial: A12/K1
+  name: 1 Свет прихожая
+  room: Прихожая
+  services:
+  - type: Lightbulb
+    name: 1 Свет прихожая
+- serial: A12/K2
+  name: 22 Свет коридор
+  room: Прихожая
+  services:
+  - type: Lightbulb
+    name: 22 Свет коридор
+- serial: A12/K3
+  name: 23 Бра коридор
+  room: Прихожая
+  services:
+  - type: Lightbulb
+    name: 23 Бра коридор
+- serial: A12/K4
+  name: 24 Свет постирочная
+  room: Постирочная
+  services:
+  - type: Lightbulb
+    name: 24 Свет постирочная
+- serial: A12/K5
+  name: 25 Свет ванная
+  room: Ванная
+  services:
+  - type: Lightbulb
+    name: 25 Свет ванная
+- serial: A12/K6
+  name: 510 Вентилятор постирочная
+  room: Постирочная
+  services:
+  - type: Lightbulb
+    name: 510 Вентилятор постирочная
+- serial: A16/K4
+  name: LED подсветка мастер санузел
+  room: Мастер спальня
+  services:
+  - type: Lightbulb
+    name: LED подсветка мастер санузел
+- serial: NL_combo_thermostat_601
+  name: Термостат мастер спальня
+  room: Мастер спальня
+  services:
+  - type: Thermostat
+    name: Термостат мастер спальня
+  - type: TemperatureSensor
+    name: Пол мастер спальня
+- serial: NL_simple_thermostat_603
+  name: Термостат мастер гардероб
+  room: Мастер спальня
+  services:
+  - type: Thermostat
+    name: Термостат мастер гардероб
+- serial: NL_simple_thermostat_604
+  name: Термостат пол гостевая спальня
+  room: Гостевая спальня
+  services:
+  - type: Thermostat
+    name: Термостат пол гостевая спальня
+- serial: NL_combo_thermostat_605
+  name: Термостат кабинет
+  room: Кабинет
+  services:
+  - type: Thermostat
+    name: Термостат кабинет
+  - type: TemperatureSensor
+    name: Пол кабинет
+- serial: NL_simple_thermostat_606
+  name: Термостат пол прихожая
+  room: Прихожая
+  services:
+  - type: Thermostat
+    name: Термостат пол прихожая
+- serial: NL_combo_thermostat_607
+  name: Термостат гостевой санузел
+  room: Прихожая
+  services:
+  - type: Thermostat
+    name: Термостат гостевой санузел
+  - type: TemperatureSensor
+    name: Пол гостевой санузел
+- serial: NL_simple_thermostat_608
+  name: Термостат гардероб прихожей
+  room: Прихожая
+  services:
+  - type: Thermostat
+    name: Термостат гардероб прихожей
+- serial: NL_simple_thermostat_609
+  name: Термостат пол ванная
+  room: Ванная
+  services:
+  - type: Thermostat
+    name: Термостат пол ванная
+- serial: NL_simple_thermostat_610
+  name: Термостат постирочная
+  room: Постирочная
+  services:
+  - type: Thermostat
+    name: Термостат постирочная
+- serial: NL_combo_thermostat_612
+  name: Термостат гостиная
+  room: Гостиная
+  services:
+  - type: Thermostat
+    name: Термостат гостиная
+  - type: TemperatureSensor
+    name: Пол гостиная
+- serial: NL_combo_thermostat_613
+  name: Термостат кухня
+  room: Гостиная
+  services:
+  - type: Thermostat
+    name: Термостат кухня
+  - type: TemperatureSensor
+    name: Пол кухня
+- serial: NL_simple_thermostat_614
+  name: Термостат пол мастер ванная
+  room: Мастер спальня
+  services:
+  - type: Thermostat
+    name: Термостат пол мастер ванная
+- serial: NL_simple_thermostat_615
+  name: Термостат кладовка
+  room: Кладовка
+  services:
+  - type: Thermostat
+    name: Термостат кладовка
+- serial: NL_simple_thermostat_620
+  name: Термостат радиатор прихожая
+  room: Прихожая
+  services:
+  - type: Thermostat
+    name: Термостат радиатор прихожая
+- serial: NL_simple_thermostat_621
+  name: Термостат радиатор гост спальня
+  room: Гостевая спальня
+  services:
+  - type: Thermostat
+    name: Термостат радиатор гост спальня
