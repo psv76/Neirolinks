@@ -2,7 +2,39 @@
 
 Status: working document for Issue #22. Physical channels are based only on current object repository sources.
 
-## 1. Living-room target
+## 1. Sprut.hub deployment on Ivolga
+
+На объекте используются три независимых Sprut.hub:
+
+```text
+Дом
+Беседка
+Котельная
+```
+
+Configurator не должен хранить `target_hub` внутри сущностей или автоматически выбирать хаб.
+
+Рабочий процесс:
+
+```text
+открыть нужный hub в WebUI
+→ получить его текущую сессию
+→ выбрать YAML именно для этого hub
+→ DISCOVER / DRY RUN / APPLY / VERIFY
+→ перейти к следующему hub
+```
+
+Поэтому текущий объект может иметь три отдельных deployment plan:
+
+```text
+sprut_plan_dom.yaml
+sprut_plan_besedka.yaml
+sprut_plan_kotelnaya.yaml
+```
+
+Важно: физическое здание и Sprut.hub не эквивалентны. Отдельный hub `Котельная` содержит инженерное представление контуров разных зданий, в том числе дома, беседки и хозблока. Значит автоматическое правило `здание → hub` применять нельзя.
+
+## 2. Hub `Дом` — living-room presentation
 
 For rooms that have both a user air thermostat and a floor thermostat, target Sprut UI:
 
@@ -38,7 +70,7 @@ status CurrentRelativeHumidity       yes
 Alice                                no
 ```
 
-## 2. Confirmed living-room decision: Гостиная
+### Confirmed decision: Гостиная
 
 ```text
 NL_simple_thermostat_010 = Воздух
@@ -63,9 +95,23 @@ Target:
 
 For YAML v2, Alice policy belongs to the specific Service because the real Sprut command uses `aId + sId`.
 
-## 3. Heating-system rooms
+## 3. Hub `Котельная`
 
-### ТП дом
+Current UI confirms engineering rooms such as:
+
+```text
+Котёл
+Контур Дом паркет
+Контур Дом плитка
+Контур Дом радиаторы
+Контур Беседка тёплый пол
+Контур Хоз блок радиаторы
+Электричество
+```
+
+This is the key reason not to use `target_hub` as a physical-building property.
+
+### ТП дом / `Контур Дом плитка`
 
 ```text
 pump            A03/K1
@@ -76,7 +122,7 @@ return          wb-m1w2_141/External Sensor 2
 
 Target: read-only Heating Circuit Monitor for pump + valve position, supply and return temperatures, with no physical write path from Sprut.
 
-### ГП дом
+### ГП дом / `Контур Дом паркет`
 
 ```text
 pump            A03/K2
@@ -93,7 +139,7 @@ supply          wb-m1w2_170/External Sensor 1
 return          wb-m1w2_121/External Sensor 1
 ```
 
-### ГП беседка
+### ГП беседка / `Контур Беседка тёплый пол`
 
 ```text
 pump            A03/K4
@@ -147,9 +193,17 @@ wb-m1w2_138/Input 1                  санузел мастер-спальни
 902.04_M1W2_LEAK_TEMP/Input 1        санузел прихожей
 ```
 
-All target LeakSensor entities belong to room `Вода` unless a fresher object source changes this set.
+Final hub placement of `Вода` is an explicit deployment-plan fact; it is not inferred from physical building ownership.
 
-## 5. Motion
+## 5. Hub `Беседка`
+
+Object data for the gazebo currently exists only in NL Project 1.0.
+
+Issue #22 will use a limited legacy adapter/extractor for NL Project 1.0 to obtain the required gazebo facts and pass them into the same normalized Sprut Plan/YAML generator contract intended for future NL Project 2.0.
+
+The legacy adapter is not a long-term integration layer and is not developed beyond what is needed to extract current Ivolga data.
+
+## 6. Motion
 
 Motion is not automatically exposed because an MSW profile has motion capability.
 
@@ -161,7 +215,7 @@ The currently explicit motion control in the physical map is:
 
 Its final Sprut/Alice presentation remains an object policy decision and is not inferred.
 
-## 6. Confirmed presentation RPC 2026-09-10
+## 7. Confirmed presentation RPC 2026-09-10
 
 ### Hide/show Service tile
 
@@ -169,25 +223,35 @@ Its final Sprut/Alice presentation remains an object policy decision and is not 
 {"params":{"service":{"update":{"aId":118,"sId":13,"visible":false}}}}
 ```
 
-`Service.visible` is now implemented in v0.3.0-dev APPLY/VERIFY.
-
 ### Status line
 
 ```json
 {"params":{"characteristic":{"update":{"aId":118,"sId":13,"cId":15,"statusVisible":false}}}}
 ```
 
-`Characteristic.statusVisible` is now implemented in v0.3.0-dev APPLY/VERIFY.
+### Alice/Yandex read
 
-### Disable Alice bridge membership
+```json
+{"params":{"bridgeService":{"list":{"bridgeIndex":"Yandex_1"}}}}
+```
+
+Membership is determined by exact `(aId, sId)` presence in returned `services[]`.
+
+### Alice/Yandex enable
+
+```json
+{"params":{"bridgeService":{"create":{"bridgeIndex":"Yandex_1","aId":118,"sId":13,"write":true}}}}
+```
+
+### Alice/Yandex disable
 
 ```json
 {"params":{"bridgeService":{"delete":{"bridgeIndex":"Yandex_1","aId":118,"sId":13}}}}
 ```
 
-This confirms that Alice membership is Service-scoped. Generic `bridge.alice` APPLY remains blocked until current membership read-path and enable/create RPC are captured.
+The Alice policy is now field-confirmed for read/create/delete and can participate in full DRY RUN/APPLY/VERIFY.
 
-## 7. Non-target entities
+## 8. Non-target entities
 
 Do not produce as final customer entities merely because the MQTT control exists:
 
@@ -198,14 +262,11 @@ Do not produce as final customer entities merely because the MQTT control exists
 - unused WB-MWAC services;
 - technical counters/modes with no user purpose.
 
-## 8. Remaining blockers before final YAML/APPLY
+## 9. Remaining blockers before final YAML/APPLY
 
-1. Alice:
-   - exact enable/create outgoing frame;
-   - read-path current membership of `Yandex_1` for DRY RUN/VERIFY.
-2. Actual Sprut Catalog sample for `Sprut.device + Параметр`.
-3. Field-test of read-only Fan/mirror presentation for Heating Circuit Monitor.
-4. Current NL Project source/model needed to implement Project → `sprut_plan.yaml` generation.
-5. Confirm final identity/SERIAL produced by new templates before writing them into the final object plan.
+1. Actual Sprut Catalog sample for `Sprut.device + Параметр`.
+2. Field-test of read-only Fan/mirror presentation for Heating Circuit Monitor.
+3. NL Project 1.0 source/database for the limited legacy extractor, especially gazebo data.
+4. Confirm final identity/SERIAL produced by new templates before writing them into final plans.
 
 Until these are resolved, this document is desired presentation state, not an APPLY-ready final plan.
