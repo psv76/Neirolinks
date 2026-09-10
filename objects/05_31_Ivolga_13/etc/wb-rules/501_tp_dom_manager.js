@@ -2,6 +2,10 @@
 // 05 31 Иволга 13 — HM2 manager контура 501: тёплый пол дома / паркет.
 // Использует общий модуль /etc/wb-rules-modules/MixingController.js.
 // Безопасный старт: enabled=false, commissioned=false, outputs_enabled=false.
+//
+// Fix 2026-09-10:
+// - wb-rules не принимает null/undefined в числовые controls виртуального устройства;
+// - diagnostic/output cells теперь нормализуются перед записью через sc().
 
 var MixingController = require('MixingController');
 
@@ -63,6 +67,51 @@ var CFG = {
     }
 };
 
+var CELL_TYPE = {
+    enabled: 'switch',
+    commissioned: 'switch',
+    outputs_enabled: 'switch',
+    local_permit: 'switch',
+    freeze: 'switch',
+    status: 'text',
+    state: 'text',
+    valid: 'switch',
+    heat_demand: 'switch',
+    requested_supply_c: 'number',
+    requested_source_temperature: 'number',
+    request_reason: 'text',
+    request_timestamp: 'text',
+    request_ttl_s: 'number',
+    path_ready: 'switch',
+    fault_latched: 'switch',
+    fault_text: 'text',
+    active_zone_count: 'number',
+    zone_demand: 'switch',
+    pump_on: 'switch',
+    supply_temp_c: 'number',
+    return_temp_c: 'number',
+    source_temp_c: 'number',
+    delta_t_c: 'number',
+    valve_position_cmd: 'number',
+    phase: 'text',
+    trend_c_per_min: 'number',
+    effective_target_c: 'number',
+    source_guard_active: 'switch',
+    startup_remaining_s: 'number',
+    mixing_sensor_fault: 'switch',
+    bad_sensor_count: 'number',
+    mixing_alarm_active: 'switch',
+    mixing_alarm_text: 'text',
+    mixing_status: 'text',
+    commissioned_state: 'switch',
+    local_permit_state: 'switch',
+    outputs_enabled_state: 'switch',
+    target_supply_c: 'number',
+    actuator_delay_s: 'number',
+    period_s: 'number',
+    manual_valve_pct: 'number'
+};
+
 var STATE = {
     timer: null,
     demandWasOn: false,
@@ -115,17 +164,39 @@ function r2(v)
     return v === null ? null : Math.round(v * 100) / 100;
 }
 
-function fmt(v)
+function normalizeCellValue(name, value)
 {
-    v = r1(v);
-    return v === null ? 'нет данных' : String(v);
+    var t = CELL_TYPE[name] || '';
+
+    if (t === 'switch')
+        return value === true;
+
+    if (t === 'number')
+    {
+        value = rn(value);
+        return value === null ? 0 : value;
+    }
+
+    if (t === 'text')
+    {
+        if (value === null || value === undefined)
+            return '';
+        return String(value);
+    }
+
+    if (value === null || value === undefined)
+        return '';
+
+    return value;
 }
 
 function sc(name, value)
 {
     var p = VD + '/' + name;
-    if (dev[p] !== value)
-        dev[p] = value;
+    var safeValue = normalizeCellValue(name, value);
+
+    if (dev[p] !== safeValue)
+        dev[p] = safeValue;
 }
 
 function logMsg(level, eventName, text)
@@ -354,8 +425,8 @@ function evaluate(reason)
     sc('state', state);
     sc('valid', enabled && commissioned && sensorsOk && !fault);
     sc('heat_demand', enabled && commissioned && demand && sensorsOk && !fault);
-    sc('requested_supply_c', demand ? target : null);
-    sc('requested_source_temperature', reqSource);
+    sc('requested_supply_c', demand ? target : 0);
+    sc('requested_source_temperature', demand ? reqSource : 0);
     sc('request_reason', why);
     sc('request_timestamp', demand ? new Date(ts * 1000).toISOString() : '');
     sc('request_ttl_s', CFG.requestTtlS);
@@ -369,7 +440,7 @@ function evaluate(reason)
     sc('supply_temp_c', r1(tSupply));
     sc('return_temp_c', r1(tReturn));
     sc('source_temp_c', r1(tSource));
-    sc('delta_t_c', tSupply !== null && tReturn !== null ? r1(tSupply - tReturn) : null);
+    sc('delta_t_c', tSupply !== null && tReturn !== null ? r1(tSupply - tReturn) : 0);
     sc('commissioned_state', commissioned);
     sc('local_permit_state', permit);
     sc('outputs_enabled_state', outputsEnabled());
