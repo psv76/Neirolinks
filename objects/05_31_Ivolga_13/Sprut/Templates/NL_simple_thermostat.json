@@ -1,0 +1,67 @@
+{
+  "name": "Термостат",
+  "manufacturer": "NEIROLINKS",
+  "model": "NL_simple_thermostat",
+  "modelIds": [
+    "/devices/(NL_simple_thermostat_[0-9]{3})/controls/temperature/meta/type"
+  ],
+  "services": [
+    {
+      "name": "Термостат",
+      "type": "Thermostat",
+      "characteristics": [
+        {
+          "type": "CurrentTemperature",
+          "link": [
+            {
+              "type": "Double",
+              "topicGet": "/devices/(1)/controls/temperature"
+            }
+          ]
+        },
+        {
+          "type": "TargetTemperature",
+          "link": [
+            {
+              "type": "Double",
+              "topicGet": "/devices/(1)/controls/target_temperature",
+              "topicSet": "/devices/(1)/controls/target_temperature/on"
+            }
+          ],
+          "minValue": 15,
+          "maxValue": 30,
+          "minStep": 0.5
+        },
+        {
+          "type": "TargetHeatingCoolingState",
+          "link": [
+            {
+              "type": "Integer",
+              "topicGet": "/devices/(1)/controls/target_state",
+              "topicSet": "/devices/(1)/controls/target_state/on",
+              "map": {
+                "OFF": "0",
+                "HEAT": "1"
+              }
+            }
+          ],
+          "validValues": "OFF,HEAT"
+        },
+        {
+          "type": "CurrentHeatingCoolingState",
+          "link": [
+            {
+              "type": "Integer",
+              "topicGet": "/devices/(1)/controls/current_state",
+              "map": {
+                "OFF": "0",
+                "HEAT": "1"
+              }
+            }
+          ],
+          "validValues": "OFF,HEAT"
+        }
+      ]
+    }
+  ]
+}
