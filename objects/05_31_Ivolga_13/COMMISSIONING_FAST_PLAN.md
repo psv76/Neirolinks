@@ -13,7 +13,7 @@ Runner не заменяет инженерный контроль физики:
 Использовать runner из проверенного commit/PR #26, сверенного с актуальным GitHub. Не брать скрипт из старой локальной папки. Установить **только этот shell-файл** на WB, например в `/root/hm2_501_test_runner.sh`. Он не должен лежать в `/etc/wb-rules`: это не правило JavaScript. Пример копирования с рабочей станции (заменить `WB_ADDRESS` адресом нужного WB):
 
 ```sh
-scp objects/05_31_Ivolga_13/tools/hm2_501_test_runner.sh root@WB_ADDRESS:/root/hm2_501_test_runner.sh
+scp objects/05_31_Ivolga_13/Tools/hm2_501_test_runner.sh root@WB_ADDRESS:/root/hm2_501_test_runner.sh
 ```
 
 Дальнейшие команды выполняются в SSH-терминале **на нужном WB**, под root. Нужны Bash, `mosquitto_pub`, `mosquitto_sub` с `-W`, GNU `timeout`, `flock`, `date`, `sleep`, `journalctl`, `grep`. Брокер — `localhost`. Runner не принимает адреса, произвольные MQTT-топики, shell-команды и дополнительные аргументы. Все выполняемые команды печатаются перед запуском; stdout и stderr сохранять вместе.

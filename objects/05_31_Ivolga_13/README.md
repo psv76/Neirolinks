@@ -18,7 +18,7 @@
 
 Исполняемый скрипт:
 
-**[`etc/wb-rules/620_thermostats.js`](etc/wb-rules/620_thermostats.js)**
+**[`Wirenboard/wb-rules/620_thermostats.js`](Wirenboard/wb-rules/620_thermostats.js)**
 
 Канонические документы по отоплению дома:
 
@@ -26,7 +26,7 @@
 - **[`THERMOSTAT_MAP.md`](THERMOSTAT_MAP.md)** — актуальная карта simple-термостатов;
 - **[`HM2_OWNERSHIP.md`](HM2_OWNERSHIP.md)** — ownership, фактическая гидравлика и порядок адаптации HM2 для Иволги.
 
-Файлы `etc/wb-webui.conf` и `etc/wb-mqtt-serial.conf` — конфигурационные снимки объекта в репозитории. Карта отопления от 2026-09-09 составлена по свежим файлам, присланным в рабочий чат: `wb-webui(3).conf` и `wb-mqtt-serial (2).conf`. Если старые общие карты противоречат `HEATING_CHANNEL_MAP.md`, для отопления дома использовать `HEATING_CHANNEL_MAP.md`.
+Файлы `Wirenboard/wb-webui.conf` и `Wirenboard/wb-mqtt-serial.conf` — конфигурационные снимки объекта в репозитории. Карта отопления от 2026-09-09 составлена по свежим файлам, присланным в рабочий чат: `wb-webui(3).conf` и `wb-mqtt-serial (2).conf`. Если старые общие карты противоречат `HEATING_CHANNEL_MAP.md`, для отопления дома использовать `HEATING_CHANNEL_MAP.md`.
 
 Старые данные от 2026-09-07 по термостатам считать историческими.
 
@@ -90,6 +90,25 @@ Sprut.hub используется как пользовательский ин�
 - мониторинг электроснабжения;
 - освещение и отопление беседки.
 
+## Структура объектовой папки
+
+```text
+05_31_Ivolga_13/
+├─ Doc/                     # подробная и историческая документация
+├─ Grafana/                 # объектовые dashboards / exports
+├─ Sprut/                   # desired-state YAML и Sprut-документация
+│  └─ Templates/            # объектовый deploy-набор custom templates
+├─ Tools/                   # commissioning / service utilities
+├─ Wirenboard/              # снимки конфигурации Wiren Board
+│  ├─ wb-rules/
+│  └─ wb-rules-modules/
+├─ HEATING_CHANNEL_MAP.md
+├─ HM2_OWNERSHIP.md
+├─ PHYSICAL_CHANNEL_MAP.md
+├─ THERMOSTAT_MAP.md
+└─ README.md
+```
+
 ## Документы и конфигурации
 
 - `README.md` — краткая актуальная сводка объекта и правила источников;
@@ -97,5 +116,8 @@ Sprut.hub используется как пользовательский ин�
 - `THERMOSTAT_MAP.md` — актуальная карта термостатов;
 - `HM2_OWNERSHIP.md` — ownership, гидравлика и следующий порядок внедрения HM2 на Иволге;
 - `PHYSICAL_CHANNEL_MAP.md` — общая физическая карта объекта, часть данных может быть старше текущей проверки отопления;
-- `etc/` — конфигурационные файлы и сценарии;
+- `Wirenboard/` — конфигурационные снимки, `wb-rules` и `wb-rules-modules`;
+- `Sprut/` — актуальный YAML Дома, Sprut README и объектовые templates;
+- `Tools/` — commissioning / сервисные утилиты;
+- `Grafana/` — объектовые dashboards / exports;
 - `Doc/` — подробные тематические и исторические материалы.

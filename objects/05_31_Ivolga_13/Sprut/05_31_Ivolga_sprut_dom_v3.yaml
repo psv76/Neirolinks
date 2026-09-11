@@ -1,0 +1,721 @@
+# 05 31 Иволга 13 — Дом
+# Issue #22 working desired-state plan for Sprut Configurator v0.3.0-dev.
+# Source: current object maps + live Sprut DISCOVER 2026-09-11 23:34:34.
+# Operator decisions: all kitchen entities stay in «Гостиная»; A12/K3 «Бра коридор» belongs to «Гостиная»;
+# physical A12/K6 Lightbulb is hidden, user control is the manually created virtual FanBasic «Вентилятор» (serial 503).
+# APPLY only after a fresh v0.3.0 DISCOVER and successful DRY RUN review.
+
+format_version: 2
+object: 05 31 Иволга 13 — Дом
+accessories:
+- serial: 902.01_MSW_TH
+  name: Климат гостиная
+  room: Гостиная
+  services:
+  - type: TemperatureSensor
+    name: Температура гостиная
+    visible: false
+    status:
+      CurrentTemperature: false
+    bridge:
+      alice: false
+  - type: HumiditySensor
+    name: Влажность гостиная
+    visible: false
+    status:
+      CurrentRelativeHumidity: true
+    bridge:
+      alice: false
+- serial: 903.01_MSW_TH
+  name: Климат кухня
+  room: Гостиная
+  services:
+  - type: TemperatureSensor
+    name: Температура кухня
+    visible: false
+    status:
+      CurrentTemperature: false
+    bridge:
+      alice: false
+  - type: HumiditySensor
+    name: Влажность кухня
+    visible: false
+    status:
+      CurrentRelativeHumidity: false
+    bridge:
+      alice: false
+- serial: 903.03_MSW_TH
+  name: Климат кладовка
+  room: Кладовка
+  services:
+  - type: TemperatureSensor
+    name: Температура кладовка
+    visible: false
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+  - type: HumiditySensor
+    name: Влажность кладовка
+    visible: false
+    status:
+      CurrentRelativeHumidity: true
+    bridge:
+      alice: false
+- serial: 902.05_MSW_THM
+  name: Климат прихожая
+  room: Прихожая
+  services:
+  - type: TemperatureSensor
+    name: Температура
+    visible: false
+    status:
+      CurrentTemperature: false
+    bridge:
+      alice: false
+  - type: HumiditySensor
+    name: Влажность
+    visible: false
+    status:
+      CurrentRelativeHumidity: true
+    bridge:
+      alice: false
+  - type: MotionSensor
+    name: Движение
+- serial: 902.07_MSW_TH
+  name: Климат гардероб
+  room: Гардероб
+  services:
+  - type: TemperatureSensor
+    name: Температура
+    visible: false
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+  - type: HumiditySensor
+    name: Влажность
+    visible: false
+    status:
+      CurrentRelativeHumidity: true
+    bridge:
+      alice: false
+- serial: 902.03_MSW_TH
+  name: Климат санузел
+  room: Санузел
+  services:
+  - type: TemperatureSensor
+    name: Температура
+    visible: false
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+  - type: HumiditySensor
+    name: Влажность
+    visible: false
+    status:
+      CurrentRelativeHumidity: true
+    bridge:
+      alice: false
+- serial: 902.14_MSW_TH
+  name: Климат постирочная
+  room: Постирочная
+  services:
+  - type: TemperatureSensor
+    name: Температура
+    visible: false
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+  - type: HumiditySensor
+    name: Влажность
+    visible: false
+    status:
+      CurrentRelativeHumidity: true
+    bridge:
+      alice: false
+- serial: 902.12_MSW_TH
+  name: Климат ванная
+  room: Ванная
+  services:
+  - type: TemperatureSensor
+    name: Температура
+    visible: false
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+  - type: HumiditySensor
+    name: Влажность
+    visible: false
+    status:
+      CurrentRelativeHumidity: true
+    bridge:
+      alice: false
+- serial: 902.10_MSW_TH
+  name: Климат гостевая спальня
+  room: Гостевая спальня
+  services:
+  - type: TemperatureSensor
+    name: Температура
+    visible: false
+    status:
+      CurrentTemperature: false
+    bridge:
+      alice: false
+  - type: HumiditySensor
+    name: Влажность
+    visible: false
+    status:
+      CurrentRelativeHumidity: true
+    bridge:
+      alice: false
+- serial: 902.08_MSW_TH
+  name: Климат кабинет
+  room: Кабинет
+  services:
+  - type: TemperatureSensor
+    name: Температура
+    visible: false
+    status:
+      CurrentTemperature: false
+    bridge:
+      alice: false
+  - type: HumiditySensor
+    name: Влажность
+    visible: false
+    status:
+      CurrentRelativeHumidity: true
+    bridge:
+      alice: false
+- serial: 903.08_MSW_TH
+  name: Климат мастер спальня
+  room: Мастер спальня
+  services:
+  - type: TemperatureSensor
+    name: Температура
+    visible: false
+    status:
+      CurrentTemperature: false
+    bridge:
+      alice: false
+  - type: HumiditySensor
+    name: Влажность
+    visible: false
+    status:
+      CurrentRelativeHumidity: true
+    bridge:
+      alice: false
+- serial: 903.07_MSW_TH
+  name: Климат мастер гардероб
+  room: Мастер гардероб
+  services:
+  - type: TemperatureSensor
+    name: Температура
+    visible: false
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+  - type: HumiditySensor
+    name: Влажность
+    visible: false
+    status:
+      CurrentRelativeHumidity: true
+    bridge:
+      alice: false
+- serial: 903.05_MSW_TH
+  name: Климат мастер санузел
+  room: Мастер санузел
+  services:
+  - type: TemperatureSensor
+    name: Температура
+    visible: false
+    status:
+      CurrentTemperature: false
+    bridge:
+      alice: false
+  - type: HumiditySensor
+    name: Влажность
+    visible: false
+    status:
+      CurrentRelativeHumidity: true
+    bridge:
+      alice: false
+- serial: 902.02_M1W2_TEMP_NONE/External Sensor 1
+  name: Пол гостиная
+  room: Гостиная
+  services:
+  - type: TemperatureSensor
+    name: Пол гостиная
+    visible: false
+    status:
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: 902.04_M1W2_LEAK_TEMP/External Sensor 2
+  name: Пол санузел
+  room: Санузел
+  services:
+  - type: TemperatureSensor
+    name: Пол санузел
+    visible: false
+    status:
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: 902.06_M1W2_TEMP_NONE/External Sensor 1
+  name: Пол прихожая
+  room: Прихожая
+  services:
+  - type: TemperatureSensor
+    name: Пол прихожая
+    visible: false
+    status:
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: 902.09_M1W2_TEMP_NONE/External Sensor 1
+  name: Пол кабинет
+  room: Кабинет
+  services:
+  - type: TemperatureSensor
+    name: Пол кабинет
+    visible: false
+    status:
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: 902.11_M1W2_TEMP_NONE/External Sensor 1
+  name: Пол гостевая спальня
+  room: Гостевая спальня
+  services:
+  - type: TemperatureSensor
+    name: Пол гостевая спальня
+    visible: false
+    status:
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: 902.13_M1W2_LEAK_TEMP/External Sensor 2
+  name: Пол ванная
+  room: Ванная
+  services:
+  - type: TemperatureSensor
+    name: Пол ванная
+    visible: false
+    status:
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: 903.02_M1W2_LEAK_TEMP/External Sensor 2
+  name: Пол кухня
+  room: Гостиная
+  services:
+  - type: TemperatureSensor
+    name: Пол кухня
+    visible: false
+    status:
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: 902.04_M1W2_LEAK_TEMP/Input 1
+  name: Протечка санузел
+  room: Санузел
+  services:
+  - type: LeakSensor
+    name: Протечка санузел
+    visible: true
+    status:
+      LeakDetected: true
+- serial: 902.13_M1W2_LEAK_TEMP/Input 1
+  name: Протечка ванная
+  room: Ванная
+  services:
+  - type: LeakSensor
+    name: Протечка ванная
+    visible: true
+    status:
+      LeakDetected: true
+- serial: 902.15_M1W2_LEAK_NONE/Input 1
+  name: Протечка постирочная
+  room: Постирочная
+  services:
+  - type: LeakSensor
+    name: Протечка постирочная
+    visible: true
+    status:
+      LeakDetected: true
+- serial: 903.02_M1W2_LEAK_TEMP/Input 1
+  name: Протечка кухня
+  room: Гостиная
+  services:
+  - type: LeakSensor
+    name: Протечка кухня
+    visible: true
+    status:
+      LeakDetected: true
+- serial: A06/K1
+  name: Свет парковка
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Свет парковка
+    visible: true
+- serial: A06/K2
+  name: Подсветка забора
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Подсветка забора
+    visible: true
+- serial: A06/K3
+  name: Дорожки
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Дорожки
+    visible: true
+- serial: A06/K4
+  name: Двор
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Двор
+    visible: true
+- serial: A06/K5
+  name: Фасады
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Фасады
+    visible: true
+- serial: A06/K6
+  name: Гирлянды
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Гирлянды
+    visible: true
+- serial: A11/K1
+  name: Свет кухня
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: Свет кухня
+    visible: true
+- serial: A11/K2
+  name: Свет кухня
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: Свет кухня
+    visible: true
+- serial: A11/K3
+  name: Свет остров
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: Свет остров
+    visible: true
+- serial: A11/K4
+  name: Люстра стол
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: Люстра стол
+    visible: true
+- serial: A11/K5
+  name: Люстра камин
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: Люстра камин
+    visible: true
+- serial: A11/K6
+  name: Люстры гостиная
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: Люстры гостиная
+    visible: true
+- serial: A12/K1
+  name: Свет прихожая
+  room: Прихожая
+  services:
+  - type: Lightbulb
+    name: Свет прихожая
+    visible: true
+- serial: A12/K2
+  name: Свет коридор
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: Свет коридор
+    visible: true
+- serial: A12/K3
+  name: Бра коридор
+  room: Гостиная
+  services:
+  - type: Lightbulb
+    name: Бра коридор
+    visible: true
+- serial: A12/K4
+  name: Свет постирочная
+  room: Постирочная
+  services:
+  - type: Lightbulb
+    name: Свет постирочная
+    visible: true
+- serial: A12/K5
+  name: Свет ванная
+  room: Ванная
+  services:
+  - type: Lightbulb
+    name: Свет ванная
+    visible: true
+- serial: A12/K6
+  name: Вентилятор
+  room: Постирочная
+  services:
+  - type: Lightbulb
+    name: Вентилятор
+    visible: false
+    bridge:
+      alice: false
+- serial: "503"
+  name: Вентилятор
+  room: Постирочная
+  services:
+  - type: FanBasic
+    name: Вентилятор
+    visible: true
+    status:
+      On: true
+    bridge:
+      alice: true
+- serial: A16/K4
+  name: LED санузел
+  room: Мастер санузел
+  services:
+  - type: Lightbulb
+    name: LED санузел
+    visible: true
+- serial: NL_simple_thermostat_005
+  name: Воздух
+  room: Прихожая
+  services:
+  - type: Thermostat
+    name: Воздух
+    visible: true
+    status:
+      CurrentHeatingCoolingState: true
+      CurrentTemperature: true
+    bridge:
+      alice: true
+- serial: NL_simple_thermostat_006
+  name: Воздух
+  room: Гостевая спальня
+  services:
+  - type: Thermostat
+    name: Воздух
+    visible: true
+    status:
+      CurrentHeatingCoolingState: true
+      CurrentTemperature: true
+    bridge:
+      alice: true
+- serial: NL_simple_thermostat_007
+  name: Воздух
+  room: Мастер санузел
+  services:
+  - type: Thermostat
+    name: Воздух
+    visible: true
+    status:
+      CurrentHeatingCoolingState: true
+      CurrentTemperature: true
+    bridge:
+      alice: true
+- serial: NL_simple_thermostat_008
+  name: Воздух
+  room: Кабинет
+  services:
+  - type: Thermostat
+    name: Воздух
+    visible: true
+    status:
+      CurrentHeatingCoolingState: true
+      CurrentTemperature: true
+    bridge:
+      alice: true
+- serial: NL_simple_thermostat_009
+  name: Воздух
+  room: Мастер спальня
+  services:
+  - type: Thermostat
+    name: Воздух
+    visible: true
+    status:
+      CurrentHeatingCoolingState: true
+      CurrentTemperature: true
+    bridge:
+      alice: true
+- serial: NL_simple_thermostat_010
+  name: Воздух
+  room: Гостиная
+  services:
+  - type: Thermostat
+    name: Воздух
+    visible: true
+    status:
+      CurrentHeatingCoolingState: true
+      CurrentTemperature: true
+    bridge:
+      alice: true
+- serial: NL_simple_thermostat_601
+  name: Пол
+  room: Мастер спальня
+  services:
+  - type: Thermostat
+    name: Пол
+    visible: true
+    status:
+      CurrentHeatingCoolingState: false
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: NL_simple_thermostat_602
+  name: Пол
+  room: Гостевая спальня
+  services:
+  - type: Thermostat
+    name: Пол
+    visible: true
+    status:
+      CurrentHeatingCoolingState: false
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: NL_simple_thermostat_603
+  name: Пол
+  room: Кабинет
+  services:
+  - type: Thermostat
+    name: Пол
+    visible: true
+    status:
+      CurrentHeatingCoolingState: false
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: NL_simple_thermostat_606
+  name: Пол
+  room: Прихожая
+  services:
+  - type: Thermostat
+    name: Пол
+    visible: true
+    status:
+      CurrentHeatingCoolingState: false
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: NL_simple_thermostat_607
+  name: Пол
+  room: Санузел
+  services:
+  - type: Thermostat
+    name: Пол
+    visible: true
+    status:
+      CurrentHeatingCoolingState: false
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: NL_simple_thermostat_608
+  name: Пол
+  room: Гардероб
+  services:
+  - type: Thermostat
+    name: Пол
+    visible: true
+    status:
+      CurrentHeatingCoolingState: false
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: NL_simple_thermostat_609
+  name: Пол
+  room: Ванная
+  services:
+  - type: Thermostat
+    name: Пол
+    visible: true
+    status:
+      CurrentHeatingCoolingState: false
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: NL_simple_thermostat_610
+  name: Пол
+  room: Постирочная
+  services:
+  - type: Thermostat
+    name: Пол
+    visible: true
+    status:
+      CurrentHeatingCoolingState: false
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: NL_simple_thermostat_611
+  name: Пол гостиная
+  room: Гостиная
+  services:
+  - type: Thermostat
+    name: Пол гостиная
+    visible: true
+    status:
+      CurrentHeatingCoolingState: false
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: NL_simple_thermostat_612
+  name: Пол кухня
+  room: Гостиная
+  services:
+  - type: Thermostat
+    name: Пол кухня
+    visible: true
+    status:
+      CurrentHeatingCoolingState: false
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: NL_simple_thermostat_613
+  name: Пол
+  room: Мастер санузел
+  services:
+  - type: Thermostat
+    name: Пол
+    visible: true
+    status:
+      CurrentHeatingCoolingState: false
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: NL_simple_thermostat_614
+  name: Пол
+  room: Кладовка
+  services:
+  - type: Thermostat
+    name: Пол
+    visible: true
+    status:
+      CurrentHeatingCoolingState: false
+      CurrentTemperature: false
+    bridge:
+      alice: false
