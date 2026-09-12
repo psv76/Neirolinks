@@ -135,8 +135,8 @@ consumer → атомарный request → arbiter → source manager → ед�
 | `path_ready` | готов ли физический путь после задержки сервоприводов |
 | `pump_on` | команда/состояние насоса контура |
 | `fault_latched` | защёлкнутая авария, запрещающая участие в арбитраже |
-| `grant_state` | результат арбитража, пишет arbiter |
-| `grant_reason` | причина результата арбитража |
+| `grant_state` | локальная readonly-диагностика consumer; arbiter #29 сюда не пишет |
+| `grant_reason` | локальная readonly-причина consumer; grants арбитра публикуются отдельно |
 
 Булев `true` без timestamp/TTL не считать полноценным запросом тепла.
 
@@ -388,6 +388,69 @@ RETURN_WARM / RESPONSE_OK не являются доказательством �
    термостаты 620 (гостиная — 010, управляющий обоими выходами), сохранить журнал с префиксом 503_rad_dom_manager.
 5. Перезапуск, unknown inputs, readback timeout, response и reset проверить на изолированном
    стенде. Runner #26 остаётся только для 501 и для тестирования 503 не применяется.
+
+### Шаг 4. Request Arbiter и Source Manager: только shadow (#29)
+
+Созданы `Wirenboard/wb-rules/508_hm2_request_arbiter.js` и
+`Wirenboard/wb-rules/509_hm2_source_manager.js`. Использован актуальный main
+после PR #34/#35 и переноса каталогов в PR #36: новые файлы находятся в
+каноническом `Wirenboard/wb-rules`, а не в прежнем `etc/wb-rules`.
+Префикс файла 508 из ТЗ #29 не меняет назначение гидравлического/safety-контура
+508 (перекрытие ХВС): leak-control здесь не реализован и не затронут.
+
+**Ownership:** 508 пишет только `hm2_request_arbiter`, 509 — только
+`hm2_source_manager`. Физические выходы и OpenTherm не пишутся, даже нулём.
+В этой версии Source Manager вообще не содержит hardware writer.
+501/502/503/507/620 не изменены. Деплой на WB и live-проверка не выполнялись.
+
+508 читает `state`, `valid`, `heat_demand`, `path_ready`,
+`requested_source_temperature`, `request_timestamp`, `request_ttl_s`,
+`fault_latched` устройств `hm2_501_tp_dom`, `hm2_502_gp_dom`, `hm2_503_rad_dom`.
+Участвует только valid + demand + path_ready, без fault, с конечной положительной
+температурой и TTL. Время — ISO timestamp текущих managers; возраст запроса
+должен быть `0 <= age < request_ttl_s`. Некорректное/будущее время, неизвестный
+fault и stale исключают кандидата. Отказ чтения одного consumer не блокирует других.
+Выбирается максимальная температура; при равенстве стабильный порядок **503 → 502 → 501**.
+Дополнительно обязателен `state === 'ACTIVE'`; любое другое значение исключает
+consumer с причиной `NOT_ACTIVE` до проверки остальных условий.
+
+Controls `hm2_request_arbiter` (все readonly):
+
+- `state`, `valid`: после расчёта ACTIVE с выбранным consumer либо INACTIVE без него;
+  valid означает выполненный расчёт арбитра, не достоверность всех consumers.
+  При старте UNKNOWN/false, предыдущий выбор очищается.
+- `selected_consumer` (полный device id), `selected_consumer_title`,
+  `selected_requested_temperature`, `selected_reason`: выбранный запрос и причина;
+  без подходящих запросов — пустой id/title, температура 0, NO_ELIGIBLE_REQUEST.
+- `no_demand_contract`, `active_candidate_count`, `rejected_candidate_count`:
+  отсутствие подходящих запросов, число допустимых кандидатов и число исключённых
+  из трёх (включая NO_DEMAND). Допустимый проигравший не считается rejected.
+- `candidates_json`: state, температура, возраст/TTL и причина допуска/отказа каждого.
+- `last_update_ts`: ISO-время завершённого расчёта, публикуется последним.
+- `grant_501_state/reason`, `grant_502_state/reason`, `grant_503_state/reason`:
+  REJECTED, SHADOW_SELECTED или SHADOW_NOT_SELECTED и объяснение.
+  Это исключительно диагностика, **не разрешение запуска**; в readonly
+  `grant_state/grant_reason` consumers арбитр не пишет, адаптер grants не создаётся.
+
+Controls `hm2_source_manager`:
+
+- `state`, `source_state`: ACTIVE/SHADOW_DEMAND либо INACTIVE/SHADOW_NO_DEMAND;
+- `selected_consumer`, `intended_heating_setpoint`: выбор арбитра и расчётная
+  температура. При отсутствии выбора/невалидном результате/ошибке чтения — пусто/0;
+- `no_demand_contract`: true без допустимого выбора;
+- `write_enabled`: изменяемая заготовка будущего gate. Даже true ничего не включает,
+  в status появляется WRITE_ENABLED_IGNORED;
+- `physical_write_grant`: readonly, удерживается false;
+- `last_update_ts`, `status`: время расчёта и пояснение SHADOW ONLY.
+  Все controls, кроме `write_enabled`, readonly.
+
+Оба скрипта явно очищают сохранённое состояние при загрузке. Source Manager
+принудительно сбрасывает оба gates в false. Стартовая задержка — 3 с, затем расчёт
+по таймеру каждые 5 с; потребительские TTL перепроверяются даже без новых событий.
+Source Manager читает последний результат арбитра; отдельный live-watchdog связи
+с источником здесь не реализуется. Это расчётный shadow-слой, не контур управления.
+Issue #29 и #20 остаются открытыми; дальнейший шаг — review и отдельная field
+shadow-проверка, а не разрешение физического ПНР.
 
 ## 11. Что не делать
 
