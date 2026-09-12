@@ -1,3 +1,4 @@
+// HM2_arbiter_request.js
 // HM2 Ivolga / issue #29: calculation only; writes only its own virtual device.
 var VD = 'hm2_request_arbiter';
 // Stable tie-break: 503 > 502 > 501. Never replace an equal-temperature winner.
@@ -69,7 +70,7 @@ function candidate(consumer, now) {
         else if (age >= ttl) result.reason = 'STALE';
         else { result.eligible = true; result.reason = 'ELIGIBLE'; }
     } catch (error) {
-        log('[HM2 Ivolga/508_hm2_request_arbiter] ' + consumer.id + ': ' + String(error));
+        log('[HM2 Ivolga/HM2_arbiter_request] ' + consumer.id + ': ' + String(error));
     }
     return result;
 }
@@ -109,5 +110,5 @@ Object.keys(cells).forEach(function (name) { sc(name, cells[name].value); });
 setTimeout(function () {
     evaluate();
     setInterval(evaluate, 5000);
-    log('[HM2 Ivolga/508_hm2_request_arbiter] SHADOW started; diagnostic grants only');
+    log('[HM2 Ivolga/HM2_arbiter_request] SHADOW started; diagnostic grants only');
 }, 3000);

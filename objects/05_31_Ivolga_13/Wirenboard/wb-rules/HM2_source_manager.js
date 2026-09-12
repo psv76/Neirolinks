@@ -1,3 +1,4 @@
+// HM2_source_manager.js
 // HM2 Ivolga / issue #29: intended setpoint only, no hardware writer exists here.
 var VD = 'hm2_source_manager';
 var ARBITER = 'hm2_request_arbiter';
@@ -42,7 +43,7 @@ function evaluate() {
         }
     } catch (error) {
         status = 'SHADOW ONLY; ARBITER_READ_ERROR';
-        log('[HM2 Ivolga/509_hm2_source_manager] ' + String(error));
+        log('[HM2 Ivolga/HM2_source_manager] ' + String(error));
     }
     // write_enabled is an inert future interface, never a writer switch in this version.
     if (bool(dev[VD + '/write_enabled']) === true) status += '; WRITE_ENABLED_IGNORED';
@@ -60,5 +61,5 @@ Object.keys(cells).forEach(function (name) { sc(name, cells[name].value); });
 setTimeout(function () {
     evaluate();
     setInterval(evaluate, 5000);
-    log('[HM2 Ivolga/509_hm2_source_manager] SHADOW started; write gates reset');
+    log('[HM2 Ivolga/HM2_source_manager] SHADOW started; write gates reset');
 }, 3000);
