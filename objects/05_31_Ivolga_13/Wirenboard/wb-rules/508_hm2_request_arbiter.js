@@ -57,7 +57,8 @@ function candidate(consumer, now) {
         result.temperature = temperature === null ? 0 : temperature;
         result.age_s = isFinite(age) ? age : null;
         result.ttl_s = ttl;
-        if (valid !== true) result.reason = 'INVALID';
+        if (state !== 'ACTIVE') result.reason = 'NOT_ACTIVE';
+        else if (valid !== true) result.reason = 'INVALID';
         else if (demand !== true) result.reason = 'NO_DEMAND';
         else if (ready !== true) result.reason = 'PATH_NOT_READY';
         else if (fault === true) result.reason = 'FAULT_LATCHED';
