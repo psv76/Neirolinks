@@ -1,160 +1,191 @@
-# HM2 — source writer and thermal response watchdog contract
+# HM2 — общий контракт писателя источника и контроля теплового отклика
 
-Status: draft for review.  
-Scope: common Heating Manager 2.0 rules. No object MQTT addresses, relay numbers, sensors or setpoints are defined here.
+Статус: черновик для вычитки и согласования.  
+Область применения: общие правила Heating Manager 2.0. Здесь не задаются адреса MQTT конкретного объекта, номера реле, номера датчиков, уставки, направления клапанов и настройки конкретного котла.
 
-Related issues:
+Связанные задачи:
 
-- #18 — Heating Manager 2.0 common development;
-- #19 — 05 16 Iset production review evidence;
-- #20 — 05 31 Ivolga object adaptation;
-- #39 — this common source/response contract task.
+- #18 — общая разработка Heating Manager 2.0;
+- #19 — проверка Heating Manager 2.0 на объекте 05 16 Исеть;
+- #20 — адаптация Heating Manager 2.0 для объекта 05 31 Иволга;
+- #39 — текущая общая задача по писателю источника и контролю теплового отклика.
 
-## 1. Purpose
+## 1. Назначение документа
 
-This document defines the transferable HM2 contract for:
+Этот документ фиксирует переносимые правила Heating Manager 2.0 для четырёх частей системы:
 
-- the single source writer;
-- source response watchdog;
-- consumer thermal response watchdog;
-- latched-fault interaction with arbiter;
-- runtime status separation.
+1. единственный писатель источника тепла;
+2. контроль отклика источника тепла;
+3. контроль теплового отклика отопительных контуров;
+4. поведение системы при защёлкнутых авариях;
+5. разделение статусов «ещё не введено в работу» и «сломалось в работе».
 
-The contract is based on field evidence from Iset, but it intentionally does not copy Iset physical bindings. Each object must provide its own source endpoint, sensors, pumps, valves, limits, timing and commissioning decisions.
+Документ основан на опыте Исети, но не переносит физику Исети в другие объекты. Из Исети переносится только инженерный вывод: если логика считает контур активным, это ещё не доказывает, что тепло реально пошло в нужный контур.
 
-## 2. Proven failure mode from Iset
+## 2. Что именно показала Исеть
 
-The reusable lesson is not an object address. The reusable lesson is the failure mode:
-
-```text
-logical demand exists
-source can be hot
-hydraulic path may be commanded
-but the measured circuit temperature does not react
-```
-
-HM2 must not treat this as a valid active heating request indefinitely.
-
-A second proven failure mode is contract leakage after a latched circulation fault:
+На Исети был подтверждён важный отказ системы:
 
 ```text
-consumer has fault_latched=true
-but still publishes state=ACTIVE / valid=1 / requested temperature
-arbiter accepts it
-source keeps serving a physically dead request
+есть запрос тепла;
+источник тепла может быть горячим;
+насос или клапан могут быть включены;
+но температура нужного контура не растёт.
 ```
 
-HM2 therefore requires two independent protections:
+Такую ситуацию нельзя считать нормальной работой отопления.
 
-1. the consumer manager must make its own request invalid when fault-latched;
-2. the arbiter must independently reject any request with `fault_latched=true`.
+Возможные физические причины могут быть разными:
 
-## 3. Terms
+- воздух в контуре;
+- закрыт кран;
+- заклинил клапан;
+- перепутан насос;
+- перепутан датчик;
+- нет протока;
+- неверная гидравлическая обвязка.
 
-| Term | Meaning |
+Heating Manager 2.0 не всегда обязан точно назвать физическую причину. Но он обязан распознать сам факт: **команда на отопление была, а измеренного теплового отклика нет**.
+
+Вторая проблема, найденная на Исети: после аварии циркуляции неисправный контур продолжал выглядеть как активный запрос. То есть контур уже был остановлен защитой, но в данных для арбитра всё ещё оставались признаки активного запроса.
+
+Общее правило:
+
+```text
+если у контура есть защёлкнутая авария,
+то этот контур не имеет права участвовать в выборе источника тепла.
+```
+
+Защита должна быть двойной:
+
+1. сам менеджер контура обязан сделать свой запрос невалидным;
+2. арбитр обязан отдельно отвергнуть такой контур, даже если менеджер ошибся и оставил активные признаки.
+
+## 3. Термины
+
+| Термин | Что означает |
 |---|---|
-| source | Boiler, heat pump, buffer, hydraulic source or another heat generator controlled by HM2. |
-| source writer | The only HM2 component allowed to write the source setpoint / source enable command. |
-| consumer | A circuit or subsystem requesting heat from the source. |
-| request | Fresh bounded consumer contract passed to the arbiter. |
-| path_ready | Physical circulation path is allowed to be considered ready after actuator/pump delays and readbacks. |
-| thermal response | Measured temperature movement proving that heat is actually transferred. |
-| latched fault | Persistent fault state that requires explicit reset/commissioning action. |
-| commissioning debt | Planned not-ready state because a subsystem has not been commissioned. |
-| runtime fault | A fault of a commissioned subsystem while it was expected to work. |
+| Источник тепла | Котёл, тепловой насос, буфер, гидравлическая стрелка или другой узел, откуда система берёт тепло. |
+| Писатель источника | Единственный скрипт, которому разрешено писать уставку или команду источнику тепла. |
+| Потребитель тепла | Контур или подсистема, которой нужно тепло: тёплый пол, радиаторы, бойлер, вентиляция и т.п. |
+| Запрос тепла | Набор данных от потребителя: нужен ли нагрев, какая температура нужна, свежие ли данные, нет ли аварии. |
+| Арбитр | Скрипт, который выбирает один главный запрос из нескольких потребителей. |
+| Готовность пути | Состояние, когда привод, клапан, насос и задержки уже позволяют считать путь теплоносителя готовым. |
+| Тепловой отклик | Измеренный рост температуры, который подтверждает, что тепло реально дошло до нужного места. |
+| Защёлкнутая авария | Авария, которая не снимается сама мгновенно и требует явного сброса или отдельной процедуры восстановления. |
+| Долг пусконаладки | Подсистема ещё не введена в работу сознательно. Это не runtime-авария. |
+| Runtime-авария | Авария подсистемы, которая уже должна была работать. |
 
-## 4. Base architecture
+Часть внутренних имён в коде может оставаться английской, потому что это имена MQTT-полей или состояний. В документации рядом с ними должно быть русское объяснение.
 
-```text
-consumer manager
-  -> bounded heat request
-  -> demand arbiter
-  -> source manager / source writer
-  -> physical source endpoint
-```
+## 4. Базовая архитектура Heating Manager 2.0
 
-Required rule:
+Общая цепочка должна быть такой:
 
 ```text
-one physical source endpoint -> one writer
+менеджер потребителя тепла
+  -> свежий ограниченный запрос тепла
+  -> арбитр запросов
+  -> менеджер источника / писатель источника
+  -> физический источник тепла
 ```
 
-No watchdog, diagnostic script, thermostat, scene, user-interface helper or object-specific commissioning tool may write the source endpoint directly.
+Главное правило:
 
-## 5. Consumer request contract
+```text
+у одного физического выхода управления источником должен быть один писатель.
+```
 
-Each consumer manager must publish one atomic request contract.
+Ни один диагностический скрипт, тестовый скрипт, термостат, сценарий, интерфейсная кнопка или commissioning runner не должен писать уставку источника напрямую в обход писателя источника.
 
-Minimum fields:
+## 5. Контракт запроса от потребителя тепла
 
-| Field | Required behavior |
+Каждый потребитель тепла должен публиковать не просто «мне нужно тепло», а полный проверяемый запрос.
+
+Минимальные поля запроса:
+
+| Поле | Назначение |
 |---|---|
-| `state` | `ACTIVE`, `INACTIVE`, `UNKNOWN` or `FAULT`. |
-| `valid` | True only when required inputs are fresh and the consumer may participate in arbitration. |
-| `heat_demand` | True only when the consumer currently needs heat. |
-| `requested_source_temperature` | Numeric requested source temperature after object limits, or 0/empty when no valid demand exists. |
-| `request_timestamp` | Time of calculation. |
-| `request_ttl_s` | Explicit validity window. |
-| `path_ready` | True only after the actuator/pump circulation path is expected to be physically available. |
-| `fault_latched` | True when the consumer is locked out by a persistent fault. |
-| `status` / `reason` | Human-readable current reason. |
+| `state` | Состояние потребителя: активен, неактивен, неизвестен или в аварии. |
+| `valid` | Данные потребителя достоверны и могут участвовать в выборе. |
+| `heat_demand` | Потребитель сейчас действительно просит тепло. |
+| `requested_source_temperature` | Какая температура источника нужна этому потребителю после всех ограничений. |
+| `request_timestamp` | Когда запрос был рассчитан. |
+| `request_ttl_s` | Сколько секунд запрос считается свежим. |
+| `path_ready` | Путь теплоносителя готов: приводы/клапаны/насосы/задержки прошли нужную стадию. |
+| `fault_latched` | У потребителя есть защёлкнутая авария. |
+| `status` или `reason` | Человеческое объяснение текущего состояния. |
 
-A boolean demand without timestamp and TTL is not a valid HM2 request.
+Простой булев сигнал «нагрев включён» без времени расчёта и срока годности не считается полноценным запросом Heating Manager 2.0.
 
-## 6. Arbiter rejection rules
+## 6. Когда арбитр обязан отвергнуть потребителя
 
-The arbiter must reject a consumer if any of the following is true:
+Арбитр обязан исключить потребителя из выбора, если выполнено хотя бы одно условие:
 
-- `valid !== true`;
-- `state !== ACTIVE`;
-- `heat_demand !== true`;
-- `path_ready !== true`;
-- `fault_latched === true`;
-- requested temperature is absent, non-numeric or <= 0;
-- request timestamp is missing, stale or from the future beyond allowed clock tolerance;
-- TTL is missing, invalid or expired.
+- данные потребителя невалидны;
+- потребитель не находится в активном состоянии;
+- потребитель не просит тепло;
+- путь теплоносителя ещё не готов;
+- у потребителя есть защёлкнутая авария;
+- запрошенная температура отсутствует, не число или меньше/равна нулю;
+- время запроса отсутствует;
+- запрос устарел;
+- запрос выглядит как пришедший из будущего сверх допустимого расхождения часов;
+- срок годности запроса отсутствует или некорректен.
 
-A failed consumer must not block other valid consumers. It is rejected locally and the arbiter continues evaluating the remaining candidates.
+Отказ одного потребителя не должен блокировать остальных. Арбитр должен отвергнуть неисправный или неготовый контур и продолжить проверять другие контуры.
 
-## 7. Source writer contract
+## 7. Контракт писателя источника тепла
 
-The source writer is the only component allowed to write the physical source endpoint.
+Писатель источника — это единственное место в Heating Manager 2.0, где разрешена физическая запись в источник тепла.
 
-It must:
+Он обязан:
 
-- read only the arbiter output, not individual consumers directly for control decisions;
-- validate the arbiter output freshness;
-- apply object-specific minimum/maximum limits;
-- apply rate limiting and/or ramp rules where needed;
-- apply hysteresis/debounce to avoid setpoint chatter;
-- publish intended, limited and actually written setpoint;
-- publish state and reason;
-- have a commissioned safe-OFF/no-demand behavior;
-- reset all live-write gates on startup/reload;
-- fail safe when the source endpoint or safe-OFF behavior is not commissioned.
+- читать результат арбитра, а не опрашивать все контуры напрямую для принятия управляющего решения;
+- проверять свежесть результата арбитра;
+- применять минимальные и максимальные пределы конкретного объекта;
+- ограничивать слишком частые или слишком резкие изменения уставки, если это нужно для конкретного источника;
+- не дёргать уставку туда-сюда из-за мелких колебаний;
+- публиковать три значения: что запрошено, что разрешено после ограничений, что реально записано;
+- публиковать состояние и понятную причину;
+- иметь отдельно подтверждённый безопасный режим при отсутствии запроса тепла;
+- при перезапуске сбрасывать все разрешения на физическую запись;
+- уходить в безопасное состояние, если endpoint источника или безопасный режим не подтверждены.
 
-It must not:
+Он не имеет права:
 
-- infer physical object addresses from another object;
-- allow retained MQTT gates to re-enable source writes after restart;
-- let response watchdogs write the source setpoint directly;
-- silently choose a safe-OFF method when the source behavior is unknown.
+- брать физические адреса с другого объекта;
+- включаться после перезапуска из-за retained MQTT-значений;
+- позволять watchdog-скриптам напрямую писать уставку источника;
+- молча выбирать безопасную уставку, если поведение конкретного котла неизвестно.
 
-## 8. Source writer gates
+## 8. Разрешения на физическую запись в источник
 
-The generic live-write path must require all gates:
+Физическая запись в источник должна быть невозможна, пока не выполнены все условия:
+
+```text
+источник введён в работу;
+физическая запись разрешена;
+выдано ручное или другое явное live-разрешение;
+запрос арбитра свежий и валидный;
+пределы безопасности настроены;
+endpoint источника подтверждён;
+безопасный режим при отсутствии запроса подтверждён.
+```
+
+В коде эти условия могут называться, например:
 
 ```text
 source_commissioned == true
 source_write_enabled == true
-manual_source_grant == true or equivalent explicit live grant
+manual_source_grant == true
 arbiter_request_valid == true
 safe_limits_valid == true
 source_endpoint_confirmed == true
 safe_off_commissioned == true
 ```
 
-On startup/reload:
+При старте или перезапуске скрипта должны сбрасываться минимум эти разрешения:
 
 ```text
 source_write_enabled = false
@@ -162,188 +193,253 @@ manual_source_grant = false
 physical_write_grant = false
 ```
 
-A shadow source manager may calculate intended setpoint, but must keep `physical_write_grant=false` and must not write the source endpoint.
+Shadow-режим может считать предполагаемую уставку, но не должен писать её в котёл.
 
-## 9. Source states
+## 9. Состояния источника тепла
 
-Common source states:
+Общие состояния источника:
 
-| State | Meaning |
+| Состояние в коде | Русский смысл |
 |---|---|
-| `NOT_COMMISSIONED` | Source writer or safe-OFF contract is not commissioned. |
-| `SHADOW_NO_DEMAND` | Shadow calculation, no valid demand. |
-| `SHADOW_DEMAND` | Shadow calculation, valid demand exists, no physical write. |
-| `NO_DEMAND` | Live source writer is commissioned and no valid demand exists. |
-| `STARTING` | Demand exists, source command has been issued, waiting for source response. |
-| `WAIT_HOT_SOURCE` | Source setpoint/request exists, but measured source temperature is not yet sufficient. |
-| `ACTIVE` | Source is producing/available within expected limits. |
-| `SAFE_OFF` | Source is in commissioned no-demand/off state. |
-| `INTERLOCK` | Source command is blocked by external/system interlock. |
-| `SOURCE_FAULT` | Source failed to respond or reported a source fault. |
-| `UNKNOWN` | Required source data is missing/stale. |
+| `NOT_COMMISSIONED` | Писатель источника или безопасный режим ещё не введены в работу. |
+| `SHADOW_NO_DEMAND` | Только расчёт, валидного запроса тепла нет. |
+| `SHADOW_DEMAND` | Только расчёт, валидный запрос есть, физической записи нет. |
+| `NO_DEMAND` | Источник введён в работу, валидного запроса тепла нет. |
+| `STARTING` | Запрос есть, команда источнику выдана, ждём отклик. |
+| `WAIT_HOT_SOURCE` | Запрос есть, но источник ещё не набрал полезную температуру. |
+| `ACTIVE` | Источник работает или доступен в ожидаемых пределах. |
+| `SAFE_OFF` | Источник переведён в подтверждённый безопасный режим без запроса тепла. |
+| `INTERLOCK` | Работа источника заблокирована защитой или внешним условием. |
+| `SOURCE_FAULT` | Источник не дал отклик или сам сообщил аварию. |
+| `UNKNOWN` | Не хватает данных о состоянии источника. |
 
-## 10. Source response watchdog
+Эти английские значения допустимы в коде и MQTT, но в документации и интерфейсе рядом должен быть понятный русский смысл.
 
-The source response watchdog verifies that the configured source reacts to source requests.
+## 10. Контроль отклика источника тепла
 
-It must use object-specific source sensors and source status channels supplied by the object manager/config.
+Контроль отклика источника проверяет не сам факт записи уставки, а реакцию источника.
 
-It should check:
+Он должен проверять:
 
-- source setpoint/request was actually written or intentionally withheld;
-- source temperature becomes valid and moves toward the request;
-- source reaches minimum useful temperature within a configured window;
-- source fault / invalid connection / interlock channels remain clear;
-- safe-OFF/no-demand behavior is consistent with the commissioned policy.
+- была ли уставка реально записана или запись была специально запрещена;
+- есть ли валидная температура источника;
+- движется ли температура источника в сторону запроса;
+- достиг ли источник минимальной полезной температуры за заданное время;
+- нет ли аварии котла, потери связи, interlock-состояния или другой блокировки;
+- соответствует ли поведение источника выбранному безопасному режиму при отсутствии запроса.
 
-Failure handling:
+Если источник не реагирует, это не должно выглядеть как обычное «нет запроса». Это отдельная проблема источника.
 
-- source failure must not be represented as a normal no-demand state;
-- source fault should block new positive source writes until explicit recovery policy is met;
-- consumers should see that heat is unavailable rather than continuing to receive fake successful grants.
+При проблеме источника потребители должны видеть, что тепло недоступно. Система не должна продолжать выдавать видимость успешного отопления.
 
-## 11. Consumer thermal response watchdog
+## 11. Контроль теплового отклика контура
 
-The consumer thermal watchdog verifies heat transfer to the requested circuit.
+Контроль теплового отклика контура проверяет, дошло ли тепло до нужного контура.
 
-For mixed circuits it must distinguish at least:
-
-```text
-source temperature valid and hot enough
-pump command / pump readback
-valve enable / valve position command / valve readback where available
-actuator delay / path_ready
-supply temperature after mixer
-return temperature where available
-thermal trend over time
-```
-
-For direct circuits it must distinguish at least:
+Для смесительного контура нужно различать:
 
 ```text
-source temperature valid and hot enough
-pump command / pump readback
-actuator delay / path_ready if zone valves exist
-return or circuit temperature
-thermal trend over time
+источник достаточно горячий;
+насос получил команду;
+насос имеет readback, если он доступен;
+клапан включён;
+клапану задан процент открытия;
+прошла задержка открытия сервоприводов;
+подача после смесителя растёт;
+обратка контура растёт, если датчик обратки есть;
+температурный тренд подтверждён несколькими измерениями.
 ```
 
-A positive logical demand does not prove heat transfer. A running pump does not prove heat transfer. An open valve does not prove heat transfer. A hot source does not prove heat transfer to a specific circuit.
+Для прямого контура без смесительного клапана нужно различать:
 
-## 12. Thermal response policy
+```text
+источник достаточно горячий;
+насос получил команду;
+насос имеет readback, если он доступен;
+зональные приводы открыты или выдержана задержка открытия;
+обратка или другой датчик контура реагирует;
+температурный тренд подтверждён несколькими измерениями.
+```
 
-The watchdog must not permanent-latch on one borderline sample.
+Важное правило:
 
-Each object manager must configure:
+```text
+Запрос тепла не доказывает отопление.
+Включённый насос не доказывает проток.
+Открытый клапан не доказывает проток.
+Горячий источник не доказывает, что тепло дошло до конкретного контура.
+```
 
-| Parameter | Purpose |
+Доказательством является только измеренный тепловой отклик нужного контура в допустимое время и без превышения температурных пределов.
+
+## 12. Политика теплового отклика
+
+Контроль отклика не должен защёлкивать аварию по одному пограничному измерению.
+
+Для каждого объекта или контура нужно задавать параметры:
+
+| Параметр | Что задаёт |
 |---|---|
-| `response_window_s` | Main observation window. |
-| `response_grace_s` | Extra time near the boundary. |
-| `min_rise_c` | Required temperature rise. |
-| `min_samples` | Minimum confirming samples. |
-| `sample_interval_s` | Measurement cadence. |
-| `sensor_valid_ttl_s` | Sensor freshness limit. |
-| `source_hot_threshold_c` | Minimum useful source temperature. |
-| `max_supply_c` | Hard over-temperature limit for the circuit. |
-| `fault_latch_enabled` | Whether this object stage may latch or only report shadow fault. |
+| `response_window_s` | Основное время ожидания отклика. |
+| `response_grace_s` | Дополнительное время на пограничные случаи. |
+| `min_rise_c` | Минимальный рост температуры. |
+| `min_samples` | Минимальное количество подтверждающих измерений. |
+| `sample_interval_s` | Как часто снимаются измерения. |
+| `sensor_valid_ttl_s` | Сколько секунд показание датчика считается свежим. |
+| `source_hot_threshold_c` | Какая температура источника считается полезной. |
+| `max_supply_c` | Жёсткий верхний предел подачи контура. |
+| `fault_latch_enabled` | Можно ли на этом этапе защёлкивать аварию, или пока только предупреждать. |
 
-Recommended generic decision logic:
+Пример логики словами:
 
 ```text
-if no valid demand:
-    response monitor = IDLE
-else if source is not confirmed hot:
-    response monitor = WAIT_HOT_SOURCE
-else if path is not ready:
-    response monitor = WAIT_PATH_READY
-else if temperature rise >= min_rise_c on enough samples:
-    response monitor = RESPONSE_OK
-else if main window expired but grace remains:
-    response monitor = RESPONSE_GRACE
-else if main + grace expired and confirming failed samples exist:
-    response monitor = RESPONSE_TIMEOUT
+если валидного запроса нет:
+    контроль отклика в режиме ожидания;
+иначе если источник ещё не горячий:
+    ждём источник;
+иначе если путь теплоносителя ещё не готов:
+    ждём готовность пути;
+иначе если температура выросла достаточно и это подтверждено несколькими измерениями:
+    отклик подтверждён;
+иначе если основное время истекло, но ещё есть grace-период:
+    продолжаем наблюдать;
+иначе если основное время и grace-период истекли, а отклика нет:
+    фиксируем отсутствие теплового отклика.
 ```
 
-Only `RESPONSE_TIMEOUT` after the full configured window may latch a runtime fault.
+Только последний случай может становиться runtime-аварией контура.
 
-## 13. Consumer failure behavior
+## 13. Что делает контур при отсутствии теплового отклика
 
-When a commissioned consumer latches a thermal response fault, it must publish:
+Если уже введённый в работу контур не дал тепловой отклик, он должен перейти в безопасное состояние.
+
+Он должен публиковать примерно такой смысл:
 
 ```text
-state = FAULT or UNKNOWN
+контур в аварии или неизвестном состоянии;
+запрос невалиден;
+нагрев не запрашивается или запрос не допускается к выбору;
+требуемая температура источника сброшена;
+путь теплоносителя не готов;
+защёлкнутая авария включена;
+причина аварии понятна человеку.
+```
+
+В коде это может выглядеть так:
+
+```text
+state = FAULT или UNKNOWN
 valid = false
-heat_demand = false or request not eligible
-requested_source_temperature = 0 / NOT_READY
+heat_demand = false
+requested_source_temperature = 0 или NOT_READY
 path_ready = false
 fault_latched = true
-status/reason = clear fault reason
+status/reason = понятная причина
 ```
 
-The arbiter must reject it even if any other field accidentally remains active.
+Арбитр обязан отвергнуть такой контур даже в том случае, если из-за ошибки часть старых полей ещё выглядит активной.
 
-The consumer must safe-stop its own owned outputs according to object policy.
+Контур обязан безопасно выключить только те физические выходы, которыми он владеет.
 
-Other consumers must remain eligible if their own requests are valid.
+Другие исправные контуры не должны блокироваться из-за аварии одного контура.
 
-## 14. System status separation
+## 14. Разделение статусов системы
 
-HM2 must not overload one `DEGRADED` status for both planned commissioning debt and runtime faults.
+Один общий статус `DEGRADED` нельзя использовать сразу для двух разных смыслов:
 
-Minimum common status model:
+1. часть системы ещё не введена в работу;
+2. введённая в работу часть сломалась.
 
-| Status | Use |
+Минимальная общая модель статусов:
+
+| Состояние | Русский смысл |
 |---|---|
-| `READY` | Commissioned required subsystems are valid and no runtime fault exists. |
-| `NOT_COMMISSIONED` | Required subsystem is intentionally not commissioned. |
-| `DEGRADED_PLANNED` | System is partially usable with known commissioning debt. |
-| `DEGRADED_RUNTIME` | Runtime issue exists, but the system can still serve other valid consumers. |
-| `INTERLOCK` | Operation intentionally blocked by safety/interlock. |
-| `FAULT` | A fault requires action/reset before normal operation continues. |
+| `READY` | Введённые в работу подсистемы исправны, runtime-аварий нет. |
+| `NOT_COMMISSIONED` | Подсистема ещё сознательно не введена в работу. |
+| `DEGRADED_PLANNED` | Система частично готова, но есть известный долг пусконаладки. |
+| `DEGRADED_RUNTIME` | Есть runtime-проблема, но система ещё может обслуживать другие исправные контуры. |
+| `INTERLOCK` | Работа заблокирована защитой или внешним условием. |
+| `FAULT` | Есть авария, требующая действия или сброса. |
 
-Operator views should show runtime fault severity separately from not-commissioned items.
+Для оператора runtime-аварии должны быть видны отдельно от долгов пусконаладки.
 
-## 15. Commissioning runner constraints
+## 15. Ограничения commissioning runner
 
-An object-specific commissioning runner may interact with HM2 only through approved controls and scenarios.
+Commissioning runner — это тестовый сценарный скрипт для ввода в работу. Он может помогать проверять систему, но не должен обходить рабочую архитектуру.
 
-It must:
+Он обязан:
 
-- reject arbitrary command execution;
-- whitelist scenarios;
-- run one physical scenario at a time;
-- require explicit physical/live confirmation for any positive source or pump command;
-- install a stop-all trap on error, timeout and interruption;
-- log source, consumer, arbiter and physical readbacks;
-- treat PASS as scenario-local, not as full production commissioning.
+- принимать только заранее разрешённые сценарии;
+- не выполнять произвольные команды;
+- запускать только один физический сценарий за раз;
+- требовать явное подтверждение для любых действий, которые могут реально включить источник, насос или клапан;
+- иметь аварийный stop-all при ошибке, таймауте или ручном прерывании;
+- записывать журнал: источник, потребитель, арбитр, команды, readback, температуры;
+- считать PASS только результатом конкретного сценария, а не полной сдачей всей котельной.
 
-It must not bypass source writer gates or write the source endpoint directly.
+Он не имеет права напрямую писать уставку источника. Любая физическая запись в источник должна идти через писателя источника и его разрешающие флаги.
 
-## 16. Minimal acceptance checklist for object implementations
+## 16. Минимальный чек-лист для внедрения на объекте
 
-Before a source writer or physical runner is accepted on an object:
+Перед тем как принимать писателя источника или физический runner на конкретном объекте, нужно подтвердить:
 
-- source endpoint is confirmed;
-- source safe-OFF behavior is confirmed;
-- exactly one source writer exists;
-- startup/reload resets gates;
-- arbiter rejects stale/fault-latched/path-not-ready consumers;
-- consumer managers publish request timestamp and TTL;
-- consumer thermal response watchdog has grace and confirming samples;
-- over-temperature limits are object-specific and explicit;
-- failed consumer does not block healthy consumers;
-- documentation states whether live tests were actually performed.
+- точный физический endpoint источника;
+- безопасное поведение источника при отсутствии запроса тепла;
+- что существует только один писатель источника;
+- что перезапуск сбрасывает разрешения на физическую запись;
+- что арбитр отвергает устаревшие запросы, аварийные контуры и неготовые пути;
+- что менеджеры контуров публикуют timestamp и TTL запроса;
+- что контроль теплового отклика имеет grace-период и несколько подтверждающих измерений;
+- что температурные пределы заданы именно для этого объекта;
+- что отказ одного контура не блокирует исправные контуры;
+- что документация честно пишет, какие live-тесты реально выполнялись.
 
-## 17. Non-goals
+## 17. Что этот документ не определяет
 
-This document does not define:
+Этот документ не задаёт:
 
-- object physical channels;
-- object setpoints;
-- object sensor names;
-- object valve direction;
-- boiler-specific safe-OFF value;
-- production enable procedure for any particular object.
+- физические каналы объекта;
+- уставки конкретного объекта;
+- имена датчиков объекта;
+- направление работы клапана;
+- конкретную безопасную уставку котла;
+- процедуру включения production-режима на конкретном объекте.
 
-Those belong to the object issue and object documentation.
+Эти решения должны находиться в объектной задаче и объектной документации.
+
+## 18. Словарь для русскоязычной документации
+
+В документах, которые вычитывает человек, использовать русские термины. Английские имена оставлять только там, где это точные имена в коде, MQTT или shell-командах.
+
+| В коде / GitHub | В тексте писать так |
+|---|---|
+| `source writer` | писатель источника / единственный писатель источника |
+| `source manager` | менеджер источника |
+| `watchdog` | контроль отклика / сторожевой контроль |
+| `consumer` | потребитель тепла / контур |
+| `arbiter` | арбитр запросов |
+| `request` | запрос тепла |
+| `demand` | потребность в тепле / запрос нагрева |
+| `path_ready` | путь теплоносителя готов |
+| `thermal response` | тепловой отклик |
+| `fault_latched` | защёлкнутая авария |
+| `commissioned` | введено в работу / подтверждено при пусконаладке |
+| `gate` | разрешающий флаг / разрешение |
+| `safe-off` | безопасный режим без запроса тепла |
+| `readback` | обратная связь / подтверждение состояния |
+| `runtime fault` | авария во время работы |
+| `commissioning debt` | долг пусконаладки |
+
+Пример допустимой формулировки:
+
+```text
+Арбитр запросов обязан отвергнуть потребителя тепла, если у него `fault_latched=true`.
+```
+
+Пример нежелательной формулировки:
+
+```text
+Arbiter rejects fault_latched consumer.
+```
+
+Техническая точность сохраняется за счёт точных имён полей в обратных кавычках, а смысл должен быть объяснён по-русски.
