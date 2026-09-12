@@ -22,8 +22,8 @@ var CH = {
     modulation: OT + '/Burner Modulation Level'
 };
 
-// Объектные пределы Иволги. Уставки от потребителей уже ограничены в 501/502/503,
-// здесь стоит последний общий ограничитель источника.
+// Первичные осторожные пределы для Иволги.
+// При пусконаладке их можно изменить после наблюдения фактической работы котла и контуров.
 var CFG = {
     minSetpointC: 30,
     maxSetpointC: 60,
@@ -52,7 +52,7 @@ cell('physical_write_grant', 'switch', false, true, 'Физическая зап
 cell('last_update_ts', 'text', '', true, 'Последнее обновление');
 cell('status', 'text', 'STARTUP; запись запрещена', true, 'Статус');
 
-// Новые поля #40.
+// Разрешения и настройки физической записи.
 cell('source_commissioned', 'switch', false, false, 'Источник введён в работу');
 cell('source_write_enabled', 'switch', false, false, 'Разрешить запись источника');
 cell('manual_source_grant', 'switch', false, false, 'Ручное live-разрешение');
@@ -61,11 +61,13 @@ cell('safe_off_commissioned', 'switch', false, false, 'Safe-off подтверж
 cell('safe_off_setpoint_c', 'value', 0, false, 'Safe-off уставка');
 cell('reset_fault', 'pushbutton', false, false, 'Сброс аварии источника');
 
+// Диагностика уставки.
 cell('requested_heating_setpoint', 'value', 0, true, 'Запрошенная уставка');
 cell('limited_heating_setpoint', 'value', 0, true, 'Ограниченная уставка');
 cell('written_heating_setpoint', 'value', 0, true, 'Последняя записанная уставка');
 cell('last_written_ts', 'text', '', true, 'Последняя запись');
 
+// Диагностика источника.
 cell('source_temperature_c', 'value', 0, true, 'Температура источника 411');
 cell('source_response_status', 'text', 'IDLE', true, 'Контроль отклика источника');
 cell('source_response_elapsed_s', 'value', 0, true, 'Ожидание отклика, с');
@@ -205,7 +207,7 @@ function gates() {
     };
 }
 
-function writeAllowed(now, gate, arbiter, boiler) {
+function writeAllowed(gate, arbiter, boiler) {
     if (!gate.commissioned) return { allowed: false, reason: 'SOURCE_NOT_COMMISSIONED' };
     if (!gate.writeEnabled) return { allowed: false, reason: 'SOURCE_WRITE_DISABLED' };
     if (!gate.manualGrant) return { allowed: false, reason: 'NO_MANUAL_SOURCE_GRANT' };
@@ -221,19 +223,26 @@ function writeAllowed(now, gate, arbiter, boiler) {
 }
 
 function writeSetpoint(value, now, force) {
-    var shouldWrite = force;
-    if (lastWrittenValue === null) shouldWrite = true;
-    if (Math.abs(Number(value) - Number(lastWrittenValue)) >= CFG.writeHysteresisC) shouldWrite = true;
-    if ((now - lastWriteMs) / 1000 >= CFG.writeMinIntervalS) shouldWrite = true;
+    var numericValue = Number(value);
+    var elapsedS = (now - lastWriteMs) / 1000;
+    var delta = lastWrittenValue === null ? null : Math.abs(numericValue - Number(lastWrittenValue));
 
-    if (!shouldWrite) return false;
+    if (!isFinite(numericValue)) return false;
 
-    dev[CH.heatingSetpoint] = value;
-    lastWrittenValue = value;
+    if (force || lastWrittenValue === null) {
+        // первая запись или принудительная запись допускается сразу
+    } else if (delta < CFG.writeHysteresisC) {
+        return false;
+    } else if (elapsedS < CFG.writeMinIntervalS) {
+        return false;
+    }
+
+    dev[CH.heatingSetpoint] = numericValue;
+    lastWrittenValue = numericValue;
     lastWriteMs = now;
-    sc('written_heating_setpoint', value);
+    sc('written_heating_setpoint', numericValue);
     sc('last_written_ts', new Date(now).toISOString());
-    log('[HM2 Иволга/HM2_source_manager] записана уставка источника: ' + value + ' C');
+    log('[HM2 Иволга/HM2_source_manager] записана уставка источника: ' + numericValue + ' C');
     return true;
 }
 
@@ -245,7 +254,7 @@ function updateResponse(now, arbiter, boiler, gate) {
         demandStartMs = null;
         sc('source_response_elapsed_s', 0);
         sc('source_response_status', arbiter.noDemand ? 'IDLE' : 'WAIT_VALID_ARBITER');
-        return;
+        return 'IDLE';
     }
 
     if (demandStartMs === null) demandStartMs = now;
@@ -276,6 +285,7 @@ function updateResponse(now, arbiter, boiler, gate) {
 
     sc('source_response_elapsed_s', Math.round(elapsed));
     sc('source_response_status', status);
+    return status;
 }
 
 function evaluate() {
@@ -295,7 +305,8 @@ function evaluate() {
 
     var requested = arbiter.valid ? arbiter.requested : 0;
     var limited = arbiter.valid ? clamp(requested, CFG.minSetpointC, CFG.maxSetpointC) : 0;
-    var allowed = writeAllowed(now, gate, arbiter, boiler);
+    var allowed = writeAllowed(gate, arbiter, boiler);
+    var responseStatus = updateResponse(now, arbiter, boiler, gate);
     var sourceState = 'NOT_COMMISSIONED';
     var state = 'INACTIVE';
     var status = '';
@@ -305,8 +316,6 @@ function evaluate() {
         faultLatched = true;
         faultReason = 'SOURCE_HARD_MAX';
     }
-
-    updateResponse(now, arbiter, boiler, gate);
 
     if (!gate.commissioned) {
         sourceState = 'NOT_COMMISSIONED';
@@ -337,9 +346,13 @@ function evaluate() {
         sourceState = 'UNKNOWN';
         status = 'Нет валидной температуры источника';
         interlock = true;
-    } else if (boiler.sourceTemp < CFG.sourceHotThresholdC && boiler.sourceTemp < limited - 5) {
+    } else if (responseStatus === 'WAIT_HOT_SOURCE') {
         sourceState = 'WAIT_HOT_SOURCE';
         status = 'Уставка разрешена, источник ещё не горячий';
+    } else if (responseStatus === 'SOURCE_RESPONSE_TIMEOUT') {
+        sourceState = 'SOURCE_FAULT';
+        status = 'Источник не дал тепловой отклик за заданное время';
+        interlock = true;
     } else {
         sourceState = 'ACTIVE';
         status = 'Источник доступен';
