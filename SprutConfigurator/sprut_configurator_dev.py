@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Sprut Configurator v0.3.0-dev — Issue #22.
+"""Sprut Configurator v0.3.1-dev — Issue #22.
 
 Development overlay on the frozen v0.2.2 reference.
 
@@ -12,12 +12,17 @@ Field-confirmed on real Sprut WebUI:
 - Yandex bridge enable/create
 - Yandex bridge disable/delete
 
-All three presentation policies now participate in:
+v0.3.1-dev additionally supports an optional Service `match_name` selector for
+the case when one Accessory contains several Services with the same type.
+Matching remains fail-closed and never stores runtime sId in YAML.
+
+All presentation policies participate in:
 DISCOVER -> diff -> DRY RUN -> APPLY -> fresh DISCOVER -> VERIFY.
 """
 
 from __future__ import annotations
 
+from copy import deepcopy
 import importlib.util
 import sys
 from pathlib import Path
@@ -51,7 +56,7 @@ base = importlib.util.module_from_spec(_spec)
 sys.modules[_spec.name] = base
 _spec.loader.exec_module(base)
 
-base.APP_VERSION = "0.3.0-dev"
+base.APP_VERSION = "0.3.1-dev"
 
 _original_validate_plan_structure = base.validate_plan_structure
 _original_make_dry_run = base.make_dry_run
@@ -60,8 +65,95 @@ _original_client_discover = base.SprutClient.discover
 
 
 def _as_v1(plan: dict[str, Any]) -> dict[str, Any]:
-    clone = dict(plan)
+    clone = deepcopy(plan)
     clone["format_version"] = 1
+    return clone
+
+
+def _selector_type(service_type: str, match_name: str) -> str:
+    """Synthetic type used only inside the frozen v0.2.2 matching engine."""
+    return f"{service_type}@@match_name={match_name}"
+
+
+def _selector_plan_for_base(plan: dict[str, Any]) -> dict[str, Any]:
+    """Create a v1-compatible view where selected duplicate Services are unique.
+
+    `match_name` never reaches Sprut. It is translated to a synthetic Service
+    type only for the frozen v0.2.2 structural/diff engine.
+    """
+    clone = _as_v1(plan)
+    for accessory in clone.get("accessories", []):
+        if not isinstance(accessory, dict):
+            continue
+        services = accessory.get("services", [])
+        if not isinstance(services, list):
+            continue
+        for service in services:
+            if not isinstance(service, dict):
+                continue
+            service_type = service.get("type")
+            match_name = service.get("match_name")
+            if (
+                isinstance(service_type, str)
+                and service_type
+                and isinstance(match_name, str)
+                and match_name
+            ):
+                service["type"] = _selector_type(service_type, match_name)
+    return clone
+
+
+def _selector_discover_for_base(
+    plan: dict[str, Any],
+    discover: dict[str, Any],
+) -> dict[str, Any]:
+    """Mirror `match_name` selectors into a DISCOVER copy for legacy matching."""
+    clone = deepcopy(discover)
+    accessories = clone.get("accessories", [])
+    if not isinstance(accessories, list):
+        return clone
+
+    by_serial: dict[str, list[dict[str, Any]]] = {}
+    for accessory in accessories:
+        if isinstance(accessory, dict):
+            by_serial.setdefault(str(accessory.get("serial", "")), []).append(accessory)
+
+    for target in plan.get("accessories", []):
+        if not isinstance(target, dict):
+            continue
+        serial = target.get("serial")
+        if not isinstance(serial, str) or not serial:
+            continue
+
+        for service_target in target.get("services", []):
+            if not isinstance(service_target, dict):
+                continue
+            service_type = service_target.get("type")
+            match_name = service_target.get("match_name")
+            if not (
+                isinstance(service_type, str)
+                and service_type
+                and isinstance(match_name, str)
+                and match_name
+            ):
+                continue
+
+            synthetic = _selector_type(service_type, match_name)
+            for accessory in by_serial.get(serial, []):
+                services = accessory.get("services", [])
+                if not isinstance(services, list):
+                    continue
+                for service in services:
+                    if not isinstance(service, dict):
+                        continue
+                    if (
+                        not bool(service.get("system"))
+                        and service.get("type") != "AccessoryInformation"
+                        and service.get("type") == service_type
+                        and str(service.get("name", "")) == match_name
+                    ):
+                        service["type"] = synthetic
+
     return clone
 
 
@@ -69,7 +161,8 @@ def validate_plan_structure_v2(plan: Any) -> list[str]:
     if not isinstance(plan, dict):
         return _original_validate_plan_structure(plan)
 
-    errors = _original_validate_plan_structure(_as_v1(plan))
+    base_view = _selector_plan_for_base(plan)
+    errors = _original_validate_plan_structure(base_view)
     errors.extend(validate_presentation_plan(plan))
     return errors
 
@@ -147,7 +240,10 @@ def _alice_state_getter_from_discover(discover: dict[str, Any]):
 
 def make_dry_run_v2(plan: dict[str, Any], discover: dict[str, Any]):
     structural_errors = validate_plan_structure_v2(plan)
-    base_dry = _original_make_dry_run(_as_v1(plan), discover)
+
+    base_plan = _selector_plan_for_base(plan)
+    base_discover = _selector_discover_for_base(plan, discover)
+    base_dry = _original_make_dry_run(base_plan, base_discover)
 
     presentation = make_presentation_diff(
         plan,
@@ -155,7 +251,7 @@ def make_dry_run_v2(plan: dict[str, Any], discover: dict[str, Any]):
         alice_state_getter=_alice_state_getter_from_discover(discover),
     )
 
-    base_structure = set(_original_validate_plan_structure(_as_v1(plan)))
+    base_structure = set(_original_validate_plan_structure(base_plan))
     runtime_base_errors = [
         e for e in base_dry.errors if e not in base_structure
     ]
