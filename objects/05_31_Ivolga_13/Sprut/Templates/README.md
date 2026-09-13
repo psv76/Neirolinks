@@ -43,7 +43,8 @@ WB-M1W2_W2_GERCON.json
 05_31_Ivolga_Kotel_Heating_503.json
 05_31_Ivolga_Kotel_Heating_504.json
 05_31_Ivolga_Kotel_Heating_505.json
-05_31_Ivolga_Kotel_Boiler_ReadOnly.json
+05_31_Ivolga_Kotel_Gas_Boiler_ReadOnly.json
+05_31_Ivolga_Kotel_Heating_Pressure.json
 05_31_Ivolga_Kotel_Electricity_A01.json
 ```
 
@@ -52,9 +53,12 @@ WB-M1W2_W2_GERCON.json
 - `05_31_Ivolga_Kotel_A07_Leaks.json` — только `A07/Input F1` и `A07/Input F2`, каждый как отдельный `LeakSensor`.
 - `05_31_Ivolga_Kotel_House_Leaks.json` — whitelist только пяти требуемых домовых датчиков протечки из актуальной физической карты.
 - `05_31_Ivolga_Kotel_Heating_501/502/504.json` — read-only `FanBasic`: `On` читает насос `A03`, `RotationSpeed` читает фактическое положение подмеса `A05`; `topicSet` отсутствует.
-- `05_31_Ivolga_Kotel_Heating_503/505.json` — read-only `FanBasic` насоса плюс read-only `TemperatureSensor` общей подачи 411; `topicSet` отсутствует.
-- `05_31_Ivolga_Kotel_Boiler_ReadOnly.json` — отдельный read-only монитор котла, создаваемый от `905.3/input_1_value`: читает OpenTherm, уставку без возможности записи и физическое давление 421 с presentation step 0.1 бар.
+- `05_31_Ivolga_Kotel_Heating_503/505.json` — read-only насосные мониторы без write-path.
+- `05_31_Ivolga_Kotel_Gas_Boiler_ReadOnly.json` — отдельный read-only Accessory `Газовый котёл`, читающий OpenTherm (`Heating Temperature`, flame state, CH mode, Heating Setpoint`) без `topicSet` и без возможности записи уставки из Sprut.
+- `05_31_Ivolga_Kotel_Heating_Pressure.json` — отдельный Accessory `Давление отопления` от физического аналогового канала `905.3/input_1_value`; `input_1_current` остаётся техническим raw-каналом и в UI не выводится.
 - `05_31_Ivolga_Kotel_Electricity_A01.json` — минимальный read-only электромониторинг: `Total P` и напряжения L1/L2/L3.
+
+Старый `05_31_Ivolga_Kotel_Boiler_ReadOnly.json`, объединявший котёл и давление в одном Accessory, удалён из deploy set 13.09.2026 как ошибочная архитектура. Газовый котёл и физический датчик давления являются независимыми сущностями.
 
 ## Текущий статус использования
 
@@ -75,7 +79,7 @@ WB-M1W2_W2_GERCON.json
 
 Особенно нельзя автоматически устанавливать в котельную весь набор `WB-MSW4_*`, `WB-M1W2_*`, `NL_simple_thermostat` и широкий `05_31_Ivolga_Relay_Lightbulb.json`: они могут создать ненужные пользовательские сущности Дома на общем MQTT-брокере.
 
-Для наружного света используется matcher только `A06`; для воды — отдельный template только для `A07/Output K1`; протечки имеют отдельный whitelist. Насосы и подмесы котельных контуров в Sprut представлены только read-only и не получают `topicSet`.
+Для наружного света используется matcher только `A06`; для воды — отдельный template только для `A07/Output K1`; протечки имеют отдельный whitelist. Насосы, подмесы и газовый котёл в пользовательском Sprut-представлении не получают write-path. Физическое давление отопления публикуется отдельной сущностью от `905.3/input_1_value`.
 
 ## Общая библиотека
 
@@ -84,5 +88,7 @@ WB-M1W2_W2_GERCON.json
 ```text
 Templates/Sprut/Heating/NL_simple_thermostat.json
 ```
+
+После полевой проверки `05_31_Ivolga_Kotel_Heating_Pressure.json` его сервисный контракт (`C_Option` + read-only `C_Double` + `statusVisible`) следует вынести в общий reusable pressure-template; MQTT matcher останется объектовым/профильным в зависимости от источника сигнала.
 
 Профильные MSW/M1W2 exports пока сохраняются прежде всего как подтверждённый объектовый deploy/archive set. Решение о переносе их копий в общую reusable-библиотеку принимается отдельно, после проверки контрактов на других объектах.
