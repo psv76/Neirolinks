@@ -1,0 +1,83 @@
+# 05 31 Иволга 13 — Котельная
+# Второй инкремент: наружное освещение + виртуальный мастер улицы + ввод воды.
+# Source DISCOVER: Ivolga_kotel_sprut_5.json, 2026-09-13 17:22:27.
+# Требуемые custom templates:
+# - 05_31_Ivolga_Kotel_Outdoor_Lightbulb.json
+# - 05_31_Ivolga_Kotel_Main_Water_Valve.json
+# Виртуальный Accessory serial 661 создаётся вручную в Sprut и затем приводится к desired-state этим YAML.
+
+format_version: 2
+object: 05 31 Иволга 13 — Котельная
+accessories:
+- serial: A06/K1
+  name: Навес
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Навес
+    visible: true
+    bridge:
+      alice: true
+- serial: A06/K2
+  name: Подсветка забора
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Подсветка забора
+    visible: true
+    bridge:
+      alice: true
+- serial: A06/K3
+  name: Дорожки
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Дорожки
+    visible: true
+    bridge:
+      alice: true
+- serial: A06/K4
+  name: Двор
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Двор
+    visible: true
+    bridge:
+      alice: true
+- serial: A06/K5
+  name: Фасады
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Фасады
+    visible: true
+    bridge:
+      alice: true
+- serial: A06/K6
+  name: Гирлянды
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Гирлянды
+    visible: true
+    bridge:
+      alice: true
+- serial: "661"
+  name: Улица
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Улица
+    visible: true
+    bridge:
+      alice: true
+- serial: A07
+  name: Ввод воды
+  room: Вода
+  services:
+  - type: Valve
+    name: Ввод воды
+    visible: true
+    bridge:
+      alice: false
