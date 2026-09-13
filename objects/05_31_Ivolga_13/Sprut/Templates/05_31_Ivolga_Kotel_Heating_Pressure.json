@@ -11,6 +11,7 @@
       "type": "C_Option",
       "characteristics": [
         {
+          "name": "Давление",
           "type": "C_Double",
           "write": false,
           "minStep": 0.1,
