@@ -53,6 +53,7 @@ accessories:
 
     services:
       - type: "<Sprut Service type>"
+        match_name: "<optional exact current Service name selector>"
         name: "<Service display name>"
         visible: true | false
 
@@ -62,6 +63,8 @@ accessories:
         bridge:
           alice: true | false
 ```
+
+`match_name` is optional. It is needed only when one Accessory contains several non-system Services with the same `type`.
 
 ## 4. Why `bridge` is inside Service
 
@@ -111,11 +114,37 @@ Accessory:
 serial
 ```
 
-Service:
+Service by default:
 
 ```text
 type inside the matched Accessory
 ```
+
+If that gives exactly one non-system Service, matching is complete.
+
+When several Services inside one Accessory have the same type, format v2 may use the optional exact selector:
+
+```yaml
+- type: C_VoltMeter
+  match_name: Напряжение L2
+  name: Напряжение L2
+```
+
+Then matching is:
+
+```text
+type + exact current Service.name
+```
+
+The selector exists specifically to avoid persisting runtime `sId` in YAML. If `type + match_name` finds zero or more than one Service, DRY RUN returns `ERROR`; no fallback to an arbitrary Service is allowed.
+
+Initial v0.3.1 implementation deliberately requires:
+
+```text
+match_name == name
+```
+
+Thus a duplicate-type Service can be selected safely, but it cannot simultaneously be renamed in the same pass. This keeps fresh DISCOVER → VERIFY stable after APPLY. A future contract may introduce a separate immutable Service identity if Sprut exposes one.
 
 Characteristic for status policy:
 
@@ -189,6 +218,9 @@ Format v2 validates at least:
 
 - `format_version == 2`;
 - all proven v1 structural/name rules;
+- optional `match_name` is a non-empty string;
+- in v0.3.1 `match_name == name`;
+- duplicate Service types are accepted only when the selector makes each requested Service unambiguous;
 - `visible` is boolean;
 - every status value is boolean;
 - status key is a non-empty Characteristic type string;
