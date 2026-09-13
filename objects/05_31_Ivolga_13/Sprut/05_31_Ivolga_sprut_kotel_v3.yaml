@@ -1,0 +1,781 @@
+# 05 31 Иволга 13 — Котельная
+# Финальный desired-state проход по DISCOVER Ivolga_kotel_sprut_8.json (2026-09-13 21:03:15).
+# Требует Sprut Configurator v0.3.1+ с services[].match_name.
+# Перед DRY RUN:
+# 1) заменить 05_31_Ivolga_Kotel_House_Leaks.json на commit 26aea4fa...;
+# 2) Reload templates -> MQTT Search devices;
+# 3) должны появиться serial:
+#    - 903.02_M1W2_LEAK_TEMP/Input 1
+#    - 903.06_TEMP_NONE/Input 1
+#
+# Safety:
+# - насосы/подмесы только read-only templates, YAML не создаёт физический write path;
+# - Alice=true только у наружного света A06/K1..K6 и виртуальной лампочки 661;
+# - все инженерные/технические Services, включая насосы, котёл, воду и электричество, Alice=false;
+# - штатный writable WBE2-I-OPENTHERM скрывается и исключается из Alice;
+# - ложная stale-плитка A03/K5 «Подача = 0 °C» скрывается, а не используется.
+
+format_version: 2
+object: 05 31 Иволга 13 — Котельная
+accessories:
+- serial: A06/K1
+  name: Навес
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Навес
+    visible: true
+    status:
+      'On': true
+    bridge:
+      alice: true
+- serial: A06/K2
+  name: Подсветка забора
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Подсветка забора
+    visible: true
+    status:
+      'On': true
+    bridge:
+      alice: true
+- serial: A06/K3
+  name: Дорожки
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Дорожки
+    visible: true
+    status:
+      'On': true
+    bridge:
+      alice: true
+- serial: A06/K4
+  name: Двор
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Двор
+    visible: true
+    status:
+      'On': true
+    bridge:
+      alice: true
+- serial: A06/K5
+  name: Фасады
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Фасады
+    visible: true
+    status:
+      'On': true
+    bridge:
+      alice: true
+- serial: A06/K6
+  name: Гирлянды
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Гирлянды
+    visible: true
+    status:
+      'On': true
+    bridge:
+      alice: true
+- serial: '661'
+  name: Улица
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Улица
+    visible: true
+    status:
+      'On': true
+    bridge:
+      alice: true
+- serial: A07
+  name: Ввод воды
+  room: Вода
+  services:
+  - type: Valve
+    name: Ввод воды
+    visible: true
+    status:
+      Active: true
+    bridge:
+      alice: false
+- serial: A07/Input F1
+  name: Протечка котельная
+  room: Вода
+  services:
+  - type: LeakSensor
+    name: Протечка котельная
+    visible: true
+    status:
+      LeakDetected: true
+    bridge:
+      alice: false
+- serial: A07/Input F2
+  name: Протечка санузел хозблок
+  room: Вода
+  services:
+  - type: LeakSensor
+    name: Протечка санузел хозблок
+    visible: true
+    status:
+      LeakDetected: true
+    bridge:
+      alice: false
+- serial: 903.02_M1W2_LEAK_TEMP/Input 1
+  name: Протечка кухня
+  room: Вода
+  services:
+  - type: LeakSensor
+    name: Протечка кухня
+    visible: true
+    status:
+      LeakDetected: true
+    bridge:
+      alice: false
+- serial: 903.06_TEMP_NONE/Input 1
+  name: Протечка мастер санузел
+  room: Вода
+  services:
+  - type: LeakSensor
+    name: Протечка мастер санузел
+    visible: true
+    status:
+      LeakDetected: true
+    bridge:
+      alice: false
+- serial: 902.15_M1W2_LEAK_NONE/Input 1
+  name: Протечка постирочная
+  room: Вода
+  services:
+  - type: LeakSensor
+    name: Протечка постирочная
+    visible: true
+    status:
+      LeakDetected: true
+    bridge:
+      alice: false
+- serial: 902.13_M1W2_LEAK_TEMP/Input 1
+  name: Протечка ванная
+  room: Вода
+  services:
+  - type: LeakSensor
+    name: Протечка ванная
+    visible: true
+    status:
+      LeakDetected: true
+    bridge:
+      alice: false
+- serial: 902.04_M1W2_LEAK_TEMP/Input 1
+  name: Протечка санузел прихожей
+  room: Вода
+  services:
+  - type: LeakSensor
+    name: Протечка санузел прихожей
+    visible: true
+    status:
+      LeakDetected: true
+    bridge:
+      alice: false
+- serial: A01
+  name: Электросеть
+  room: Электричество
+  services:
+  - type: C_WattMeter
+    name: Мощность
+    visible: true
+    status:
+      C_Watt: true
+    bridge:
+      alice: false
+  - type: C_VoltMeter
+    match_name: Напряжение L1
+    name: Напряжение L1
+    visible: true
+    status:
+      C_Volt: true
+    bridge:
+      alice: false
+  - type: C_VoltMeter
+    match_name: Напряжение L2
+    name: Напряжение L2
+    visible: true
+    status:
+      C_Volt: true
+    bridge:
+      alice: false
+  - type: C_VoltMeter
+    match_name: Напряжение L3
+    name: Напряжение L3
+    visible: true
+    status:
+      C_Volt: true
+    bridge:
+      alice: false
+- serial: A03/K1
+  name: ТП дом паркет
+  room: Контур Дом паркет
+  services:
+  - type: FanBasic
+    name: Насос подмес
+    visible: true
+    status:
+      'On': true
+      RotationSpeed: true
+    bridge:
+      alice: false
+- serial: A03/K2
+  name: ГП дом плитка
+  room: Контур Дом плитка
+  services:
+  - type: FanBasic
+    name: Насос подмес
+    visible: true
+    status:
+      'On': true
+      RotationSpeed: true
+    bridge:
+      alice: false
+- serial: A03/K3
+  name: Радиаторы дом
+  room: Контур Дом радиаторы
+  services:
+  - type: FanBasic
+    name: Насос
+    visible: true
+    status:
+      'On': true
+    bridge:
+      alice: false
+- serial: A03/K4
+  name: ГП беседка
+  room: Контур Беседка тёплый пол
+  services:
+  - type: FanBasic
+    name: Насос подмес
+    visible: true
+    status:
+      'On': true
+      RotationSpeed: true
+    bridge:
+      alice: false
+- serial: A03/K5
+  name: Радиаторы хозблок
+  room: Контур Хоз блок радиаторы
+  services:
+  - type: FanBasic
+    name: Насос
+    visible: true
+    status:
+      'On': true
+    bridge:
+      alice: false
+  - type: TemperatureSensor
+    name: Подача
+    visible: false
+    status:
+      CurrentTemperature: false
+    bridge:
+      alice: false
+- serial: wb-m1w2_141/1
+  name: Подача
+  room: Контур Дом паркет
+  services:
+  - type: TemperatureSensor
+    name: Подача
+    visible: true
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+- serial: wb-m1w2_141/2
+  name: Обратка
+  room: Контур Дом паркет
+  services:
+  - type: TemperatureSensor
+    name: Обратка
+    visible: true
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+- serial: wb-m1w2_167/1
+  name: Подача
+  room: Контур Дом плитка
+  services:
+  - type: TemperatureSensor
+    name: Подача
+    visible: true
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+- serial: wb-m1w2_167/2
+  name: Обратка
+  room: Контур Дом плитка
+  services:
+  - type: TemperatureSensor
+    name: Обратка
+    visible: true
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+- serial: wb-m1w2_121/1
+  name: Обратка
+  room: Контур Дом радиаторы
+  services:
+  - type: TemperatureSensor
+    name: Обратка
+    visible: true
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+- serial: wb-m1w2_173/1
+  name: Подача
+  room: Контур Беседка тёплый пол
+  services:
+  - type: TemperatureSensor
+    name: Подача
+    visible: true
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+- serial: wb-m1w2_173/2
+  name: Обратка
+  room: Контур Беседка тёплый пол
+  services:
+  - type: TemperatureSensor
+    name: Обратка
+    visible: true
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+- serial: wb-m1w2_166/1
+  name: Обратка
+  room: Контур Хоз блок радиаторы
+  services:
+  - type: TemperatureSensor
+    name: Обратка
+    visible: true
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+- serial: wb-m1w2_170/1
+  name: Подача
+  room: Котёл
+  services:
+  - type: TemperatureSensor
+    name: Подача
+    visible: true
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+- serial: wb-m1w2_170/2
+  name: Обратка
+  room: Котёл
+  services:
+  - type: TemperatureSensor
+    name: Обратка
+    visible: true
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+- serial: '905.3'
+  name: Котёл
+  room: Котёл
+  services:
+  - type: Thermostat
+    name: OpenTherm
+    visible: true
+    status:
+      CurrentHeatingCoolingState: true
+      CurrentTemperature: true
+      TargetHeatingCoolingState: false
+      TargetTemperature: true
+    bridge:
+      alice: false
+  - type: C_Option
+    name: Давление бар
+    visible: true
+    status:
+      C_Double: true
+    bridge:
+      alice: false
+- serial: wb-gpio/A1_IN
+  name: Датчик касания
+  room: Новая комната
+  services:
+  - type: ContactSensor
+    name: Датчик касания
+    visible: false
+    bridge:
+      alice: false
+- serial: '1'
+  name: Сигнализация
+  room: Новая комната
+  services:
+  - type: SecuritySystem
+    name: Сигнализация
+    visible: false
+    bridge:
+      alice: false
+- serial: buzzer
+  name: Сирена
+  room: Новая комната
+  services:
+  - type: Switch
+    name: Сирена
+    visible: false
+    bridge:
+      alice: false
+- serial: power_status
+  name: Аккумулятор
+  room: Новая комната
+  services:
+  - type: ContactSensor
+    name: Аккумулятор
+    visible: false
+    bridge:
+      alice: false
+- serial: hwmon
+  name: Датчик температуры
+  room: Новая комната
+  services:
+  - type: TemperatureSensor
+    match_name: Плата
+    name: Плата
+    visible: false
+    bridge:
+      alice: false
+  - type: TemperatureSensor
+    match_name: Процессор
+    name: Процессор
+    visible: false
+    bridge:
+      alice: false
+- serial: system
+  name: Перезагрузка WirenBoard
+  room: Новая комната
+  services:
+  - type: Switch
+    name: Перезагрузка WirenBoard
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-gpio/EXT1_IN8
+  name: Напряжение
+  room: Новая комната
+  services:
+  - type: ContactSensor
+    name: Напряжение
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-gpio/EXT1_IN6
+  name: Напряжение
+  room: Новая комната
+  services:
+  - type: ContactSensor
+    name: Напряжение
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-gpio/A4_IN
+  name: Датчик касания
+  room: Новая комната
+  services:
+  - type: ContactSensor
+    name: Датчик касания
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-gpio/EXT1_IN7
+  name: Напряжение
+  room: Новая комната
+  services:
+  - type: ContactSensor
+    name: Напряжение
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-gpio/A2_IN
+  name: Датчик касания
+  room: Новая комната
+  services:
+  - type: ContactSensor
+    name: Датчик касания
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-mr6c_93/2
+  name: Канал реле и дискретный вход
+  room: Новая комната
+  services:
+  - type: Switch
+    name: Реле
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-gpio/A3_OUT
+  name: Выключатель
+  room: Новая комната
+  services:
+  - type: Switch
+    name: Выключатель
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-w1/28-0000108fbbe1
+  name: Датчик температуры
+  room: Новая комната
+  services:
+  - type: TemperatureSensor
+    name: Датчик температуры
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-mr6c_93/3
+  name: Канал реле и дискретный вход
+  room: Новая комната
+  services:
+  - type: Switch
+    name: Реле
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-gpio/EXT1_IN1
+  name: Напряжение
+  room: Новая комната
+  services:
+  - type: ContactSensor
+    name: Напряжение
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-mr6c_93/4
+  name: Канал реле и дискретный вход
+  room: Новая комната
+  services:
+  - type: Switch
+    name: Реле
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-mr6c_93/5
+  name: Канал реле и дискретный вход
+  room: Новая комната
+  services:
+  - type: Switch
+    name: Реле
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-mr6c_93/6
+  name: Канал реле и дискретный вход
+  room: Новая комната
+  services:
+  - type: Switch
+    name: Реле
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-gpio/EXT1_IN4
+  name: Напряжение
+  room: Новая комната
+  services:
+  - type: ContactSensor
+    name: Напряжение
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-gpio/EXT1_IN5
+  name: Напряжение
+  room: Новая комната
+  services:
+  - type: ContactSensor
+    name: Напряжение
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-gpio/EXT1_IN2
+  name: Напряжение
+  room: Новая комната
+  services:
+  - type: ContactSensor
+    name: Напряжение
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-gpio/EXT1_IN3
+  name: Напряжение
+  room: Новая комната
+  services:
+  - type: ContactSensor
+    name: Напряжение
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-gpio/A4_OUT
+  name: Выключатель
+  room: Новая комната
+  services:
+  - type: Switch
+    name: Выключатель
+    visible: false
+    bridge:
+      alice: false
+- serial: wbe2-i-opentherm_11
+  name: WBE2-I-OPENTHERM
+  room: Новая комната
+  services:
+  - type: Thermostat
+    match_name: Отопление
+    name: Отопление
+    visible: false
+    bridge:
+      alice: false
+  - type: Thermostat
+    match_name: Комнатная температура
+    name: Комнатная температура
+    visible: false
+    bridge:
+      alice: false
+  - type: Thermostat
+    match_name: Горячее водоснабжение
+    name: Горячее водоснабжение
+    visible: false
+    bridge:
+      alice: false
+  - type: C_Option
+    match_name: Модуляция горелки
+    name: Модуляция горелки
+    visible: false
+    bridge:
+      alice: false
+  - type: C_Option
+    match_name: Давление воды
+    name: Давление воды
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-mr6c_93/1
+  name: Канал реле и дискретный вход
+  room: Новая комната
+  services:
+  - type: Switch
+    name: Реле
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-gpio/A2_OUT
+  name: Выключатель
+  room: Новая комната
+  services:
+  - type: Switch
+    name: Выключатель
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-m1w2_166/2
+  name: Датчик температуры
+  room: Новая комната
+  services:
+  - type: TemperatureSensor
+    name: Датчик температуры
+    visible: false
+    bridge:
+      alice: false
+- serial: A1
+  name: Вольтметр
+  room: Новая комната
+  services:
+  - type: C_VoltMeter
+    name: Вольтметр
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-m1w2_121/2
+  name: Датчик температуры
+  room: Новая комната
+  services:
+  - type: TemperatureSensor
+    name: Датчик температуры
+    visible: false
+    bridge:
+      alice: false
+- serial: A2
+  name: Вольтметр
+  room: Новая комната
+  services:
+  - type: C_VoltMeter
+    name: Вольтметр
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-m1w2_164/2
+  name: Датчик температуры
+  room: Новая комната
+  services:
+  - type: TemperatureSensor
+    name: Датчик температуры
+    visible: false
+    bridge:
+      alice: false
+- serial: A3
+  name: Вольтметр
+  room: Новая комната
+  services:
+  - type: C_VoltMeter
+    name: Вольтметр
+    visible: false
+    bridge:
+      alice: false
+- serial: A4
+  name: Вольтметр
+  room: Новая комната
+  services:
+  - type: C_VoltMeter
+    name: Вольтметр
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-m1w2_164/1
+  name: Датчик температуры
+  room: Новая комната
+  services:
+  - type: TemperatureSensor
+    name: Датчик температуры
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-gpio/A3_IN
+  name: Датчик касания
+  room: Новая комната
+  services:
+  - type: ContactSensor
+    name: Датчик касания
+    visible: false
+    bridge:
+      alice: false
+- serial: wb-gpio/A1_OUT
+  name: Выключатель
+  room: Новая комната
+  services:
+  - type: Switch
+    name: Выключатель
+    visible: false
+    bridge:
+      alice: false
