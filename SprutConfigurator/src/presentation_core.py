@@ -52,11 +52,11 @@ def _service_is_system(service: dict[str, Any]) -> bool:
 
 
 def validate_presentation_plan(plan: Any) -> list[str]:
-    """Validate format_version 2 presentation fields.
+    """Validate format_version 2 presentation fields and optional Service selector.
 
-    Base v1 identity/name/room/service fields remain validated by the proven
-    v0.2.2 engine. Bridge policy is service-scoped because the field-confirmed
-    Sprut WebUI command addresses aId+sId, not Accessory alone.
+    `match_name` is an optional stable selector used only when Service.type is
+    insufficiently specific. For the first implementation it must equal the
+    desired Service `name`, so APPLY/VERIFY remains stable after writes.
     """
     errors: list[str] = []
     if not isinstance(plan, dict):
@@ -79,8 +79,6 @@ def validate_presentation_plan(plan: Any) -> list[str]:
             errors.append(f"{prefix}: должен быть объектом.")
             continue
 
-        # Early draft used Accessory-level bridge. The real WebUI RPC is
-        # service-scoped, so reject the ambiguous form instead of guessing sId.
         if "bridge" in item:
             errors.append(
                 f"{prefix}.bridge: bridge policy должен задаваться внутри services[] "
@@ -95,6 +93,18 @@ def validate_presentation_plan(plan: Any) -> list[str]:
             sprefix = f"{prefix}.services[{sidx}]"
             if not isinstance(service, dict):
                 continue
+
+            match_name = service.get("match_name")
+            if match_name is not None:
+                if not isinstance(match_name, str) or not match_name.strip():
+                    errors.append(f"{sprefix}.match_name: ожидается непустая строка.")
+                else:
+                    desired_name = service.get("name")
+                    if isinstance(desired_name, str) and desired_name != match_name:
+                        errors.append(
+                            f"{sprefix}: в v0.3.0 match_name должен совпадать с name; "
+                            "переименование неоднозначного Service в одном проходе не поддерживается."
+                        )
 
             if "visible" in service and not isinstance(service["visible"], bool):
                 errors.append(f"{sprefix}.visible: ожидается true/false.")
@@ -173,6 +183,7 @@ def _unique_service(
     serial: str,
     accessory: dict[str, Any],
     service_type: str,
+    match_name: str | None,
     actions: list[PresentationAction],
     errors: list[str],
 ) -> dict[str, Any] | None:
@@ -182,15 +193,24 @@ def _unique_service(
         and not _service_is_system(s)
         and s.get("type") == service_type
     ]
+
+    if match_name is not None:
+        matches = [s for s in matches if _string(s.get("name")) == match_name]
+
     if len(matches) == 1:
         return matches[0]
 
+    selector = (
+        f"type={service_type!r}, match_name={match_name!r}"
+        if match_name is not None
+        else f"type={service_type!r}"
+    )
     msg = (
-        f"{serial}: Service type={service_type!r} не найден."
+        f"{serial}: Service {selector} не найден."
         if not matches
         else (
-            f"{serial}: найдено {len(matches)} Service type={service_type!r}; "
-            "выбор по type неоднозначен."
+            f"{serial}: найдено {len(matches)} Service {selector}; "
+            "выбор неоднозначен."
         )
     )
     errors.append(msg)
@@ -247,7 +267,7 @@ def _unique_characteristic(
     return None
 
 
-# Getter receives the exact Accessory and Service selected by SERIAL + Service.type.
+# Getter receives the exact Accessory and Service selected by SERIAL + Service selector.
 AliceStateGetter = Callable[[dict[str, Any], dict[str, Any]], bool | None]
 
 
@@ -257,15 +277,7 @@ def make_presentation_diff(
     *,
     alice_state_getter: AliceStateGetter | None = None,
 ) -> PresentationDiff:
-    """Build desired/current diff for format_version 2 presentation policy.
-
-    Service.visible and Characteristic.statusVisible are read directly from
-    accessory.list DISCOVER.
-
-    Alice membership remains fail-closed until its current-state read path is
-    field-confirmed. The write command for disabling was captured, but a write
-    command alone is insufficient for DRY RUN + VERIFY.
-    """
+    """Build desired/current diff for format_version 2 presentation policy."""
     errors = validate_presentation_plan(plan)
     actions: list[PresentationAction] = []
 
@@ -312,17 +324,23 @@ def make_presentation_diff(
             if not needs_service:
                 continue
 
+            raw_match_name = service_target.get("match_name")
+            match_name = raw_match_name if isinstance(raw_match_name, str) else None
             service = _unique_service(
-                serial, accessory, service_type, actions, errors
+                serial, accessory, service_type, match_name, actions, errors
             )
             if service is None:
                 continue
+
+            selector_suffix = (
+                f", match_name={match_name!r}" if match_name is not None else ""
+            )
 
             if "visible" in service_target:
                 expected = service_target["visible"]
                 if "visible" not in service:
                     msg = (
-                        f"{serial}: Service {service_type!r} в DISCOVER "
+                        f"{serial}: Service {service_type!r}{selector_suffix} в DISCOVER "
                         "не содержит поле visible."
                     )
                     errors.append(msg)
@@ -336,7 +354,7 @@ def make_presentation_diff(
                     actions.append(PresentationAction(
                         "SAME" if current == expected else "CHANGE",
                         serial, "service_visible", current, expected,
-                        f"Service.visible [{service_type}]",
+                        f"Service.visible [{service_type}{selector_suffix}]",
                         accessory.get("id"), service.get("sId"),
                         service_type=service_type,
                     ))
@@ -371,7 +389,8 @@ def make_presentation_diff(
                             "SAME" if current == expected else "CHANGE",
                             serial, "characteristic_status_visible",
                             current, expected,
-                            f"Characteristic.statusVisible [{service_type}/{ctype}]",
+                            f"Characteristic.statusVisible "
+                            f"[{service_type}{selector_suffix}/{ctype}]",
                             accessory.get("id"), service.get("sId"),
                             characteristic.get("cId"), service_type, ctype,
                         ))
@@ -381,8 +400,9 @@ def make_presentation_diff(
                 expected = bridge["alice"]
                 if alice_state_getter is None:
                     msg = (
-                        f"{serial}: Service {service_type!r} имеет bridge.alice, "
-                        "но read-path текущего состава Yandex bridge ещё не подтверждён."
+                        f"{serial}: Service {service_type!r}{selector_suffix} имеет "
+                        "bridge.alice, но read-path текущего состава Yandex bridge "
+                        "ещё не подтверждён."
                     )
                     errors.append(msg)
                     actions.append(PresentationAction(
@@ -395,7 +415,7 @@ def make_presentation_diff(
                     if current is None:
                         msg = (
                             f"{serial}: getter Alice не смог определить состояние "
-                            f"Service {service_type!r}."
+                            f"Service {service_type!r}{selector_suffix}."
                         )
                         errors.append(msg)
                         actions.append(PresentationAction(
@@ -407,7 +427,7 @@ def make_presentation_diff(
                         actions.append(PresentationAction(
                             "SAME" if current == expected else "CHANGE",
                             serial, "bridge_alice", current, expected,
-                            f"Alice bridge policy [{service_type}]",
+                            f"Alice bridge policy [{service_type}{selector_suffix}]",
                             accessory.get("id"), service.get("sId"),
                             service_type=service_type,
                         ))
