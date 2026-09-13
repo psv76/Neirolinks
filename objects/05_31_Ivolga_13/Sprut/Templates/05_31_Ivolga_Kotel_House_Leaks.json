@@ -3,7 +3,7 @@
   "model": "05_31_Ivolga_Kotel_House_Leaks",
   "modelIds": [
     "/devices/(903\\.02_M1W2_LEAK_TEMP)/controls/(Input 1)/meta/type",
-    "/devices/(903\\.06_TEMP_NONE)/controls/(Input 1)/meta/type",
+    "/devices/(903\\.06_LEAK_TEMP)/controls/(Input 1)/meta/type",
     "/devices/(902\\.15_M1W2_LEAK_NONE)/controls/(Input 1)/meta/type",
     "/devices/(902\\.13_M1W2_LEAK_TEMP)/controls/(Input 1)/meta/type",
     "/devices/(902\\.04_M1W2_LEAK_TEMP)/controls/(Input 1)/meta/type"
