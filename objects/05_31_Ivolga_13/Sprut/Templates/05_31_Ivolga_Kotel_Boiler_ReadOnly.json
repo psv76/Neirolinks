@@ -19,8 +19,8 @@
               "type": "Integer",
               "topicGet": "/devices/wbe2-i-opentherm_11/controls/Boiler Flame Status",
               "map": {
-                "0": "OFF",
-                "1": "HEAT"
+                "OFF": "0",
+                "HEAT": "1"
               }
             }
           ]
@@ -44,8 +44,8 @@
               "type": "Integer",
               "topicGet": "/devices/wbe2-i-opentherm_11/controls/Boiler CH mode",
               "map": {
-                "0": "OFF",
-                "1": "HEAT"
+                "OFF": "0",
+                "HEAT": "1"
               }
             }
           ]
