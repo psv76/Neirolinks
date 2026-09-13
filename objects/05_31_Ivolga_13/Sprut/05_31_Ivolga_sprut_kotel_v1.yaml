@@ -1,0 +1,63 @@
+# 05 31 Иволга 13 — Котельная
+# Первый инкремент конфигурации Sprut.hub котельной: наружное освещение.
+# Source DISCOVER: Ivolga_kotel_sprut_1.json, 2026-09-13 14:12:51.
+# Перед DRY RUN установить шаблон 05_31_Ivolga_Kotel_Outdoor_Lightbulb.json
+# и выполнить свежий DISCOVER: в исходном DISCOVER A06/K1…K6 отсутствуют.
+
+format_version: 2
+object: 05 31 Иволга 13 — Котельная
+accessories:
+- serial: A06/K1
+  name: Свет парковка
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Свет парковка
+    visible: true
+    bridge:
+      alice: true
+- serial: A06/K2
+  name: Подсветка забора
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Подсветка забора
+    visible: true
+    bridge:
+      alice: true
+- serial: A06/K3
+  name: Дорожки
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Дорожки
+    visible: true
+    bridge:
+      alice: true
+- serial: A06/K4
+  name: Двор
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Двор
+    visible: true
+    bridge:
+      alice: true
+- serial: A06/K5
+  name: Фасады
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Фасады
+    visible: true
+    bridge:
+      alice: true
+- serial: A06/K6
+  name: Гирлянды
+  room: Улица
+  services:
+  - type: Lightbulb
+    name: Гирлянды
+    visible: true
+    bridge:
+      alice: true
