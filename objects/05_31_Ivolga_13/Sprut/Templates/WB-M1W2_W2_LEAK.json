@@ -1,0 +1,24 @@
+{
+  "manufacturer": "NEIROLINKS",
+  "model": "WB-M1W2_W2_LEAK",
+  "modelIds": [
+    "/devices/(9[0-9]{2}\\.[0-9]{2}_M1W2_[A-Z]+_LEAK)/controls/(Input 2)/meta/type"
+  ],
+  "services": [
+    {
+      "type": "LeakSensor",
+      "characteristics": [
+        {
+          "type": "LeakDetected",
+          "link": [
+            {
+              "type": "Integer",
+              "topicGet": "/devices/(1)/controls/(2)",
+              "checkValue": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
