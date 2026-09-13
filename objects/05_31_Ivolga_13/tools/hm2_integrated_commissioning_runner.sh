@@ -2,6 +2,13 @@
 # 05 31 Иволга 13 — HM2 integrated commissioning runner.
 # Проверяет 501, 502, 503 последовательно и пишет полный лог.
 # Production-скрипты не меняет.
+#
+# Fix 2026-09-13:
+# - для холодных смесительных контуров 501/502 падение температуры после пуска
+#   считается валидным начальным гидравлическим откликом;
+# - положительный тепловой отклик фиксируется отдельно;
+# - 501/502 проходят ПНР при наличии гидравлического или теплового отклика;
+# - 503 по-прежнему требует тепловой отклик радиаторного контура.
 
 LOG_DEFAULT="/mnt/data/hm2_integrated_commissioning_latest.log"
 RUN_FLAG="--run"
@@ -20,6 +27,7 @@ TEST_MINUTES_502="${TEST_MINUTES_502:-18}"
 TEST_MINUTES_503="${TEST_MINUTES_503:-14}"
 STOP_WAIT_S="${STOP_WAIT_S:-70}"
 SLEEP_STEP_S="${SLEEP_STEP_S:-60}"
+HYDRAULIC_DELTA_C="${HYDRAULIC_DELTA_C:-1.0}"
 
 TEST_FAILED=0
 PASS_501=0
@@ -35,12 +43,39 @@ pub() {
     mosquitto_pub -t "$1" -m "$2"
 }
 
+is_num() {
+    awk -v v="$1" 'BEGIN {
+        if (v ~ /^-?[0-9]+([.][0-9]+)?$/) exit 0;
+        exit 1;
+    }'
+}
+
 num_ge() {
     awk -v a="$1" -v b="$2" 'BEGIN { if ((a+0) >= (b+0)) exit 0; exit 1 }'
 }
 
 num_gt() {
     awk -v a="$1" -v b="$2" 'BEGIN { if ((a+0) > (b+0)) exit 0; exit 1 }'
+}
+
+num_delta() {
+    awk -v a="$1" -v b="$2" 'BEGIN {
+        if (a !~ /^-?[0-9]+([.][0-9]+)?$/ || b !~ /^-?[0-9]+([.][0-9]+)?$/) {
+            print "NA";
+            exit 1;
+        }
+        printf "%.3f", (a+0) - (b+0);
+    }'
+}
+
+num_abs_delta_ge() {
+    awk -v a="$1" -v b="$2" -v threshold="$3" 'BEGIN {
+        if (a !~ /^-?[0-9]+([.][0-9]+)?$/ || b !~ /^-?[0-9]+([.][0-9]+)?$/) exit 1;
+        d = (a+0) - (b+0);
+        if (d < 0) d = -d;
+        if (d >= (threshold+0)) exit 0;
+        exit 1;
+    }'
 }
 
 check_eq() {
@@ -56,20 +91,19 @@ check_eq() {
     return 1
 }
 
-check_num_ge() {
+check_info_eq() {
     NAME="$1"
     ACTUAL="$2"
     EXPECTED="$3"
-    if num_ge "$ACTUAL" "$EXPECTED"; then
-        echo "CHECK PASS: $NAME = $ACTUAL >= $EXPECTED"
+    if [ "$ACTUAL" = "$EXPECTED" ]; then
+        echo "CHECK INFO PASS: $NAME = $ACTUAL"
         return 0
     fi
-    echo "CHECK FAIL: $NAME expected >= $EXPECTED, actual $ACTUAL"
-    TEST_FAILED=1
+    echo "CHECK INFO: $NAME expected $EXPECTED, actual $ACTUAL"
     return 1
 }
 
-mark_response() {
+mark_thermal_response() {
     STATUS="$1"
     case "$STATUS" in
         RESPONSE_OK|AT_TARGET|RETURN_WARM|SOURCE_HOT)
@@ -223,6 +257,31 @@ snapshot_contour() {
     fi
 }
 
+update_hydraulic_response() {
+    SUPPLY_NOW="$1"
+    RETURN_NOW="$2"
+    PUMP_NOW="$3"
+    VALVE_SW_NOW="$4"
+    VALVE_POS_NOW="$5"
+    VALVE_REQUIRED="$6"
+
+    OUTPUT_ACTIVE=0
+    if [ "$PUMP_NOW" = "1" ]; then
+        if [ "$VALVE_REQUIRED" = "0" ]; then
+            OUTPUT_ACTIVE=1
+        elif [ "$VALVE_SW_NOW" = "1" ] && num_gt "$VALVE_POS_NOW" "0"; then
+            OUTPUT_ACTIVE=1
+        fi
+    fi
+
+    if [ "$OUTPUT_ACTIVE" = "1" ]; then
+        if num_abs_delta_ge "$SUPPLY_NOW" "$HYD_SUPPLY_BASELINE" "$HYDRAULIC_DELTA_C" || \
+           num_abs_delta_ge "$RETURN_NOW" "$HYD_RETURN_BASELINE" "$HYDRAULIC_DELTA_C"; then
+            HYDRAULIC_RESPONSE_SEEN=1
+        fi
+    fi
+}
+
 run_contour_test() {
     NAME="$1"
     VD="$2"
@@ -237,18 +296,25 @@ run_contour_test() {
     MINUTES="${11}"
     ZONE_TOPIC_1="${12}"
     ZONE_TOPIC_2="${13}"
+    RESPONSE_MODE="${14}"
 
-    RESPONSE_SEEN=0
+    RESPONSE_PASS=0
+    HYDRAULIC_RESPONSE_SEEN=0
+    THERMAL_RESPONSE_SEEN=0
     PUMP_SEEN=0
     SOURCE_SETPOINT_SEEN=0
     ARBITER_SEEN=0
     ZONE_SEEN=0
+    HYD_SUPPLY_BASELINE=""
+    HYD_RETURN_BASELINE=""
 
     echo
     echo "================================================================"
     echo "===== TEST $NAME START ====="
     echo "================================================================"
     date
+    echo "RESPONSE_MODE=$RESPONSE_MODE"
+    echo "HYDRAULIC_DELTA_C=$HYDRAULIC_DELTA_C"
 
     prepare_idle
     arm_source
@@ -286,17 +352,66 @@ run_contour_test() {
         RESP_NOW="$(get "/devices/${VD}/controls/response_status")"
         ARB_NOW="$(get '/devices/hm2_request_arbiter/controls/selected_consumer')"
         OT_NOW="$(get '/devices/wbe2-i-opentherm_11/controls/Heating Setpoint')"
+        SUPPLY_NOW="$(get "$SUPPLY_TOPIC")"
+        RETURN_NOW="$(get "$RETURN_TOPIC")"
+        VALVE_SW_NOW=""
+        VALVE_POS_NOW=""
+        VALVE_REQUIRED=0
+        if [ -n "$VALVE_SW_TOPIC" ]; then
+            VALVE_REQUIRED=1
+            VALVE_SW_NOW="$(get "$VALVE_SW_TOPIC")"
+        fi
+        if [ -n "$VALVE_POS_TOPIC" ]; then
+            VALVE_POS_NOW="$(get "$VALVE_POS_TOPIC")"
+        fi
+
+        if [ -z "$HYD_SUPPLY_BASELINE" ] && is_num "$SUPPLY_NOW"; then
+            HYD_SUPPLY_BASELINE="$SUPPLY_NOW"
+        fi
+        if [ -z "$HYD_RETURN_BASELINE" ] && is_num "$RETURN_NOW"; then
+            HYD_RETURN_BASELINE="$RETURN_NOW"
+        fi
+
+        echo "HYD baseline_supply=$HYD_SUPPLY_BASELINE"
+        echo "HYD baseline_return=$HYD_RETURN_BASELINE"
+        echo "HYD supply_delta=$(num_delta "$SUPPLY_NOW" "$HYD_SUPPLY_BASELINE")"
+        echo "HYD return_delta=$(num_delta "$RETURN_NOW" "$HYD_RETURN_BASELINE")"
 
         if [ "$Z1" = "1" ] || [ "$Z2" = "1" ]; then ZONE_SEEN=1; fi
         if [ "$PUMP_NOW" = "1" ]; then PUMP_SEEN=1; fi
         if [ "$ARB_NOW" = "$VD" ]; then ARBITER_SEEN=1; fi
         if [ "$OT_NOW" = "$EXPECT_SETPOINT" ]; then SOURCE_SETPOINT_SEEN=1; fi
-        if mark_response "$RESP_NOW"; then RESPONSE_SEEN=1; fi
+        if mark_thermal_response "$RESP_NOW"; then THERMAL_RESPONSE_SEEN=1; fi
+
+        update_hydraulic_response "$SUPPLY_NOW" "$RETURN_NOW" "$PUMP_NOW" "$VALVE_SW_NOW" "$VALVE_POS_NOW" "$VALVE_REQUIRED"
+
+        echo "HYDRAULIC_RESPONSE_SEEN=$HYDRAULIC_RESPONSE_SEEN"
+        echo "THERMAL_RESPONSE_SEEN=$THERMAL_RESPONSE_SEEN"
 
         [ "$i" -eq "$MINUTES" ] && break
         sleep "$SLEEP_STEP_S"
         i=$((i + 1))
     done
+
+    case "$RESPONSE_MODE" in
+        THERMAL)
+            RESPONSE_PASS="$THERMAL_RESPONSE_SEEN"
+            ;;
+        HYDRAULIC_OR_THERMAL)
+            if [ "$HYDRAULIC_RESPONSE_SEEN" = "1" ] || [ "$THERMAL_RESPONSE_SEEN" = "1" ]; then
+                RESPONSE_PASS=1
+            else
+                RESPONSE_PASS=0
+            fi
+            ;;
+        *)
+            if [ "$HYDRAULIC_RESPONSE_SEEN" = "1" ] || [ "$THERMAL_RESPONSE_SEEN" = "1" ]; then
+                RESPONSE_PASS=1
+            else
+                RESPONSE_PASS=0
+            fi
+            ;;
+    esac
 
     echo
     echo "===== $NAME CHECKS BEFORE STOP ====="
@@ -304,9 +419,11 @@ run_contour_test() {
     check_eq "$NAME pump physical seen" "$PUMP_SEEN" "1"
     check_eq "$NAME arbiter selected" "$ARBITER_SEEN" "1"
     check_eq "$NAME source setpoint seen" "$SOURCE_SETPOINT_SEEN" "1"
-    check_eq "$NAME thermal response seen" "$RESPONSE_SEEN" "1"
+    check_info_eq "$NAME hydraulic response seen" "$HYDRAULIC_RESPONSE_SEEN" "1"
+    check_info_eq "$NAME thermal response seen" "$THERMAL_RESPONSE_SEEN" "1"
+    check_eq "$NAME response pass by mode $RESPONSE_MODE" "$RESPONSE_PASS" "1"
 
-    if [ "$ZONE_SEEN$PUMP_SEEN$ARBITER_SEEN$SOURCE_SETPOINT_SEEN$RESPONSE_SEEN" = "11111" ]; then
+    if [ "$ZONE_SEEN$PUMP_SEEN$ARBITER_SEEN$SOURCE_SETPOINT_SEEN$RESPONSE_PASS" = "11111" ]; then
         echo "RESULT $NAME = PASS"
         case "$NAME" in
             501*) PASS_501=1 ;;
@@ -426,7 +543,8 @@ run_contour_test \
     "35" \
     "$TEST_MINUTES_501" \
     "/devices/A08/controls/K3" \
-    ""
+    "" \
+    "HYDRAULIC_OR_THERMAL"
 
 run_contour_test \
     "502 ГП дом / плитка" \
@@ -441,7 +559,8 @@ run_contour_test \
     "37" \
     "$TEST_MINUTES_502" \
     "/devices/A13/controls/K1" \
-    ""
+    "" \
+    "HYDRAULIC_OR_THERMAL"
 
 run_contour_test \
     "503 Радиаторы дом" \
@@ -456,7 +575,8 @@ run_contour_test \
     "45" \
     "$TEST_MINUTES_503" \
     "/devices/A09/controls/K4" \
-    "/devices/A09/controls/K5"
+    "/devices/A09/controls/K5" \
+    "THERMAL"
 
 stop_all
 final_snapshot
