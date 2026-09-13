@@ -1,5 +1,5 @@
 {
-  "name": "Главный кран воды",
+  "name": "Ввод воды",
   "manufacturer": "NEIROLINKS",
   "model": "05_31_Ivolga_Kotel_Main_Water_Valve",
   "modelIds": [
@@ -7,7 +7,7 @@
   ],
   "services": [
     {
-      "name": "Главный кран воды",
+      "name": "Ввод воды",
       "type": "Valve",
       "logics": [
         {
