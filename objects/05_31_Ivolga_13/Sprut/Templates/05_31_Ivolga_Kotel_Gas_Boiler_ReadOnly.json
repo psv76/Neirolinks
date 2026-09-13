@@ -1,0 +1,69 @@
+{
+  "name": "Газовый котёл",
+  "manufacturer": "NEIROLINKS",
+  "model": "05_31_Ivolga_Kotel_Gas_Boiler_ReadOnly",
+  "modelIds": [
+    "/devices/(wbe2-i-opentherm_11)/controls/(Heating Temperature)/meta/type"
+  ],
+  "services": [
+    {
+      "name": "Газовый котёл",
+      "type": "Thermostat",
+      "characteristics": [
+        {
+          "type": "CurrentHeatingCoolingState",
+          "write": false,
+          "validValues": "OFF,HEAT",
+          "link": [
+            {
+              "type": "Integer",
+              "topicGet": "/devices/(1)/controls/Boiler Flame Status",
+              "map": {
+                "OFF": "0",
+                "HEAT": "1"
+              }
+            }
+          ]
+        },
+        {
+          "type": "CurrentTemperature",
+          "write": false,
+          "link": [
+            {
+              "type": "Double",
+              "topicGet": "/devices/(1)/controls/(2)"
+            }
+          ]
+        },
+        {
+          "type": "TargetHeatingCoolingState",
+          "write": false,
+          "validValues": "OFF,HEAT",
+          "link": [
+            {
+              "type": "Integer",
+              "topicGet": "/devices/(1)/controls/Boiler CH mode",
+              "map": {
+                "OFF": "0",
+                "HEAT": "1"
+              }
+            }
+          ]
+        },
+        {
+          "type": "TargetTemperature",
+          "write": false,
+          "minValue": 0,
+          "maxValue": 80,
+          "minStep": 1,
+          "link": [
+            {
+              "type": "Double",
+              "topicGet": "/devices/(1)/controls/Heating Setpoint"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
