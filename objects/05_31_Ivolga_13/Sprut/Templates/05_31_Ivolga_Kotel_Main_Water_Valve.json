@@ -1,0 +1,31 @@
+{
+  "name": "Главный кран воды",
+  "manufacturer": "NEIROLINKS",
+  "model": "05_31_Ivolga_Kotel_Main_Water_Valve",
+  "modelIds": [
+    "/devices/(A07)/controls/Output K1/meta"
+  ],
+  "services": [
+    {
+      "name": "Главный кран воды",
+      "type": "Valve",
+      "logics": [
+        {
+          "type": "InUseFromActive"
+        }
+      ],
+      "characteristics": [
+        {
+          "type": "Active",
+          "link": [
+            {
+              "type": "Integer",
+              "topicGet": "/devices/(1)/controls/Output K1",
+              "topicSet": "/devices/(1)/controls/Output K1/on"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
