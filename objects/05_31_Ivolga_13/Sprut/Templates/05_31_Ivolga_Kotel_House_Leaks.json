@@ -2,7 +2,11 @@
   "manufacturer": "NEIROLINKS",
   "model": "05_31_Ivolga_Kotel_House_Leaks",
   "modelIds": [
-    "/devices/(wb-m1w2_(?:165|138)|902\\.(?:15_M1W2_LEAK_NONE|13_M1W2_LEAK_TEMP|04_M1W2_LEAK_TEMP))/controls/(Input 1)/meta/type"
+    "/devices/(wb-m1w2_165)/controls/(Input 1)/meta/type",
+    "/devices/(wb-m1w2_138)/controls/(Input 1)/meta/type",
+    "/devices/(902\\.15_M1W2_LEAK_NONE)/controls/(Input 1)/meta/type",
+    "/devices/(902\\.13_M1W2_LEAK_TEMP)/controls/(Input 1)/meta/type",
+    "/devices/(902\\.04_M1W2_LEAK_TEMP)/controls/(Input 1)/meta/type"
   ],
   "services": [
     {
