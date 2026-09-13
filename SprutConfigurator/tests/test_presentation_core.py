@@ -121,6 +121,17 @@ def test_validation():
     assert any("bridge policy должен задаваться внутри services[]" in e for e in errors)
 
 
+def test_match_name_validation():
+    plan = base_plan()
+    service = plan["accessories"][0]["services"][0]
+    service["match_name"] = "Отопление"
+    errors = validate_presentation_plan(plan)
+    assert any("match_name должен совпадать с name" in e for e in errors)
+
+    service["name"] = "Отопление"
+    assert validate_presentation_plan(plan) == []
+
+
 def test_characteristic_type():
     assert characteristic_type({"type": "A"}) == "A"
     assert characteristic_type({"control": {"type": "B"}}) == "B"
@@ -150,6 +161,54 @@ def test_diff_with_confirmed_alice_adapter():
         "characteristic_status_visible",
         "CurrentHeatingCoolingState",
     ) in changed
+
+
+def test_match_name_selects_one_duplicate_service():
+    plan = {
+        "format_version": 2,
+        "accessories": [
+            {
+                "serial": "A01",
+                "name": "Электросеть",
+                "room": "Электричество",
+                "services": [
+                    {
+                        "type": "C_VoltMeter",
+                        "match_name": "Напряжение L2",
+                        "name": "Напряжение L2",
+                        "visible": True,
+                        "bridge": {"alice": False},
+                    }
+                ],
+            }
+        ],
+    }
+    data = {
+        "accessories": [
+            {
+                "id": 663,
+                "serial": "A01",
+                "services": [
+                    {"type": "AccessoryInformation", "system": True, "sId": 1},
+                    {"type": "C_VoltMeter", "name": "Напряжение L1", "sId": 16, "visible": True, "_testAlice": True},
+                    {"type": "C_VoltMeter", "name": "Напряжение L2", "sId": 19, "visible": True, "_testAlice": True},
+                    {"type": "C_VoltMeter", "name": "Напряжение L3", "sId": 22, "visible": True, "_testAlice": True},
+                ],
+            }
+        ],
+    }
+    diff = make_presentation_diff(plan, data, alice_state_getter=alice_getter)
+    assert diff.ok
+    bridge = [a for a in diff.actions if a.kind == "bridge_alice"]
+    assert len(bridge) == 1
+    assert bridge[0].service_id == 19
+    assert bridge[0].status == "CHANGE"
+
+    plan["accessories"][0]["services"][0]["match_name"] = "Нет такого"
+    plan["accessories"][0]["services"][0]["name"] = "Нет такого"
+    bad = make_presentation_diff(plan, data, alice_state_getter=alice_getter)
+    assert not bad.ok
+    assert any(a.status == "ERROR" for a in bad.actions)
 
 
 def test_alice_without_adapter_is_fail_closed():
