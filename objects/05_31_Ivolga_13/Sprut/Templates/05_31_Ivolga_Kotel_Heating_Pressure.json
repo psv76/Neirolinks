@@ -1,0 +1,28 @@
+{
+  "name": "Давление отопления",
+  "manufacturer": "NEIROLINKS",
+  "model": "05_31_Ivolga_Kotel_Heating_Pressure",
+  "modelIds": [
+    "/devices/(905\\.3)/controls/(input_1_value)/meta/type"
+  ],
+  "services": [
+    {
+      "name": "Давление отопления",
+      "type": "C_Option",
+      "characteristics": [
+        {
+          "type": "C_Double",
+          "write": false,
+          "minStep": 0.1,
+          "unit": "бар",
+          "link": [
+            {
+              "type": "Double",
+              "topicGet": "/devices/(1)/controls/(2)"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
