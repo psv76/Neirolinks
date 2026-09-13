@@ -1,0 +1,42 @@
+{
+  "name": "Радиаторы дом",
+  "manufacturer": "NEIROLINKS",
+  "model": "05_31_Ivolga_Kotel_Heating_503",
+  "modelIds": [
+    "/devices/(A03)/controls/(K3)/meta/type"
+  ],
+  "services": [
+    {
+      "name": "Насос",
+      "type": "FanBasic",
+      "characteristics": [
+        {
+          "type": "On",
+          "write": false,
+          "link": [
+            {
+              "type": "Integer",
+              "topicGet": "/devices/(1)/controls/(2)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Подача",
+      "type": "TemperatureSensor",
+      "characteristics": [
+        {
+          "type": "CurrentTemperature",
+          "write": false,
+          "link": [
+            {
+              "type": "Double",
+              "topicGet": "/devices/wb-m1w2_170/controls/External Sensor 1"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
