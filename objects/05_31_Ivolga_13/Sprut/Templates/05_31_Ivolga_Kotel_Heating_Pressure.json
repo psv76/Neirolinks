@@ -8,11 +8,11 @@
   "services": [
     {
       "name": "Давление отопления",
-      "type": "C_AtmosphericPressureSensor",
+      "type": "GenericService",
       "characteristics": [
         {
           "name": "Давление",
-          "type": "C_CurrentAtmosphericPressure",
+          "type": "GenericDouble",
           "write": false,
           "minValue": 0,
           "maxValue": 10,
