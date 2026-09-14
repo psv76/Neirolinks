@@ -3,7 +3,8 @@
   "manufacturer": "NEIROLINKS",
   "model": "05_31_Ivolga_Kotel_Heating_Pump_Only",
   "modelIds": [
-    "/devices/(A03)/controls/(K3|K5)/meta/type"
+    "/devices/(A03)/controls/(K3)/meta/type",
+    "/devices/(A03)/controls/(K5)/meta/type"
   ],
   "services": [
     {
