@@ -1,0 +1,141 @@
+# 05 31 Иволга 13 — Котельная
+# Инкремент после успешного v3 APPLY/VERIFY и DISCOVER Ivolga_kotel_sprut_10.json, 2026-09-14 13:57:02.
+# Применять только после замены/recreate templates 503, 505 и Heating_Pressure и fresh DISCOVER.
+# Цель: 411 как подача двух радиаторных контуров, короткие имена LeakSensor, dedicated pressure tile.
+
+format_version: 2
+object: 05 31 Иволга 13 — Котельная
+accessories:
+- serial: A03/K3
+  name: Радиаторы дом
+  room: Контур Дом радиаторы
+  services:
+  - type: FanBasic
+    name: Насос
+    visible: true
+    status:
+      On: true
+    bridge:
+      alice: false
+  - type: TemperatureSensor
+    name: Подача
+    visible: true
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+
+- serial: A03/K5
+  name: Радиаторы хозблок
+  room: Контур Хоз блок радиаторы
+  services:
+  - type: FanBasic
+    name: Насос
+    visible: true
+    status:
+      On: true
+    bridge:
+      alice: false
+  - type: TemperatureSensor
+    name: Подача
+    visible: true
+    status:
+      CurrentTemperature: true
+    bridge:
+      alice: false
+
+- serial: A07/Input F1
+  name: Котельная
+  room: Вода
+  services:
+  - type: LeakSensor
+    name: Котельная
+    visible: true
+    status:
+      LeakDetected: true
+    bridge:
+      alice: false
+
+- serial: A07/Input F2
+  name: Санузел хозблок
+  room: Вода
+  services:
+  - type: LeakSensor
+    name: Санузел хозблок
+    visible: true
+    status:
+      LeakDetected: true
+    bridge:
+      alice: false
+
+- serial: 903.02_M1W2_LEAK_TEMP/Input 1
+  name: Кухня
+  room: Вода
+  services:
+  - type: LeakSensor
+    name: Кухня
+    visible: true
+    status:
+      LeakDetected: true
+    bridge:
+      alice: false
+
+- serial: 903.06_M1W2_LEAK_TEMP/Input 1
+  name: Мастер санузел
+  room: Вода
+  services:
+  - type: LeakSensor
+    name: Мастер санузел
+    visible: true
+    status:
+      LeakDetected: true
+    bridge:
+      alice: false
+
+- serial: 902.15_M1W2_LEAK_NONE/Input 1
+  name: Постирочная
+  room: Вода
+  services:
+  - type: LeakSensor
+    name: Постирочная
+    visible: true
+    status:
+      LeakDetected: true
+    bridge:
+      alice: false
+
+- serial: 902.13_M1W2_LEAK_TEMP/Input 1
+  name: Ванная
+  room: Вода
+  services:
+  - type: LeakSensor
+    name: Ванная
+    visible: true
+    status:
+      LeakDetected: true
+    bridge:
+      alice: false
+
+- serial: 902.04_M1W2_LEAK_TEMP/Input 1
+  name: Санузел прихожей
+  room: Вода
+  services:
+  - type: LeakSensor
+    name: Санузел прихожей
+    visible: true
+    status:
+      LeakDetected: true
+    bridge:
+      alice: false
+
+- serial: 905.3/input_1_value
+  name: Давление отопления
+  room: Котёл
+  services:
+  - type: C_AtmosphericPressureSensor
+    name: Давление отопления
+    visible: true
+    status:
+      C_CurrentAtmosphericPressure: true
+    bridge:
+      alice: false
