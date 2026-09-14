@@ -8,16 +8,16 @@
   "services": [
     {
       "name": "Давление отопления",
-      "type": "GenericService",
+      "type": "C_Option",
       "characteristics": [
         {
           "name": "Давление",
-          "type": "GenericDouble",
+          "type": "C_Double",
           "write": false,
           "minValue": 0,
           "maxValue": 10,
           "minStep": 0.1,
-          "unit": "бар",
+          "unit": "Бар",
           "link": [
             {
               "type": "Double",
