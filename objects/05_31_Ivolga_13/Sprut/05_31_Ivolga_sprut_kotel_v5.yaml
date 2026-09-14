@@ -20,7 +20,7 @@ accessories:
     name: Насос
     visible: true
     status:
-      On: true
+      "On": true
     bridge:
       alice: false
 
@@ -32,7 +32,7 @@ accessories:
     name: Насос
     visible: true
     status:
-      On: true
+      "On": true
     bridge:
       alice: false
 
