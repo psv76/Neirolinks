@@ -21,25 +21,6 @@
           ]
         }
       ]
-    },
-    {
-      "name": "Подача",
-      "type": "TemperatureSensor",
-      "characteristics": [
-        {
-          "type": "CurrentTemperature",
-          "write": false,
-          "link": [
-            {
-              "type": "Double",
-              "topicSearch": "/devices/(wb-m1w2_170)/controls/(External Sensor 1)/meta/type",
-              "topicGet": "/devices/(1)/controls/(2)",
-              "minStep": 0.1,
-              "checkValue": true
-            }
-          ]
-        }
-      ]
     }
   ]
 }
