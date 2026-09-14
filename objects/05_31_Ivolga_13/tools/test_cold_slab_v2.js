@@ -80,6 +80,16 @@ for (const file of ['501_tp_dom_manager.js', '502_gp_dom_manager.js']) {
         c.tick(10030,18);
         assert.strictEqual(c.WD.since,10030);
     });
+    check(label + ' target remains valid with mixing valve closed or below 5 percent', () => {
+        const c=manager(file);
+        c.tick(1000,29,45,0); c.tick(1030,29,45,0);
+        assert.strictEqual(c.tick(1060,29,45,0),'AT_TARGET');
+        assert.strictEqual(c.tick(5000,29,45,2),'AT_TARGET');
+        assert.strictEqual(c.dev[c.VD+'/fault_latched'],false);
+        c.tick(5030,18,45,0);
+        assert.strictEqual(c.WD.since,5030);
+        assert.strictEqual(c.tick(8660,18,45,0),'FAULT_LATCHED');
+    });
     check(label + ' source flapping cannot reset absolute warmup deadline', () => {
         const c=manager(file);
         c.run(1000,4600,t=>c.tick(t,18,t%60 ? 20:45,50));
@@ -169,7 +179,7 @@ update_warmup_progress
 RESP_NOW=AT_TARGET; SUPPLY_NOW=18
 update_warmup_progress
 [ "$WARMUP_SAMPLES" = 0 ]
-SUPPLY_NOW=29
+SUPPLY_NOW=29; VALVE_POS_NOW=0
 update_warmup_progress; update_warmup_progress; update_warmup_progress
 [ "$WARMUP_SAMPLES" = 3 ]
 PUMP_NOW=0

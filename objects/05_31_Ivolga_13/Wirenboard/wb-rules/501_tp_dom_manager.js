@@ -310,7 +310,10 @@ function responseWatchdog(now, running, pump, valveOn, position, supply, source,
         resetWatchdog();
         return responseWatchdog(now, running, pump, valveOn, position, supply, source, target);
     }
-    if (outputs && supply >= target - RESPONSE.targetBandC) {
+    // At target the mixer may correctly close to 0%; opening is required for
+    // proving warmup progress, not for maintaining an already warm supply.
+    if (pump && valveOn && position !== null && position >= 0 && position <= 100 &&
+        supply >= target - RESPONSE.targetBandC) {
         if (sample) WD.targetSamples++;
         if (WD.targetSamples >= RESPONSE.minSamples) {
             WD.atTarget = true; WD.badSince = null; WD.badSamples = 0;
@@ -702,4 +705,3 @@ setTimeout(function () {
     evaluate('startup');
     logMsg('info', 'SCRIPT', 'Скрипт загружен');
 }, 3000);
-

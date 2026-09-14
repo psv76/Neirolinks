@@ -311,7 +311,7 @@ update_warmup_progress() {
         WARMUP_SAMPLES=0; return
     fi
     if [ "$PUMP_NOW" != 1 ] || [ "$VALVE_SW_NOW" != 1 ] ||
-       ! num_ge "$VALVE_POS_NOW" 5 || [ "$ARB_NOW" != "$VD" ]; then
+       ! num_ge "$VALVE_POS_NOW" 0 || num_gt "$VALVE_POS_NOW" 100 || [ "$ARB_NOW" != "$VD" ]; then
         WARMUP_SAMPLES=0; return
     fi
     if [ -z "$WARMUP_MIN" ] || num_gt "$WARMUP_MIN" "$SUPPLY_NOW"; then
@@ -325,7 +325,7 @@ update_warmup_progress() {
         AT_TARGET)
             awk -v s="$SUPPLY_NOW" -v t="$TARGET_NOW" 'BEGIN { exit !(s >= t-1) }' && WARMUP_OK=1 ;;
         WARMUP_PROGRESS|RESPONSE_OK)
-            if is_num "$PROGRESS_NOW" && num_ge "$PROGRESS_NOW" 1 &&
+            if num_ge "$VALVE_POS_NOW" 5 && is_num "$PROGRESS_NOW" && num_ge "$PROGRESS_NOW" 1 &&
                awk -v s="$SUPPLY_NOW" -v b="$WARMUP_MIN" 'BEGIN { exit !(s >= b+1) }'; then
                 WARMUP_OK=1
             fi ;;
