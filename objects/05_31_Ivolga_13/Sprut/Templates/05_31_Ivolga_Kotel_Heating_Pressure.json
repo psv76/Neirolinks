@@ -8,14 +8,16 @@
   "services": [
     {
       "name": "Давление отопления",
-      "type": "C_Option",
+      "type": "C_AtmosphericPressureSensor",
       "characteristics": [
         {
           "name": "Давление",
-          "type": "C_Double",
+          "type": "C_CurrentAtmosphericPressure",
           "write": false,
+          "minValue": 0,
+          "maxValue": 10,
           "minStep": 0.1,
-          "unit": "бар",
+          "unit": "Bar",
           "link": [
             {
               "type": "Double",
