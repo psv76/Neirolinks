@@ -1,0 +1,26 @@
+{
+  "name": "Насос отопления",
+  "manufacturer": "NEIROLINKS",
+  "model": "05_31_Ivolga_Kotel_Heating_Pump_Only",
+  "modelIds": [
+    "/devices/(A03)/controls/(K3|K5)/meta/type"
+  ],
+  "services": [
+    {
+      "name": "Насос",
+      "type": "FanBasic",
+      "characteristics": [
+        {
+          "type": "On",
+          "write": false,
+          "link": [
+            {
+              "type": "Integer",
+              "topicGet": "/devices/(1)/controls/(2)"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
