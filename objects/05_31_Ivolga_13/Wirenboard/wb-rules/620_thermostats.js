@@ -617,6 +617,7 @@ init();
 defineRule("thermostats_620_periodic_sync", {
     when: cron(PERIODIC_SYNC_CRON),
     then: function () {
-        evaluateAll(true);
+        // State changes, output corrections and errors already log as events.
+        evaluateAll(false);
     }
 });
