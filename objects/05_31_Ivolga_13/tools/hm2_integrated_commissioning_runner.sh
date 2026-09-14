@@ -3,33 +3,43 @@
 # Проверяет 501, 502, 503 последовательно и пишет полный лог.
 # Production-скрипты не меняет.
 #
-# Fix 2026-09-13:
-# - для холодных смесительных контуров 501/502 падение температуры после пуска
-#   считается валидным начальным гидравлическим откликом;
-# - положительный тепловой отклик фиксируется отдельно;
-# - 501/502 проходят ПНР при наличии гидравлического или теплового отклика;
-# - 503 по-прежнему требует тепловой отклик радиаторного контура.
+# Cold slab v2: hydraulic response is diagnostic only; 501/502 require
+# sustained measured warming or confirmed AT_TARGET, and no later failure.
+# Physical test is opt-in and must be supervised. Never run during installation.
 
 LOG_DEFAULT="/mnt/data/hm2_integrated_commissioning_latest.log"
 RUN_FLAG="--run"
 
-if [ "${1:-}" != "$RUN_FLAG" ]; then
+if [ "${1:-}" != "--confirm-physical-test" ]; then
+    echo "No action. Usage: sh $0 --confirm-physical-test [--run]" >&2
+    exit 2
+fi
+if [ "${2:-}" != "$RUN_FLAG" ]; then
     mkdir -p /mnt/data
     rm -f "$LOG_DEFAULT"
-    nohup "$0" "$RUN_FLAG" > "$LOG_DEFAULT" 2>&1 &
+    nohup sh "$0" --confirm-physical-test "$RUN_FLAG" > "$LOG_DEFAULT" 2>&1 &
     echo "PID=$!"
     echo "LOG=$LOG_DEFAULT"
     exit 0
 fi
 
-TEST_MINUTES_501="${TEST_MINUTES_501:-18}"
-TEST_MINUTES_502="${TEST_MINUTES_502:-18}"
+TEST_MINUTES_501="${TEST_MINUTES_501:-30}"
+TEST_MINUTES_502="${TEST_MINUTES_502:-30}"
 TEST_MINUTES_503="${TEST_MINUTES_503:-14}"
 STOP_WAIT_S="${STOP_WAIT_S:-70}"
 SLEEP_STEP_S="${SLEEP_STEP_S:-60}"
 HYDRAULIC_DELTA_C="${HYDRAULIC_DELTA_C:-1.0}"
 
+# Reject zero/invalid sampling settings before any physical action.
+case "$SLEEP_STEP_S" in ''|*[!0-9]*) exit 2 ;; esac
+[ "$SLEEP_STEP_S" -ge 30 ] && [ "$SLEEP_STEP_S" -le 60 ] || exit 2
+for duration in "$TEST_MINUTES_501" "$TEST_MINUTES_502" "$TEST_MINUTES_503"; do
+    case "$duration" in ''|*[!0-9]*) exit 2 ;; esac
+    [ "$duration" -ge 1 ] && [ "$duration" -le 60 ] || exit 2
+done
+
 TEST_FAILED=0
+CLEANING=0
 PASS_501=0
 PASS_502=0
 PASS_503=0
@@ -40,7 +50,12 @@ get() {
 
 pub() {
     echo "PUB $1 = $2"
-    mosquitto_pub -t "$1" -m "$2"
+    if ! mosquitto_pub -t "$1" -m "$2"; then
+        echo "MQTT WRITE FAILED: $1" >&2
+        TEST_FAILED=1
+        # Cleanup must attempt remaining disarms even if one publication fails.
+        [ "$CLEANING" = 1 ] || exit 1
+    fi
 }
 
 is_num() {
@@ -106,7 +121,7 @@ check_info_eq() {
 mark_thermal_response() {
     STATUS="$1"
     case "$STATUS" in
-        RESPONSE_OK|AT_TARGET|RETURN_WARM|SOURCE_HOT)
+        RESPONSE_OK|AT_TARGET|RETURN_WARM)
             return 0
             ;;
         *)
@@ -169,9 +184,12 @@ disarm_source_write() {
 }
 
 stop_all() {
+    CLEANING=1
     echo
     echo "===== STOP ALL ====="
     date
+    disarm_contours
+    safe_physical_zero
     all_thermostats_off
     echo "WAIT source safe-off ${STOP_WAIT_S}s"
     sleep "$STOP_WAIT_S"
@@ -179,6 +197,7 @@ stop_all() {
     disarm_contours
     safe_physical_zero
     sleep 5
+    CLEANING=0
 }
 
 prepare_idle() {
@@ -192,7 +211,9 @@ prepare_idle() {
     sleep 5
 }
 
-trap 'stop_all; echo "===== INTERRUPTED ====="; exit 130' INT TERM
+# Unexpected failure also disarms; disable trap first to avoid recursion.
+trap 'exit 130' INT TERM
+trap 'rc=$?; trap - EXIT INT TERM; [ "$rc" -eq 0 ] || stop_all; exit "$rc"' EXIT
 
 snapshot_source() {
     echo "SRC state=$(get '/devices/hm2_source_manager/controls/state')"
@@ -282,6 +303,38 @@ update_hydraulic_response() {
     fi
 }
 
+# Evidence must be current, simultaneous, and maintained across >=3 polls.
+# A cold dip alone, source-only warming and stale successful status cannot pass.
+update_warmup_progress() {
+    if ! is_num "$SUPPLY_NOW" || ! is_num "$SOURCE_NOW" ||
+       ! is_num "$TARGET_NOW" || ! is_num "$VALVE_POS_NOW"; then
+        WARMUP_SAMPLES=0; return
+    fi
+    if [ "$PUMP_NOW" != 1 ] || [ "$VALVE_SW_NOW" != 1 ] ||
+       ! num_ge "$VALVE_POS_NOW" 0 || num_gt "$VALVE_POS_NOW" 100 || [ "$ARB_NOW" != "$VD" ]; then
+        WARMUP_SAMPLES=0; return
+    fi
+    if [ -z "$WARMUP_MIN" ] || num_gt "$WARMUP_MIN" "$SUPPLY_NOW"; then
+        WARMUP_MIN="$SUPPLY_NOW"
+    fi
+    if ! awk -v s="$SOURCE_NOW" -v t="$TARGET_NOW" 'BEGIN { exit !(s >= t+3) }'; then
+        WARMUP_SAMPLES=0; return
+    fi
+    WARMUP_OK=0
+    case "$RESP_NOW" in
+        AT_TARGET)
+            awk -v s="$SUPPLY_NOW" -v t="$TARGET_NOW" 'BEGIN { exit !(s >= t-1) }' && WARMUP_OK=1 ;;
+        WARMUP_PROGRESS|RESPONSE_OK)
+            if num_ge "$VALVE_POS_NOW" 5 && is_num "$PROGRESS_NOW" && num_ge "$PROGRESS_NOW" 1 &&
+               awk -v s="$SUPPLY_NOW" -v b="$WARMUP_MIN" 'BEGIN { exit !(s >= b+1) }'; then
+                WARMUP_OK=1
+            fi ;;
+    esac
+    if [ "$WARMUP_OK" = 1 ]; then WARMUP_SAMPLES=$((WARMUP_SAMPLES + 1))
+    else WARMUP_SAMPLES=0; fi
+    [ "$WARMUP_SAMPLES" -lt 3 ] || WARMUP_PROGRESS_SEEN=1
+}
+
 run_contour_test() {
     NAME="$1"
     VD="$2"
@@ -299,6 +352,9 @@ run_contour_test() {
     RESPONSE_MODE="${14}"
 
     RESPONSE_PASS=0
+    WARMUP_SAMPLES=0
+    WARMUP_MIN=""
+    WARMUP_PROGRESS_SEEN=0
     HYDRAULIC_RESPONSE_SEEN=0
     THERMAL_RESPONSE_SEEN=0
     PUMP_SEEN=0
@@ -365,6 +421,27 @@ run_contour_test() {
             VALVE_POS_NOW="$(get "$VALVE_POS_TOPIC")"
         fi
 
+        FAULT_NOW="$(get "/devices/${VD}/controls/fault_latched")"
+        SOURCE_FAULT="$(get '/devices/hm2_source_manager/controls/source_interlock')"
+        REQUEST_TS="$(get "/devices/${VD}/controls/request_timestamp")"
+        REQUEST_EPOCH="$(date -d "$REQUEST_TS" +%s 2>/dev/null || echo 0)"
+        AGE=$(( $(date +%s) - REQUEST_EPOCH ))
+        if [ "$FAULT_NOW" != 0 ] || [ "$SOURCE_FAULT" != 0 ] ||
+           [ "$AGE" -lt 0 ] || [ "$AGE" -ge 90 ]; then
+            echo "FAIL: fault, interlock or stale/missing contour data"; TEST_FAILED=1
+            stop_all; summary; exit 1
+        fi
+        if [ "$RESPONSE_MODE" = WARMUP_PROGRESS ]; then
+            SOURCE_NOW="$(get '/devices/wb-m1w2_170/controls/External Sensor 1')"
+            TARGET_NOW="$(get "/devices/${VD}/controls/target_supply_c")"
+            PROGRESS_NOW="$(get "/devices/${VD}/controls/warmup_progress_count")"
+            update_warmup_progress
+            echo "WARMUP samples=$WARMUP_SAMPLES seen=$WARMUP_PROGRESS_SEEN minimum=$WARMUP_MIN"
+            for control in warmup_elapsed_s warmup_hot_elapsed_s warmup_baseline_supply_c warmup_checkpoint_c response_rise_c warmup_high_valve_s response_reason; do
+                echo "$control=$(get "/devices/${VD}/controls/$control")"
+            done
+        fi
+
         if [ -z "$HYD_SUPPLY_BASELINE" ] && is_num "$SUPPLY_NOW"; then
             HYD_SUPPLY_BASELINE="$SUPPLY_NOW"
         fi
@@ -397,20 +474,10 @@ run_contour_test() {
         THERMAL)
             RESPONSE_PASS="$THERMAL_RESPONSE_SEEN"
             ;;
-        HYDRAULIC_OR_THERMAL)
-            if [ "$HYDRAULIC_RESPONSE_SEEN" = "1" ] || [ "$THERMAL_RESPONSE_SEEN" = "1" ]; then
-                RESPONSE_PASS=1
-            else
-                RESPONSE_PASS=0
-            fi
+        WARMUP_PROGRESS)
+            [ "$WARMUP_SAMPLES" -lt 3 ] || RESPONSE_PASS=1
             ;;
-        *)
-            if [ "$HYDRAULIC_RESPONSE_SEEN" = "1" ] || [ "$THERMAL_RESPONSE_SEEN" = "1" ]; then
-                RESPONSE_PASS=1
-            else
-                RESPONSE_PASS=0
-            fi
-            ;;
+        *) RESPONSE_PASS=0 ;;
     esac
 
     echo
@@ -451,6 +518,14 @@ run_contour_test() {
     check_eq "$NAME final pump off" "$FINAL_PUMP" "0"
     check_eq "$NAME final source grant off" "$FINAL_SRC_GRANT" "0"
     check_eq "$NAME final OT safe-off" "$FINAL_OT" "35"
+    if [ -n "$VALVE_SW_TOPIC" ]; then
+        check_eq "$NAME final valve power off" "$(get "$VALVE_SW_TOPIC")" 0
+        check_eq "$NAME final valve position zero" "$(get "$VALVE_POS_TOPIC")" 0
+    fi
+    if [ "$TEST_FAILED" != 0 ]; then
+        case "$NAME" in 501*) PASS_501=0 ;; 502*) PASS_502=0 ;; 503*) PASS_503=0 ;; esac
+        summary; exit 1
+    fi
 }
 
 final_snapshot() {
@@ -544,7 +619,7 @@ run_contour_test \
     "$TEST_MINUTES_501" \
     "/devices/A08/controls/K3" \
     "" \
-    "HYDRAULIC_OR_THERMAL"
+    "WARMUP_PROGRESS"
 
 run_contour_test \
     "502 ГП дом / плитка" \
@@ -560,7 +635,7 @@ run_contour_test \
     "$TEST_MINUTES_502" \
     "/devices/A13/controls/K1" \
     "" \
-    "HYDRAULIC_OR_THERMAL"
+    "WARMUP_PROGRESS"
 
 run_contour_test \
     "503 Радиаторы дом" \

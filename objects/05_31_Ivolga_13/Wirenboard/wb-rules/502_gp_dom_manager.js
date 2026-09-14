@@ -1,7 +1,7 @@
 // 502_gp_dom_manager.js
 // 05 31 Иволга 13 — HM2 manager контура 502: горячий пол дома / плитка.
 // Использует общий модуль /etc/wb-rules-modules/MixingController.js.
-// Только shadow/gate до отдельного физического ПНР. Production enable отсутствует.
+// Cold slab v2; параметры требуют подтверждения при контролируемом ПНР.
 // Безопасный старт: enabled=false, commissioned=false, outputs_enabled=false.
 // При reload outputs_enabled, manual_commissioning_grant, response_commissioned сбрасываются.
 //
@@ -77,6 +77,15 @@ var CFG = {
 };
 
 var CELL_TYPE = {
+    response_reason: 'text',
+    warmup_elapsed_s: 'number',
+    warmup_hot_elapsed_s: 'number',
+    warmup_baseline_supply_c: 'number',
+    warmup_min_supply_c: 'number',
+    warmup_checkpoint_c: 'number',
+    warmup_progress_count: 'number',
+    hydraulic_response_seen: 'switch',
+    warmup_high_valve_s: 'number',
     response_rise_c: 'number',
     response_elapsed_s: 'number',
     response_status: 'text',
@@ -261,47 +270,138 @@ function latchFault(reason)
     safeOutputs();
 }
 
-var WD = { since: 0, baseline: 0, badSince: 0, samples: 0, lastSample: 0 };
-// По карте и 620: термостаты 606..614 имеют по одному собственному выходу.
-// Допущение модели 502: один указанный выход = одна логическая зона;
-// объединение нескольких выходов не подтверждено. Задержка у каждой зоны своя.
-var zoneSince = [];
+function newWatchdog() {
+    return { since: null, baseline: null, minimum: null, checkpoint: null,
+        hydraulicSeen: false, progressCount: 0, hotS: 0, progressHotS: 0,
+        highValveS: 0, lastTick: null, eligible: false, highValve: false,
+        lastSample: null, progressSamples: 0, targetSamples: 0,
+        badSince: null, badSamples: 0, atTarget: false };
+}
+var WD = newWatchdog();
+var zoneSince = [0, 0, 0];
 var lastMode = '';
 var lastRealRun = false;
-var lastTarget = null;
 var readbackWaitSince = 0;
-function resetWatchdog() { WD = { since: 0, baseline: 0, badSince: 0, samples: 0, lastSample: 0 }; }
+var lastResponseStatus = '';
+function resetWatchdog() { WD = newWatchdog(); }
 
-// Object commissioning values; must be explicitly confirmed before active operation.
+// Initial Ivolga commissioning limits, not proof of hydraulic performance.
+// Time is accumulated only across eligible intervals; waits never erase history.
 var RESPONSE = { graceS: 300, windowS: 600, stabilityS: 120,
-    sampleS: 30, minSamples: 3, minRiseC: 1, minValvePct: 5, targetBandC: 1 };
+    sampleS: 30, minSamples: 3, minRiseC: 1, minValvePct: 5, targetBandC: 1,
+    hydraulicDeltaC: 1, maxWarmupS: 3600, highValvePct: 95, highValveMaxS: 600 };
+
 function responseWatchdog(now, running, pump, valveOn, position, supply, source, target)
 {
+    // Preserve the last failure's measurements until explicit reset.
+    if (rb(dev[VD + '/fault_latched'])) return 'FAULT_LATCHED';
     if (!running) { resetWatchdog(); return 'IDLE'; }
-    if (!pump || !valveOn || position === null || position < RESPONSE.minValvePct) {
-        resetWatchdog(); return 'WAIT_OUTPUT_READBACK';
+    if (supply === null || source === null) return 'WAIT_VALID_SENSOR';
+    if (WD.since === null) {
+        WD.since = now; WD.baseline = supply; WD.minimum = supply;
+        WD.checkpoint = supply; WD.lastTick = now;
     }
-    if (source < target + CFG.tuning.sourceMarginC) {
-        resetWatchdog(); return 'WAIT_HOT_SOURCE';
+    var outputs = pump && valveOn && position !== null &&
+        position >= RESPONSE.minValvePct && position <= 100;
+    var eligible = outputs && source >= target + CFG.tuning.sourceMarginC;
+    var highValve = eligible && position >= RESPONSE.highValvePct;
+    var dt = Math.max(0, now - WD.lastTick);
+    if (eligible && WD.eligible) WD.hotS += dt;
+    if (highValve && WD.highValve) WD.highValveS += dt;
+    WD.lastTick = now; WD.eligible = eligible; WD.highValve = highValve;
+    var sample = WD.lastSample === null || now - WD.lastSample >= RESPONSE.sampleS;
+    if (sample) WD.lastSample = now;
+
+    // AT_TARGET ends a warmup episode only after confirming samples.
+    // A subsequent drop starts a new, bounded episode, not perpetual cold-slab mode.
+    if (WD.atTarget && supply < target - RESPONSE.targetBandC) {
+        resetWatchdog();
+        return responseWatchdog(now, running, pump, valveOn, position, supply, source, target);
     }
-    if (supply >= target - RESPONSE.targetBandC) {
-        resetWatchdog(); return 'AT_TARGET';
+    // At target the mixer may correctly close to 0%; opening is required for
+    // proving warmup progress, not for maintaining an already warm supply.
+    if (pump && valveOn && position !== null && position >= 0 && position <= 100 &&
+        supply >= target - RESPONSE.targetBandC) {
+        if (sample) WD.targetSamples++;
+        if (WD.targetSamples >= RESPONSE.minSamples) {
+            WD.atTarget = true; WD.badSince = null; WD.badSamples = 0;
+            WD.highValveS = 0;
+            return 'AT_TARGET';
+        }
+    } else WD.targetSamples = 0;
+
+    // Absolute wall-clock bound also covers source/readback flapping.
+    if (now - WD.since >= RESPONSE.maxWarmupS) {
+        latchFault('WARMUP_TIMEOUT'); return 'FAULT_LATCHED';
     }
-    if (!WD.since) { WD.since = now; WD.baseline = supply; }
-    if (supply - WD.baseline >= RESPONSE.minRiseC) {
-        WD.since = now; WD.baseline = supply; WD.badSince = 0; WD.samples = 0;
-        return 'RESPONSE_OK';
+    var hydraulicNow = false;
+    if (outputs && sample) {
+        if (!WD.hydraulicSeen && Math.abs(supply - WD.baseline) >= RESPONSE.hydraulicDeltaC) {
+            WD.hydraulicSeen = true; hydraulicNow = true;
+        }
+        if (!WD.progressCount) {
+            WD.minimum = Math.min(WD.minimum, supply);
+            WD.checkpoint = WD.minimum;
+        }
     }
-    if (now - WD.since < RESPONSE.graceS) return 'START_GRACE';
-    if (now - WD.since < RESPONSE.graceS + RESPONSE.windowS) return 'OBSERVING';
-    if (!WD.badSince) WD.badSince = now;
-    if (!WD.lastSample || now - WD.lastSample >= RESPONSE.sampleS) {
-        WD.samples++; WD.lastSample = now;
+    if (!eligible) {
+        WD.progressSamples = 0;
+        WD.badSince = null; WD.badSamples = 0;
+        return outputs ? 'WAIT_HOT_SOURCE' : 'WAIT_OUTPUT_READBACK';
     }
-    if (now - WD.badSince >= RESPONSE.stabilityS && WD.samples >= RESPONSE.minSamples) {
-        latchFault('RESPONSE_TIMEOUT_415'); return 'FAULT_LATCHED';
+
+    // A rebound from the initial minimum is useful. Later oscillations cannot
+    // earn more progress: the checkpoint only rises after confirmed warming.
+    if (sample) {
+        if (supply >= WD.checkpoint + RESPONSE.minRiseC) WD.progressSamples++;
+        else WD.progressSamples = 0;
+        if (WD.progressSamples >= RESPONSE.minSamples) {
+            WD.checkpoint = supply; WD.progressCount++;
+            WD.progressHotS = WD.hotS; WD.progressSamples = 0;
+            WD.badSince = null; WD.badSamples = 0; WD.highValveS = 0;
+        }
     }
-    return 'CONFIRMING_NO_RESPONSE';
+    var budget = RESPONSE.windowS + (WD.progressCount ? 0 : RESPONSE.graceS);
+    var overdue = WD.hotS - WD.progressHotS >= budget ||
+        WD.highValveS >= RESPONSE.highValveMaxS;
+    if (overdue) {
+        if (WD.badSince === null) WD.badSince = now;
+        if (sample) WD.badSamples++;
+        if (now - WD.badSince >= RESPONSE.stabilityS && WD.badSamples >= RESPONSE.minSamples) {
+            latchFault('NO_WARMUP_PROGRESS'); return 'FAULT_LATCHED';
+        }
+        return 'NO_WARMUP_PROGRESS';
+    }
+    WD.badSince = null; WD.badSamples = 0;
+    if (WD.progressCount) return WD.minimum <= WD.baseline - RESPONSE.hydraulicDeltaC ?
+        'WARMUP_PROGRESS' : 'RESPONSE_OK';
+    if (hydraulicNow) return 'HYDRAULIC_RESPONSE';
+    if (WD.hotS < RESPONSE.graceS) return 'START_GRACE';
+    return 'COLD_SLAB_WARMUP';
+}
+
+function publishResponse(status, ts, supply)
+{
+    var reason = status === 'FAULT_LATCHED' ? String(dev[VD + '/fault_text']) : status;
+    sc('response_status', status);
+    sc('response_reason', reason);
+    sc('response_elapsed_s', WD.since === null ? 0 : ts - WD.since);
+    sc('response_rise_c', WD.baseline === null || supply === null ? 0 : supply - WD.baseline);
+    sc('warmup_elapsed_s', WD.since === null ? 0 : ts - WD.since);
+    sc('warmup_hot_elapsed_s', WD.hotS);
+    sc('warmup_baseline_supply_c', WD.baseline);
+    sc('warmup_min_supply_c', WD.minimum);
+    sc('warmup_checkpoint_c', WD.checkpoint);
+    sc('warmup_progress_count', WD.progressCount);
+    sc('hydraulic_response_seen', WD.hydraulicSeen);
+    sc('warmup_high_valve_s', WD.highValveS);
+    if (status !== lastResponseStatus) {
+        logMsg('info', 'RESPONSE', reason + '; elapsed_s=' +
+            (WD.since === null ? 0 : ts - WD.since) + '; baseline=' + WD.baseline +
+            '; supply=' + supply + '; checkpoint=' + WD.checkpoint +
+            '; source=' + dev[CH.source] + '; valve=' + dev[CH.valvePosition]);
+        lastResponseStatus = status;
+    }
 }
 
 function temp(path)
@@ -433,7 +533,6 @@ function evaluate(reason)
         freeze: manual && rb(dev[VD + '/freeze']),
         manualValvePct: clamp(dev[VD + '/manual_valve_pct'], 0, 100) });
     if (r.alarmActive) latchFault(r.alarmText || 'MIXING_ALARM');
-    if (lastTarget !== target) { resetWatchdog(); lastTarget = target; }
     if (real && (!readbackKnown || !pump || !valveOn)) {
         if (!readbackWaitSince) readbackWaitSince = ts;
         if (ts - readbackWaitSince >= 120) latchFault('OUTPUT_READBACK_TIMEOUT');
@@ -454,10 +553,9 @@ function evaluate(reason)
     sc('pump_cmd', cmd);
     sc('pump_physical_state', pump); sc('valve_position_physical', pos);
     sc('valve_enable_physical', valveOn); sc('physical_readback_valid', readbackKnown);
-    sc('response_status', wd); sc('response_elapsed_s', WD.since ? ts - WD.since : 0);
-    sc('response_rise_c', WD.since && supply !== null ? supply - WD.baseline : 0);
+    publishResponse(fault ? 'FAULT_LATCHED' : wd, ts, supply);
     sc('physical_active_output_count', physicalCount); sc('active_zone_count', zones);
-    sc('zone_demand', zones > 0); sc('path_ready', ready);
+    sc('zone_demand', zones > 0); sc('path_ready', ready && valid && !fault);
     sc('state', valid ? (zones ? 'ACTIVE' : 'INACTIVE') : 'UNKNOWN');
     sc('valid', valid); sc('heat_demand', valid && zones > 0);
     sc('requested_supply_c', valid && zones ? target : 0);
@@ -491,6 +589,15 @@ function restartLoop()
 defineVirtualDevice(VD, {
     title: 'HM2 502 ГП дом / плитка',
     cells: {
+        response_reason: { title: 'Причина ожидания / аварии', type: 'text', value: '', readonly: true },
+        warmup_elapsed_s: { title: 'Прогрев: прошло, с', type: 'value', value: 0, readonly: true },
+        warmup_hot_elapsed_s: { title: 'Прогрев: время с горячим источником и выходами, с', type: 'value', value: 0, readonly: true },
+        warmup_baseline_supply_c: { title: 'Прогрев: стартовая подача, C', type: 'value', value: 0, readonly: true },
+        warmup_min_supply_c: { title: 'Прогрев: минимум подачи, C', type: 'value', value: 0, readonly: true },
+        warmup_checkpoint_c: { title: 'Прогрев: подтверждённая подача, C', type: 'value', value: 0, readonly: true },
+        warmup_progress_count: { title: 'Прогрев: подтверждений роста', type: 'value', value: 0, readonly: true },
+        hydraulic_response_seen: { title: 'Первичный гидравлический отклик', type: 'switch', value: false, readonly: true },
+        warmup_high_valve_s: { title: 'Клапан >=95% без нового прогресса, с', type: 'value', value: 0, readonly: true },
         response_rise_c: {"title": "Response: рост подачи, C", "type": "value", "value": 0, "readonly": true},
         response_elapsed_s: {"title": "Response: прошло, с", "type": "value", "value": 0, "readonly": true},
         response_status: {"title": "Response watchdog", "type": "text", "value": "IDLE", "readonly": true},
@@ -599,10 +706,12 @@ defineRule('hm2_502_gp_dom_reset_fault', {
     }
 });
 
-// Re-arm is always explicit after reload; persistent true values cannot start outputs.
+// Cold slab v2: reload is a stopped operation; explicit re-arm is required.
+sc('enabled', false);
+sc('local_permit', false);
+sc('response_commissioned', false);
 sc('outputs_enabled', false);
 sc('manual_commissioning_grant', false);
-sc('response_commissioned', false);
 safeOutputs();
 setTimeout(function () {
     restartLoop();
