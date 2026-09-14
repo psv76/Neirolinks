@@ -17,7 +17,7 @@
           "minValue": 0,
           "maxValue": 10,
           "minStep": 0.1,
-          "unit": "Bar",
+          "unit": "бар",
           "link": [
             {
               "type": "Double",
