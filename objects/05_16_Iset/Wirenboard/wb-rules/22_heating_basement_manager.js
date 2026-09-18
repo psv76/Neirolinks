@@ -3,6 +3,7 @@ var HC = require("HeatingCommon"), CFG = require("HeatingConfig");
 var hc = HC.create({dev: dev, log: log, trackMqtt: trackMqtt, defineVirtualDevice: defineVirtualDevice}, "Heating_basement_manager", CFG.ttl, {allowedOutputs: CFG.allowedOutputs.Heating_basement_manager || []});
 var basementDemand = false, basementReady = HC.stableGate();
 var basementWatch = HC.responseWatch();
+var basementOutdoorLast = null;
 hc.device("heating_basement", "Отопление / Цоколь", {
     room_target: hc.cell(String(CFG.basementTarget), "Уставка помещений, °C"),
     room_min: hc.cell("НЕТ ДАННЫХ", "Минимальная температура помещений, °C"),
@@ -13,20 +14,23 @@ for (var bi = 0; bi < CFG.basementSensors.length; bi++) hc.watch(CFG.basementSen
 hc.watch(CFG.channels.outdoor); hc.watch(CFG.channels.common); hc.watch(CFG.channels.basement);
 hc.watch("wb-mr6cu_37/K3");
 function basementTick() {
-    var now = hc.now(), min = 100, all = true, i, t, missingSensors = [];
+    var now = hc.now(), min = 100, all = true, available = 0, i, t, missingSensors = [];
     var target = HC.number(CFG.basementTarget);
     for (i = 0; i < CFG.basementSensors.length; i++) {
         t = hc.num(CFG.basementSensors[i], -10, 50);
-        if (t === null) { all = false; missingSensors.push(CFG.basementSensors[i]); } else min = Math.min(min, t);
+        if (t === null) { all = false; missingSensors.push(CFG.basementSensors[i]); } else { min = Math.min(min, t); available++; }
     }
-    var outdoor = hc.num(CFG.channels.outdoor, -60, 60, CFG.ttl.outdoor);
+    var outdoorMeasured = hc.num(CFG.channels.outdoor, -60, 60, CFG.ttl.outdoor);
+    if (outdoorMeasured !== null) basementOutdoorLast = outdoorMeasured;
+    var outdoor = outdoorMeasured === null ? basementOutdoorLast : outdoorMeasured;
     var state = "UNKNOWN", reason = "STARTUP_VALIDATION", requested = "NOT_READY";
-    var valid = basementReady(all && target !== null && target >= 10 && target <= 30 && outdoor !== null, now, CFG.ttl.recovery);
+    /* One bad room sensor does not cancel the other rooms. No unverified default after a cold start. */
+    var valid = basementReady(available > 0 && target !== null && target >= 10 && target <= 30 && outdoor !== null, now, CFG.ttl.recovery);
     if (target === null) reason = "SETPOINT_NOT_COMMISSIONED_21_VS_26";
     else if (!valid) reason = "REQUIRED_TEMPERATURE_NOT_READY:" + missingSensors.join(",");
     else {
         if (min < target - 0.7) basementDemand = true;
-        else if (min > target + 0.7) basementDemand = false;
+        else if (all && min > target + 0.7) basementDemand = false; /* missing room cannot vote to stop heat */
         var base = outdoor >= 0 ? 48 - HC.clamp(outdoor, 0, 10) :
             outdoor >= -10 ? 48 - outdoor : 58 + HC.clamp(-outdoor - 10, 0, 15) * 10 / 15;
         requested = HC.clamp(base + HC.clamp(2 * (target - min), 0, 6), 35, 75);
@@ -43,6 +47,7 @@ function basementTick() {
     if (state === "UNKNOWN") basementDemand = false;
     var p = HC.request(state, requested, "COMFORT", reason, now);
     p.transfer = transfer; p.fault_latched = false; p.missing_sensors = missingSensors;
+    p.outdoor_fallback = outdoorMeasured === null && outdoor !== null;
     p.commissioned = target !== null && target >= 10 && target <= 30 && hc.commissioned(CFG.basementSensors.concat([CFG.channels.outdoor]));
     hc.publish("heating_basement", p);
     hc.output("wb-mr6cu_37/K3", state === "ACTIVE" && hc.permit("basement"), CFG.outputsEnabled);
