@@ -108,6 +108,39 @@ def patch_unified(old, patch):
     return ''.join(out).encode('utf-8')
 
 
+def backup_and_verify(backup, original):
+    """Follow WB directory symlinks and verify that the archive contains actual file bytes.
+
+    Wiren Board 8.5 normally has /etc/wb-rules -> /mnt/data/etc/wb-rules.
+    Archiving the link with tarfile.add() stores only that link, not the rules.
+    This function never modifies running services or active source files.
+    """
+    with tarfile.open(str(backup), 'w:gz') as tf:
+        tf.add(str(RULES.resolve(strict=True)), arcname='etc/wb-rules')
+        tf.add(str(MODULES.resolve(strict=True)), arcname='etc/wb-rules-modules')
+    with tarfile.open(str(backup), 'r:gz') as tf:
+        for name in NAMES:
+            member_name = 'etc/wb-rules/' + name
+            try:
+                member = tf.getmember(member_name)
+            except KeyError:
+                raise RuntimeError('Backup is incomplete: ' + name)
+            demand(member.isfile(), 'Backup entry is not regular file: ' + member_name)
+            stream = tf.extractfile(member)
+            demand(stream is not None and sha(stream.read()) == sha(original[name]),
+                   'Backup content differs: ' + name)
+        for name, expected in MODULE_SHA.items():
+            member_name = 'etc/wb-rules-modules/' + name
+            try:
+                member = tf.getmember(member_name)
+            except KeyError:
+                raise RuntimeError('Backup is incomplete: ' + name)
+            demand(member.isfile(), 'Backup entry is not regular file: ' + member_name)
+            stream = tf.extractfile(member)
+            demand(stream is not None and sha(stream.read()) == expected,
+                   'Backup module differs: ' + name)
+
+
 def main():
     ap = argparse.ArgumentParser(description='HM2 Iset #51: default CHECK; --apply explicitly installs')
     ap.add_argument('--apply', action='store_true', help='Stop service, install reviewed sources, start service; operator must be on site')
@@ -157,16 +190,11 @@ def main():
         if not args.apply:
             print('CHECK ONLY. No service or live files changed. For supervised installation: --apply --confirm')
             return
-        # Back up complete rules and modules, not only edited files; no cleanup before backup.
+        # Back up complete rules and modules, resolving WB /etc -> /mnt/data symlinks.
         backups = DATA / 'hm2_backups'
         backups.mkdir(mode=0o700, exist_ok=True)
         backup = backups / ('before_51_' + stamp + '.tar.gz')
-        with tarfile.open(str(backup), 'w:gz') as tf:
-            tf.add(str(RULES), arcname='etc/wb-rules')
-            tf.add(str(MODULES), arcname='etc/wb-rules-modules')
-        with tarfile.open(str(backup), 'r:gz') as tf:
-            for name in NAMES:
-                demand('etc/wb-rules/' + name in tf.getnames(), 'Backup is incomplete: ' + name)
+        backup_and_verify(backup, original)
         print('BACKUP:', backup, 'SHA256:', sha(backup.read_bytes()))
         stopped = False
         try:
