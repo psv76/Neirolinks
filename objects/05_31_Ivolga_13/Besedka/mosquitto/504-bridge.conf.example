@@ -2,7 +2,7 @@
 # Initiator: WB besedka. Preserve exact topic name; no /devices imports or /on.
 connection ivolga-504-besedka-to-boiler
 address 10.10.30.101:REPLACE_WITH_VERIFIED_TLS_PORT
-remote_clientid ivolga-504-besedka-v1
+remote_clientid ivolga-504-besedka-v2
 local_clientid ivolga-504-local-v1
 remote_username REPLACE_WITH_DEDICATED_BRIDGE_USER
 # Add credentials locally (0600); never commit passwords or private keys.
@@ -15,4 +15,4 @@ notifications false
 start_type automatic
 keepalive_interval 10
 # Retain flag is preserved (default); receiver rejects it. Do NOT strip it.
-topic /neiro/ivolga/504/v1/frame out 0
+topic /neiro/ivolga/504/v2/frame out 0

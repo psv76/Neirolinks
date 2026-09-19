@@ -45,6 +45,7 @@ cell('remote_reason', 'Причина термостата', 'text', '', true);
 cell('link_state', 'Связь и самопроверка', 'text', 'STARTUP_VALIDATION', true);
 cell('link_age_s', 'Возраст последнего сообщения, с', 'value', -1, true);
 cell('last_receive_result', 'Последний результат приёма', 'text', '', true);
+cell('runtime_status', 'Совместимость wb-rules', 'text', 'Ожидание MQTT: требуется wb-rules >= 2.42.0', true);
 cell('local_sensors_valid', 'Свежие 411/418/419', 'switch', false, true);
 cell('supply_temp_c', 'Подача 418, °C (см. достоверность)', 'temperature', 0, true);
 cell('return_temp_c', 'Обратка 419, °C (см. достоверность)', 'temperature', 0, true);
@@ -73,17 +74,26 @@ function evaluate() {
     var supply = sensors.supply.read(now, -20, 95), ret = sensors.ret.read(now, -20, 95);
     var source = sensors.source.read(now, -20, 95);
     var localOk = supply !== null && ret !== null && source !== null;
+    var unsupported = link.runtime === 'RUNTIME_UNSUPPORTED' || Object.keys(sensors).some(function (k) {
+        return sensors[k].runtimeStatus() === 'RUNTIME_UNSUPPORTED';
+    });
+    var runtimeVerified = link.runtime === 'SUPPORTED' && Object.keys(sensors).every(function (k) {
+        return sensors[k].runtimeStatus() === 'SUPPORTED';
+    });
+    sc('runtime_status', unsupported ? H.RUNTIME_ERROR_RU : (runtimeVerified ?
+        'trackMqtt.retained поддерживается; версию проверить до установки' : 'Ожидание MQTT: требуется wb-rules >= 2.42.0'));
     var fault = typeof persistent.fault === 'string' ? persistent.fault : '';
-    var reason = fault ? 'FAULT_LATCHED' : (!localOk ? 'LOCAL_SENSOR_INTERLOCK' :
+    var reason = fault ? 'FAULT_LATCHED' : (unsupported ? 'RUNTIME_UNSUPPORTED' : (!localOk ? 'LOCAL_SENSOR_INTERLOCK' :
         (!link.fresh ? 'DEGRADED_POLICY_NOT_CONFIRMED' :
-        (!f.valid ? 'REMOTE_SENSOR_INTERLOCK' : 'DECISION_REQUIRED')));
+        (!f.valid ? (f.reason === 'SETTINGS_INVALID' ? 'SETTINGS_INVALID' :
+        (f.reason === 'RUNTIME_UNSUPPORTED' ? 'REMOTE_RUNTIME_UNSUPPORTED' : 'REMOTE_SENSOR_INTERLOCK')) : 'DECISION_REQUIRED'))));
     sc('valid', false); // Begin publication; never committed valid in this blocked build.
     sc('state', 'UNKNOWN'); sc('heat_demand', false); sc('path_ready', false);
     sc('requested_supply_c', 0); sc('requested_source_temperature', 0);
     sc('request_reason', reason); sc('request_ttl_s', 15);
     sc('fault_latched', !!fault); sc('fault_text', fault);
     ['enabled', 'commissioned', 'outputs_enabled', 'physical_write_grant'].forEach(function (k) { sc(k, false); });
-    sc('remote_demand', !!(f && f.demand)); sc('remote_valid', !!(f && f.valid));
+    sc('remote_demand', !!(!unsupported && f && f.demand)); sc('remote_valid', !!(!unsupported && f && f.valid));
     sc('remote_reason', f ? f.reason : ''); sc('link_state', link.reason); sc('link_age_s', link.age_s);
     sc('local_sensors_valid', localOk);
     if (supply !== null) sc('supply_temp_c', supply);
@@ -93,7 +103,10 @@ function evaluate() {
         (supply - previousSupply) * 60000 / (now - previousTime) : 0);
     previousSupply = supply; previousTime = now;
     sc('safety_state', !localOk ? 'SENSOR_INTERLOCK' : 'LIMITS_NOT_CONFIRMED');
-    sc('status', reason + '; физических writes нет; пределы 504 и резерв не утверждены');
+    sc('status', reason + '; ' + (unsupported ? H.RUNTIME_ERROR_RU :
+        (f && f.reason === 'SETTINGS_INVALID' ? 'Некорректные уставки термостата беседки' :
+        (f && f.reason === 'RUNTIME_UNSUPPORTED' ? 'WB беседки: ' + H.RUNTIME_ERROR_RU : 'пределы 504 и резерв не утверждены'))) +
+        '; физических writes нет');
     var timestamp = new Date(now).toISOString();
     sc('request_json', JSON.stringify({ state: 'UNKNOWN', valid: false, heat_demand: false,
         path_ready: false, fault_latched: !!fault, requested_supply_c: 0,

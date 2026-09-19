@@ -7,8 +7,7 @@ var VD = 'NL_combo_thermostat_504';
 var memory = { airHeat: false, floorHeat: false };
 var air = H.sensor(), floor = H.sensor();
 var store504 = new PersistentStorage('ivolga_504_sender', { global: true });
-var boot = Math.max(Date.now(), (H.number(store504.boot_ms) || 0) + 1);
-store504.boot_ms = boot;
+var session = H.nextSession(store504);
 var seq = 0, lastReason = '';
 var cells = {}, order = 0;
 function cell(name, title, type, value, readonly, min, max) {
@@ -29,6 +28,7 @@ cell('floor_valid', 'Пол достоверен', 'switch', false, true);
 cell('demand_valid', 'Запрос достоверен', 'switch', false, true);
 cell('state', 'Состояние', 'text', 'Самопроверка датчиков', true);
 cell('reason', 'Причина', 'text', 'STARTUP', true);
+cell('runtime_status', 'Совместимость wb-rules', 'text', 'Ожидание MQTT: требуется wb-rules >= 2.42.0', true);
 defineVirtualDevice(VD, { title: '504 Беседка — воздух и пол', cells: cells });
 function sc(k, v) { dev[VD + '/' + k] = v; }
 function watch(path, sensor) {
@@ -48,21 +48,32 @@ function evaluate() {
         enabled: targetState === 1 };
     if (targetState !== 0 && targetState !== 1) s.enabled = null;
     var r = H.combo(memory, a, f, s);
+    var unsupported = air.runtimeStatus() === 'RUNTIME_UNSUPPORTED' || floor.runtimeStatus() === 'RUNTIME_UNSUPPORTED';
+    sc('runtime_status', unsupported ? H.RUNTIME_ERROR_RU :
+        (air.runtimeStatus() === 'SUPPORTED' && floor.runtimeStatus() === 'SUPPORTED' ?
+        'trackMqtt.retained поддерживается; версию проверить до установки' : 'Ожидание MQTT: требуется wb-rules >= 2.42.0'));
+    if (unsupported) {
+        memory.airHeat = false; memory.floorHeat = false;
+        r = { valid: false, demand: false, mode: 'BLOCKED', reason: 'RUNTIME_UNSUPPORTED' };
+    }
+    // Canonical diagnostic frame: no substitute defaults and no silent heartbeat loss.
+    if (!H.settingsValid(s)) {
+        s = { target: null, hold: null, heat: null, enabled: null };
+        r = { valid: false, demand: false, mode: 'BLOCKED', reason: 'SETTINGS_INVALID' };
+    }
     if (a !== null) sc('air_temperature', a);
     if (f !== null) sc('floor_temperature', f);
     sc('air_valid', a !== null); sc('floor_valid', f !== null);
     sc('current_state', r.demand ? 1 : 0); sc('demand_valid', r.valid); sc('reason', r.reason);
-    sc('state', r.mode === 'OFF' ? 'Выключен' : (!r.valid ? 'Блокировка: проверьте датчики и уставки' :
+    sc('state', unsupported ? H.RUNTIME_ERROR_RU : (r.mode === 'OFF' ? 'Выключен' : (!r.valid ? 'Блокировка: проверьте датчики и уставки' :
         (r.mode === 'DEGRADED' ? 'Нет воздуха: поддержание пола' :
-        (r.demand ? (r.mode === 'HEAT' ? 'Нагрев пола по запросу воздуха' : 'Поддержание пола') : 'Ожидание'))));
+        (r.demand ? (r.mode === 'HEAT' ? 'Нагрев пола по запросу воздуха' : 'Поддержание пола') : 'Ожидание')))));
     if (r.reason !== lastReason) {
         log.info('[отопление][624_combo_besedka][504 беседка]; STATE=' + r.reason);
         lastReason = r.reason;
     }
-    // Invalid settings are not normalized into a plausible remote request.
-    if (!H.settingsValid(s)) return;
     seq += 1;
-    publish(H.TOPIC, JSON.stringify({ v: 1, source: H.SOURCE, boot_ms: boot, seq: seq,
+    publish(H.TOPIC, JSON.stringify({ v: H.VERSION, source: H.SOURCE, session_id: session, seq: seq,
         sent_ms: now, ttl_ms: H.TTL_MS, air: a, floor: f, target: s.target,
         hold: s.hold, heat: s.heat, enabled: s.enabled, valid: r.valid,
         demand: r.demand, mode: r.mode, reason: r.reason }), 0, false);

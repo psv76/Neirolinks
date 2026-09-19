@@ -5,6 +5,10 @@ WB требует отдельного согласования Сергея. З
 Блокеры: [HM2_504.md](HM2_504.md). Автоматического apply/restart-скрипта нет:
 реальная схема brokers и live ownership неизвестны.
 
+После review используется wire protocol v2 и `/neiro/ivolga/504/v2/frame`.
+Смешанные версии v1/v2 не поддерживаются: модуль на обоих WB, sender, manager и
+bridge/ACL должны соответствовать одному reviewed SHA. Миграция только по разрешению.
+
 ## 1. Подготовка без контроллеров
 
 Взять полный 40-символьный SHA одобренного PR, сверить с GitHub и записать в протокол.
@@ -39,6 +43,27 @@ Manifest покрывает 8 code/config/reference файлов, не себя 
 Сохранить SHA архива вместе с commit. Никаких credentials в URL или архиве.
 
 ## 2. Read-only audit — после разрешения SSH
+
+Первый обязательный preflight на **каждом** WB — версия wb-rules >= 2.42.0.
+Ниже только read-only команды будущей проверки; в этой работе они на WB не запускались:
+
+```sh
+wb_rules_version_504=$(dpkg-query -W -f='${Version}' wb-rules) || exit 1
+printf 'wb-rules=%s\n' "$wb_rules_version_504"
+if ! dpkg --compare-versions "$wb_rules_version_504" ge 2.42.0; then
+  printf '%s\n' 'BLOCKED: требуется wb-rules >= 2.42.0; обновление только по отдельному согласованию'
+  exit 1
+fi
+```
+
+Неизвестная/старая версия — STOP, без apt/update/restart. Основание:
+[changelog 2.42.0](https://github.com/wirenboard/wb-rules/blob/master/debian/changelog),
+добавление retained/qos в trackMqtt 30.05.2026. На изолированном стенде проверить
+реальные callbacks retained=true/false и отсутствие поля: последнее должно дать
+русскую диагностику RUNTIME_UNSUPPORTED до reload, а не считаться false.
+Сверить синхронизацию часов (допуск 2 с). NTP rollback/recovery/replay проверять
+изолированно, не переводить часы live WB. session_id не сбрасывать и не откатывать;
+после скачка требуется повторная валидация потока, а не ручной обход seq.
 
 На обоих WB снять версии wb-rules/Mosquitto, includes/listeners/TLS/ACL/bridges,
 инвентарь scripts/modules/cron/systemd, MQTT clients, VD, Sprut/Fluxa сценарии.
@@ -79,6 +104,8 @@ reference для сравнения, **не разрешение заменит�
    `624_combo_besedka.js` в `/etc/wb-rules`; до этого collision audit. Добавление rule
    вызывает reload; нельзя обещать отсутствие влияния даже без общего restart.
 2. Проверить logs, один VD, русские controls, startup OFF, freshness/error/stale.
+   Проверить SETTINGS_INVALID heartbeat без demand при неверных уставках и
+   автоматическое восстановление после исправления; связь не должна стать MQTT_STALE.
    Persistence/reload сначала на изолированном стенде; live reload согласуется.
    До привязки Sprut проверить `init:true` опций и сохранение уставок. Fluxa не writer.
 3. Заполнить `.example` подтверждёнными listener/TLS/identity; секреты только локально.
