@@ -258,7 +258,7 @@ var ZONES = [
         deviceId: "NL_simple_thermostat_613",
         title: "ГП мастер санузел",
         context: "мастер санузел, горячий пол",
-        sensor: "903.06_TEMP_NONE/External Sensor 2",
+        sensor: "903.06_M1W2_LEAK_TEMP/External Sensor 2",
         sensorKind: "floor",
         outputs: ["A14/K2"],
         defaultTarget: 28,
