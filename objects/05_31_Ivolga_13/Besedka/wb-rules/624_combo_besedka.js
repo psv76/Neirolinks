@@ -3,6 +3,7 @@
  * Физических выходов и удалённых /on здесь нет.
  */
 var H = require('HM2504');
+var C = require('HM2504Config').config;
 var VD = 'NL_combo_thermostat_504';
 var memory = { airHeat: false, floorHeat: false };
 var air = H.sensor(), floor = H.sensor();
@@ -19,9 +20,9 @@ function cell(name, title, type, value, readonly, min, max) {
 cell('air_temperature', 'Воздух, °C (см. достоверность)', 'temperature', 0, true);
 cell('floor_temperature', 'Пол, °C (см. достоверность)', 'temperature', 0, true);
 cell('target_temperature', 'Цель воздуха, °C', 'range', 22, false, 15, 30);
-cell('floor_min_temperature', 'Пол при поддержании, °C', 'range', 25, false, 18, 30);
-cell('floor_max_temperature', 'Пол при нагреве, °C', 'range', 29, false, 20, 35);
-cell('target_state', 'Режим: 0 выключен, 1 нагрев', 'value', 0, false, 0, 1);
+cell('floor_min_temperature', 'Пол при поддержании, °C', 'range', 25, false, 18, C.floorTargetMaxC);
+cell('floor_max_temperature', 'Пол при нагреве, °C', 'range', 29, false, 20, C.floorTargetMaxC);
+cell('target_state', 'Круглогодичное отопление', 'value', 1, true, 1, 1);
 cell('current_state', 'Расчётный запрос нагрева', 'value', 0, true);
 cell('air_valid', 'Воздух достоверен', 'switch', false, true);
 cell('floor_valid', 'Пол достоверен', 'switch', false, true);
@@ -41,12 +42,11 @@ watch('921.09_MSW_TH/Temperature', air);
 watch('921.10_TEMP_NONE/External Sensor 1', floor);
 function evaluate() {
     var now = Date.now(), a = air.read(now, -20, 60), f = floor.read(now, -20, 70);
-    var targetState = H.number(dev[VD + '/target_state']);
+    sc('target_state', 1); // Compatibility display only; never a user OFF command.
     var s = { target: H.number(dev[VD + '/target_temperature']),
         hold: H.number(dev[VD + '/floor_min_temperature']),
         heat: H.number(dev[VD + '/floor_max_temperature']),
-        enabled: targetState === 1 };
-    if (targetState !== 0 && targetState !== 1) s.enabled = null;
+        enabled: true };
     var r = H.combo(memory, a, f, s);
     var unsupported = air.runtimeStatus() === 'RUNTIME_UNSUPPORTED' || floor.runtimeStatus() === 'RUNTIME_UNSUPPORTED';
     sc('runtime_status', unsupported ? H.RUNTIME_ERROR_RU :
@@ -65,9 +65,9 @@ function evaluate() {
     if (f !== null) sc('floor_temperature', f);
     sc('air_valid', a !== null); sc('floor_valid', f !== null);
     sc('current_state', r.demand ? 1 : 0); sc('demand_valid', r.valid); sc('reason', r.reason);
-    sc('state', unsupported ? H.RUNTIME_ERROR_RU : (r.mode === 'OFF' ? 'Выключен' : (!r.valid ? 'Блокировка: проверьте датчики и уставки' :
+    sc('state', unsupported ? H.RUNTIME_ERROR_RU : (!r.valid ? 'Проверьте датчики и уставки' :
         (r.mode === 'DEGRADED' ? 'Нет воздуха: поддержание пола' :
-        (r.demand ? (r.mode === 'HEAT' ? 'Нагрев пола по запросу воздуха' : 'Поддержание пола') : 'Ожидание')))));
+        (r.demand ? (r.mode === 'HEAT' ? 'Нагрев пола по запросу воздуха' : 'Поддержание пола') : 'Ожидание'))));
     if (r.reason !== lastReason) {
         log.info('[отопление][624_combo_besedka][504 беседка]; STATE=' + r.reason);
         lastReason = r.reason;

@@ -1,9 +1,7 @@
 // HM2_arbiter_request.js
 // HM2 Ivolga / issue #29: calculation only; writes only its own virtual device.
 var VD = 'hm2_request_arbiter';
-// Static review gate, deliberately not writable/retained. Source manager does not
-// yet accept 504; enabling this requires a separate source/tie-break decision.
-var ENABLE_504_SELECTION = false;
+// 504 is integrated with source whitelist. Initial commissioning belongs to 504 only.
 var BES = { id: 'hm2_504_gp_besedka', number: '504', title: '504 ГП беседка' };
 // Stable tie-break: 503 > 502 > 501. Never replace an equal-temperature winner.
 var CONSUMERS = [
@@ -23,12 +21,11 @@ cell('selected_requested_temperature', 'value', 0);
 cell('selected_reason', 'text', 'STARTUP');
 cell('no_demand_contract', 'switch', true);
 cell('active_candidate_count', 'value', 0);
-cell('rejected_candidate_count', 'value', 3);
+cell('rejected_candidate_count', 'value', 4);
 cell('candidates_json', 'text', '[]');
 cell('last_update_ts', 'text', '');
 cell('grant_504_state', 'text', 'REJECTED');
-cell('grant_504_reason', 'text', 'FEATURE_DISABLED');
-cell('selection_504_enabled', 'switch', false);
+cell('grant_504_reason', 'text', 'STARTUP');
 CONSUMERS.forEach(function (consumer) {
     cell('grant_' + consumer.number + '_state', 'text', 'REJECTED');
     cell('grant_' + consumer.number + '_reason', 'text', 'STARTUP');
@@ -111,18 +108,18 @@ function candidate504(now) {
 }
 function evaluate() {
     var now = Date.now();
-    var selectionReason = ENABLE_504_SELECTION ? 'MAX_TEMPERATURE; TIE_503_502_501_504_PROPOSED' :
-        'MAX_TEMPERATURE; TIE_503_502_501';
+    var selectionReason = 'MAX_TEMPERATURE; TIE_503_502_501';
     var winner = null;
     var active = 0;
     var candidates = CONSUMERS.map(function (consumer) { return candidate(consumer, now); });
     var bes = candidate504(now);
-    if (ENABLE_504_SELECTION) candidates.push(bes); // Append only: incumbents win equal-temperature ties.
+    candidates.push(bes); // Append only: incumbents win equal-temperature ties.
     candidates.forEach(function (item) {
         if (!item.eligible) return;
         active += 1;
         if (winner === null || item.temperature > winner.temperature) winner = item;
     });
+    if (winner !== null && winner.consumer === BES.id) selectionReason = 'MAX_TEMPERATURE; TIE_503_502_501_504';
     // Invalidate during publication; last_update_ts is written last.
     sc('valid', false);
     sc('state', winner === null ? 'INACTIVE' : 'ACTIVE');
@@ -133,13 +130,7 @@ function evaluate() {
     sc('no_demand_contract', winner === null);
     sc('active_candidate_count', active);
     sc('rejected_candidate_count', candidates.length - active);
-    if (!ENABLE_504_SELECTION) {
-        bes.validation_reason = bes.reason;
-        bes.eligible = false; bes.reason = 'FEATURE_DISABLED';
-        sc('grant_504_state', 'REJECTED'); sc('grant_504_reason', 'FEATURE_DISABLED');
-    }
-    sc('selection_504_enabled', ENABLE_504_SELECTION);
-    sc('candidates_json', JSON.stringify(ENABLE_504_SELECTION ? candidates : candidates.concat([bes])));
+    sc('candidates_json', JSON.stringify(candidates));
     candidates.forEach(function (item) {
         var selected = winner !== null && item.consumer === winner.consumer;
         sc('grant_' + item.number + '_state', !item.eligible ? 'REJECTED' :

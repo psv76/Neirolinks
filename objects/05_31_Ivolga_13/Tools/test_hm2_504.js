@@ -8,7 +8,10 @@ const cp = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const repo = path.resolve(root, '../..');
 const modulePath = path.join(root, 'Wirenboard/wb-rules-modules/HM2504.js');
-const H = require(modulePath);
+const Config = require(path.join(root, 'Wirenboard/wb-rules-modules/HM2504Config.js')).config;
+const Control = require(path.join(root, 'Wirenboard/wb-rules-modules/HM2504Control.js'));
+const H = {};
+vm.runInNewContext(fs.readFileSync(modulePath, 'utf8'), {exports:H, require:n=>({config:Config})});
 const mixingPath = path.join(repo, 'Templates/WB-rules/Heating/HM2/MixingController/MixingController.js');
 const Mixing = require(mixingPath);
 const managerPath = path.join(root, 'Wirenboard/wb-rules/504_gp_besedka_manager.js');
@@ -31,9 +34,10 @@ function harness(file, options = {}) {
     const stores = options.stores || {};
     const definitions = {};
     const prefix = file === senderPath ? 'NL_combo_thermostat_504/' :
-        (file === managerPath ? 'hm2_504_gp_besedka/' : 'hm2_request_arbiter/');
+        (file === managerPath ? 'hm2_504_gp_besedka/' : (file.endsWith('HM2_source_manager.js') ? 'hm2_source_manager/' : 'hm2_request_arbiter/'));
     const dev = new Proxy(values, { set(o, k, v) {
-        assert.ok(k.startsWith(prefix), 'Forbidden write: ' + k);
+        assert.ok(k.startsWith(prefix) || (options.allowed || []).includes(k), 'Forbidden write: ' + k);
+        if (options.failWrite && options.failWrite(k,v)) throw new Error('simulated IO failure');
         assert.notEqual(v, undefined); assert.notEqual(v, null);
         if (typeof v === 'number') assert.ok(Number.isFinite(v));
         writes.push([k, v]); o[k] = v; return true;
@@ -41,7 +45,7 @@ function harness(file, options = {}) {
     class Clock extends Date { constructor(...args) { super(...(args.length ? args : [now])); } static now() { return now; } }
     const logger = () => {}; logger.info = logger.warning = logger.error = logger;
     const context = vm.createContext({ dev, Date: Clock, log: logger,
-        require: n => n === 'HM2504' ? H : (n === 'MixingController' ? Mixing : assert.fail(n)),
+        require: n => ({HM2504:H, MixingController:Mixing, HM2504Control:Control, HM2504Config:{config:options.config || Config}}[n] || assert.fail(n)),
         PersistentStorage: function (name) { return stores[name] || (stores[name] = {}); },
         defineVirtualDevice: (id, d) => Object.entries(d.cells).forEach(([k, c]) => {
             definitions[k] = c;
@@ -61,19 +65,19 @@ function harness(file, options = {}) {
 }
 const settings = { target: 22, hold: 25, heat: 29, enabled: true };
 test('ES5-style runtime files parse with node --check', () => {
-    for (const f of [modulePath, managerPath, senderPath, arbiterPath]) {
+    for (const f of [modulePath, managerPath, senderPath, arbiterPath, path.join(root,'Wirenboard/wb-rules-modules/HM2504Control.js'), path.join(root,'Wirenboard/wb-rules-modules/HM2504Config.js'), path.join(root,'Wirenboard/wb-rules/HM2_source_manager.js')]) {
         cp.execFileSync(process.execPath, ['--check', f]);
         assert.ok(!/\b(?:const|let)\s+\w+\s*=|=>/.test(fs.readFileSync(f, 'utf8')));
     }
 });
-test('combo heat / hysteresis / hold demand / no demand / OFF', () => {
+test('combo heat / hysteresis / hold demand / no demand / legacy OFF rejected', () => {
     const m = {};
     assert.equal(H.combo(m, 20, 27, settings).demand, true);
     assert.equal(H.combo(m, 22, 28.5, settings).demand, true);
     assert.equal(H.combo(m, 22, 29, settings).demand, false);
     assert.equal(H.combo(m, 23, 23, settings).demand, true);
     assert.equal(H.combo(m, 23, 25, settings).demand, false);
-    assert.equal(H.combo(m, 20, 20, { ...settings, enabled: false }).reason, 'OFF');
+    assert.equal(H.combo(m, 20, 20, { ...settings, enabled: false }).reason, 'SETTINGS_INVALID');
 });
 test('one/both sensors offline, floor required, auto-recovery', () => {
     const m = {};
@@ -191,73 +195,6 @@ test('settings survive restart; calculated state and sensor freshness do not', (
     assert.ok(JSON.parse(h2.published[0][1]).session_id > JSON.parse(h.published[0][1]).session_id);
     assert.equal(JSON.parse(h2.published[0][1]).demand,false);
 });
-test('manager startup/all gates forced off, no physical writes including OFF', () => {
-    const values = {};
-    for (const k of ['enabled','commissioned','outputs_enabled','physical_write_grant','valid','heat_demand','path_ready']) values['hm2_504_gp_besedka/'+k]=true;
-    const h = harness(managerPath,{values});
-    localSamples(h); h.tick();
-    for (const k of Object.keys(values)) assert.equal(h.values[k],false,k);
-    assert.equal(h.values['hm2_504_gp_besedka/state'],'UNKNOWN');
-    assert.equal(JSON.parse(h.values['hm2_504_gp_besedka/request_json']).valid,false);
-});
-test('manager valid transport -> blocked; outage -> DEGRADED; reconnect -> blocked automatically', () => {
-    const h = harness(managerPath); localSamples(h);
-    h.emit(H.TOPIC,JSON.stringify(frame()));
-    h.time(epoch+5000); h.emit(H.TOPIC,JSON.stringify(frame({seq:2,sent_ms:epoch+5000}))); h.tick();
-    assert.equal(h.values['hm2_504_gp_besedka/request_reason'],'DECISION_REQUIRED');
-    assert.equal(h.values['hm2_504_gp_besedka/remote_demand'],true);
-    h.time(epoch+35000); h.tick();
-    assert.equal(h.values['hm2_504_gp_besedka/request_reason'],'DEGRADED_POLICY_NOT_CONFIRMED');
-    assert.equal(h.values['hm2_504_gp_besedka/remote_demand'],false);
-    h.emit(H.TOPIC,JSON.stringify(frame({seq:3,sent_ms:epoch+35000})));
-    h.time(epoch+40000); h.emit(H.TOPIC,JSON.stringify(frame({seq:4,sent_ms:epoch+40000}))); h.tick();
-    assert.equal(h.values['hm2_504_gp_besedka/request_reason'],'DECISION_REQUIRED');
-});
-test('411/418/419 errors independently interlock, local safety dominates link loss', () => {
-    for (const p of ['wb-m1w2_170/External Sensor 1','wb-m1w2_173/External Sensor 1','wb-m1w2_173/External Sensor 2']) {
-        const h=harness(managerPath); localSamples(h);
-        h.emit(sensorTopic(p)+'/meta/error','r'); h.tick();
-        assert.equal(h.values['hm2_504_gp_besedka/request_reason'],'LOCAL_SENSOR_INTERLOCK');
-    }
-});
-test('overheat inputs and prolonged watchdog scenario remain non-writing; no claimed commissioned safety', () => {
-    const h=harness(managerPath);
-    for (const t of [40,60,90,120,NaN]) {
-        localSamples(h,t); h.time(epoch+3600000); h.tick();
-        assert.equal(h.values['hm2_504_gp_besedka/valid'],false);
-        assert.equal(h.values['hm2_504_gp_besedka/response_status'],'NOT_COMMISSIONED');
-        assert.equal(h.values['hm2_504_gp_besedka/physical_write_grant'],false);
-    }
-});
-test('persistent dangerous latch survives reload and reset is refused without proven limits', () => {
-    const stores={ivolga_504_safety:{fault:'SUPPLY_HARD_MAX'}};
-    const h=harness(managerPath,{stores}); localSamples(h); h.tick();
-    assert.equal(h.values['hm2_504_gp_besedka/fault_latched'],true);
-    h.rules.hm2_504_reset.then(); assert.equal(stores.ivolga_504_safety.fault,'SUPPLY_HARD_MAX');
-    const h2=harness(managerPath,{stores}); assert.equal(h2.values['hm2_504_gp_besedka/fault_latched'],true);
-});
-test('unconfirmed mixing tuning cannot instantiate a controller', () => {
-    assert.equal(H.shadowMixer(Mixing,null),null);
-    assert.throws(()=>H.shadowMixer(Mixing,{hardMaxC:null}),/Unconfirmed/);
-    assert.throws(()=>H.shadowMixer(Mixing,{}),/invalid/);
-});
-test('shadow adapter executes real MixingController using test-only tuning without outputs', () => {
-    // Fixture from existing consumer is used ONLY for the adapter API, never as 504 settings.
-    const consumer=fs.readFileSync(path.join(root,'Wirenboard/wb-rules/502_gp_dom_manager.js'),'utf8');
-    const start=consumer.indexOf('var CFG = {'),end=consumer.indexOf('var CELL_TYPE =');
-    const c=vm.createContext({});vm.runInContext(consumer.slice(start,end),c);
-    const mix=H.shadowMixer(Mixing,c.CFG.tuning);
-    const result=mix.step({now:1000,enabled:true,pumpOn:true,supplyTempC:20,sourceTempC:45,
-        targetC:30,sensorOffsetC:0,valveEnableOn:true,phaseMode:'auto',freeze:false,manualValvePct:0});
-    assert.ok(Number.isFinite(result.valvePositionPct));
-    const input={now:1030,enabled:true,pumpOn:true,supplyTempC:50,sourceTempC:60,
-        targetC:30,sensorOffsetC:0,valveEnableOn:true,phaseMode:'auto',freeze:false,manualValvePct:0};
-    // The generic module filters supply; production manager must also guard raw temperature.
-    mix.step(input); input.now=1060;
-    const over=mix.step(input);
-    assert.equal(over.status,'SUPPLY_HARD_MAX_SAFE_CLOSE');
-    assert.equal(over.valvePositionPct,0);
-});
 function incumbents() {
     const values={};
     for (const id of ['hm2_501_tp_dom','hm2_502_gp_dom','hm2_503_rad_dom']) {
@@ -268,10 +205,10 @@ function incumbents() {
 }
 function request504(extra={}) { return JSON.stringify(Object.assign({state:'ACTIVE',valid:true,heat_demand:true,path_ready:true,
     fault_latched:false,requested_source_temperature:50,request_timestamp:new Date(epoch).toISOString(),request_ttl_s:15},extra)); }
-test('gate OFF preserves baseline arbiter decisions and all incumbent grants (250 scenarios)', () => {
+test('absent 504 preserves baseline decisions and incumbent grants (250 scenarios)', () => {
     const original=cp.execFileSync('git',['show','c221f528b115341d79fc7d3a453463d53ec44cda:objects/05_31_Ivolga_13/Wirenboard/wb-rules/HM2_arbiter_request.js'],{cwd:repo,encoding:'utf8'});
     const keys=['state','valid','selected_consumer','selected_consumer_title','selected_requested_temperature',
-        'selected_reason','no_demand_contract','active_candidate_count','rejected_candidate_count','last_update_ts'];
+        'selected_reason','no_demand_contract','active_candidate_count','last_update_ts'];
     for(const n of ['501','502','503']) keys.push('grant_'+n+'_state','grant_'+n+'_reason');
     for(let i=0;i<250;i++) {
         const values=incumbents();
@@ -282,15 +219,16 @@ test('gate OFF preserves baseline arbiter decisions and all incumbent grants (25
             values[id+'/heat_demand']=(i+j)%3!==0;
             values[id+'/request_timestamp']=new Date(epoch-((i+j)%11)*10000).toISOString();
         });
-        values['hm2_504_gp_besedka/request_json']=i%2?request504():'malformed';
+        values['hm2_504_gp_besedka/request_json']='malformed';
         const before=harness(arbiterPath,{values,code:original}),after=harness(arbiterPath,{values});
         before.tick();after.tick();
         for(const k of keys) assert.equal(after.values['hm2_request_arbiter/'+k],before.values['hm2_request_arbiter/'+k],k);
-        assert.equal(after.values['hm2_request_arbiter/grant_504_reason'],'FEATURE_DISABLED');
+        assert.equal(after.values['hm2_request_arbiter/grant_504_state'],'REJECTED');
+        assert.equal(after.values['hm2_request_arbiter/rejected_candidate_count'],before.values['hm2_request_arbiter/rejected_candidate_count']+1);
     }
 });
 test('504 independent atomic validation: TTL boundary, faults, malformed, future and missing fields', () => {
-    const code=fs.readFileSync(arbiterPath,'utf8').replace('var ENABLE_504_SELECTION = false;','var ENABLE_504_SELECTION = true;');
+    const code=fs.readFileSync(arbiterPath,'utf8');
     for (const bad of [{fault_latched:true},{fault_latched:null},{valid:false},{path_ready:false},
         {request_ttl_s:16},{request_ttl_s:0},{request_ttl_s:'15'},{requested_source_temperature:'50'},
         {request_timestamp:new Date(epoch-15000).toISOString()},{request_timestamp:new Date(epoch+1).toISOString()}]) {
@@ -300,8 +238,8 @@ test('504 independent atomic validation: TTL boundary, faults, malformed, future
         assert.equal(h.values['hm2_request_arbiter/grant_504_state'],'REJECTED');
     }
 });
-test('gated synthetic selection MAX, equal tie stays 503 > 502 > 501 > 504', () => {
-    const code=fs.readFileSync(arbiterPath,'utf8').replace('var ENABLE_504_SELECTION = false;','var ENABLE_504_SELECTION = true;');
+test('integrated selection MAX, equal tie stays 503 > 502 > 501 > 504', () => {
+    const code=fs.readFileSync(arbiterPath,'utf8');
     for(const [temperature,winner] of [[50,'hm2_504_gp_besedka'],[45,'hm2_503_rad_dom']]) {
         const values=incumbents();values['hm2_504_gp_besedka/request_json']=request504({requested_source_temperature:temperature});
         const h=harness(arbiterPath,{values,code});h.tick();assert.equal(h.values['hm2_request_arbiter/selected_consumer'],winner);
@@ -329,7 +267,7 @@ test('session counter ignores v1 wall-clock storage; reboot after rollback recov
     assert.equal(restarted.session_id,2);assert.equal(H.frameValid(restarted),true);
     assert.equal(r.accept(JSON.stringify(restarted),false,now),'STARTUP_VALIDATION');
     b.time(now+5000);b.tick();
-    assert.equal(r.accept(b.published.at(-1)[1],false,now+5000),'NORMAL');
+    assert.equal(r.accept(b.published.at(-1)[1],false,now+5000),'BOTH_SENSORS_INVALID');
     assert.equal(r.accept(JSON.stringify(old),false,now+5000),'DUPLICATE_OR_OLD');
     assert.equal(r.read(now+5000).fresh,true);
 });
@@ -431,10 +369,10 @@ test('old runtime manager diagnostic survives TTL, on sensor or frame callback',
     for(const topic of [H.TOPIC,sensorTopic('wb-m1w2_173/External Sensor 1')]) {
         const h=harness(managerPath);localSamples(h);
         h.emitRaw(topic,{value:topic===H.TOPIC?JSON.stringify(frame()):'25'});h.tick();
-        assert.equal(h.values['hm2_504_gp_besedka/request_reason'],'RUNTIME_UNSUPPORTED');
+        assert.equal(h.values['hm2_504_gp_besedka/request_reason'],'FIRST_COMMISSIONING');
         assert.match(h.values['hm2_504_gp_besedka/runtime_status'],/Нет булевого.*2\.42\.0/);
         h.time(epoch+300000);h.tick();
-        assert.equal(h.values['hm2_504_gp_besedka/request_reason'],'RUNTIME_UNSUPPORTED');
+        assert.equal(h.values['hm2_504_gp_besedka/request_reason'],'FIRST_COMMISSIONING');
         assert.equal(h.values['hm2_504_gp_besedka/valid'],false);
     }
 });
@@ -448,7 +386,7 @@ test('SETTINGS_INVALID canonical frames reject forged demand and substitute defa
 });
 test('invalid settings continue heartbeat, stay SETTINGS_INVALID past TTL, then recover automatically', () => {
     for(const bad of [{target_temperature:'bad'},{target_temperature:NaN},{target_temperature:99},
-        {floor_min_temperature:30,floor_max_temperature:20},{target_state:2}]) {
+        {floor_min_temperature:30,floor_max_temperature:20},{floor_max_temperature:31}]) {
         const sender=harness(senderPath,{values:{'NL_combo_thermostat_504/target_state':1}});
         const manager=harness(managerPath);
         Object.entries(bad).forEach(([k,v])=>{sender.values['NL_combo_thermostat_504/'+k]=v;});
@@ -460,9 +398,9 @@ test('invalid settings continue heartbeat, stay SETTINGS_INVALID past TTL, then 
             assert.equal(f.reason,'SETTINGS_INVALID');assert.equal(f.demand,false);assert.equal(H.frameValid(f),true);
             manager.emit(H.TOPIC,payload);manager.tick();
             if(i>0) {
-                assert.equal(manager.values['hm2_504_gp_besedka/request_reason'],'SETTINGS_INVALID');
+                assert.equal(manager.values['hm2_504_gp_besedka/request_reason'],'FIRST_COMMISSIONING');
                 assert.equal(manager.values['hm2_504_gp_besedka/remote_reason'],'SETTINGS_INVALID');
-                assert.match(manager.values['hm2_504_gp_besedka/status'],/Некорректные уставки/);
+                assert.equal(manager.values['hm2_504_gp_besedka/link_state'],'SETTINGS_INVALID');
             }
         }
         Object.entries({target_temperature:22,floor_min_temperature:25,floor_max_temperature:29,target_state:1})
@@ -470,8 +408,10 @@ test('invalid settings continue heartbeat, stay SETTINGS_INVALID past TTL, then 
         sender.time(epoch+65000);sender.tick();manager.time(epoch+65000);
         manager.emit(H.TOPIC,sender.published.at(-1)[1]);manager.tick();
         assert.equal(manager.values['hm2_504_gp_besedka/remote_valid'],true);
-        assert.equal(manager.values['hm2_504_gp_besedka/request_reason'],'DECISION_REQUIRED');
+        assert.equal(manager.values['hm2_504_gp_besedka/request_reason'],'FIRST_COMMISSIONING');
         assert.equal(manager.values['hm2_504_gp_besedka/valid'],false);
     }
 });
+module.exports={harness,frame,H,Config,Control,Mixing,managerPath,senderPath,arbiterPath,root,epoch,sensorTopic,localSamples,incumbents,test};
+require('./test_hm2_504_control.js');
 console.log('RESULT: '+count+' groups passed; 250 baseline comparisons. LIVE_NOT_VERIFIED.');

@@ -10,8 +10,11 @@ const files = [
     base+'Besedka/mosquitto/504-bridge.conf.example',
     base+'Besedka/mosquitto/504-acl.example',
     base+'Wirenboard/wb-rules-modules/HM2504.js',
+    base+'Wirenboard/wb-rules-modules/HM2504Config.js',
+    base+'Wirenboard/wb-rules-modules/HM2504Control.js',
     base+'Wirenboard/wb-rules/504_gp_besedka_manager.js',
     base+'Wirenboard/wb-rules/HM2_arbiter_request.js',
+    base+'Wirenboard/wb-rules/HM2_source_manager.js',
     base+'Sprut/Templates/NL_combo_thermostat.json',
     'Templates/WB-rules/Heating/HM2/MixingController/MixingController.js'
 ];

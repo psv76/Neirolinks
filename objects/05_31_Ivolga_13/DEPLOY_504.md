@@ -1,151 +1,126 @@
-# 504 — будущая установка из GitHub
+# HM2 504 — подготовка и ПНР по контракту v1.0
 
-**READY_FOR_REVIEW, не DEPLOYED и не READY_FOR_APPLY.** Каждый этап SSH/изменения
-WB требует отдельного согласования Сергея. Здесь таких действий не выполнялось.
-Блокеры: [HM2_504.md](HM2_504.md). Автоматического apply/restart-скрипта нет:
-реальная схема brokers и live ownership неизвестны.
+**NOT_DEPLOYED / LIVE_NOT_VERIFIED.** Документ — будущая процедура, не разрешение
+выполнить SSH, установку, physical writes, restart, reset или merge.
+Требования: [контракт #56](https://github.com/psv76/Neirolinks/issues/56#issuecomment-5745537476).
+Текущая реализация/ограничения: [HM2_504.md](HM2_504.md).
 
-После review используется wire protocol v2 и `/neiro/ivolga/504/v2/frame`.
-Смешанные версии v1/v2 не поддерживаются: модуль на обоих WB, sender, manager и
-bridge/ACL должны соответствовать одному reviewed SHA. Миграция только по разрешению.
+## До доступа к объекту
 
-## 1. Подготовка без контроллеров
+Закрепить одобренный 40-символьный SHA PR #57, получить отдельный checkout, выполнить:
 
-Взять полный 40-символьный SHA одобренного PR, сверить с GitHub и записать в протокол.
-Пример POSIX-команд в новом checkout; доступ к private GitHub через credential helper:
-
-```sh
-git clone --no-checkout https://github.com/psv76/Neirolinks.git hm2-504-review
-cd hm2-504-review
-REVIEW_SHA='REPLACE_WITH_REVIEWED_40_HEX_COMMIT'
-git fetch origin "$REVIEW_SHA"
-git checkout --detach "$REVIEW_SHA"
-test "$(git rev-parse HEAD)" = "$REVIEW_SHA"
-git status --short
+~~~sh
 node objects/05_31_Ivolga_13/Tools/test_hm2_504.js
 node objects/05_31_Ivolga_13/Tools/verify_hm2_504_manifest.js
-git archive --format=tar --output=../hm2-504-reviewed.tar "$REVIEW_SHA" \
-  objects/05_31_Ivolga_13/Besedka \
-  objects/05_31_Ivolga_13/Wirenboard/wb-rules-modules/HM2504.js \
-  objects/05_31_Ivolga_13/Wirenboard/wb-rules/504_gp_besedka_manager.js \
-  objects/05_31_Ivolga_13/Wirenboard/wb-rules/HM2_arbiter_request.js \
-  objects/05_31_Ivolga_13/Tools/hm2_504.sha256 \
-  objects/05_31_Ivolga_13/HM2_504.md \
-  objects/05_31_Ivolga_13/DEPLOY_504.md \
-  objects/05_31_Ivolga_13/Sprut/Templates/NL_combo_thermostat.json \
-  Templates/WB-rules/Heating/HM2/MixingController/MixingController.js
-tar -tf ../hm2-504-reviewed.tar
-sha256sum ../hm2-504-reviewed.tar
-```
+git status --short
+~~~
 
-Manifest покрывает 8 code/config/reference файлов, не себя и не docs; commit SHA
-фиксирует весь пакет. Git archive даёт canonical LF, manifest проверяет эти байты.
-Сохранить SHA архива вместе с commit. Никаких credentials в URL или архиве.
+Архивировать только allowlist ниже через git archive из закреплённого SHA.
+Manifest проверяет canonical LF (checkout CRLF нормализуется verifier); SHA архива
+зафиксировать отдельно. Не использовать git pull main в каталогах служб, curl|sh,
+массовое копирование rules. Тесты не подключаются к WB/брокерам.
 
-## 2. Read-only audit — после разрешения SSH
+## Read-only preflight — только после отдельного разрешения
 
-Первый обязательный preflight на **каждом** WB — версия wb-rules >= 2.42.0.
-Ниже только read-only команды будущей проверки; в этой работе они на WB не запускались:
+На обоих WB проверить версию (эти команды здесь не выполнялись):
 
-```sh
+~~~sh
 wb_rules_version_504=$(dpkg-query -W -f='${Version}' wb-rules) || exit 1
 printf 'wb-rules=%s\n' "$wb_rules_version_504"
 if ! dpkg --compare-versions "$wb_rules_version_504" ge 2.42.0; then
-  printf '%s\n' 'BLOCKED: требуется wb-rules >= 2.42.0; обновление только по отдельному согласованию'
+  printf '%s\n' 'BLOCKED: нужен wb-rules >= 2.42.0; обновление отдельно согласовать'
   exit 1
 fi
-```
+~~~
 
-Неизвестная/старая версия — STOP, без apt/update/restart. Основание:
-[changelog 2.42.0](https://github.com/wirenboard/wb-rules/blob/master/debian/changelog),
-добавление retained/qos в trackMqtt 30.05.2026. На изолированном стенде проверить
-реальные callbacks retained=true/false и отсутствие поля: последнее должно дать
-русскую диагностику RUNTIME_UNSUPPORTED до reload, а не считаться false.
-Сверить синхронизацию часов (допуск 2 с). NTP rollback/recovery/replay проверять
-изолированно, не переводить часы live WB. session_id не сбрасывать и не откатывать;
-после скачка требуется повторная валидация потока, а не ручной обход seq.
+Снять точные live versions/hashes rules/modules/Mosquitto/ACL, namespace, clients,
+cron/systemd/Sprut/Fluxa writers. Проверить пять sensor paths и /meta/error,
+публикацию неизменных температур чаще 120 с, часы (skew ≤2 с), VD collision.
+Снимок main не доказательство live, особенно порядок Level → Switch у 501/502.
+Никаких автоматических apt/update/restart.
 
-На обоих WB снять версии wb-rules/Mosquitto, includes/listeners/TLS/ACL/bridges,
-инвентарь scripts/modules/cron/systemd, MQTT clients, VD, Sprut/Fluxa сценарии.
-Секреты хранить локально 0600, не печатать password-файлы в чат/GitHub.
-Проверить пять sensor topics, ошибки и публикацию неизменного значения чаще 120 с,
-время обоих WB, namespace frame и отсутствие VD collision. Зафиксировать, установлен
-ли live 504, и всех writers A03/K4/A05 Channel 3. Снять актуальные копии 501/502/503,
-620, source, arbiter/shared modules. Показать `diff -u` с reviewed SHA, особенно
-Level/Switch в 501/502. Эти writers не входят в установку.
+Подтвердить отсутствие второго writer A03/K4 и A05/Channel 3, фактическую обвязку:
+закрытый горячий вход допускает рециркуляцию насосом. Проверить шкалу и направление
+562 и записать измеренные valveClosedLevel/valveOpenLevel/valveClosedEnable.
+Для floor-only измерить floorOnlyMaxPct на горячем источнике; не использовать
+синтетическую тестовую шкалу как факт. Установить/проверить независимые защиты.
+Без шкалы первичная кнопка отказывается запускать writer. Это данные физического
+адаптера, не дополнительный ручной runtime grant.
 
-Проверить, допускает ли действующая схема dedicated bridge identity без перезапуска
-котельной. Если нет — отдельное решение/окно, не анонимный broker и не широкие ACL.
-Проверить старые обратные/широкие bridge: exact-topic нового моста не доказывает
-отсутствие циклов в уже работающей схеме. Параметры `.example` пока не готовые к APPLY.
+## Изолированный стенд
 
-## 3. Backup и staging — по разрешению
+До подключения .101/.104 проверить два Mosquitto брокера: exact outbound v2,
+deny чужому publisher и любым physical /on, отсутствие inbound/петель, TLS trust,
+retained/reconnect, fresh heartbeat/replay/clock skew, отсутствие очереди QoS 0.
+Запуск брокера с live bridge адресом не является изолированным тестом.
+Реальный runtime: callbacks retained true/false/missing, PersistentStorage через
+restart/перезапуск питания; отсутствие поля показывает русскую диагностику.
+Часы live WB ради теста не переводить.
 
-На каждом WB отдельный каталог backup с timestamp и reviewed SHA, `umask 077`.
-Сохранить `/etc/wb-rules`, `/etc/wb-rules-modules`, все фактически используемые
-Mosquitto includes/ACL/credentials, modes/owners, hashes, список отсутствующих новых
-файлов, существующие persistent данные 504 и журнал ошибок. Backup секретов не в GitHub.
-Состояния gates/аварий не считать восстановленными только по файлам JS.
+Проверить Sprut template именно для NL_combo_thermostat_504, отсутствие OFF,
+сохранение уставок 22/25/29, предел цели пола 30. Fluxa меняет только уставки.
+Подключить существующую доставку уведомлений к
+hm2_504_gp_besedka/notification_json и проверить получение/восстановление.
+Сейчас реализованы событие и журнал; удалённая доставка не подтверждена.
 
-Передать архив в staging вне `/etc/wb-rules`, сверить SHA с рабочей станцией и
-`tar -tf`, проверить точный allowlist путей. Распаковать; из корня staging:
+## Backup, точечная установка — отдельно согласуемое окно
 
-```sh
-sha256sum -c objects/05_31_Ivolga_13/Tools/hm2_504.sha256
-```
+Сохранить rules/modules, broker includes/ACL/credentials с modes/owners/hash,
+отсутствие новых файлов, PersistentStorage operation/sender/thermal state и VD.
+Секреты только локально 0600; не публиковать в GitHub. Перед каждым назначением
+показать live diff и backup path; запись rule вызывает reload.
 
-Показать diff каждого назначения, add/replace и backup path. MixingController —
-reference для сравнения, **не разрешение заменить общий live-модуль**. Несовместимая
-или неизвестная зависимость останавливает установку; не менять 501/502 ради 504.
+Allowlist пакета:
 
-## 4. Термостат и мост — отдельное окно
+- Оба WB: HM2504.js, HM2504Config.js в wb-rules-modules.
+- Беседка: 624_combo_besedka.js; заполненные exact v2 bridge/ACL templates;
+  объектовый Sprut/Templates/NL_combo_thermostat.json.
+- Котельная: HM2504Control.js, 504_gp_besedka_manager.js.
+- MixingController.js — reference hash/API; использовать сверенный installed модуль,
+  не заменять общий файл поверх live без отдельного diff.
+- Арбитр + source: согласованный **парный точечный diff** включения 504 и whitelist.
+  Сначала source принимает 504, затем арбитр может выбирать его. Не заменять source
+  целиком из main: его физический NO_DEMAND, ПНР/восстановление — #40.
+- Остальные 501–503, 505, 507, 620, OpenTherm/ГВС scripts не входят в установку.
 
-1. Только на WB беседки добавить `HM2504.js` в `/etc/wb-rules-modules`, затем
-   `624_combo_besedka.js` в `/etc/wb-rules`; до этого collision audit. Добавление rule
-   вызывает reload; нельзя обещать отсутствие влияния даже без общего restart.
-2. Проверить logs, один VD, русские controls, startup OFF, freshness/error/stale.
-   Проверить SETTINGS_INVALID heartbeat без demand при неверных уставках и
-   автоматическое восстановление после исправления; связь не должна стать MQTT_STALE.
-   Persistence/reload сначала на изолированном стенде; live reload согласуется.
-   До привязки Sprut проверить `init:true` опций и сохранение уставок. Fluxa не writer.
-3. Заполнить `.example` подтверждёнными listener/TLS/identity; секреты только локально.
-   Parser и две Mosquitto инстанции проверить изолированно, без подключения .101/.104:
-   exact mapping, ACL deny чужого publisher и `/devices/.../on`, отсутствие inbound,
-   retained/reconnect. Запуск `mosquitto -c` с live address не является офлайн-проверкой.
-4. Согласовать механизм применения broker config. Никакого автоматического restart
-   или reload Mosquitto на обоих WB; без решения этап blocked. Broker котельной
-   по возможности вообще не менять. Проверить только frame и отсутствие чужих
-   устройств в Sprut/Fluxa; происхождение подтвердить ACL, не строкой source.
+До первичного ввода сохранять inService отсутствующим/false: никаких writes,
+включая OFF. Не восстанавливать старые gates как разрешение.
+Обновление конфигурации после измерений требует нового reviewed SHA/manifest.
+Не очищать session_id, термозащиту или реальные аварии для обхода диагностики.
 
-## 5. Shadow manager, отдельно arbiter
+## Единственный ввод и полевая приёмка — только под наблюдением
 
-На котельной после проверки зависимости добавить только HM2504 module и
-504 manager. Никаких mass copy директорий. Проверить UNKNOWN, valid/demand/path=0,
-gates=0, request_json, свежесть 411/418/419, NORMAL/DEGRADED/INTERLOCK, отсутствие
-новых физических writes (включая OFF) по логам/истории. Чужие outputs не переключать.
+После сверки ownership, физических параметров, пределов и готовности источника
+однократно нажать «Включить отопление». Это передача эксплуатации единственному
+writer, не тест retained ON. Подтверждение сохраняется для последующих reboot.
 
-Arbiter устанавливать отдельным действием после diff live, проверки source whitelist
-и разрешения. ENABLE_504_SELECTION=false. Проверить прежние selection/grants/counters
-501–503, grant_504 REJECTED. Source gates не менять. Обновление arbiter временно
-делает результат UNKNOWN: заранее согласовать последствия для активного отопления.
+| Испытание | Проверить физически |
+|---|---|
+| Старт / heat / hold / NO_DEMAND | Реальные команды и ход 562, Level перед Switch, циркуляция и температуры трассы; выбег только 504 |
+| 45 /48 /50 подачи, 31 /33 пола | Сначала закрытие и циркуляция; затем локальный stop; не нагревать пол до опасного значения ради теста — использовать согласованный безопасный метод проверки |
+| Остывание и повтор | Устойчивые свежие температуры, автоматическая циркуляция с закрытым входом, постепенный возврат без кнопки |
+| Отказ 418 → floor-only → возврат | Максимальная температура воды при измеренном cap и горячем источнике, инерция пола; пол не заменяет мгновенный датчик воды |
+| LAN/remote WB/bridge outage >TTL | Автономные 30 по 418, фактическое поступление тепла, auto-return по свежему combo |
+| Нет воздуха / 411 /419, холодный источник /NO_RESPONSE | Поддержание тепла и warning без ложного latch |
+| Нет 418 и пола | Закрытие и рециркуляция, явное предупреждение; остаточный риск замерзания НЕ закрыт этим тестом |
+| Reboot/rules restart/power return | Сохранённый ввод, свежие входы, автоматика без повторного grant; перезапуск только в согласованное окно |
+| OT fail/recovery и ГВС | 504 не прекращает местную циркуляцию; фактическое поведение котла/источника по #40, ГВС независимо; не считать mock доказательством |
+| Полный отказ WB/энергии | Реальный резерв питания/механики/теплоснабжения: JS недоступен |
 
-## 6. ПНР — не часть этого пакета
+Тайминги и tuning из Config — стартовые предложения: проверить выдержку закрытия,
+устойчивое охлаждение, отсутствие частого restart, время циркуляции, источник +5 °C.
+Если 418 и пол пропали вместе, требуется независимый резерв 418/термостатический
+ограничитель или отдельно обоснованная связь 411/419 с безопасной подачей.
+Нельзя утверждать «всё отказоустойчиво» до проверки этого сценария.
 
-Production writer/автономный нагрев ещё отсутствуют. Получить решения из HM2_504.md,
-подготовить отдельный код и тесты, провести review. Затем отдельно передавать
-владение и safe outputs: насос OFF → Level 0 → Switch OFF; открытие Level перед
-Switch ON без гейтинга старым readback. Проверить реальный ход, циркуляцию, 418/419.
-Нет автоматического restart wb-rules/Mosquitto/OpenTherm, git pull main в рабочие
-каталоги, curl | sh, переключения gates или merge.
+## Откат
 
-## 7. Откат
-
-Зафиксировать состояния 504 и соседних контуров. По согласованному плану убрать новые
-rules из активного каталога или вернуть их прежние версии атомарной заменой;
-для ранее отсутствующих файлов вернуть отсутствие. Удаление rule тоже reload.
-Модуль HM2504 удалять после снятия его consumers. Общий MixingController, 501–503,
-source и 620 не заменять. Arbiter вернуть из проверенного live backup, не main.
-Mosquitto/ACL/credentials восстановить с исходными правами и отдельно согласованным
-способом применения. Persistent fault не очищать; уставки/gates/outputs не считать
-автоматически восстановленными. Проверить logs и прежний выбор источника.
-Rollback файлов не гарантирует бесшовность сервисов и не отменяет live ownership.
+Сначала согласовать, кто физически поддерживает тепло во время смены writer.
+Удаление активного writer не выключает и не делает безопасными его последние outputs.
+Вернуть именно снятый live backup, а не непишущий skeleton/main; при rollback
+арбитра/source сначала прекратить выбор 504, затем вернуть whitelist.
+Не удалять inService/session_id/thermal memory и не сбрасывать чужие аварии.
+Для смены идентичности sender после отката storage нужен отдельный проверенный
+порядок revalidation — нельзя насильно уменьшать номер сессии у работающего receiver.
+Вернуть ACL/configs с исходными правами согласованным способом, без автоматического
+service restart. Проверить 501–503, ГВС, источник, логи и фактический тепловой отклик.

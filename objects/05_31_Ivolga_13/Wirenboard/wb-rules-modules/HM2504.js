@@ -10,6 +10,7 @@ exports.TTL_MS = 30000;
 exports.SENSOR_TTL_MS = 120000;
 exports.CLOCK_SKEW_MS = 2000;
 exports.REVALIDATION_MS = 5000;
+var Config504 = require('HM2504Config').config;
 function number(v) {
     if (typeof v !== 'number' && typeof v !== 'string') return null;
     if (typeof v === 'string' && !v.trim()) return null;
@@ -18,8 +19,8 @@ function number(v) {
 }
 function between(v, min, max) { return typeof v === 'number' && isFinite(v) && v >= min && v <= max; }
 function settings(s) {
-    return s && between(s.target, 15, 30) && between(s.hold, 18, 30) &&
-        between(s.heat, 20, 35) && s.hold <= s.heat && (s.enabled === true || s.enabled === false);
+    return s && between(s.target, 15, 30) && between(s.hold, 18, Config504.floorTargetMaxC) &&
+        between(s.heat, 20, Config504.floorTargetMaxC) && s.hold <= s.heat && s.enabled === true;
 }
 exports.number = number;
 exports.settingsValid = settings;
@@ -36,10 +37,6 @@ exports.nextSession = function (storage) {
 exports.combo = function (memory, air, floor, s) {
     var result = { demand: false, valid: false, mode: 'BLOCKED', reason: 'SETTINGS_INVALID', floorTarget: null };
     if (!settings(s)) { memory.airHeat = false; memory.floorHeat = false; return result; }
-    if (!s.enabled) {
-        memory.airHeat = false; memory.floorHeat = false;
-        result.valid = true; result.mode = 'OFF'; result.reason = 'OFF'; return result;
-    }
     if (!between(floor, -20, 70)) {
         memory.floorHeat = false; memory.airHeat = false;
         result.reason = between(air, -20, 60) ? 'FLOOR_SENSOR_INVALID' : 'BOTH_SENSORS_INVALID';
@@ -85,6 +82,7 @@ exports.sensor = function () {
             value = null; at = null;
         },
         runtimeStatus: function () { return runtime; },
+        timestamp: function () { return at; },
         read: function (now, min, max) {
             clock(now);
             if (at !== null && now - at >= exports.SENSOR_TTL_MS) { value = null; at = null; }
@@ -110,15 +108,13 @@ function frameValid(f) {
         f.mode === 'BLOCKED' && f.target === null && f.hold === null && f.heat === null && f.enabled === null;
     if (!settings(f)) return false;
     if (f.reason === 'RUNTIME_UNSUPPORTED') return f.valid === false && f.demand === false && f.mode === 'BLOCKED';
-    if (['BLOCKED', 'OFF', 'DEGRADED', 'HEAT', 'HOLD'].indexOf(f.mode) < 0 ||
-        ['SETTINGS_INVALID', 'OFF', 'FLOOR_SENSOR_INVALID', 'BOTH_SENSORS_INVALID',
+    if (['BLOCKED', 'DEGRADED', 'HEAT', 'HOLD'].indexOf(f.mode) < 0 ||
+        ['FLOOR_SENSOR_INVALID', 'BOTH_SENSORS_INVALID',
             'AIR_SENSOR_INVALID_HOLD', 'HEAT', 'HOLD', 'NO_DEMAND'].indexOf(f.reason) < 0) return false;
     if (f.demand && (!f.valid || !f.enabled || f.floor === null)) return false;
     if (f.valid && f.enabled && f.floor === null) return false;
-    if (!f.enabled && (f.demand || f.mode !== 'OFF')) return false;
     if (f.enabled && f.valid && f.air === null && f.mode !== 'DEGRADED') return false;
     if (f.mode === 'BLOCKED' && f.valid) return false;
-    if (f.mode === 'OFF' && f.enabled) return false;
     return true;
 }
 exports.frameValid = frameValid;
@@ -176,17 +172,4 @@ exports.receiver = function (started) {
                 age_s: received === null ? -1 : (now - received) / 1000 };
         }
     };
-};
-
-// Adapter reserved for explicitly reviewed 504 tuning. No default copied from 501/502.
-// Callbacks accept calculated commands in memory only, including safe-close commands.
-exports.shadowMixer = function (MixingController, tuning) {
-    if (!tuning) return null;
-    Object.keys(tuning).forEach(function (key) {
-        if (tuning[key] === null || tuning[key] === undefined) throw new Error('Unconfirmed tuning: ' + key);
-    });
-    return MixingController.create({ initialValvePositionPct: 0, tuning: tuning }, {
-        writeValvePosition: function () { return true; },
-        writeValveEnable: function () { return true; }
-    });
 };
