@@ -17,7 +17,8 @@ exports.create=function(c,io){
     }
     function report(state,ready,pump){
         return {state:state,ready:ready,pump:pump,
-            closed_readback_match:io.matches(c.level,c.valveClosedLevel)&&io.matches(c.enable,c.valveClosedEnable),
+            closed_readback_match:(state==='READBACK_MATCH'||state==='RECOVERED_CLOSED_READBACK')&&stage===2&&
+                io.matches(c.level,c.valveClosedLevel)&&io.matches(c.enable,c.valveClosedEnable),
             readback:{level:io.readback(c.level),enable:io.readback(c.enable),pump:io.readback(c.pump)}};
     }
     function fail(now){
@@ -45,10 +46,24 @@ exports.create=function(c,io){
         var pct=forceClose?0:r.valve;
         var level=c.valveClosedLevel+(c.valveOpenLevel-c.valveClosedLevel)*pct/100;
         var enabled=pct>0?true:c.valveClosedEnable,newKey=String(level)+'/'+enabled;
-        if(newKey!==key){key=newKey;stage=0;pending=null;}
+        if(newKey!==key){key=newKey;stage=enabled?0:-1;pending=null;}
         // A changed external readback must invalidate completion, not the cache alone.
         if(stage===2&&(!io.matches(c.level,level)||!io.matches(c.enable,enabled))){
             return fail(now);
+        }
+        if(stage===-1){
+            // OFF closes without erasing remembered Level. It takes priority over
+            // any Level write, which could AUTO-ON even while trying to close.
+            var offFirst=attempt(c.enable,false,now);
+            if(offFirst==='ERROR')return fail(now);
+            if(offFirst==='WAIT'){
+                if(!io.write(c.pump,false).ok)return fail(now);
+                return report('WAIT_PRIORITY_OFF_READBACK',false,false);
+            }
+            // Keep the accepted object scale. If already at closedLevel, do not
+            // rewrite it and cause an unnecessary AUTO-ON. Otherwise Level must
+            // be followed by a NEW OFF acknowledgment, never the preceding one.
+            stage=io.matches(c.level,level)?2:0;
         }
         if(stage===0){
             var first=attempt(c.level,level,now);
@@ -72,11 +87,12 @@ exports.create=function(c,io){
         }
         if(!io.matches(c.level,level)||!io.matches(c.enable,enabled))return fail(now);
         if(forceClose){
-            forceClose=false;key='';stage=0;retryAt=now+c.commandRetryMs;
+            forceClose=false;retryAt=now+c.commandRetryMs;
             // Recirculation only after the configured closed tuple was read back.
             var recirculate=r.pump&&r.valve===0;
-            io.write(c.pump,recirculate);
-            return report('RECOVERED_CLOSED_READBACK',false,recirculate);
+            if(!io.write(c.pump,recirculate).ok)return fail(now);
+            var recovered=report('RECOVERED_CLOSED_READBACK',false,recirculate);
+            key='';stage=0;return recovered;
         }
         var pump=io.write(c.pump,r.pump);
         if(!pump.ok)return fail(now);

@@ -4,7 +4,7 @@ const root=path.resolve(__dirname,'..'),epoch=1800000000000;
 exports.create=function(options={}){
     let now=epoch,owner='',failPath='',bridge=true;
     const stores=options.stores||{},values={boiler:Object.assign({},options.values&&options.values.boiler),gazebo:Object.assign({},options.values&&options.values.gazebo)};
-    const handlers={boiler:{},gazebo:{}},modules={},contexts={},writes=[],messages=[],logs=[],effects=[],rules={boiler:{},gazebo:{}},definitions={};
+    const handlers={boiler:{},gazebo:{}},modules={},contexts={},writes=[],messages=[],logs=[],effects=[],modelPosition={},rules={boiler:{},gazebo:{}},definitions={};
     function load(n){
         if(modules[n])return modules[n];
         const e={};modules[n]=e;
@@ -45,6 +45,9 @@ exports.create=function(options={}){
                 effects.push({path:sw,value:v>0,level:v,at:now});
                 if(echo(sw))deliver(board,topic(sw),v>0?1:0,false);
             }
+            for(const [id,c]of Object.entries(C.circuits))if(k===c.level||k===c.enable){
+                modelPosition[id]=o[c.enable]?(o[c.level]||0):0;w.modelPosition=modelPosition[id];
+            }
             if(isPhysical&&echo(k))deliver(board,topic(k),v===true?1:v===false?0:v,false);
             if(failure==='after'){w.error=true;throw new Error('simulated failure after application');}
             return true;
@@ -74,7 +77,7 @@ exports.create=function(options={}){
             const v=values.boiler[p];deliver('boiler',topic(p),typeof v==='boolean'?(v?1:0):v,false);
         }
         for(const[p,v]of Object.entries(gazeboTemperatures))if(v!==undefined)deliver('gazebo',topic(p),v,false);}
-    return {C,Z,stores,values,definitions,writes,messages,logs,effects,contexts,load,temperatures,gazeboTemperatures,topic,
+    return {C,Z,stores,values,definitions,writes,messages,logs,effects,modelPosition,contexts,load,temperatures,gazeboTemperatures,topic,
         now:()=>now,time:t=>now=t,tick,rule,deliver,samples,
         start:()=>rule('boiler','hhm3_first_start',true),
         set:(board,p,v)=>{values[board][p]=v;},
