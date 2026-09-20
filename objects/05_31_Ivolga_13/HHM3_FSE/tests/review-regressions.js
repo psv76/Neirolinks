@@ -10,7 +10,8 @@ module.exports=function(test,create,epoch){
    const w={path:p,value:v,at:now};writes.push(w);const e=failure(w);
    if(e&&e!=='after'){w.error=true;throw Error('before apply');}
    o[p]=v;
-   if(p===c.level){o[c.enable]=v>0;if(!drop(c.enable))emit(c.enable,o[c.enable]);}
+   if(p===c.level){const oldSwitch=o[c.enable];o[c.enable]=v>0;
+    if(oldSwitch!==o[c.enable]&&!drop(c.enable))emit(c.enable,o[c.enable]);}
    if(p===c.level||p===c.enable)position=o[c.enable]?(o[c.level]||0):0;
    w.position=position;
    if(!drop(p))emit(p,v);
@@ -78,7 +79,7 @@ module.exports=function(test,create,epoch){
    f.drop(()=>false);for(let i=0;i<5;i++)r=f.run(0,true);assert.equal(r.ready,true);
   }
  });
- test('A05 opening needs new Level AND Switch readback after Level, never cached ON',()=>{
+ test('A05 first opening needs new Level AND Switch readback after Level, never cached ON',()=>{
   for(const id of ids)for(const missing of ['level','enable']){
    const f=fixture(id),c=f.c;f.run(0,false);f.drop(p=>p===c[missing]);const n=f.writes.length;
    let r=f.run(40,true);assert.equal(r.state,'OPENING');assert.equal(r.ready,false);assert.equal(f.values[c.pump],false);
@@ -94,6 +95,15 @@ module.exports=function(test,create,epoch){
    let r=f.run(40,true);assert.equal(r.ready,false);assert.equal(f.values[c.pump],false);
    f.emit(c.level,Math.round(1+99*0.4));r=f.run(40,true);assert.equal(r.ready,false);assert.equal(f.values[c.pump],false);
    f.emit(c.enable,1);r=f.run(40,true,1000);assert.equal(r.ready,true);assert.equal(r.state,'OPEN');assert.equal(f.values[c.pump],true);
+  }
+ });
+ test('A05 live probe: retarget 20/ON to 40/ON without duplicate ON for every mixed channel',()=>{
+  for(const id of ids){const f=fixture(id),c=f.c;f.run(0,false);
+   let r=f.run(20,true);assert.equal(r.state,'OPEN');assert.equal(r.ready,true);
+   const oldSeq=f.io.seq(c.enable),n=f.writes.length;r=f.run(40,true);
+   assert.equal(f.io.seq(c.enable),oldSeq);assert.equal(r.state,'OPEN');assert.equal(r.ready,true);
+   assert.equal(r.requested_level,41);assert.equal(f.values[c.pump],true);assert.equal(f.position(),41);
+   assert.ok(!f.writes.slice(n).some(w=>w.path===c.enable&&w.value===true));
   }
  });
  test('A05 Level failure before/after application, startup/running, closes only with OFF',()=>{

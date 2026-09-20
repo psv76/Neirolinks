@@ -40,8 +40,10 @@ exports.create=function(c,io){
     }
     function fail(now,reason){beginClose(now,reason);return report(false);}
     function startOpen(now){
+        // Only an already qualified OPEN may reuse its fresh, unchanged ON.
+        var provedOnSeq=state==='OPEN'&&io.matches(c.enable,true)?io.seq(c.enable):-1;
         state='OPENING';confirmedOffSeq=-1;
-        transaction={at:now,level:desiredLevel,sent:false};
+        transaction={at:now,level:desiredLevel,sent:false,provedOnSeq:provedOnSeq,reuseOn:false};
     }
     return function(r,now){
         pumpCommand=false;
@@ -100,14 +102,23 @@ exports.create=function(c,io){
                 return report(false);
             }
             if(!transaction.sent){
+                // If Switch changed while pump stopped, old ON cannot be reused.
+                transaction.reuseOn=transaction.provedOnSeq>=0&&
+                    io.seq(c.enable)===transaction.provedOnSeq&&io.matches(c.enable,true);
                 transaction.levelSeq=io.seq(c.level);transaction.switchSeq=io.seq(c.enable);
                 transaction.sent=true;
                 if(!io.write(c.level,transaction.level,true).ok)return fail(now,'LEVEL_WRITE_ERROR');
             }
-            // Both attributes must have NEW matching messages AFTER this Level.
-            // Never use Switch ON to restore a stale remembered position.
-            if(io.seq(c.level)<=transaction.levelSeq||io.seq(c.enable)<=transaction.switchSeq||
-                !io.matches(c.level,transaction.level)||!io.matches(c.enable,true))return report(false);
+            // An observed OFF invalidates former ON immediately.
+            if(io.seq(c.enable)>transaction.switchSeq&&io.matches(c.enable,false))
+                return fail(now,'OPEN_SWITCH_OFF');
+            // New Level is required for EVERY target. A new ON is required from
+            // CLOSED; only retargeting an already-qualified OPEN may preserve ON.
+            var onNow=io.matches(c.enable,true);
+            var freshOn=io.seq(c.enable)>transaction.switchSeq&&onNow;
+            var preservedOn=transaction.reuseOn&&io.seq(c.enable)===transaction.switchSeq&&onNow;
+            if(io.seq(c.level)<=transaction.levelSeq||!io.matches(c.level,transaction.level)||
+                !(freshOn||preservedOn))return report(false);
             activeLevel=transaction.level;transaction=null;state='OPEN';fault='';
         }
         if(state==='OPEN'){

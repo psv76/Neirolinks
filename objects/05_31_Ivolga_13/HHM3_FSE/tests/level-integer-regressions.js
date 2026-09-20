@@ -9,9 +9,9 @@ function fixture(){
         valveActiveMinLevel:1,valveActiveMaxLevel:100,valveOffCommand:false,
         pump:'A03/K4',level:'A05/Channel 3 Dimming Level',enable:'A05/Channel 3 Switch'};
     let now=100000,counts={},values={},attempts=[],writes=[];
-    let omitSameOn=true,integerReadback=true,dropEnable=false;
+    let omitSameOn=true,integerReadback=true,dropEnable=false,dropLevel=false;
     function record(path,value){
-        if(path===c.enable&&dropEnable)return;
+        if((path===c.enable&&dropEnable)||(path===c.level&&dropLevel))return;
         counts[path]=(counts[path]||0)+1;
         values[path]=typeof value==='boolean'?value?1:0:value;
     }
@@ -34,7 +34,8 @@ function fixture(){
         }
     };
     const step=createOutputs(c,io);
-    return {c,io,writes,values,dropSwitch:v=>dropEnable=v,
+    return {c,io,writes,values,dropSwitch:v=>dropEnable=v,dropLevel:v=>dropLevel=v,
+        inject:(path,value)=>record(path,value),
         run:(valve,pump=true,dt=5000)=>{now+=dt;attempts=[];return step({valve,pump},now);}};
 }
 test('20% target sends integer 21 and qualifies readback 21',()=>{
@@ -45,16 +46,26 @@ test('20% target sends integer 21 and qualifies readback 21',()=>{
     assert.equal(f.io.read(f.c.enable),1);
     assert.equal(f.io.read(f.c.pump),1);
 });
-test('missing duplicate ON during retarget fails closed without a stale approval',()=>{
+test('live probe: retarget 20/ON to 40/ON needs new Level, no duplicate ON',()=>{
     const f=fixture();f.run(0,false);assert.equal(f.run(20,true).state,'OPEN');
-    const onSeq=f.io.seq(f.c.enable);
-    let r=f.run(40,true);
-    assert.equal(f.io.seq(f.c.enable),onSeq,'driver did not publish duplicate ON');
-    assert.equal(r.requested_level,41);assert.equal(r.state,'OPENING');assert.equal(r.ready,false);
-    r=f.run(40,true);assert.equal(r.ready,false);
-    r=f.run(40,true);assert.equal(r.ready,false);
-    assert.equal(f.io.read(f.c.enable),0);
+    const oldSeq=f.io.seq(f.c.enable),r=f.run(40,true);
+    assert.equal(f.io.seq(f.c.enable),oldSeq);assert.equal(r.state,'OPEN');assert.equal(r.ready,true);
+    assert.equal(r.requested_level,41);assert.equal(f.io.read(f.c.pump),1);
+});
+test('retarget rejects absent Level acknowledgment and OFF invalidates prior ON',()=>{
+    const f=fixture();f.run(0,false);assert.equal(f.run(20,true).state,'OPEN');
+    f.dropLevel(true);let r=f.run(40,true);assert.equal(r.state,'OPENING');
+    assert.equal(r.ready,false);assert.equal(f.io.read(f.c.pump),0);
+    f.inject(f.c.enable,0);f.dropLevel(false);f.inject(f.c.level,41);
+    r=f.run(40,true,1000);assert.equal(r.ready,false);assert.equal(r.state,'CLOSED');
+    assert.equal(f.io.read(f.c.enable),0);assert.equal(f.io.read(f.c.pump),0);
+});
+test('first opening from OFF cannot reuse historical ON',()=>{
+    const f=fixture();f.run(0,false);f.dropSwitch(true);
+    let r=f.run(20,true);assert.equal(r.state,'OPENING');assert.equal(r.ready,false);
     assert.equal(f.io.read(f.c.pump),0);
+    r=f.run(20,true,10000);assert.equal(r.ready,false);
+    assert.equal(f.writes.filter(w=>w.path===f.c.enable&&w.value===true).length,0);
 });
 test('closing preserves remembered integer Level; no Level write on close',()=>{
     const f=fixture();f.run(0,false);f.run(20,true);
