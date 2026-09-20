@@ -1,0 +1,43 @@
+name: HHM3 A05 live-readback correction
+on:
+  push:
+    paths:
+      - '.github/workflows/hhm3-mao4-live-repair.yml'
+permissions:
+  contents: write
+jobs:
+  verify-and-apply:
+    if: github.ref == 'refs/heads/codex/issue-59-hhm3-fse'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/issue-59-hhm3-fse
+          fetch-depth: 2
+      - name: Install Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply and verify only when HEAD is unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "eb04fc4eb444184698c4893b1f0eafb6d6b5fb9e"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git ls-remote origin refs/heads/codex/issue-59-hhm3-fse | cut -f1)" = "$GITHUB_SHA"
+          python3 .github/scripts/hhm3_mao4_live_fix.py
+          cd objects/05_31_Ivolga_13/HHM3_FSE
+          node tests/manifest.js
+          node tests/run.js
+          node tests/manifest.js --check
+          cd ../../..
+          git diff --check
+          git rm .github/scripts/hhm3_mao4_live_fix.py .github/workflows/hhm3-mao4-live-repair.yml
+          git add objects/05_31_Ivolga_13/HHM3_FSE
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(hhm3): qualify A05 retarget using fresh Level and preserved verified ON'
+          echo "VERIFIED_COMMIT=$(git rev-parse HEAD)"
+          git push origin HEAD:refs/heads/codex/issue-59-hhm3-fse
