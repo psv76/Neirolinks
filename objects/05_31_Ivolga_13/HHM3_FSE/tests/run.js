@@ -18,8 +18,8 @@ test('fixed five-circuit map, 505 and living room are distinct; 562 has accepted
     const z=h.Z.find(z=>z.id==='505');assert.equal(z.sensor,'901.01_MSW_TH/Temperature');assert.equal(z.target,20);
     assert.equal(z.hysteresis,1);assert.equal(z.min,15);assert.equal(z.max,28);assert.equal(z.outputs.length,0);
     assert.equal(h.Z.find(z=>z.id==='010').sensor,'902.01_MSW_TH/Temperature');
-    assert.equal(c['504'].valveClosedLevel,1);assert.equal(c['504'].valveOpenLevel,100);
-    assert.equal(c['504'].valveClosedEnable,false);assert.equal(c['504'].floorOnlyMaxPct,50);
+    assert.equal(c['504'].valveActiveMinLevel,1);assert.equal(c['504'].valveActiveMaxLevel,100);
+    assert.equal(c['504'].valveOffCommand,false);assert.equal(c['504'].floorOnlyMaxPct,50);
     assert.equal(c['505'].zoneDelayMs,0);assert.equal(c['505'].kind,'direct');
     assert.equal(h.Z.flatMap(z=>z.outputs).includes('A14/K4'),false);
 });
@@ -28,15 +28,16 @@ test('no physical writes before single initial commissioning; thermostat 505 ini
     assert.equal(h.physical().length,0);assert.equal(h.values.boiler['NL_simple_thermostat_505/target_state'],false);
     assert.equal(h.values.boiler['NL_simple_thermostat_505/target_temperature'],20);
 });
-test('simultaneous 501-505: all pumps, paths, mixing order, arbiter MAX and source endpoint',()=>{
+test('simultaneous 501-505: pumps, paths, MAO4 target readbacks, arbiter MAX and source endpoint',()=>{
     const h=running(),r=h.report();for(const id of Object.keys(r)){assert.equal(r[id].demand,true,id);assert.equal(r[id].pump_command,true,id);}
     assert.equal(h.request(),45);assert.equal(h.values.boiler['HHM3_FSE/selected_consumer'],'503');
     assert.equal(h.values.boiler[h.C.source.setpoint],45);
     for(const id of ['501','502','504']){
         const c=h.C.circuits[id],writes=h.physical();
-        for(let i=0;i<writes.length;i++)if(writes[i].path===c.enable&&writes[i].value===true){
-            const previous=writes.slice(0,i).filter(w=>w.path===c.level).at(-1);assert.ok(previous);assert.ok(previous.value>=1);
-        }
+        assert.ok(!writes.some(w=>w.path===c.enable&&w.value===true));
+        assert.equal(r[id].output.state,'OPEN');assert.equal(r[id].output.ready,true);
+        assert.equal(r[id].output.saved_level,r[id].output.requested_level);
+        assert.equal(h.values.boiler[c.enable],true);
         assert.ok(r[id].valve_pct>0,id);
     }
 });
@@ -102,7 +103,7 @@ test('504 418 lost -> floor-only cap 50 and Level 1..100 mapping -> recovery',()
 test('504 no 418 and no floor => explicit uncovered feedback, close hot input, neighbours active',()=>{
     const h=running();const p=h.C.circuits['504'].supply;h.temperatures[p]=undefined;h.deliver('boiler',h.topic(p)+'/meta/error','r');
     h.bridge(false);h.advance(45000);assert.equal(h.report()['504'].reason,'NO_FEEDBACK_UNCOVERED');
-    assert.equal(h.report()['504'].valve_pct,0);assert.equal(h.values.boiler[h.C.circuits['504'].level],1);
+    assert.equal(h.report()['504'].valve_pct,0);assert.equal(h.values.boiler[h.C.circuits['504'].enable],false);
     assert.equal(h.values.boiler[h.C.circuits['504'].enable],false);assert.equal(h.report()['503'].demand,true);
 });
 test('504 thresholds raw 45/48/50, local stop only and controlled auto recovery',()=>{
@@ -147,7 +148,7 @@ test('cold source and NO_RESPONSE generate warning events, never permanent latch
 });
 test('output error on K4 does not suppress valve closure or healthy requests; retry automatic',()=>{
     const h=running();h.fail('A03/K4');h.temperatures[h.C.circuits['504'].supply]=50;h.advance(5000);
-    assert.match(h.report()['504'].reason,/CLOSURE_UNCERTAIN|OUTPUT_WRITE_ERROR/);assert.equal(h.values.boiler['A05/Channel 3 Dimming Level'],1);
+    assert.match(h.report()['504'].reason,/CLOSURE_UNCERTAIN|OUTPUT_WRITE_ERROR|CLOSED/);assert.equal(h.values.boiler['A05/Channel 3 Switch'],false);
     assert.equal(h.report()['503'].demand,true);h.fail('');h.advance(35000);assert.equal(h.values.boiler['A03/K4'],false);
 });
 test('retained/invalid/null/stale sensors never become zero/fresh heat, recover with new samples',()=>{

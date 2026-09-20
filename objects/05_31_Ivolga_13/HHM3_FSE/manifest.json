@@ -3,26 +3,26 @@
   "object": "05_31_Ivolga_13",
   "issue": 59,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "dda63c5e0581b08f6bfd25963855125d137ff63f71d0161afe3f807bae33b492",
+  "aggregate_sha256": "11968732a62301bf8717a57467e45f61760a2a6e3fc9c65bf62148795905e92a",
   "files": [
     {
       "file": "INSTALL.md",
-      "sha256": "9811176255e927cbf6c980e44c33dec137983b01efac42971bb71f26813416c0",
+      "sha256": "36c283aa6983c5303e7ae9d4dd3baa55474c8b16e9949dd05755035b39f3cb84",
       "role": "documentation"
     },
     {
       "file": "README.md",
-      "sha256": "7b90515fa976aafd29733ee1573fc498d719423333b680c2078052a956368215",
+      "sha256": "27c60b1a3b87b8ab968bc913de51cb70d8e514b305784de190ff611c5c7eeb35",
       "role": "documentation"
     },
     {
       "file": "TEST_RESULTS.md",
-      "sha256": "01ce0cc9e37e4d0e3d9247973ff7bd26d78eab07e2a5dd482e34e9960ca95dc5",
+      "sha256": "fffea8814521be1ede8c627f6e427849bdc14f67ba2f3ff06fe24156cdae4506",
       "role": "documentation"
     },
     {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
-      "sha256": "b31ccb4364d4f2f892e0bab96d28080d4a6b1babc94fa9ea4544a9611dae8c78",
+      "sha256": "e232d774b7d74eaead7db078447cf2ff45f9e79bd327c5873d6419c0b014b025",
       "boards": [
         "boiler"
       ],
@@ -69,7 +69,7 @@
     },
     {
       "file": "modules/HHM3Circuit.js",
-      "sha256": "3c3bdbee47789858503f17b42a98581f6010d3d14f109ab4b7752c67246e21fb",
+      "sha256": "d68b387410e0c86325311bfd46bb703c2880391b8700b2a5f726230d5c6cc7da",
       "boards": [
         "boiler"
       ],
@@ -78,7 +78,7 @@
     },
     {
       "file": "modules/HHM3Config.js",
-      "sha256": "c5dc8408a631ffe77e027bb3db4ad5806edb0d15ac6eaf8d77d355e27a1d149f",
+      "sha256": "99f7d993c2060015dd2e90f91d755597f0393d049c7904f31baf398b1bed5faf",
       "boards": [
         "boiler",
         "gazebo"
@@ -97,7 +97,7 @@
     },
     {
       "file": "modules/HHM3Outputs.js",
-      "sha256": "bac9a8ee1b607802b5700dfb4378fdb8bf361dd7ebe1c196520c539a65f8fabc",
+      "sha256": "74ffa4beaa57b510bc680d5a1ec89d811448835cb2f9b5fefbdfe06945755b3d",
       "boards": [
         "boiler"
       ],
@@ -136,12 +136,12 @@
     },
     {
       "file": "tests/review-regressions.js",
-      "sha256": "618ce2988ac28b3db1ca5a89b21d7193284ef3c58df9369cf21460cc773e4602",
+      "sha256": "91419292f389ca3fe186e7ede19959bdf01dcc0ea5bf8e6dd2c4fab8899f819e",
       "role": "test"
     },
     {
       "file": "tests/run.js",
-      "sha256": "76a174731e73e9771f071acdca23e066b5303432786d0b3c83d4d217452e12de",
+      "sha256": "c4a6ea4bd2cdeead0016d2f0d5987c5142f8191e11478635e326a5728b07625a",
       "role": "test"
     },
     {

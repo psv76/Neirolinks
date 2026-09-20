@@ -1,102 +1,115 @@
-/* MAO4 Level may itself switch the channel ON/OFF.
- * MQTT readback is electrical state only, never mechanical/hydraulic proof.
- * On a failed transaction retry OFF only, then qualify the closed tuple anew.
+/* A05 contract: OFF preserves Level; positive Level may AUTO-ON.
+ * No ON writes. Closing never writes Level. Readback is not hydraulic proof.
  */
 exports.create=function(c,io){
-    if(!(c.commandTimeoutMs>0&&c.commandRetryMs>0))throw new Error('Invalid output retry timing');
-    var key='',stage=0,pending=null,fault='',forceClose=false,retryAt=0,lastNow=null;
-    function attempt(path,value,now){
-        if(!pending){
-            pending={path:path,value:value,seq:io.seq(path),at:now};
-            var w=io.write(path,value,true);
-            if(!w.ok){pending=null;return 'ERROR';}
-        }
-        if(io.seq(path)>pending.seq&&io.matches(path,value)){pending=null;return 'ACK';}
-        if(now<pending.at||now-pending.at>=c.commandTimeoutMs){pending=null;return 'ERROR';}
-        return 'WAIT';
-    }
-    function report(state,ready,pump){
-        return {state:state,ready:ready,pump:pump,
-            closed_readback_match:(state==='READBACK_MATCH'||state==='RECOVERED_CLOSED_READBACK')&&stage===2&&
-                io.matches(c.level,c.valveClosedLevel)&&io.matches(c.enable,c.valveClosedEnable),
+    if(!(c.commandTimeoutMs>0&&c.commandRetryMs>0&&c.valveActiveMinLevel>0&&
+        c.valveActiveMinLevel<c.valveActiveMaxLevel&&c.valveActiveMaxLevel<=100&&c.valveOffCommand===false))
+        throw new Error('Invalid MAO4 command contract');
+    var state='UNINITIALIZED',transaction=null,confirmedOffSeq=-1,activeLevel=null;
+    var fault='',retryAt=0,lastNow=null,desiredLevel=null,wantOpen=false,pumpCommand=false;
+    function freshOff(){return confirmedOffSeq>=0&&io.seq(c.enable)>confirmedOffSeq&&io.matches(c.enable,false);}
+    function report(ready){
+        return {state:state,ready:ready,pump:pumpCommand,fault:fault,
+            saved_level:io.read(c.level),requested_level:desiredLevel,
+            requested_enable:wantOpen,closed_command:!wantOpen,
+            closed_readback_match:state==='CLOSED'&&!fault&&freshOff(),
             readback:{level:io.readback(c.level),enable:io.readback(c.enable),pump:io.readback(c.pump)}};
     }
-    function fail(now){
-        fault='CLOSURE_UNCERTAIN';pending=null;stage=0;key='';forceClose=true;
-        // No Level here: even a closing Level can AUTO-ON. Retry OFF alone.
-        io.write(c.pump,false);
-        var result=attempt(c.enable,false,now);
-        if(result==='ACK'){fault='';pending=null;retryAt=now+c.commandRetryMs;}
-        else if(result==='ERROR')retryAt=now+c.commandRetryMs;
-        return report('CLOSURE_UNCERTAIN',false,false);
+    function pump(value){
+        pumpCommand=value;
+        var w=io.write(c.pump,value);
+        return w.ok&&io.matches(c.pump,value);
+    }
+    function closedAck(){
+        if(transaction&&io.seq(c.enable)>transaction.switchSeq&&io.matches(c.enable,false)){
+            confirmedOffSeq=transaction.switchSeq;transaction=null;state='CLOSED';return true;
+        }
+        return false;
+    }
+    function beginClose(now,reason){
+        // Both ordinary closure and all recovery paths use this ONE operation.
+        state='CLOSING';activeLevel=null;confirmedOffSeq=-1;
+        if(reason){fault=reason;retryAt=now+c.commandRetryMs;}
+        pump(false);
+        transaction={at:now,switchSeq:io.seq(c.enable)};
+        var w=io.write(c.enable,false,true);
+        if(!w.ok){state='CLOSURE_UNCERTAIN';fault='OFF_WRITE_ERROR';transaction=null;retryAt=now+c.commandRetryMs;return;}
+        closedAck();
+    }
+    function fail(now,reason){beginClose(now,reason);return report(false);}
+    function startOpen(now){
+        state='OPENING';confirmedOffSeq=-1;
+        transaction={at:now,level:desiredLevel,sent:false};
     }
     return function(r,now){
-        if(lastNow!==null&&now<lastNow){pending=null;stage=0;key='';retryAt=0;}
+        pumpCommand=false;
+        wantOpen=r.pump===true&&typeof r.valve==='number'&&isFinite(r.valve)&&r.valve>0&&r.valve<=100;
+        desiredLevel=wantOpen?c.valveActiveMinLevel+(c.valveActiveMaxLevel-c.valveActiveMinLevel)*r.valve/100:null;
+        if(lastNow!==null&&(now<lastNow||now-lastNow>c.periodMs*3)){
+            beginClose(now,'CLOCK_REQUALIFICATION');lastNow=now;return report(false);
+        }
         lastNow=now;
-        if(!r.pump)io.write(c.pump,false);
-        if(fault){
-            io.write(c.pump,false);
-            if(now<retryAt)return report('CLOSURE_UNCERTAIN',false,false);
-            var off=attempt(c.enable,false,now);
-            if(off==='ACK'){fault='';pending=null;retryAt=now+c.commandRetryMs;}
-            else if(off==='ERROR')retryAt=now+c.commandRetryMs;
-            return report('CLOSURE_UNCERTAIN',false,false);
+        if(state==='UNINITIALIZED')beginClose(now,'');
+        if(state==='CLOSURE_UNCERTAIN'){
+            pump(false);
+            if(now>=retryAt)beginClose(now,fault);
+            return report(false);
         }
-        if(now<retryAt){io.write(c.pump,false);return report('RECOVERY_WAIT',false,false);}
-        var pct=forceClose?0:r.valve;
-        var level=c.valveClosedLevel+(c.valveOpenLevel-c.valveClosedLevel)*pct/100;
-        var enabled=pct>0?true:c.valveClosedEnable,newKey=String(level)+'/'+enabled;
-        if(newKey!==key){key=newKey;stage=enabled?0:-1;pending=null;}
-        // A changed external readback must invalidate completion, not the cache alone.
-        if(stage===2&&(!io.matches(c.level,level)||!io.matches(c.enable,enabled))){
-            return fail(now);
-        }
-        if(stage===-1){
-            // OFF closes without erasing remembered Level. It takes priority over
-            // any Level write, which could AUTO-ON even while trying to close.
-            var offFirst=attempt(c.enable,false,now);
-            if(offFirst==='ERROR')return fail(now);
-            if(offFirst==='WAIT'){
-                if(!io.write(c.pump,false).ok)return fail(now);
-                return report('WAIT_PRIORITY_OFF_READBACK',false,false);
+        if(state==='CLOSING'){
+            pump(false);
+            if(now-transaction.at>=c.commandTimeoutMs){
+                state='CLOSURE_UNCERTAIN';fault='OFF_READBACK_TIMEOUT';transaction=null;
+                retryAt=now+c.commandRetryMs;return report(false);
             }
-            // Keep the accepted object scale. If already at closedLevel, do not
-            // rewrite it and cause an unnecessary AUTO-ON. Otherwise Level must
-            // be followed by a NEW OFF acknowledgment, never the preceding one.
-            stage=io.matches(c.level,level)?2:0;
+            if(!closedAck())return report(false);
         }
-        if(stage===0){
-            var first=attempt(c.level,level,now);
-            if(first==='ERROR')return fail(now);
-            if(first==='WAIT'){
-                if(!io.write(c.pump,false).ok)return fail(now);
-                return report('WAIT_LEVEL_READBACK',false,false);
+        if(state==='CLOSED'){
+            // Remembered Level is irrelevant to OFF confirmation.
+            if(!freshOff())return fail(now,'OFF_READBACK_LOST');
+            if(now<retryAt){pump(false);return report(false);}
+            if(!wantOpen){
+                fault='';
+                var circulating=pump(r.pump===true);
+                if(!circulating&&io.commands([c.pump]).some(function(w){return !w.ok;}))
+                    return fail(now,'PUMP_WRITE_ERROR');
+                return report(circulating);
             }
-            stage=1;
+            startOpen(now);
         }
-        if(stage===1){
-            // Never ON after a failed/missing/changed level acknowledgment.
-            if(!io.matches(c.level,level))return fail(now);
-            var second=attempt(c.enable,enabled,now);
-            if(second==='ERROR')return fail(now);
-            if(second==='WAIT'){
-                if(!io.write(c.pump,false).ok)return fail(now);
-                return report('WAIT_SWITCH_READBACK',false,false);
+        if(state==='OPEN'&&(!io.matches(c.level,activeLevel)||!io.matches(c.enable,true)))
+            return fail(now,'OPEN_READBACK_CHANGED');
+        if(state==='OPEN'&&!wantOpen){
+            beginClose(now,'');
+            if(state!=='CLOSED')return report(false);
+            fault='';return report(pump(r.pump===true));
+        }
+        if(state==='OPEN'&&desiredLevel!==activeLevel)startOpen(now);
+        if(state==='OPENING'){
+            // Cancel a superseded in-flight opening through OFF, never through ON.
+            if(!wantOpen||desiredLevel!==transaction.level){
+                beginClose(now,'OPEN_CANCELLED');return report(false);
             }
-            stage=2;
+            if(now-transaction.at>=c.commandTimeoutMs)return fail(now,'OPEN_READBACK_TIMEOUT');
+            if(!pump(false)){
+                if(io.commands([c.pump]).some(function(w){return !w.ok;}))return fail(now,'PUMP_WRITE_ERROR');
+                return report(false);
+            }
+            if(!transaction.sent){
+                transaction.levelSeq=io.seq(c.level);transaction.switchSeq=io.seq(c.enable);
+                transaction.sent=true;
+                if(!io.write(c.level,transaction.level,true).ok)return fail(now,'LEVEL_WRITE_ERROR');
+            }
+            // Both attributes must have NEW matching messages AFTER this Level.
+            // Never use Switch ON to restore a stale remembered position.
+            if(io.seq(c.level)<=transaction.levelSeq||io.seq(c.enable)<=transaction.switchSeq||
+                !io.matches(c.level,transaction.level)||!io.matches(c.enable,true))return report(false);
+            activeLevel=transaction.level;transaction=null;state='OPEN';fault='';
         }
-        if(!io.matches(c.level,level)||!io.matches(c.enable,enabled))return fail(now);
-        if(forceClose){
-            forceClose=false;retryAt=now+c.commandRetryMs;
-            // Recirculation only after the configured closed tuple was read back.
-            var recirculate=r.pump&&r.valve===0;
-            if(!io.write(c.pump,recirculate).ok)return fail(now);
-            var recovered=report('RECOVERED_CLOSED_READBACK',false,recirculate);
-            key='';stage=0;return recovered;
+        if(state==='OPEN'){
+            var running=pump(true);
+            if(!running&&io.commands([c.pump]).some(function(w){return !w.ok;}))return fail(now,'PUMP_WRITE_ERROR');
+            return report(running);
         }
-        var pump=io.write(c.pump,r.pump);
-        if(!pump.ok)return fail(now);
-        var ready=io.matches(c.pump,r.pump);
-        return report(ready?'READBACK_MATCH':'WAIT_PUMP_READBACK',ready,r.pump);
+        return report(false);
     };
 };

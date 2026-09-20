@@ -108,8 +108,8 @@ function evaluateOnce(){
         }
         var commands=io.commands([c.pump,c.level,c.enable]);
         if(commands.some(function(w){return !w.ok;})&&out.state!=='CLOSURE_UNCERTAIN')out.state='OUTPUT_WRITE_ERROR';
-        var ok=out.ready&&!/ERROR|UNCERTAIN/.test(out.state),failed=/ERROR|UNCERTAIN/.test(out.state);
-        if(failed){r.warning+='; '+out.state+'; повтор автоматически';r.reason=out.state;if(engines[id])engines[id].reset();}
+        var failed=/ERROR|UNCERTAIN/.test(out.state)||!!out.fault,ok=out.ready&&!failed;
+        if(failed){r.warning+='; '+out.state+'; '+(out.fault||'')+'; повтор автоматически';r.reason=out.state;if(engines[id])engines[id].reset();}
         var temperature=r.demand&&ok?r.target+(c.kind==='mixed'?c.sourceMarginC:0):0;
         requests[id]={at:now,valid:r.valid&&ok,demand:r.demand&&ok,ready:r.pump&&ok,temperature:temperature};
         reports[id]={reason:r.reason,warning:r.warning,pump_command:out.pump,requested_pump:r.pump,valve_pct:r.valve,

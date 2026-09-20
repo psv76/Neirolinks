@@ -18,118 +18,138 @@ module.exports=function(test,create,epoch){
   }});
   const log={};for(const level of ['info','warning','error'])log[level]=s=>logs.push({level,s});
   const io=R.io({dev,now:()=>now,trackMqtt:(t,f)=>(handlers[t]||(handlers[t]=[])).push(f),publish:()=>{},log},'test',[c.level,c.enable,c.pump]);
-  const step=h.load('HHM3Outputs').create(c,io);
+  let step=h.load('HHM3Outputs').create(c,io);
   return {c,io,values,writes,logs,emit,position:()=>position,fail:f=>failure=f,drop:f=>drop=f,
    run:(valve=20,pump=true,dt=5000)=>{now+=dt;io.begin();return step({valve,pump},now);},
-   clock:dt=>now+=dt};
+   restart:()=>step=h.load('HHM3Outputs').create(c,io),clock:dt=>now+=dt};
  }
- test('MAO4: independent closed tuples for 560/561/562; AUTO-ON then final switch readback',()=>{
-  for(const id of ['501','502','504']){
-   const f=fixture(id),c=f.c;assert.equal(c.valveClosedLevel,1);assert.equal(c.valveClosedEnable,id==='501');
-   f.io.write(c.level,0,true);assert.equal(f.values[c.enable],false);
-   const r=f.run(0,false);assert.equal(r.ready,true);assert.equal(r.closed_readback_match,true);
-   assert.equal(f.values[c.enable],c.valveClosedEnable);assert.equal(f.values[c.level],1);
-   assert.equal(c.level,'A05/Channel '+({'501':1,'502':2,'504':3}[id])+' Dimming Level');
+ const ids=['501','502','504'];
+ test('A05 config separates active range from OFF command for all three channels',()=>{
+  const h=create();for(const id of ids){const c=h.C.circuits[id];
+   assert.equal(c.valveOffCommand,false);assert.equal(c.valveActiveMinLevel,1);assert.equal(c.valveActiveMaxLevel,100);
+   assert.equal(c.valveClosedLevel,undefined);assert.equal(c.valveClosedEnable,undefined);
+  }assert.equal(h.C.circuits['504'].floorOnlyMaxPct,50);
+ });
+ test('A05 model separates stored Level, Switch, position and AUTO transitions for each address',()=>{
+  for(const id of ids){const f=fixture(id),c=f.c;
+   for(const [level,enabled,pos]of [[0,false,0],[1,true,1],[0,false,0],[20,true,20]]){
+    f.io.write(c.level,level,true);assert.equal(f.values[c.enable],enabled);assert.equal(f.position(),pos);
+   }
+   f.io.write(c.enable,false,true);assert.equal(f.values[c.level],20);assert.equal(f.position(),0);
+   f.io.write(c.enable,true,true);assert.equal(f.position(),20);
   }
  });
- test('MAO4: no Switch ON without a new non-retained matching Level readback',()=>{
-  const f=fixture();f.drop(p=>p===f.c.level);
-  let r=f.run();assert.equal(r.state,'WAIT_LEVEL_READBACK');
-  assert.equal(f.values[f.c.enable],true); // Level itself AUTO-ON, even before explicit ON.
-  assert.equal(f.values[f.c.pump],false);
-  assert.ok(!f.writes.some(w=>w.path===f.c.enable&&w.value===true));
-  f.emit(f.c.level,f.values[f.c.level],true);r=f.run();assert.equal(r.state,'WAIT_LEVEL_READBACK');
-  r=f.run();assert.equal(r.state,'CLOSURE_UNCERTAIN');assert.equal(f.values[f.c.enable],false);
-  f.drop(()=>false);for(let i=0;i<5;i++)r=f.run();assert.equal(r.ready,true);
- });
- test('MAO4: pump stop error while awaiting readback immediately attempts Switch OFF',()=>{
-  const f=fixture();f.drop(p=>p===f.c.level);f.fail(w=>w.path===f.c.pump&&w.value===false);
-  const r=f.run();assert.equal(r.state,'CLOSURE_UNCERTAIN');assert.equal(r.ready,false);
-  assert.ok(f.writes.some(w=>w.path===f.c.enable&&w.value===false));assert.equal(f.values[f.c.enable],false);
- });
- test('MAO4: separate Level/ON errors before and after application, startup and running',()=>{
-  for(const running of [false,true])for(const channel of ['level','enable'])for(const when of [true,'after']){
-   const f=fixture();if(running)assert.equal(f.run(10).ready,true);
-   const n=f.writes.length;
-   f.fail(w=>w.path===f.c[channel]&&(channel!=='enable'||w.value===true)?when:false);
-   let r=f.run(40);assert.equal(r.ready,false);assert.equal(f.values[f.c.pump],false);
-   assert.equal(f.values[f.c.enable],false);
-   if(channel==='level')assert.ok(!f.writes.slice(n).some(w=>w.path===f.c.enable&&w.value===true));
-   f.fail(()=>false);for(let i=0;i<6;i++)r=f.run(40);
-   assert.equal(r.ready,true);assert.equal(f.values[f.c.enable],true);
+ test('A05 20/ON -> OFF only -> stored 20/OFF -> new target, no explicit ON',()=>{
+  for(const id of ids){const f=fixture(id),c=f.c;f.io.write(c.level,20,true);const begin=f.writes.length;
+   let r=f.run(0,false);assert.equal(r.state,'CLOSED');assert.equal(r.closed_readback_match,true);
+   assert.equal(r.saved_level,20);assert.equal(r.requested_level,null);assert.equal(r.requested_enable,false);
+   assert.equal(f.values[c.level],20);assert.equal(f.position(),0);
+   assert.ok(!f.writes.slice(begin).some(w=>w.path===c.level));
+   r=f.run(40,true);assert.equal(r.state,'OPEN');assert.equal(r.ready,true);
+   assert.equal(f.position(),1+99*0.4);
+   assert.ok(!f.writes.slice(begin).some(w=>w.path===c.enable&&w.value===true));
   }
  });
- test('MAO4: failed OFF after 0-to-1 AUTO-ON never claims closure or repeatedly writes Level',()=>{
-  const f=fixture();f.io.write(f.c.level,0,true);
-  let offCount=0;f.fail(w=>w.path===f.c.enable&&w.value===false&&++offCount>1);
-  let r=f.run(0,true);assert.equal(r.state,'CLOSURE_UNCERTAIN');assert.equal(r.closed_readback_match,false);
-  assert.equal(f.values[f.c.enable],true);assert.equal(f.values[f.c.pump],false);
-  const n=f.writes.filter(w=>w.path===f.c.level).length;
-  for(let i=0;i<10;i++)r=f.run(0,true);
-  assert.equal(f.writes.filter(w=>w.path===f.c.level).length,n);
-  assert.equal(r.ready,false);f.fail(()=>false);
-  for(let i=0;i<5;i++)r=f.run(0,true);
-  assert.equal(r.ready,true);assert.equal(r.closed_readback_match,true);assert.equal(f.values[f.c.pump],true);
- });
- test('MAO4: absent OFF readback, external Level change and retry preserve uncertainty',()=>{
-  const f=fixture();assert.equal(f.run().ready,true);
-  f.drop(p=>p===f.c.enable);
-  let r=f.run(0,true);assert.equal(r.ready,false);assert.equal(r.state,'WAIT_PRIORITY_OFF_READBACK');
-  for(let i=0;i<3;i++)r=f.run(0,true);
-  assert.equal(r.ready,false);assert.equal(f.values[f.c.pump],false);
-  f.drop(()=>false);for(let i=0;i<6;i++)r=f.run(0,true);assert.equal(r.ready,true);
-  f.values[f.c.level]=90;f.emit(f.c.level,90);r=f.run(0,true);
-  assert.equal(r.state,'CLOSURE_UNCERTAIN');assert.equal(r.ready,false);
-  for(let i=0;i<6;i++)r=f.run(0,true);assert.equal(r.ready,true);assert.equal(f.values[f.c.level],1);
- });
- test('additional experiment model: saved Level and computed position differ while Switch OFF',()=>{
-  const f=fixture(),c=f.c;
-  f.io.write(c.level,0,true);assert.equal(f.values[c.enable],false);assert.equal(f.position(),0);
-  f.io.write(c.level,20,true);assert.equal(f.values[c.enable],true);assert.equal(f.position(),20);
-  f.io.write(c.enable,false,true);assert.equal(f.values[c.level],20);assert.equal(f.position(),0);
-  f.io.write(c.enable,true,true);assert.equal(f.values[c.level],20);assert.equal(f.position(),20);
- });
- test('OFF-closed channels prioritize fresh OFF before changing accepted closed Level',()=>{
-  for(const id of ['502','504']){
-   const f=fixture(id),c=f.c;f.io.write(c.level,20,true);const begin=f.writes.length;
-   const r=f.run(0,false),v=f.writes.slice(begin).filter(w=>w.path!==c.pump);
-   assert.deepEqual(v.map(w=>[w.path,w.value]),[[c.enable,false],[c.level,1],[c.enable,false]]);
-   assert.deepEqual(v.map(w=>w.position),[0,1,0]);assert.equal(r.closed_readback_match,true);
-   assert.equal(f.values[c.level],1);assert.equal(f.position(),0);
-   const n=f.writes.length;f.run(0,false);assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));
+ test('A05 closed command accepts unknown/manual/stored Level without changing it',()=>{
+  for(const id of ids){const f=fixture(id),c=f.c;let r=f.run(0,true);
+   assert.equal(r.ready,true);assert.equal(r.saved_level,null);assert.equal(r.closed_readback_match,true);
+   f.values[c.level]=73;f.emit(c.level,73);const n=f.writes.length;r=f.run(0,true);
+   assert.equal(r.ready,true);assert.equal(r.saved_level,73);
+   assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));
   }
  });
- test('priority OFF error/readback loss never rewrites remembered Level or claims closure',()=>{
-  for(const failure of ['before','after','missing']){
-   const f=fixture(),c=f.c;f.io.write(c.level,20,true);const n=f.writes.length;
-   if(failure==='missing')f.drop(p=>p===c.enable);
-   else f.fail(w=>w.path===c.enable&&w.value===false?(failure==='after'?'after':true):false);
-   for(let i=0;i<4;i++){const r=f.run(0,true);assert.equal(r.ready,false);assert.equal(r.closed_readback_match,false);}
-   assert.equal(f.values[c.level],20);assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));
-   f.fail(()=>false);f.drop(()=>false);let r;for(let i=0;i<6;i++)r=f.run(0,true);
+ test('A05 OFF write errors before/after application never claim closed or ready',()=>{
+  for(const id of ids)for(const error of [true,'after']){
+   const f=fixture(id),c=f.c;f.io.write(c.level,20,true);const n=f.writes.length;
+   f.fail(w=>w.path===c.enable&&w.value===false?error:false);
+   for(let i=0;i<4;i++){const r=f.run(0,true);assert.equal(r.state,'CLOSURE_UNCERTAIN');assert.equal(r.ready,false);assert.equal(r.closed_readback_match,false);assert.equal(r.pump,false);}
+   assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));assert.equal(f.values[c.level],20);
+   f.fail(()=>false);let r;for(let i=0;i<5;i++)r=f.run(0,true);
    assert.equal(r.ready,true);assert.equal(r.closed_readback_match,true);assert.equal(f.position(),0);
   }
  });
- test('post-Level OFF error/timeout cannot reuse the earlier priority OFF acknowledgment',()=>{
-  for(const fault of ['before','after','missing']){
-   const f=fixture(),c=f.c;f.io.write(c.level,20,true);let off=0;
-   f.fail(w=>{if(w.path===c.enable&&w.value===false){off++;if(off>1&&fault!=='missing')return fault==='after'?'after':true;}return false;});
-   if(fault==='missing')f.drop(p=>p===c.enable&&off>1);
-   // Suppress the final OFF readback by counting the actual writes, not the AUTO-ON.
-   let r=f.run(0,true);assert.equal(r.ready,false);assert.equal(r.closed_readback_match,false);
-   for(let i=0;i<3;i++){r=f.run(0,true);assert.equal(r.ready,false);assert.equal(r.closed_readback_match,false);}
-   f.fail(()=>false);f.drop(()=>false);for(let i=0;i<6;i++)r=f.run(0,true);
-   assert.equal(r.ready,true);assert.equal(f.position(),0);
+ test('A05 old/cached/retained OFF cannot qualify a new close, timeout retries OFF only',()=>{
+  for(const id of ids){const f=fixture(id),c=f.c;f.io.write(c.level,20,true);f.io.write(c.enable,false,true);
+   const n=f.writes.length;f.drop(p=>p===c.enable);
+   let r=f.run(0,true);assert.equal(r.state,'CLOSING');assert.equal(r.closed_readback_match,false);
+   f.emit(c.enable,0,true);r=f.run(0,true);assert.equal(r.ready,false);
+   r=f.run(0,true);assert.equal(r.state,'CLOSURE_UNCERTAIN');assert.equal(r.ready,false);
+   assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));assert.equal(f.values[c.level],20);
+   f.drop(()=>false);for(let i=0;i<5;i++)r=f.run(0,true);assert.equal(r.ready,true);
   }
  });
- test('opening from stored 20/OFF does not issue ON restoring 20 before new Level acknowledgment',()=>{
-  const f=fixture(),c=f.c;f.io.write(c.level,20,true);f.io.write(c.enable,false,true);
-  f.drop(p=>p===c.level);const n=f.writes.length;let r=f.run(40,true);
-  assert.equal(r.ready,false);assert.equal(r.closed_readback_match,false);
-  assert.ok(!f.writes.slice(n).some(w=>w.path===c.enable&&w.value===true));
-  assert.notEqual(f.position(),20);f.run(40,true);r=f.run(40,true);assert.equal(r.ready,false);
-  f.drop(()=>false);for(let i=0;i<6;i++)r=f.run(40,true);
-  assert.equal(r.ready,true);assert.equal(f.position(),1+99*0.4);
+ test('A05 opening needs new Level AND Switch readback after Level, never cached ON',()=>{
+  for(const id of ids)for(const missing of ['level','enable']){
+   const f=fixture(id),c=f.c;f.run(0,false);f.drop(p=>p===c[missing]);const n=f.writes.length;
+   let r=f.run(40,true);assert.equal(r.state,'OPENING');assert.equal(r.ready,false);assert.equal(f.values[c.pump],false);
+   f.emit(c[missing],missing==='level'?1+99*0.4:1,true);
+   r=f.run(40,true);assert.equal(r.ready,false);
+   r=f.run(40,true);assert.equal(r.ready,false);assert.equal(r.closed_readback_match,false);
+   assert.ok(!f.writes.slice(n).some(w=>w.path===c.enable&&w.value===true));
+   f.drop(()=>false);for(let i=0;i<7;i++)r=f.run(40,true);assert.equal(r.ready,true);
+  }
+ });
+ test('A05 asynchronous Level then ON readback enables pump only after both fresh messages',()=>{
+  for(const id of ids){const f=fixture(id),c=f.c;f.run(0,false);f.drop(p=>p===c.level||p===c.enable);
+   let r=f.run(40,true);assert.equal(r.ready,false);assert.equal(f.values[c.pump],false);
+   f.emit(c.level,1+99*0.4);r=f.run(40,true);assert.equal(r.ready,false);assert.equal(f.values[c.pump],false);
+   f.emit(c.enable,1);r=f.run(40,true,1000);assert.equal(r.ready,true);assert.equal(r.state,'OPEN');assert.equal(f.values[c.pump],true);
+  }
+ });
+ test('A05 Level failure before/after application, startup/running, closes only with OFF',()=>{
+  for(const id of ids)for(const error of [true,'after'])for(const running of [false,true]){
+   const f=fixture(id),c=f.c;if(running)f.run(10,true);else f.run(0,false);
+   const n=f.writes.length;f.fail(w=>w.path===c.level?error:false);
+   const r=f.run(40,true);assert.equal(r.ready,false);assert.equal(r.closed_readback_match,false);
+   const writes=f.writes.slice(n);assert.equal(writes.filter(w=>w.path===c.level).length,1);
+   assert.ok(writes.some(w=>w.path===c.enable&&w.value===false));assert.equal(f.position(),0);
+   assert.ok(!writes.some(w=>w.path===c.enable&&w.value===true));assert.equal(f.values[c.pump],false);
+  }
+ });
+ test('A05 Level failure followed by failed OFF retries only OFF until closure succeeds',()=>{
+  for(const id of ids){const f=fixture(id),c=f.c;f.run(0,false);
+   f.fail(w=>w.path===c.level?'after':w.path===c.enable&&w.value===false);
+   let r=f.run(40,true);assert.equal(r.state,'CLOSURE_UNCERTAIN');const n=f.writes.length;
+   for(let i=0;i<4;i++){r=f.run(40,true);assert.equal(r.ready,false);assert.equal(r.closed_readback_match,false);}
+   assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));f.fail(()=>false);
+   for(let i=0;i<6;i++)r=f.run(40,true);assert.equal(r.ready,true);
+  }
+ });
+ test('A05 pump stop readback/error prevents Level write and opening',()=>{
+  for(const id of ids)for(const error of [false,true]){
+   const f=fixture(id),c=f.c;f.run(20,true);f.values[c.pump]=true;f.emit(c.pump,1);
+   const n=f.writes.length;if(error)f.fail(w=>w.path===c.pump&&w.value===false);else f.drop(p=>p===c.pump);
+   let r=f.run(40,true);assert.equal(r.ready,false);
+   assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));
+   for(let i=0;i<3;i++)r=f.run(40,true);assert.equal(r.ready,false);
+  }
+ });
+ test('A05 manual Level change while OPEN triggers OFF, then new commanded Level',()=>{
+  for(const id of ids){const f=fixture(id),c=f.c;f.run(40,true);f.values[c.level]=80;f.emit(c.level,80);
+   const n=f.writes.length;let r=f.run(40,true);assert.equal(r.ready,false);
+   assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));assert.equal(f.values[c.enable],false);
+   for(let i=0;i<4;i++)r=f.run(40,true);assert.equal(r.ready,true);assert.equal(f.position(),1+99*0.4);
+  }
+ });
+ test('A05 cancelled opening enters OFF closure without another Level',()=>{
+  for(const id of ids){const f=fixture(id),c=f.c;f.run(0,false);f.drop(p=>p===c.level);f.run(40,true);
+   const n=f.writes.length;let r=f.run(0,true);assert.equal(r.ready,false);
+   assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));assert.equal(f.values[c.enable],false);
+   r=f.run(0,true);assert.equal(r.ready,true);assert.equal(r.closed_readback_match,true);
+  }
+ });
+ test('A05 restart requalifies OFF; old readback cannot restart pump',()=>{
+  for(const id of ids){const f=fixture(id),c=f.c;f.run(40,true);f.restart();f.drop(p=>p===c.enable);
+   const n=f.writes.length;const r=f.run(40,true);
+   assert.equal(r.ready,false);assert.equal(r.pump,false);assert.equal(r.closed_readback_match,false);
+   assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));assert.equal(f.values[c.pump],false);
+  }
+ });
+ test('A05 clock rollback invalidates confirmations and requalifies through OFF only',()=>{
+  for(const id of ids){const f=fixture(id),c=f.c;f.run(40,true);const n=f.writes.length;
+   const r=f.run(40,true,-20000);assert.equal(r.ready,false);assert.equal(r.closed_readback_match,false);
+   assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));
+  }
  });
  test('I/O diagnostics: SENT/CACHE_SKIP/ERROR, fresh MQTT readback and external correction',()=>{
   const f=fixture(),p=f.c.pump;
@@ -166,23 +186,23 @@ module.exports=function(test,create,epoch){
   const b=create({stores:h.stores});assert.equal(b.values.boiler['NL_simple_thermostat_601/target_state'],false);
   assert.equal(b.values.boiler['NL_simple_thermostat_601/target_temperature'],24);
  });
- test('integration: priority closing OFF failure keeps closed flag and request false, neighbours recover independently',()=>{
-  const h=create();h.enableAll();h.samples();h.start();h.advance(300000);const c=h.C.circuits['504'];
-  h.fail(w=>w.path===c.enable&&w.value===false);h.temperatures[c.supply]=46;h.advance(15000);
-  assert.equal(h.report()['504'].demand,false);assert.equal(h.report()['504'].output.closed_readback_match,false);
-  for(const id of ['501','502','503','505'])assert.equal(h.report()[id].demand,true,id);
-  h.fail('');h.temperatures[c.supply]=25;h.advance(220000);assert.equal(h.report()['504'].demand,true);
-  assert.ok(h.modelPosition['504']>0);assert.equal(h.request(),45);
+ test('integration: closure errors on each mixed circuit invalidate only its request, no Level writes',()=>{
+  for(const id of ids){const h=create();h.enableAll();h.samples();h.start();h.advance(300000);const c=h.C.circuits[id];
+   const n=h.writes.length;h.fail(w=>w.path===c.enable&&w.value===false);
+   h.temperatures[c.supply]=c.supplyImmediateStopC;h.deliver('boiler',h.topic(c.supply),c.supplyImmediateStopC,false);h.advance(15000);
+   assert.equal(h.report()[id].demand,false);assert.equal(h.report()[id].output.closed_readback_match,false);
+   assert.ok(!h.writes.slice(n).some(w=>w.path===c.level));
+   for(const other of ['501','502','503','504','505'].filter(x=>x!==id))assert.equal(h.report()[other].demand,true,other);
+   h.fail('');h.temperatures[c.supply]=25;h.advance(230000);assert.equal(h.report()[id].demand,true);
+  }
  });
- test('integration: MAO4 Level/ON failure removes only failed request; neighbours remain active',()=>{
-  for(const channel of ['level','enable']){
-   const h=create();h.enableAll();h.samples();h.start();h.advance(300000);const c=h.C.circuits['504'];
-   h.fail(w=>w.path===c[channel]&&(channel==='level'?w.value>1:w.value===true));
-   const begin=h.writes.length;h.advance(100000);
-   const errors=h.writes.slice(begin).filter(w=>w.path==='HHM3_FSE/circuits_json').map(w=>JSON.parse(w.value)['504']).filter(r=>/UNCERTAIN|ERROR/.test(r.reason));
+ test('integration: per-circuit Level failure excludes failing transactions; neighbours continue',()=>{
+  for(const id of ids){const h=create();h.enableAll();h.samples();h.start();h.advance(300000);const c=h.C.circuits[id],n=h.writes.length;
+   h.fail(w=>w.path===c.level);h.advance(100000);
+   const errors=h.writes.slice(n).filter(w=>w.path==='HHM3_FSE/circuits_json').map(w=>JSON.parse(w.value)[id]).filter(r=>r.output.fault);
    assert.ok(errors.length>0);errors.forEach(r=>assert.equal(r.demand,false));
-   for(const id of ['501','502','503','505'])assert.equal(h.report()[id].demand,true,id);
-   assert.equal(h.request(),45);h.fail('');h.advance(100000);assert.equal(h.report()['504'].demand,true);
+   for(const other of ['501','502','503','504','505'].filter(x=>x!==id))assert.equal(h.report()[other].demand,true,other);
+   h.fail('');h.advance(100000);assert.equal(h.report()[id].demand,true);
   }
  });
 };

@@ -4,10 +4,9 @@
  */
 function finite(v) { return typeof v === 'number' && isFinite(v); }
 function valveConfig(c) {
-    return finite(c.valveClosedLevel) && finite(c.valveOpenLevel) &&
-        c.valveClosedLevel >= 0 && c.valveClosedLevel <= 100 &&
-        c.valveOpenLevel >= 0 && c.valveOpenLevel <= 100 &&
-        c.valveClosedLevel !== c.valveOpenLevel && typeof c.valveClosedEnable === 'boolean';
+    return finite(c.valveActiveMinLevel) && finite(c.valveActiveMaxLevel) &&
+        c.valveActiveMinLevel > 0 && c.valveActiveMaxLevel <= 100 &&
+        c.valveActiveMinLevel < c.valveActiveMaxLevel && c.valveOffCommand === false;
 }
 exports.create = function (c, storage, Mixing) {
     ['normalSupplyC', 'maxSupplyC', 'autonomousSupplyC', 'supplyCloseC', 'supplyStopC',
