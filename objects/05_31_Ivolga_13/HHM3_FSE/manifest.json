@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 59,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "11968732a62301bf8717a57467e45f61760a2a6e3fc9c65bf62148795905e92a",
+  "aggregate_sha256": "f05be453c0fff4dfd27ea94c37cbc3b4ab944e33fc4f66147a3b7e108c98fda0",
   "files": [
     {
       "file": "INSTALL.md",
@@ -17,7 +17,7 @@
     },
     {
       "file": "TEST_RESULTS.md",
-      "sha256": "fffea8814521be1ede8c627f6e427849bdc14f67ba2f3ff06fe24156cdae4506",
+      "sha256": "bd26367de2d1ba9222d18283e358496be02e818085bb1aa83c03e3e09032cafb",
       "role": "documentation"
     },
     {
@@ -97,7 +97,7 @@
     },
     {
       "file": "modules/HHM3Outputs.js",
-      "sha256": "74ffa4beaa57b510bc680d5a1ec89d811448835cb2f9b5fefbdfe06945755b3d",
+      "sha256": "3e8db0813dfaf73d98252d1aaec2ce26e333c1eef6e9df162dc6089f78b39076",
       "boards": [
         "boiler"
       ],
@@ -130,18 +130,23 @@
       "role": "test"
     },
     {
+      "file": "tests/level-integer-regressions.js",
+      "sha256": "bca76c588175e7d8a12498bef7debccc31459abca6e3f41190a6c9be53e25ab9",
+      "role": "test"
+    },
+    {
       "file": "tests/manifest.js",
       "sha256": "91bb3253d7ddeb3eb23deb0decd644d5ab64a04929631cac28ebed70eeabfa5d",
       "role": "test"
     },
     {
       "file": "tests/review-regressions.js",
-      "sha256": "91419292f389ca3fe186e7ede19959bdf01dcc0ea5bf8e6dd2c4fab8899f819e",
+      "sha256": "2c3d8f757753f4bad3e459b15b148603e0088c2a2365c0f7c67b420e59ccc49e",
       "role": "test"
     },
     {
       "file": "tests/run.js",
-      "sha256": "c4a6ea4bd2cdeead0016d2f0d5987c5142f8191e11478635e326a5728b07625a",
+      "sha256": "5f5f274b6091aac47f45ee3d115b6eadb6e30b6e8d8669aa0745b67fbf2b49c1",
       "role": "test"
     },
     {

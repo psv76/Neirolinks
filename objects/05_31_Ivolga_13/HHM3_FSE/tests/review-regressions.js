@@ -46,7 +46,7 @@ module.exports=function(test,create,epoch){
    assert.equal(f.values[c.level],20);assert.equal(f.position(),0);
    assert.ok(!f.writes.slice(begin).some(w=>w.path===c.level));
    r=f.run(40,true);assert.equal(r.state,'OPEN');assert.equal(r.ready,true);
-   assert.equal(f.position(),1+99*0.4);
+   assert.equal(f.position(),Math.round(1+99*0.4));
    assert.ok(!f.writes.slice(begin).some(w=>w.path===c.enable&&w.value===true));
   }
  });
@@ -82,7 +82,7 @@ module.exports=function(test,create,epoch){
   for(const id of ids)for(const missing of ['level','enable']){
    const f=fixture(id),c=f.c;f.run(0,false);f.drop(p=>p===c[missing]);const n=f.writes.length;
    let r=f.run(40,true);assert.equal(r.state,'OPENING');assert.equal(r.ready,false);assert.equal(f.values[c.pump],false);
-   f.emit(c[missing],missing==='level'?1+99*0.4:1,true);
+   f.emit(c[missing],missing==='level'?Math.round(1+99*0.4):1,true);
    r=f.run(40,true);assert.equal(r.ready,false);
    r=f.run(40,true);assert.equal(r.ready,false);assert.equal(r.closed_readback_match,false);
    assert.ok(!f.writes.slice(n).some(w=>w.path===c.enable&&w.value===true));
@@ -92,7 +92,7 @@ module.exports=function(test,create,epoch){
  test('A05 asynchronous Level then ON readback enables pump only after both fresh messages',()=>{
   for(const id of ids){const f=fixture(id),c=f.c;f.run(0,false);f.drop(p=>p===c.level||p===c.enable);
    let r=f.run(40,true);assert.equal(r.ready,false);assert.equal(f.values[c.pump],false);
-   f.emit(c.level,1+99*0.4);r=f.run(40,true);assert.equal(r.ready,false);assert.equal(f.values[c.pump],false);
+   f.emit(c.level,Math.round(1+99*0.4));r=f.run(40,true);assert.equal(r.ready,false);assert.equal(f.values[c.pump],false);
    f.emit(c.enable,1);r=f.run(40,true,1000);assert.equal(r.ready,true);assert.equal(r.state,'OPEN');assert.equal(f.values[c.pump],true);
   }
  });
@@ -128,7 +128,7 @@ module.exports=function(test,create,epoch){
   for(const id of ids){const f=fixture(id),c=f.c;f.run(40,true);f.values[c.level]=80;f.emit(c.level,80);
    const n=f.writes.length;let r=f.run(40,true);assert.equal(r.ready,false);
    assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));assert.equal(f.values[c.enable],false);
-   for(let i=0;i<4;i++)r=f.run(40,true);assert.equal(r.ready,true);assert.equal(f.position(),1+99*0.4);
+   for(let i=0;i<4;i++)r=f.run(40,true);assert.equal(r.ready,true);assert.equal(f.position(),Math.round(1+99*0.4));
   }
  });
  test('A05 cancelled opening enters OFF closure without another Level',()=>{

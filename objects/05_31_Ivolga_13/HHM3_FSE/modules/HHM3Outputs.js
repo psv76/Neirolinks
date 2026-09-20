@@ -1,9 +1,11 @@
 /* A05 contract: OFF preserves Level; positive Level may AUTO-ON.
  * No ON writes. Closing never writes Level. Readback is not hydraulic proof.
+ * Active Level commands are integer percentages; compare MQTT against the value sent.
  */
 exports.create=function(c,io){
     if(!(c.commandTimeoutMs>0&&c.commandRetryMs>0&&c.valveActiveMinLevel>0&&
-        c.valveActiveMinLevel<c.valveActiveMaxLevel&&c.valveActiveMaxLevel<=100&&c.valveOffCommand===false))
+        c.valveActiveMinLevel<c.valveActiveMaxLevel&&c.valveActiveMaxLevel<=100&&
+        c.valveActiveMinLevel%1===0&&c.valveActiveMaxLevel%1===0&&c.valveOffCommand===false))
         throw new Error('Invalid MAO4 command contract');
     var state='UNINITIALIZED',transaction=null,confirmedOffSeq=-1,activeLevel=null;
     var fault='',retryAt=0,lastNow=null,desiredLevel=null,wantOpen=false,pumpCommand=false;
@@ -44,7 +46,10 @@ exports.create=function(c,io){
     return function(r,now){
         pumpCommand=false;
         wantOpen=r.pump===true&&typeof r.valve==='number'&&isFinite(r.valve)&&r.valve>0&&r.valve<=100;
-        desiredLevel=wantOpen?c.valveActiveMinLevel+(c.valveActiveMaxLevel-c.valveActiveMinLevel)*r.valve/100:null;
+        // The MAO4 level is an integer percentage. Normalize BEFORE writing and
+        // use the same normalized value for readback, caching and change detection.
+        desiredLevel=wantOpen?Math.max(c.valveActiveMinLevel,Math.min(c.valveActiveMaxLevel,
+            Math.round(c.valveActiveMinLevel+(c.valveActiveMaxLevel-c.valveActiveMinLevel)*r.valve/100))):null;
         if(lastNow!==null&&(now<lastNow||now-lastNow>c.periodMs*3)){
             beginClose(now,'CLOCK_REQUALIFICATION');lastNow=now;return report(false);
         }

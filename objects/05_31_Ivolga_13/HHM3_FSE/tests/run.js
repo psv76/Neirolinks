@@ -95,7 +95,7 @@ test('504 418 lost -> floor-only cap 50 and Level 1..100 mapping -> recovery',()
     const h=running();const p=h.C.circuits['504'].supply;h.temperatures[p]=undefined;
     h.deliver('boiler',h.topic(p)+'/meta/error','r');h.advance(900000);
     let r=h.report()['504'];assert.equal(r.reason,'FLOOR_ONLY');assert.ok(r.valve_pct>0&&r.valve_pct<=50);
-    assert.equal(h.values.boiler[h.C.circuits['504'].level],1+99*r.valve_pct/100);
+    assert.equal(h.values.boiler[h.C.circuits['504'].level],Math.round(1+99*r.valve_pct/100));
     assert.equal(h.report()['503'].demand,true);
     h.deliver('boiler',h.topic(p)+'/meta/error','');h.temperatures[p]=25;h.advance(15000);
     assert.equal(h.report()['504'].reason,'NORMAL');
@@ -237,4 +237,5 @@ test('house schema rejects impossible demand and unsafe counters; reference zone
     assert.ok(h.messages.some(m=>m.board==='gazebo'&&m.topic===h.C.eventTopic));
 });
 require('./review-regressions')(test,create,epoch);
+require('./level-integer-regressions')(test);
 console.log('RESULT: '+count+' groups PASS; simultaneous two-WB Node model. NOT physical tests.');
