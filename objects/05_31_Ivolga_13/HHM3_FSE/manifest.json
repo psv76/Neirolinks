@@ -1,0 +1,144 @@
+{
+  "release": "HHM 3.0.0-FSE",
+  "object": "05_31_Ivolga_13",
+  "issue": 59,
+  "encoding": "UTF-8; SHA-256 over LF-normalized text",
+  "aggregate_sha256": "ed151540e13ed12be6d61ca40388fc7636f418c6c30c169537d3af85f3f4e70f",
+  "files": [
+    {
+      "file": "INSTALL.md",
+      "sha256": "61b078ac403055b7a138269492563a9e4c48f4f4e53d625c6bca43c78b140a6e",
+      "role": "documentation"
+    },
+    {
+      "file": "README.md",
+      "sha256": "f7fca6d811bb7aa5597b5f0e5a8df2d0d03c747ddd8a9282f45911883dd324ae",
+      "role": "documentation"
+    },
+    {
+      "file": "TEST_RESULTS.md",
+      "sha256": "00da0412aae9e968c43afc27109a870dc0a55179743bb747a9ed9b248f4da164",
+      "role": "documentation"
+    },
+    {
+      "file": "boiler/wb-rules/500_HHM3_FSE.js",
+      "sha256": "fb117ea1d43c20cebed7dcd9e1acc8ef737ab6175ad9c8d6b68b4f760684ae26",
+      "boards": [
+        "boiler"
+      ],
+      "destination": "/etc/wb-rules/500_HHM3_FSE.js",
+      "role": "rule"
+    },
+    {
+      "file": "boiler/wb-rules/620_thermostats.js",
+      "sha256": "067075ba6aa9433b92caa119c8d9f84284560fcc5c47a46a87ac547359244b1d",
+      "boards": [
+        "boiler"
+      ],
+      "destination": "/etc/wb-rules/620_thermostats.js",
+      "role": "rule"
+    },
+    {
+      "file": "gazebo/mosquitto/504-acl.example",
+      "sha256": "b494238d28ed18ead6e7adb36907814b9c5bc7c70b2a506bcd8a573f371bcdbf",
+      "boards": [
+        "gazebo",
+        "boiler"
+      ],
+      "role": "broker-template",
+      "installation": "Substitute local TLS/identity parameters; merge ACL, see INSTALL.md"
+    },
+    {
+      "file": "gazebo/mosquitto/504-bridge.conf.example",
+      "sha256": "5c33f439b1255feab87a1a69d1741bfcda99be7a44605bf74988850412d12d8b",
+      "boards": [
+        "gazebo",
+        "boiler"
+      ],
+      "role": "broker-template",
+      "installation": "Substitute local TLS/identity parameters; merge ACL, see INSTALL.md"
+    },
+    {
+      "file": "gazebo/wb-rules/624_combo_besedka.js",
+      "sha256": "9f364f3b5765a209c290e3fa161e2238dc5d81f90cd98fead40601593c673826",
+      "boards": [
+        "gazebo"
+      ],
+      "destination": "/etc/wb-rules/624_combo_besedka.js",
+      "role": "rule"
+    },
+    {
+      "file": "modules/HHM3Circuit.js",
+      "sha256": "3c3bdbee47789858503f17b42a98581f6010d3d14f109ab4b7752c67246e21fb",
+      "boards": [
+        "boiler"
+      ],
+      "destination": "/etc/wb-rules-modules/HHM3Circuit.js",
+      "role": "module"
+    },
+    {
+      "file": "modules/HHM3Config.js",
+      "sha256": "d4e7492d9a47a965fb876308965dec7a03dc35d9f490feeadaa05e93115cbbfd",
+      "boards": [
+        "boiler",
+        "gazebo"
+      ],
+      "destination": "/etc/wb-rules-modules/HHM3Config.js",
+      "role": "module"
+    },
+    {
+      "file": "modules/HHM3Mixing.js",
+      "sha256": "d57b1d86e0621f7def1352c6fb16ab9d2887c5508d0ba05abe052bafbcbe3fcd",
+      "boards": [
+        "boiler"
+      ],
+      "destination": "/etc/wb-rules-modules/HHM3Mixing.js",
+      "role": "module"
+    },
+    {
+      "file": "modules/HHM3Runtime.js",
+      "sha256": "712319c39a769829f2b260ff0e0cb946b9569f2aec027b5a7e0368da1aadd3ee",
+      "boards": [
+        "boiler",
+        "gazebo"
+      ],
+      "destination": "/etc/wb-rules-modules/HHM3Runtime.js",
+      "role": "module"
+    },
+    {
+      "file": "modules/HHM3Wire.js",
+      "sha256": "023ba561ac5e96a4c708896ac69199ec33d6ef4325258af1226c67e42d65bd2a",
+      "boards": [
+        "boiler",
+        "gazebo"
+      ],
+      "destination": "/etc/wb-rules-modules/HHM3Wire.js",
+      "role": "module"
+    },
+    {
+      "file": "tests/harness.js",
+      "sha256": "fe73109f578a332416bd27c57acbf02a596109e0400d83ef45e3acaf8d18e6b4",
+      "role": "test"
+    },
+    {
+      "file": "tests/manifest.js",
+      "sha256": "91bb3253d7ddeb3eb23deb0decd644d5ab64a04929631cac28ebed70eeabfa5d",
+      "role": "test"
+    },
+    {
+      "file": "tests/run.js",
+      "sha256": "1397a6f970be4ba92c71af6b41eb556da83ec078b347e999c84802b65f56cfa7",
+      "role": "test"
+    },
+    {
+      "file": "tests/zones-reference.json",
+      "sha256": "ff96d61792701069435c2fb3da629a22f9afc70d6d6b47c52fb07d28267c9c2a",
+      "role": "test"
+    },
+    {
+      "file": "ui/NL_combo_thermostat_504.json",
+      "sha256": "6686f5d54fada2493c40badddffdb91bbc54fdf87b7c9cf13f72080b4241b8b2",
+      "role": "optional-Sprut-template"
+    }
+  ]
+}
