@@ -65,7 +65,8 @@ test('configured physical NO_DEMAND modes are explicit, CH-only and restore heat
         const h=running({configure:C=>C.source.noDemandMode=mode});
         h.Z.forEach(z=>h.set('boiler','NL_simple_thermostat_'+z.id+'/target_state',false));
         h.gazeboTemperatures['921.09_MSW_TH/Temperature']=25;h.gazeboTemperatures['921.10_TEMP_NONE/External Sensor 1']=30;
-        h.advance(150000);assert.equal(h.request(),0);assert.equal(h.source().off_command_sent,true);
+        h.advance(150000);assert.equal(h.request(),0);assert.equal(h.source().state,'NO_DEMAND');
+        assert.ok(h.physical().some(w=>w.path===(mode==='setpoint_zero'?h.C.source.setpoint:h.C.source.chEnable)&&w.value===(mode==='setpoint_zero'?0:false)));
         assert.equal(h.values.boiler[mode==='setpoint_zero'?h.C.source.setpoint:h.C.source.chEnable],mode==='setpoint_zero'?0:false);
         h.set('boiler','NL_simple_thermostat_505/target_state',true);h.advance(10000);assert.equal(h.values.boiler[h.C.source.setpoint],45);
         if(mode==='ch_enable')assert.equal(h.values.boiler[h.C.source.chEnable],true);
@@ -146,7 +147,7 @@ test('cold source and NO_RESPONSE generate warning events, never permanent latch
 });
 test('output error on K4 does not suppress valve closure or healthy requests; retry automatic',()=>{
     const h=running();h.fail('A03/K4');h.temperatures[h.C.circuits['504'].supply]=50;h.advance(5000);
-    assert.equal(h.report()['504'].reason,'OUTPUT_WRITE_ERROR');assert.equal(h.values.boiler['A05/Channel 3 Dimming Level'],1);
+    assert.match(h.report()['504'].reason,/CLOSURE_UNCERTAIN|OUTPUT_WRITE_ERROR/);assert.equal(h.values.boiler['A05/Channel 3 Dimming Level'],1);
     assert.equal(h.report()['503'].demand,true);h.fail('');h.advance(35000);assert.equal(h.values.boiler['A03/K4'],false);
 });
 test('retained/invalid/null/stale sensors never become zero/fresh heat, recover with new samples',()=>{
@@ -190,7 +191,7 @@ test('506/507/GazeboPanel and DHW untouched; one owner per every output',()=>{
 });
 test('unknown requests are not physical OFF; known zero is distinct',()=>{
     const h=create(),R=h.load('HHM3Runtime'),writes=[];
-    const io={read:p=>p===h.C.source.temperature?50:0,at:()=>epoch,write:(p,v)=>{writes.push([p,v]);return true;}};
+    const io={read:p=>p===h.C.source.temperature?50:0,at:()=>epoch,commands:()=>[],readback:()=>({value:null}),write:(p,v)=>{writes.push([p,v]);return {ok:true,sent:true};}};
     h.C.source.noDemandMode='setpoint_zero';const step=R.source(h.C.source,{},io);
     const missing=R.select({},epoch);assert.equal(missing.demandKnown,false);
     assert.equal(step(0,true,epoch,missing.demandKnown).state,'REQUESTS_UNAVAILABLE');assert.equal(writes.length,0);
@@ -234,4 +235,5 @@ test('house schema rejects impossible demand and unsafe counters; reference zone
     assert.deepEqual(JSON.parse(JSON.stringify(h.Z)),reference);
     assert.ok(h.messages.some(m=>m.board==='gazebo'&&m.topic===h.C.eventTopic));
 });
+require('./review-regressions')(test,create,epoch);
 console.log('RESULT: '+count+' groups PASS; simultaneous two-WB Node model. NOT physical tests.');

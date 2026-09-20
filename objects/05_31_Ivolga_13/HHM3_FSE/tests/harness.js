@@ -4,7 +4,7 @@ const root=path.resolve(__dirname,'..'),epoch=1800000000000;
 exports.create=function(options={}){
     let now=epoch,owner='',failPath='',bridge=true;
     const stores=options.stores||{},values={boiler:Object.assign({},options.values&&options.values.boiler),gazebo:Object.assign({},options.values&&options.values.gazebo)};
-    const handlers={boiler:{},gazebo:{}},modules={},contexts={},writes=[],messages=[],rules={boiler:{},gazebo:{}},definitions={};
+    const handlers={boiler:{},gazebo:{}},modules={},contexts={},writes=[],messages=[],logs=[],effects=[],rules={boiler:{},gazebo:{}},definitions={};
     function load(n){
         if(modules[n])return modules[n];
         const e={};modules[n]=e;
@@ -35,9 +35,18 @@ exports.create=function(options={}){
             if(isPhysical){assert.equal(board,'boiler');assert.equal(own[k],owner,'writer '+owner+' -> '+k);}
             else assert.ok((owner==='620'&&k.startsWith('NL_simple_thermostat_'))||(owner==='624'&&k.startsWith('NL_combo_thermostat_504/'))||(owner==='500'&&k.startsWith('HHM3_FSE/')),'unknown VD writer '+owner+' '+k);
             assert.notEqual(v,null);assert.notEqual(v,undefined);if(typeof v==='number')assert.ok(Number.isFinite(v));
-            writes.push({owner,path:k,value:v,at:now,board});
-            if(k===failPath)throw new Error('simulated IO failure');
-            o[k]=v;if(isPhysical)deliver(board,topic(k),v===true?1:v===false?0:v,false);
+            const w={owner,path:k,value:v,at:now,board};writes.push(w);
+            const failure=typeof failPath==='function'?failPath(w):k===failPath;
+            if(failure&&failure!=='after'){w.error=true;throw new Error('simulated IO failure');}
+            o[k]=v;
+            const echo=p=>!options.dropReadback||!options.dropReadback(p);
+            if(isPhysical&&/ Dimming Level$/.test(k)){
+                const sw=k.replace(' Dimming Level',' Switch');o[sw]=v>0;
+                effects.push({path:sw,value:v>0,level:v,at:now});
+                if(echo(sw))deliver(board,topic(sw),v>0?1:0,false);
+            }
+            if(isPhysical&&echo(k))deliver(board,topic(k),v===true?1:v===false?0:v,false);
+            if(failure==='after'){w.error=true;throw new Error('simulated failure after application');}
             return true;
         }});
         const context=vm.createContext({dev,Date:Clock,require:load,log:()=>{},
@@ -46,7 +55,7 @@ exports.create=function(options={}){
             defineRule:(key,r)=>{rules[board][key]={owner:name,...r};},
             trackMqtt:(t,fn)=>{(handlers[board][t]||(handlers[board][t]=[])).push({owner:name,fn});},
             publish:(...a)=>publish(board,...a),setInterval:()=>1,setTimeout:()=>1});
-        context.log.info=context.log.warning=context.log.error=context.log;
+        for(const level of ['info','warning','error'])context.log[level]=text=>logs.push({level,text,owner});
         vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context,{filename:file});
         contexts[name]=context;owner=saved;
     }
@@ -61,8 +70,11 @@ exports.create=function(options={}){
     Z.forEach(z=>temperatures[z.sensor]=z.kind==='floor'?20:18);
     const gazeboTemperatures={'921.09_MSW_TH/Temperature':20,'921.10_TEMP_NONE/External Sensor 1':23};
     function samples(){for(const [p,v]of Object.entries(temperatures))if(v!==undefined)deliver('boiler',topic(p),v,false);
+        for(const p of Object.keys(own))if(values.boiler[p]!==undefined&&(!options.dropReadback||!options.dropReadback(p))){
+            const v=values.boiler[p];deliver('boiler',topic(p),typeof v==='boolean'?(v?1:0):v,false);
+        }
         for(const[p,v]of Object.entries(gazeboTemperatures))if(v!==undefined)deliver('gazebo',topic(p),v,false);}
-    return {C,Z,stores,values,definitions,writes,messages,contexts,load,temperatures,gazeboTemperatures,topic,
+    return {C,Z,stores,values,definitions,writes,messages,logs,effects,contexts,load,temperatures,gazeboTemperatures,topic,
         now:()=>now,time:t=>now=t,tick,rule,deliver,samples,
         start:()=>rule('boiler','hhm3_first_start',true),
         set:(board,p,v)=>{values[board][p]=v;},

@@ -3,6 +3,7 @@
  */
 var C=require('HHM3Config').config,Z=require('HHM3Config').zones;
 var W=require('HHM3Wire'),R=require('HHM3Runtime'),Policy=require('HHM3Circuit'),Mix=require('HHM3Mixing');
+var Outputs=require('HHM3Outputs'),outputSteps={},evaluating=false;
 var operation=new PersistentStorage('hhm3_operation',{global:true});
 var userSettings=new PersistentStorage('hhm3_thermostats',{global:true});
 var VD='HHM3_FSE',initialized=false,engines={},thermal={},directCool={},lastNow=null,openSince={};
@@ -19,6 +20,7 @@ Object.keys(C.circuits).forEach(function(id){
     var c=C.circuits[id];io.watch(c.supply,-20,110);io.watch(c.ret,-20,110);
     thermal[id]=new PersistentStorage('hhm3_circuit_'+id,{global:true});
     if(c.kind==='mixed')engines[id]=Policy.create(c,thermal[id],Mix);
+    if(c.kind==='mixed')outputSteps[id]=Outputs.create(c,io);
 });
 var sourceStep=R.source(C.source,new PersistentStorage('hhm3_source',{global:true}),io);
 defineVirtualDevice(VD,{title:'HHM 3.0 FSE — Иволга',cells:{
@@ -64,19 +66,13 @@ function direct(id,c,g,now){
         reason:s.hot?'OVERHEAT_STOP':(pump?(g.degraded?'DEGRADED':'NORMAL'):(g?g.reason:'REQUEST_UNAVAILABLE')),
         warning:s.hot?'Перегрев локальной подачи':(g&&g.degraded?'Нет свежего комнатного спроса; ограниченный резерв':'')};
 }
-function command(c,r){
-    var ok=true;
-    if(!r.write)return false;
-    if(!r.pump)ok=io.write(c.pump,false)&&ok;
-    if(c.kind==='mixed'){
-        var level=c.valveClosedLevel+(c.valveOpenLevel-c.valveClosedLevel)*r.valve/100;
-        ok=io.write(c.level,level)&&ok;
-        ok=io.write(c.enable,r.valve>0?true:c.valveClosedEnable)&&ok;
-    }
-    if(r.pump)ok=io.write(c.pump,true)&&ok;
-    return ok;
-}
 function evaluate(){
+    if(evaluating)return;
+    evaluating=true;
+    try { evaluateOnce(); } finally {evaluating=false;}
+}
+function evaluateOnce(){
+    io.begin();
     var now=Date.now(),hl=house.read(now),gl=gazebo.read(now),requests={},reports={};
     if(lastNow!==null&&(now<lastNow||now-lastNow>C.periodMs*3)){directCool={};openSince={};}
     lastNow=now;
@@ -103,12 +99,22 @@ function evaluate(){
                 engines[id].reset();
             }
         }
-        var ok=r.write?command(c,r):false;
-        if(r.write&&!ok){r.warning+='; ошибка выходной команды, повтор автоматически';r.reason='OUTPUT_WRITE_ERROR';if(engines[id])engines[id].reset();}
+        var out={state:'NOT_SENT',ready:false,pump:false},writeResult;
+        if(r.write&&c.kind==='mixed')out=outputSteps[id](r,now);
+        else if(r.write){
+            writeResult=io.write(c.pump,r.pump);
+            out={state:writeResult.ok?(io.matches(c.pump,r.pump)?'READBACK_MATCH':'WAIT_PUMP_READBACK'):'OUTPUT_WRITE_ERROR',
+                ready:writeResult.ok&&io.matches(c.pump,r.pump),pump:r.pump,readback:{pump:io.readback(c.pump)}};
+        }
+        var commands=io.commands([c.pump,c.level,c.enable]);
+        if(commands.some(function(w){return !w.ok;})&&out.state!=='CLOSURE_UNCERTAIN')out.state='OUTPUT_WRITE_ERROR';
+        var ok=out.ready&&!/ERROR|UNCERTAIN/.test(out.state),failed=/ERROR|UNCERTAIN/.test(out.state);
+        if(failed){r.warning+='; '+out.state+'; повтор автоматически';r.reason=out.state;if(engines[id])engines[id].reset();}
         var temperature=r.demand&&ok?r.target+(c.kind==='mixed'?c.sourceMarginC:0):0;
         requests[id]={at:now,valid:r.valid&&ok,demand:r.demand&&ok,ready:r.pump&&ok,temperature:temperature};
-        reports[id]={reason:r.reason,warning:r.warning,pump_command:r.pump,valve_pct:r.valve,
-            command_sent:r.write&&ok,demand:requests[id].demand,requested_source_temperature:temperature,
+        reports[id]={reason:r.reason,warning:r.warning,pump_command:out.pump,requested_pump:r.pump,valve_pct:r.valve,
+            output:out,commands:commands,command_sent:commands.some(function(w){return w.sent;}),
+            demand:requests[id].demand,requested_source_temperature:temperature,
             supply:io.read(c.supply),return_temperature:io.read(c.ret)};
         event(id,r);
     });

@@ -18,13 +18,15 @@ Config.zones.forEach(function(z){
         target_state:{title:'Включено',type:'switch',value:state===1,forceDefault:false},
         current_state:{title:'Запрос тепла',type:'value',value:0,readonly:true,forceDefault:true},
         valid:{title:'Свежий датчик',type:'switch',value:false,readonly:true,forceDefault:true},
-        status:{title:'Состояние',type:'text',value:'STARTUP',readonly:true,forceDefault:true}
+        status:{title:'Состояние',type:'text',value:'STARTUP',readonly:true,forceDefault:true},
+        output_json:{title:'Команды и MQTT readback (не положение привода)',type:'text',value:'[]',readonly:true,forceDefault:true}
     }});
     memory[z.id]=false;
     io.watch(z.sensor,-20,z.kind==='floor'?70:60);
 });
 function stateValue(v){if(v===true||v===1||v==='1')return 1;if(v===false||v===0||v==='0')return 0;return null;}
 function evaluate(){
+    io.begin();
     var now=Date.now(),groups={};
     if(lastNow!==null&&(now<lastNow||now-lastNow>C.periodMs*3))opened={};
     lastNow=now;
@@ -51,8 +53,9 @@ function evaluate(){
         }else memory[z.id]=false;
         if(!valid&&enabled!==0){g.degraded=true;g.reason=reason;}
         var sent=true;
-        if(operation.inService===true)z.outputs.forEach(function(p){sent=io.write(p,on)&&sent;});
-        if(!sent){reason='OUTPUT_WRITE_ERROR';g.degraded=true;error=true;}
+        if(operation.inService===true)z.outputs.forEach(function(p){var w=io.write(p,on);error=error||!w.ok;sent=w.ok&&io.matches(p,on)&&sent;});
+        if(!sent){reason=error?'OUTPUT_WRITE_ERROR':'WAIT_OUTPUT_READBACK';g.degraded=true;g.valid=false;}
+        sc(z.id,'output_json',JSON.stringify(io.commands(z.outputs)));
         if(on&&sent&&operation.inService===true){
             if(opened[z.id]===undefined||now<opened[z.id])opened[z.id]=now;
             g.demand=true;
