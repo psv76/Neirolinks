@@ -37,7 +37,7 @@ function watch(path, sensor) {
     var p = path.indexOf('/');
     var topic = '/devices/' + path.slice(0, p) + '/controls/' + path.slice(p + 1);
     trackMqtt(topic, function (m) { sensor.sample(m.value, m.retained, Date.now()); });
-    trackMqtt(topic + '/meta/error', function (m) { sensor.error(m.value); });
+    trackMqtt(topic + '/meta/error', function (m) { sensor.error(m.value, m.retained); });
 }
 watch('921.09_MSW_TH/Temperature', air);
 watch('921.10_TEMP_NONE/External Sensor 1', floor);

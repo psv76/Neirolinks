@@ -10,8 +10,8 @@ exports.io = function (env, owner, allowed) {
         watch:function(path,min,max) {
             if(sensors[path])return;
             var s=W.sensor();sensors[path]={sensor:s,min:min,max:max,seq:0};
-            env.trackMqtt(exports.topic(path),function(m){s.sample(m.value,m.retained,env.now());if(m.retained===false)sensors[path].seq++;if(env.onSample)env.onSample();});
-            env.trackMqtt(exports.topic(path)+'/meta/error',function(m){s.error(m.value);if(env.onSample)env.onSample();});
+            env.trackMqtt(exports.topic(path),function(m){s.sample(m.value,m.retained,env.now());if(m.retained===false&&s.runtimeStatus()==='SUPPORTED')sensors[path].seq++;if(env.onSample)env.onSample();});
+            env.trackMqtt(exports.topic(path)+'/meta/error',function(m){s.error(m.value,m.retained);if(env.onSample)env.onSample();});
         },
         read:function(path) {var s=sensors[path];return s?s.sensor.read(env.now(),s.min,s.max):null;},
         at:function(path) {var s=sensors[path];return s?s.sensor.timestamp():null;},
@@ -22,7 +22,14 @@ exports.io = function (env, owner, allowed) {
         readback:function(path){return {value:api.read(path),at:api.at(path),seq:api.seq(path)};},
         runtime:function() {
             return Object.keys(sensors).some(function(k){return sensors[k].sensor.runtimeStatus()==='RUNTIME_UNSUPPORTED';})?
-                'RUNTIME_UNSUPPORTED: требуется wb-rules >= 2.42.0 и boolean retained':'OK_OR_WAITING';
+                'RUNTIME_UNSUPPORTED: '+W.RUNTIME_ERROR_RU:'OK_OR_WAITING';
+        },
+        compatible:function() {
+            // Capability qualification, not a version-number or timeout bypass.
+            // Missing metadata is sticky for this script instance. No samples
+            // means UNVERIFIED, never permission to energize an output.
+            var states=Object.keys(sensors).map(function(k){return sensors[k].sensor.runtimeStatus();});
+            return states.indexOf('RUNTIME_UNSUPPORTED')<0&&states.indexOf('SUPPORTED')>=0;
         },
         write:function(path,value,force) {
             if(allowed.indexOf(path)<0)throw new Error(owner+' forbidden output '+path);

@@ -82,6 +82,7 @@ function evaluateOnce(){
     Object.keys(C.circuits).forEach(function(id){
         var c=C.circuits[id],g=id==='504'?null:(hl.frame?hl.frame.groups[id]:fallback(id)),r;
         if(operation.inService!==true)r={reason:'FIRST_COMMISSIONING',warning:'',write:false,pump:false,valve:0,demand:false,valid:false,target:0};
+        else if(!io.compatible())r={reason:'RUNTIME_UNSUPPORTED',warning:W.RUNTIME_ERROR_RU,write:true,pump:false,valve:0,demand:false,valid:false,target:0};
         else if(c.kind==='direct')r=direct(id,c,g,now);
         else {
             var f=id==='504'?gl.frame:{
@@ -118,7 +119,8 @@ function evaluateOnce(){
             supply:io.read(c.supply),return_temperature:io.read(c.ret)};
         event(id,r);
     });
-    var selected=R.select(requests,now),source=sourceStep(selected.temperature,operation.inService===true,now,selected.demandKnown);
+    var selected=R.select(requests,now),source=sourceStep(selected.temperature,operation.inService===true&&io.compatible(),now,selected.demandKnown);
+    if(operation.inService===true&&!io.compatible()){source.state='RUNTIME_UNSUPPORTED';source.warning=W.RUNTIME_ERROR_RU;}
     sc('in_service',operation.inService===true);sc('circuits_json',JSON.stringify(reports));
     sc('selected_consumer',selected.consumer);sc('requested_source_temperature',selected.temperature);
     sc('requested_heating_setpoint',source.requested_heating_setpoint);sc('source_json',JSON.stringify(source));

@@ -18,7 +18,10 @@ exports.create=function(options={}){
     Object.values(C.circuits).forEach(c=>{own[c.pump]='500';if(c.level){own[c.level]='500';own[c.enable]='500';}});
     own[C.source.setpoint]=own[C.source.chEnable]='500';
     function deliver(board,topic,value,retained=false){
-        const m={topic,value:String(value),qos:0};if(retained!==undefined)m.retained=retained;
+        // v2.40 newTrackHandler exports exactly topic/value. Do not keep the
+        // newer metadata on a side channel when this profile is selected.
+        const m=options.apiVersion==='2.40.0'?require('./wb240-callback')(topic,String(value)):{topic,value:String(value),qos:0};
+        if(options.apiVersion!=='2.40.0'&&retained!==undefined)m.retained=retained;
         for(const h of handlers[board][topic]||[]){const saved=owner;owner=h.owner;try{h.fn(m);}finally{owner=saved;}}
     }
     function publish(board,topic,payload,qos,retained){
@@ -62,9 +65,10 @@ exports.create=function(options={}){
         vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context,{filename:file});
         contexts[name]=context;owner=saved;
     }
-    runtime('boiler','500','boiler/wb-rules/500_HHM3_FSE.js');
-    runtime('boiler','620','boiler/wb-rules/620_thermostats.js');
-    runtime('gazebo','624','gazebo/wb-rules/624_combo_besedka.js');
+    const scripts={'500':['boiler','boiler/wb-rules/500_HHM3_FSE.js'],
+        '620':['boiler','boiler/wb-rules/620_thermostats.js'],
+        '624':['gazebo','gazebo/wb-rules/624_combo_besedka.js']};
+    for(const name of options.startOrder||['500','620','624'])runtime(scripts[name][0],name,scripts[name][1]);
     function tick(id){const saved=owner;owner=id;try{contexts[id].evaluate();}finally{owner=saved;}}
     function rule(board,name,value){const r=rules[board][name],saved=owner;owner=r.owner;try{r.then(value);}finally{owner=saved;}}
     const temperatures={};
@@ -78,7 +82,7 @@ exports.create=function(options={}){
         }
         for(const[p,v]of Object.entries(gazeboTemperatures))if(v!==undefined)deliver('gazebo',topic(p),v,false);}
     return {C,Z,stores,values,definitions,writes,messages,logs,effects,modelPosition,contexts,load,temperatures,gazeboTemperatures,topic,
-        now:()=>now,time:t=>now=t,tick,rule,deliver,samples,
+        now:()=>now,time:t=>now=t,tick,rule,deliver,samples,topics:board=>Object.keys(handlers[board]),
         start:()=>rule('boiler','hhm3_first_start',true),
         set:(board,p,v)=>{values[board][p]=v;},
         enableAll:()=>Z.forEach(z=>values.boiler['NL_simple_thermostat_'+z.id+'/target_state']=true),

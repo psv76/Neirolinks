@@ -51,6 +51,7 @@ function evaluate(){
                 on=memory[z.id];reason=on?'HEAT':'NO_DEMAND';
             }
         }else memory[z.id]=false;
+        if(!io.compatible()){on=false;valid=false;reason='RUNTIME_UNSUPPORTED';memory[z.id]=false;}
         if(!valid&&enabled!==0){g.degraded=true;g.reason=reason;}
         var sent=true;
         if(operation.inService===true)z.outputs.forEach(function(p){var w=io.write(p,on);error=error||!w.ok;sent=w.ok&&io.matches(p,on)&&sent;});

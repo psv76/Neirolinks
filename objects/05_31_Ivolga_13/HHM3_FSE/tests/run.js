@@ -238,4 +238,5 @@ test('house schema rejects impossible demand and unsafe counters; reference zone
 });
 require('./review-regressions')(test,create,epoch);
 require('./level-integer-regressions')(test);
+require('./wb240-regressions')(test,create,epoch);
 console.log('RESULT: '+count+' groups PASS; simultaneous two-WB Node model. NOT physical tests.');

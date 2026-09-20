@@ -5,7 +5,7 @@ exports.TOPIC = '/neiro/ivolga/504/v2/frame';
 exports.VERSION = 2;
 exports.SOURCE = 'ivolga-besedka-504';
 exports.MIN_WB_RULES_VERSION = '2.42.0';
-exports.RUNTIME_ERROR_RU = 'Нет булевого trackMqtt.retained; требуется wb-rules >= 2.42.0. Обновление только по согласованию';
+exports.RUNTIME_ERROR_RU = 'BLOCKED: нет доказуемого MQTT retain flag; штатный wb-rules 2.40.0 несовместим с текущим транспортом. Установка/обновление запрещены, см. ISSUE61.md';
 exports.TTL_MS = 30000;
 exports.SENSOR_TTL_MS = require('HHM3Config').config.sensorTtlMs;
 exports.CLOCK_SKEW_MS = 2000;
@@ -77,9 +77,15 @@ exports.sensor = function () {
             if (retained !== false) return;
             value = number(v); at = now;
         },
-        error: function (v) {
-            error = String(v || '');
-            value = null; at = null;
+        error: function (v, retained) {
+            // An error is conservative even if retained. Its clearance is not:
+            // an old empty meta/error must never clear a newer live fault.
+            var next = String(v || '');
+            if (typeof retained !== 'boolean') { runtime = 'RUNTIME_UNSUPPORTED'; value = null; at = null; }
+            if (next) { error = next; value = null; at = null; }
+            else if (retained === false && runtime !== 'RUNTIME_UNSUPPORTED') {
+                error = ''; value = null; at = null;
+            }
         },
         runtimeStatus: function () { return runtime; },
         timestamp: function () { return at; },
