@@ -11,17 +11,17 @@ module.exports=function(test){
    readback:p=>({value:io.read(p)}),
    write:(p,v)=>{writes.push({p,v});if(p===fail)return {ok:false,sent:false};
     values[p]=typeof v==='boolean'?(v?1:0):v;
-    if(p===c.level){assert.equal(v%1,0);values[c.enable]=v>0?1:0;}
+    if(p===c.level)assert.equal(v%1,0);
     return {ok:true,sent:true};}};
   const step=createOutputs(c,io);
   return {c,values,writes,noEcho:v=>noEcho=v,fail:v=>fail=v,
    run:(valve,pump=true,dt=5000)=>step({valve,pump},now+=dt)};
  }
- test('integer MAO4 command 20% becomes 21, no explicit Switch ON',()=>{
+ test('integer MAO4 command 20% becomes 21 with explicit Switch ON',()=>{
   const f=fixture();f.run(0,false);const r=f.run(20);
   assert.equal(r.state,'HEAT_COMMANDED');assert.equal(r.ready,true);
   assert.equal(r.requested_level,21);assert.equal(f.values[f.c.enable],1);
-  assert.equal(f.values[f.c.pump],1);assert.ok(!f.writes.some(w=>w.p===f.c.enable&&w.v===true));
+  assert.equal(f.values[f.c.pump],1);assert.ok(f.writes.some(w=>w.p===f.c.enable&&w.v===true));
  });
  test('missing readback never cancels an accepted Level and pump command',()=>{
   const f=fixture();f.run(0,false);f.noEcho(true);
@@ -29,12 +29,12 @@ module.exports=function(test){
   assert.equal(f.values[f.c.pump],1);assert.equal(f.values[f.c.enable],1);
   assert.equal(f.writes.filter(w=>w.p===f.c.level).length,1);
  });
- test('retarget preserves pump and does not send Switch ON',()=>{
+ test('retarget preserves pump and sends Level before Switch ON',()=>{
   const f=fixture();f.run(0,false);f.run(20);const n=f.writes.length;
   const r=f.run(40);assert.equal(r.ready,true);assert.equal(r.requested_level,41);
   assert.equal(f.values[f.c.pump],1);
   assert.ok(!f.writes.slice(n).some(w=>w.p===f.c.pump&&w.v===false));
-  assert.ok(!f.writes.slice(n).some(w=>w.p===f.c.enable&&w.v===true));
+  assert.ok(f.writes.slice(n).some(w=>w.p===f.c.enable&&w.v===true));
  });
  test('OFF preserves Level, uses Switch OFF and does not assert hydraulic closure',()=>{
   const f=fixture();f.run(0,false);f.run(20);const n=f.writes.length;
