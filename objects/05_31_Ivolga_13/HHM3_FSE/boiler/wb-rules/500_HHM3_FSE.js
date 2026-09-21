@@ -1,5 +1,5 @@
-/* HHM 3.0 FSE / Иволга. Пять managers, арбитр и единственный source writer.
- * 620 владеет зональными реле. 506/507/ГВС не являются отопительными outputs.
+/* HHM3 / Ivolga boiler: five circuits, arbiter and the only source writer.
+ * 620 owns zone relays; 506/507/DHW are not heating outputs.
  */
 var C=require('HHM3Config').config,Z=require('HHM3Config').zones;
 var W=require('HHM3Wire'),R=require('HHM3Runtime'),Policy=require('HHM3Circuit'),Mix=require('HHM3Mixing');
@@ -23,21 +23,44 @@ Object.keys(C.circuits).forEach(function(id){
     if(c.kind==='mixed')outputSteps[id]=Outputs.create(c,io);
 });
 var sourceStep=R.source(C.source,new PersistentStorage('hhm3_source',{global:true}),io);
-defineVirtualDevice(VD,{title:'HHM 3.0 FSE — Иволга',cells:{
-    start_heating:{title:'Включить отопление — первичная ПНР всего комплекта',type:'pushbutton',value:false,forceDefault:true},
-    in_service:{title:'Комплект введён в эксплуатацию',type:'switch',value:false,readonly:true,forceDefault:true},
-    circuits_json:{title:'Пять контуров: режим, команда, причина',type:'text',value:'{}',readonly:true,forceDefault:true},
-    selected_consumer:{title:'Выбранный потребитель',type:'text',value:'',readonly:true,forceDefault:true},
-    requested_source_temperature:{title:'Расчётный запрос источнику, °C',type:'value',value:0,readonly:true,forceDefault:true},
-    requested_heating_setpoint:{title:'Запрос отопления котла, °C',type:'value',value:0,readonly:true,forceDefault:true},
-    source_json:{title:'Источник: запрос / физическое действие',type:'text',value:'{}',readonly:true,forceDefault:true},
-    runtime_status:{title:'Совместимость и связь',type:'text',value:'STARTUP',readonly:true,forceDefault:true},
-    last_event_json:{title:'Последний переход',type:'text',value:'{}',readonly:true,forceDefault:true}
+// Keep JSON channels for existing diagnostics, but exclude raw JSON from WB WebUI.
+// Operator-facing controls report actions and measurements, not false proof of motion.
+defineVirtualDevice(VD,{title:'HHM3 — Иволга | состояние отопления',cells:{
+    in_service:{title:'Управление отоплением разрешено',type:'switch',value:false,readonly:true,forceDefault:true,order:1},
+    operational_status:{title:'Состояние системы',type:'text',value:'Ожидает первого ввода',readonly:true,forceDefault:true,order:2},
+    circuit_501:{title:'501 · ТП дом, паркет',type:'text',value:'—',readonly:true,forceDefault:true,order:10},
+    circuit_502:{title:'502 · ГП дом, плитка',type:'text',value:'—',readonly:true,forceDefault:true,order:11},
+    circuit_503:{title:'503 · Радиаторы дом',type:'text',value:'—',readonly:true,forceDefault:true,order:12},
+    circuit_504:{title:'504 · ГП беседка',type:'text',value:'—',readonly:true,forceDefault:true,order:13},
+    circuit_505:{title:'505 · Радиаторы хозблок',type:'text',value:'—',readonly:true,forceDefault:true,order:14},
+    selected_consumer:{title:'Источник для контура',type:'text',value:'',readonly:true,forceDefault:true,order:20},
+    requested_source_temperature:{title:'Требуется от источника',type:'value',value:0,units:'deg C',readonly:true,forceDefault:true,order:21},
+    requested_heating_setpoint:{title:'Команда котлу',type:'value',value:0,units:'deg C',readonly:true,forceDefault:true,order:22},
+    source_status:{title:'Котёл',type:'text',value:'Ожидает первого ввода',readonly:true,forceDefault:true,order:23},
+    runtime_status:{title:'Связь HHM3',type:'text',value:'STARTUP',readonly:true,forceDefault:true,order:24},
+    last_event:{title:'Последнее событие',type:'text',value:'—',readonly:true,forceDefault:true,order:25},
+    start_heating:{title:'Первый ввод отопления',type:'pushbutton',value:false,forceDefault:true,order:90,hidden:operation.inService===true},
+    circuits_json:{title:'Служебные данные контуров',type:'text',value:'{}',readonly:true,forceDefault:true,hidden:true},
+    source_json:{title:'Служебные данные котла',type:'text',value:'{}',readonly:true,forceDefault:true,hidden:true},
+    last_event_json:{title:'Служебные данные событий',type:'text',value:'{}',readonly:true,forceDefault:true,hidden:true}
 }});
 function sc(k,v){dev[VD+'/'+k]=v;}
 function event(id,r){
     var e=io.event(id,r.reason||r.state,r.warning);
-    if(e)sc('last_event_json',JSON.stringify(e));
+    if(e){
+        sc('last_event_json',JSON.stringify(e));
+        sc('last_event',String(id)+': '+String(e.state)+(e.warning?' · '+String(e.warning).slice(0,80):''));
+    }
+}
+function operatorCircuit(id,r,out){
+    if(operation.inService!==true)return 'Ожидает первого ввода';
+    if(/ERROR|UNCERTAIN/.test(out.state)||out.fault)return 'Ошибка команды: '+out.state;
+    if(/^OVERHEAT/.test(r.reason))return 'Защита по температуре · '+r.reason;
+    if(r.reason==='NO_DEMAND'||r.reason==='OFF')return 'Нет запроса · насос '+(out.pump?'ВКЛ':'ВЫКЛ');
+    if(r.reason==='CIRCULATION_CHECK')return 'Подготовка · клапан закрыт · насос '+(out.pump?'ВКЛ':'ВЫКЛ');
+    if(r.reason==='FLOOR_SENSOR_UNAVAILABLE'||r.reason==='NO_FEEDBACK_UNCOVERED')return 'Нет датчика · '+r.reason;
+    if(r.pump)return 'Команда насосу ВКЛ · клапан '+(r.valve>0?String(Math.round(r.valve))+'%':'ЗАКРЫТ')+' · '+r.reason;
+    return 'Насос ВЫКЛ · '+r.reason;
 }
 function fallback(id){
     var enabled=false,open=false,ready=false,now=Date.now();
@@ -69,7 +92,7 @@ function direct(id,c,g,now){
 function evaluate(){
     if(evaluating)return;
     evaluating=true;
-    try { evaluateOnce(); } finally {evaluating=false;}
+    try {evaluateOnce();} finally {evaluating=false;}
 }
 function evaluateOnce(){
     io.begin();
@@ -89,14 +112,13 @@ function evaluateOnce(){
                 valid:g.valid&&!g.degraded,enabled:true,demand:g.demand,floor:g.floor,
                 mode:'HEAT',heat:c.floorTargetMaxC,hold:c.floorTargetMaxC,reason:g.reason,
                 sent_ms:hl.frame?hl.frame.sent_ms:now,session_id:hl.frame?hl.frame.session_id:0,seq:hl.frame?hl.frame.seq:0};
-            // An explicit user OFF is authoritative even when the sensor has failed.
             if(id!=='504'&&!g.enabled)f.valid=true;
             r=engines[id].step({now:now,supply:io.read(c.supply),supplyAt:io.at(c.supply),
                 ret:io.read(c.ret),source:io.read(C.source.temperature),frame:f,linkReason:gl.reason});
             if(id!=='504'&&(!g.ready||!g.demand)){
                 r.pump=false;r.valve=0;r.demand=false;r.target=0;
                 if(r.reason!=='OVERHEAT_STOP'&&r.reason!=='OVERHEAT_CLOSE')r.reason=g.reason;
-                if(!g.enabled)r.valid=true; // Explicit OFF remains known even with failed sensors.
+                if(!g.enabled)r.valid=true;
                 engines[id].reset();
             }
         }
@@ -104,8 +126,10 @@ function evaluateOnce(){
         if(r.write&&c.kind==='mixed')out=outputSteps[id](r,now);
         else if(r.write){
             writeResult=io.write(c.pump,r.pump);
-            out={state:writeResult.ok?(io.matches(c.pump,r.pump)?'READBACK_MATCH':'WAIT_PUMP_READBACK'):'OUTPUT_WRITE_ERROR',
-                ready:writeResult.ok&&io.matches(c.pump,r.pump),pump:r.pump,readback:{pump:io.readback(c.pump)}};
+            // Command acceptance is not physical pump feedback. Do not block
+            // direct circuits on an unrelated delayed MQTT publication.
+            out={state:writeResult.ok?'COMMAND_ACCEPTED':'OUTPUT_WRITE_ERROR',
+                ready:writeResult.ok,pump:r.pump,readback:{pump:io.readback(c.pump)}};
         }
         var commands=io.commands([c.pump,c.level,c.enable]);
         if(commands.some(function(w){return !w.ok;})&&out.state!=='CLOSURE_UNCERTAIN')out.state='OUTPUT_WRITE_ERROR';
@@ -117,19 +141,25 @@ function evaluateOnce(){
             output:out,commands:commands,command_sent:commands.some(function(w){return w.sent;}),
             demand:requests[id].demand,requested_source_temperature:temperature,
             supply:io.read(c.supply),return_temperature:io.read(c.ret)};
+        sc('circuit_'+id,operatorCircuit(id,r,out));
         event(id,r);
     });
     var selected=R.select(requests,now),source=sourceStep(selected.temperature,operation.inService===true&&io.compatible(),now,selected.demandKnown);
     if(operation.inService===true&&!io.compatible()){source.state='RUNTIME_UNSUPPORTED';source.warning=W.RUNTIME_ERROR_RU;}
     sc('in_service',operation.inService===true);sc('circuits_json',JSON.stringify(reports));
-    sc('selected_consumer',selected.consumer);sc('requested_source_temperature',selected.temperature);
+    sc('operational_status',operation.inService===true?'Управление разрешено':'Ожидает первого ввода');
+    sc('selected_consumer',selected.consumer||'Нет');sc('requested_source_temperature',selected.temperature);
     sc('requested_heating_setpoint',source.requested_heating_setpoint);sc('source_json',JSON.stringify(source));
+    sc('source_status',source.state+(source.warning?' · '+source.warning.slice(0,80):''));
     sc('runtime_status',io.runtime()+'; house='+hl.reason+'; gazebo='+gl.reason);
     event('source',source);
 }
 defineRule('hhm3_first_start',{whenChanged:VD+'/start_heating',then:function(value){
     if(value!==true&&value!==1&&value!=='1')return;
-    if(operation.inService!==true)operation.inService=true;
+    if(operation.inService!==true){
+        operation.inService=true;
+        dev[VD+'/start_heating#hidden']=true;
+    }
     evaluate();
 }});
 initialized=true;evaluate();setInterval(evaluate,C.periodMs);
