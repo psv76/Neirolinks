@@ -25,5 +25,7 @@ jobs:
           node-version: '22'
       - name: Run complete simulation and regression suite
         run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/run.js
+      - name: Reproduce WB PersistentStorage contract and preserve 18+505 settings
+        run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/persistent-storage-regressions.js
       - name: Verify entire release manifest and dependencies
         run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/manifest.js --check
