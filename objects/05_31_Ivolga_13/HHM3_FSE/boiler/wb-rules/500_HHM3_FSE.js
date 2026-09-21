@@ -96,7 +96,7 @@ function evaluate(){
 }
 function evaluateOnce(){
     io.begin();
-    var now=Date.now(),hl=house.read(now),gl=gazebo.read(now),requests={},reports={};
+    var now=Date.now(),hl=house.read(now),gl=gazebo.read(now),requests={},reports={},faultCount=0;
     if(lastNow!==null&&(now<lastNow||now-lastNow>C.periodMs*3)){directCool={};openSince={};}
     lastNow=now;
     Z.forEach(function(z){z.outputs.forEach(function(p){
@@ -132,11 +132,15 @@ function evaluateOnce(){
                 ready:writeResult.ok,pump:r.pump,readback:{pump:io.readback(c.pump)}};
         }
         var commands=io.commands([c.pump,c.level,c.enable]);
-        if(commands.some(function(w){return !w.ok;})&&out.state!=='CLOSURE_UNCERTAIN')out.state='OUTPUT_WRITE_ERROR';
+        if(commands.some(function(w){return !w.ok;})&&!/ERROR|UNCERTAIN/.test(out.state))out.state='OUTPUT_WRITE_ERROR';
         var failed=/ERROR|UNCERTAIN/.test(out.state)||!!out.fault,ok=out.ready&&!failed;
+        if(failed)faultCount++;
         if(failed){r.warning+='; '+out.state+'; '+(out.fault||'')+'; повтор автоматически';r.reason=out.state;if(engines[id])engines[id].reset();}
         var temperature=r.demand&&ok?r.target+(c.kind==='mixed'?c.sourceMarginC:0):0;
-        requests[id]={at:now,valid:r.valid&&ok,demand:r.demand&&ok,ready:r.pump&&ok,temperature:temperature};
+        // A known idle circuit is valid even when its pump is intentionally OFF.
+        // A write error remains invalid; never turn an output fault into known zero.
+        requests[id]={at:now,valid:r.valid&&!failed&&(!r.demand||ok),
+            demand:r.demand&&ok,ready:r.pump&&ok,temperature:temperature};
         reports[id]={reason:r.reason,warning:r.warning,pump_command:out.pump,requested_pump:r.pump,valve_pct:r.valve,
             output:out,commands:commands,command_sent:commands.some(function(w){return w.sent;}),
             demand:requests[id].demand,requested_source_temperature:temperature,
@@ -147,7 +151,10 @@ function evaluateOnce(){
     var selected=R.select(requests,now),source=sourceStep(selected.temperature,operation.inService===true&&io.compatible(),now,selected.demandKnown);
     if(operation.inService===true&&!io.compatible()){source.state='RUNTIME_UNSUPPORTED';source.warning=W.RUNTIME_ERROR_RU;}
     sc('in_service',operation.inService===true);sc('circuits_json',JSON.stringify(reports));
-    sc('operational_status',operation.inService===true?'Управление разрешено':'Ожидает первого ввода');
+    sc('operational_status',operation.inService!==true?'Ожидает первого ввода':
+        !io.compatible()?'Несовместимая версия wb-rules':
+        faultCount?'Ошибки команд контуров: '+faultCount:
+        'Команды отопления разрешены (без подтверждения работы оборудования)');
     sc('selected_consumer',selected.consumer||'Нет');sc('requested_source_temperature',selected.temperature);
     sc('requested_heating_setpoint',source.requested_heating_setpoint);sc('source_json',JSON.stringify(source));
     sc('source_status',source.state+(source.warning?' · '+source.warning.slice(0,80):''));
