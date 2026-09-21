@@ -10,8 +10,7 @@ module.exports=function(test,create,epoch){
    const w={path:p,value:v,at:now};writes.push(w);const e=failure(w);
    if(e&&e!=='after'){w.error=true;throw Error('before apply');}
    o[p]=v;
-   if(p===c.level){const oldSwitch=o[c.enable];o[c.enable]=v>0;
-    if(oldSwitch!==o[c.enable]&&!drop(c.enable))emit(c.enable,o[c.enable]);}
+   // Ordinary Level does not energize the Switch; only explicit ON does.
    if(p===c.level||p===c.enable)position=o[c.enable]?(o[c.level]||0):0;
    w.position=position;
    if(!drop(p))emit(p,v);
@@ -31,13 +30,13 @@ module.exports=function(test,create,epoch){
    assert.equal(c.valveClosedLevel,undefined);assert.equal(c.valveClosedEnable,undefined);
   }assert.equal(h.C.circuits['504'].floorOnlyMaxPct,50);
  });
- test('A05 model separates stored Level, Switch, position and AUTO transitions for each address',()=>{
+ test('ordinary A05 Level never changes Switch; explicit ON opens model',()=>{
   for(const id of ids){const f=fixture(id),c=f.c;
-   for(const [level,enabled,pos]of [[0,false,0],[1,true,1],[0,false,0],[20,true,20]]){
-    f.io.write(c.level,level,true);assert.equal(f.values[c.enable],enabled);assert.equal(f.position(),pos);
-   }
-   f.io.write(c.enable,false,true);assert.equal(f.values[c.level],20);assert.equal(f.position(),0);
+   f.io.write(c.enable,false,true);
+   f.io.write(c.level,20,true);assert.equal(f.values[c.enable],false);assert.equal(f.position(),0);
    f.io.write(c.enable,true,true);assert.equal(f.position(),20);
+   f.io.write(c.level,30,true);assert.equal(f.values[c.enable],true);assert.equal(f.position(),30);
+   f.io.write(c.enable,false,true);assert.equal(f.values[c.level],30);assert.equal(f.position(),0);
   }
  });
  test('A05 OFF preserves Level and restart issues OFF before opening',()=>{
@@ -47,7 +46,7 @@ module.exports=function(test,create,epoch){
    assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));
    r=f.run(40,true);assert.equal(r.state,'HEAT_COMMANDED');assert.equal(r.ready,true);
    assert.equal(f.position(),Math.round(1+99*.4));
-   assert.ok(!f.writes.slice(n).some(w=>w.path===c.enable&&w.value===true));
+   assert.ok(f.writes.slice(n).some(w=>w.path===c.enable&&w.value===true));
   }
  });
  test('known OFF with hot-port Level retained does not write Level on idle cycles',()=>{
@@ -62,13 +61,14 @@ module.exports=function(test,create,epoch){
    for(let i=0;i<24;i++){const r=f.run(40,true);assert.equal(r.state,'HEAT_COMMANDED');assert.equal(r.ready,true);}
    assert.equal(f.values[c.pump],true);assert.equal(f.position(),41);
    assert.ok(f.writes.slice(n).some(w=>w.path===c.level));
-   assert.ok(!f.writes.slice(n).some(w=>w.path===c.enable&&w.value===true));
+   assert.ok(f.writes.slice(n).some(w=>w.path===c.enable&&w.value===true));
   }
  });
- test('old retained MQTT OFF is diagnostic and cannot veto successful Level command',()=>{
+ test('old retained MQTT OFF cannot veto explicit Switch ON command',()=>{
   for(const id of ids){const f=fixture(id),c=f.c;f.run(0,false);f.emit(c.enable,0,true);f.drop(()=>true);
    for(let i=0;i<4;i++){const r=f.run(30,true);assert.equal(r.ready,true);}
    assert.equal(f.values[c.pump],true);assert.ok(f.writes.some(w=>w.path===c.level));
+   assert.ok(f.writes.some(w=>w.path===c.enable&&w.value===true));
   }
  });
  test('A05 retarget writes integer Level without stopping operating pump',()=>{
@@ -76,7 +76,7 @@ module.exports=function(test,create,epoch){
    const n=f.writes.length,r=f.run(40,true);assert.equal(r.ready,true);
    assert.equal(r.state,'HEAT_COMMANDED');assert.equal(f.position(),41);
    assert.ok(!f.writes.slice(n).some(w=>w.path===c.pump&&w.value===false));
-   assert.ok(!f.writes.slice(n).some(w=>w.path===c.enable&&w.value===true));
+   assert.ok(f.writes.slice(n).some(w=>w.path===c.enable&&w.value===true));
   }
  });
  test('A05 OFF command error (before/after apply) cannot be reported as accepted',()=>{
@@ -98,6 +98,30 @@ module.exports=function(test,create,epoch){
    assert.ok(f.writes.slice(n).some(w=>w.path===c.enable&&w.value===false));
    assert.ok(!f.writes.slice(n).some(w=>w.path===c.enable&&w.value===true));
    f.fail(()=>false);assert.equal(f.run(40,true).ready,true);
+  }
+ });
+ test('Switch ON write error aborts before pump ON and retries only after OFF',()=>{
+  for(const id of ids)for(const error of [true,'after']){
+   const f=fixture(id),c=f.c;f.run(0,false);
+   f.fail(w=>w.path===c.enable&&w.value===true?error:false);
+   const n=f.writes.length,r=f.run(40,true);
+   assert.equal(r.state,'ENABLE_WRITE_ERROR');assert.equal(r.ready,false);
+   assert.equal(f.values[c.pump],false);assert.equal(f.values[c.enable],false);
+   const attempt=f.writes.slice(n),li=attempt.findIndex(w=>w.path===c.level);
+   const on=attempt.findIndex(w=>w.path===c.enable&&w.value===true);
+   assert.ok(li>=0&&on>li);assert.ok(!attempt.some(w=>w.path===c.pump&&w.value===true));
+   assert.equal(f.run(40,true).state,'OFF_COMMANDED');
+   f.fail(()=>false);assert.equal(f.run(40,true).state,'HEAT_COMMANDED');
+  }
+ });
+ test('opening orders Level -> Switch ON -> pump ON, with Switch initially OFF',()=>{
+  for(const id of ids){const f=fixture(id),c=f.c;f.run(0,false);
+   const n=f.writes.length,r=f.run(40,true);assert.equal(r.ready,true);
+   const writes=f.writes.slice(n);
+   const l=writes.findIndex(w=>w.path===c.level);
+   const on=writes.findIndex(w=>w.path===c.enable&&w.value===true);
+   const p=writes.findIndex(w=>w.path===c.pump&&w.value===true);
+   assert.ok(l>=0&&l<on&&on<p);assert.equal(f.position(),41);
   }
  });
  test('failed OFF following Level error blocks further positive Level until recovered',()=>{
