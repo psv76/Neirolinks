@@ -28,77 +28,104 @@
     {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
       "sha256": "fcbda78da50c32cd396d9ca4e6df00623c2fc264e106ddffc459396be3ad2bd2",
-      "boards": ["boiler"],
+      "boards": [
+        "boiler"
+      ],
       "destination": "/etc/wb-rules/500_HHM3_FSE.js",
       "role": "rule"
     },
     {
       "file": "boiler/wb-rules/620_thermostats.js",
       "sha256": "81808c1de4334d17cf42de75509dba54ed9cc99c54592e440e9b5713ad914bd6",
-      "boards": ["boiler"],
+      "boards": [
+        "boiler"
+      ],
       "destination": "/etc/wb-rules/620_thermostats.js",
       "role": "rule"
     },
     {
       "file": "gazebo/mosquitto/504-acl.example",
       "sha256": "b494238d28ed18ead6e7adb36907814b9c5bc7c70b2a506bcd8a573f371bcdbf",
-      "boards": ["gazebo", "boiler"],
+      "boards": [
+        "gazebo",
+        "boiler"
+      ],
       "role": "broker-template",
       "installation": "Substitute local TLS/identity parameters; merge ACL, see INSTALL.md"
     },
     {
       "file": "gazebo/mosquitto/504-bridge.conf.example",
       "sha256": "5c33f439b1255feab87a1a69d1741bfcda99be7a44605bf74988850412d12d8b",
-      "boards": ["gazebo", "boiler"],
+      "boards": [
+        "gazebo",
+        "boiler"
+      ],
       "role": "broker-template",
       "installation": "Substitute local TLS/identity parameters; merge ACL, see INSTALL.md"
     },
     {
       "file": "gazebo/wb-rules/624_combo_besedka.js",
       "sha256": "fd17a68d6b707df00ec752d7d650182c75361647ad099de26591d0acdf636c4a",
-      "boards": ["gazebo"],
+      "boards": [
+        "gazebo"
+      ],
       "destination": "/etc/wb-rules/624_combo_besedka.js",
       "role": "rule"
     },
     {
       "file": "modules/HHM3Circuit.js",
       "sha256": "327ae9afe3741e6b047f971eb7272f2016374c31f7a09709b8e9958574500e4e",
-      "boards": ["boiler"],
+      "boards": [
+        "boiler"
+      ],
       "destination": "/etc/wb-rules-modules/HHM3Circuit.js",
       "role": "module"
     },
     {
       "file": "modules/HHM3Config.js",
       "sha256": "99f7d993c2060015dd2e90f91d755597f0393d049c7904f31baf398b1bed5faf",
-      "boards": ["boiler", "gazebo"],
+      "boards": [
+        "boiler",
+        "gazebo"
+      ],
       "destination": "/etc/wb-rules-modules/HHM3Config.js",
       "role": "module"
     },
     {
       "file": "modules/HHM3Mixing.js",
       "sha256": "d57b1d86e0621f7def1352c6fb16ab9d2887c5508d0ba05abe052bafbcbe3fcd",
-      "boards": ["boiler"],
+      "boards": [
+        "boiler"
+      ],
       "destination": "/etc/wb-rules-modules/HHM3Mixing.js",
       "role": "module"
     },
     {
       "file": "modules/HHM3Outputs.js",
       "sha256": "05021097e4de3d55e0354e31cdd4ed6589cb2c0aa8a9d28859bd0e4f7456844a",
-      "boards": ["boiler"],
+      "boards": [
+        "boiler"
+      ],
       "destination": "/etc/wb-rules-modules/HHM3Outputs.js",
       "role": "module"
     },
     {
       "file": "modules/HHM3Runtime.js",
       "sha256": "9c6a71d2db52f37177ab8cd8a899c8ec2ade8987367eeecf80f731973df776d3",
-      "boards": ["boiler", "gazebo"],
+      "boards": [
+        "boiler",
+        "gazebo"
+      ],
       "destination": "/etc/wb-rules-modules/HHM3Runtime.js",
       "role": "module"
     },
     {
       "file": "modules/HHM3Wire.js",
       "sha256": "b35baa255c4948f8ec926943efeee1ac5a29b594d508112478e8be4ea1360ada",
-      "boards": ["boiler", "gazebo"],
+      "boards": [
+        "boiler",
+        "gazebo"
+      ],
       "destination": "/etc/wb-rules-modules/HHM3Wire.js",
       "role": "module"
     },
