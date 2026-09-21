@@ -1,8 +1,8 @@
-/* HHM3 / A05 WB-MAO4: positive integer Level requests hot-port opening
- * (hardware AUTO-ON). Switch OFF closes the hot port without touching Level.
- * MQTT readback describes a reported channel value, not actuator position.
- * Never block a valid heating command merely because an MQTT echo is late.
- * A synchronous write error is different: attempt OFF and withhold demand.
+/* HHM3 / Ivolga A05 WB-MAO4: ordinary Dimming Level only sets voltage.
+ * Opening: Level, explicit Switch ON, then pump ON. Closing: pump OFF,
+ * explicit Switch OFF (saved Level stays unchanged). Only HHM3 owns A05.
+ * MQTT readback is a reported value, never proof of physical valve travel.
+ * On synchronous write error attempt pump OFF / Switch OFF and withhold heat.
  */
 exports.create = function (c, io) {
     if (!(c.periodMs > 0 && c.valveActiveMinLevel > 0 &&
@@ -10,13 +10,12 @@ exports.create = function (c, io) {
           c.valveActiveMaxLevel <= 100 && c.valveOffCommand === false)) {
         throw new Error('Invalid A05 output contract');
     }
-    var state = 'INITIAL', level = null, lastLevelAt = null, lastNow = null;
+    var state = 'INITIAL', level = null, lastEnableAt = null, lastNow = null;
     var fault = '', pumpCommand = false;
     function report(ready) {
         return {state:state, ready:ready, pump:pumpCommand, fault:fault,
             saved_level:io.read(c.level), requested_level:level,
             requested_enable:level !== null, closed_command:level === null,
-            // MQTT feedback is for display and investigation only.
             closed_readback_match:io.matches(c.enable,false),
             readback:{level:io.readback(c.level), enable:io.readback(c.enable),
                 pump:io.readback(c.pump)}};
@@ -28,10 +27,9 @@ exports.create = function (c, io) {
         return true;
     }
     function close(keepPump,reason) {
-        // Always attempt OFF even if the pump OFF command throws.
         var stopped=pump(false);
         var off=io.write(c.enable,false,true);
-        level=null;lastLevelAt=null;
+        level=null;lastEnableAt=null;
         if (!off.ok) {
             state='OFF_WRITE_ERROR';fault='OFF_WRITE_ERROR';return report(false);
         }
@@ -45,11 +43,9 @@ exports.create = function (c, io) {
         return report(keepPump);
     }
     function abort(reason) {
-        // No further positive Level after an uncertain command until OFF
-        // has been accepted. Do not claim OFF if its write itself fails.
         var stopped=pump(false);
         var off=io.write(c.enable,false,true);
-        level=null;lastLevelAt=null;
+        level=null;lastEnableAt=null;
         if (!off.ok) {
             state='OFF_WRITE_ERROR';fault=reason+'; OFF_WRITE_ERROR';
         } else {
@@ -75,17 +71,21 @@ exports.create = function (c, io) {
             if (!pump(r.pump===true))return abort('PUMP_WRITE_ERROR');
             fault='';return report(r.pump===true);
         }
-        // An unknown OFF write or failed pump-stop operation cannot be
-        // bypassed by a positive Level in the next cycle.
-        if (state==='OFF_WRITE_ERROR'||state==='PUMP_WRITE_ERROR')return close(false,'');
-        var needLevel=level!==target||state==='LEVEL_WRITE_ERROR'||
-            (io.matches(c.enable,false)&&(lastLevelAt===null||now-lastLevelAt>=30000));
+        if (state==='OFF_WRITE_ERROR'||state==='PUMP_WRITE_ERROR'||
+            state==='ENABLE_WRITE_ERROR')return close(false,'');
+        var needLevel=level!==target||state==='LEVEL_WRITE_ERROR';
         if (needLevel) {
-            // A first opening has no known prior pump state. Retarget an
-            // already commanded hot port without stopping its circulation.
             if (level===null&&!pump(false))return abort('PUMP_WRITE_ERROR');
             if (!io.write(c.level,target,true).ok)return abort('LEVEL_WRITE_ERROR');
-            level=target;lastLevelAt=now;
+            level=target;
+        }
+        // Ordinary Level never guarantees Switch ON. Reassert explicit ON
+        // after a new Level or a reported OFF, throttled against stale echo.
+        var needEnable=needLevel||(io.matches(c.enable,false)&&
+            (lastEnableAt===null||now-lastEnableAt>=30000));
+        if (needEnable) {
+            if (!io.write(c.enable,true,true).ok)return abort('ENABLE_WRITE_ERROR');
+            lastEnableAt=now;
         }
         if (!pump(true))return abort('PUMP_WRITE_ERROR');
         state='HEAT_COMMANDED';fault='';
