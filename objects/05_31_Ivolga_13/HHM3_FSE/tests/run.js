@@ -48,7 +48,7 @@ test('simultaneous 501-505: pumps, paths, MAO4 target readbacks, arbiter MAX and
     assert.equal(h.values.boiler[h.C.source.setpoint],45);
     for(const id of ['501','502','504']){
         const c=h.C.circuits[id],writes=h.physical();
-        assert.ok(!writes.some(w=>w.path===c.enable&&w.value===true));
+        assert.ok(writes.some(w=>w.path===c.enable&&w.value===true));
         assert.equal(r[id].output.state,'HEAT_COMMANDED');assert.equal(r[id].output.ready,true);
         assert.equal(r[id].output.saved_level,r[id].output.requested_level);
         assert.equal(h.values.boiler[c.enable],true);
