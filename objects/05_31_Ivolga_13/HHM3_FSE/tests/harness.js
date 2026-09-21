@@ -63,11 +63,9 @@ exports.create=function(options={}){
             if(failure&&failure!=='after'){w.error=true;throw new Error('simulated IO failure');}
             o[k]=v;
             const echo=p=>!options.dropReadback||!options.dropReadback(p);
-            if(isPhysical&&/ Dimming Level$/.test(k)){
-                const sw=k.replace(' Dimming Level',' Switch');o[sw]=v>0;
-                effects.push({path:sw,value:v>0,level:v,at:now});
-                if(echo(sw))deliver(board,topic(sw),v>0?1:0,false);
-            }
+            // Ordinary WB-MAO4 Level does NOT turn Switch ON. Model them
+            // independently: the field failure was hidden by an auto-on mock.
+            if(isPhysical&&/ Switch$/.test(k))effects.push({path:k,value:v,at:now});
             for(const [id,c]of Object.entries(C.circuits))if(k===c.level||k===c.enable){
                 modelPosition[id]=o[c.enable]?(o[c.level]||0):0;w.modelPosition=modelPosition[id];
             }
