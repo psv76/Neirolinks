@@ -52,21 +52,10 @@ module.exports=function(test,create,epoch){
   h.samples();h.advance(30000);assert.equal(h.request(),0);
   assert.equal(h.source().command_sent,false);
  });
- test('2.40 missing OFF proof times out, retries OFF only; no synthetic seq from subsequent newer-shaped messages',()=>{
-  const h=create(),R=h.load('HHM3Runtime'),c=h.C.circuits['501'],handlers={},writes=[];
-  let now=epoch;
-  const io=R.io({now:()=>now,dev:new Proxy({},{set:(o,p,v)=>{writes.push({p,v});return true;}}),
-   trackMqtt:(t,f)=>handlers[t]=f,publish:()=>{},log:{info:()=>{},warning:()=>{},error:()=>{}}},'test',[c.pump,c.level,c.enable]);
-  const step=h.load('HHM3Outputs').create(c,io);
-  function cycle(){io.begin();return step({pump:false,valve:0},now);}
-  assert.equal(cycle().state,'CLOSING');
-  handlers[R.topic(c.enable)](callback(R.topic(c.enable),'0'));
-  assert.equal(io.seq(c.enable),0);assert.equal(io.read(c.enable),null);
-  now+=10000;assert.equal(cycle().state,'CLOSURE_UNCERTAIN');
-  handlers[R.topic(c.enable)]({value:'0',retained:false});assert.equal(io.seq(c.enable),0);
-  now+=5000;assert.equal(cycle().ready,false);
-  assert.ok(writes.filter(w=>w.p===c.enable).length>=2);
-  for(const w of writes){assert.notEqual(w.p,c.level);assert.equal(w.v,false);}
+ test('2.40 absent MQTT metadata still cannot grant heating through 500',()=>{
+  const h=create({apiVersion:'2.40.0'});h.enableAll();h.samples();h.start();h.advance(30000);
+  assert.equal(h.request(),0);assert.equal(h.source().state,'RUNTIME_UNSUPPORTED');
+  assert.equal(h.physical().filter(w=>w.value===true||typeof w.value==='number'&&w.value>0).length,0);
  });
  test('2.40 restart/reordered subscriptions/delayed retained/reconnect/clocks never qualify old cache',()=>{
   for(const order of [['624','620','500'],['620','500','624']]){
