@@ -34,7 +34,13 @@ function evaluate(){
     Config.zones.forEach(function(z){
         var base='NL_simple_thermostat_'+z.id+'/',enabled=stateValue(dev[base+'target_state']);
         var target=W.number(dev[base+'target_temperature']),t=io.read(z.sensor);
-        if(enabled!==null&&target!==null&&target>=z.min&&target<=z.max)settings[z.id]={state:enabled,target:target};
+        // wb-rules PersistentStorage rejects plain objects. Preserve existing VD settings;
+        // persist only actual changes to avoid a database write every evaluation cycle.
+        var previous=settings[z.id];
+        if(enabled!==null&&target!==null&&target>=z.min&&target<=z.max&&
+           (!previous||previous.state!==enabled||previous.target!==target)) {
+            settings[z.id]=new StorableObject({state:enabled,target:target});
+        }
         var valid=t!==null,on=false,reason='OFF',g=groups[z.circuit],error=false;
         if(t!==null){sc(z.id,'temperature',t);if(z.kind==='floor')g.floor=g.floor===null?t:Math.max(g.floor,t);}
         if(enabled!==0){
