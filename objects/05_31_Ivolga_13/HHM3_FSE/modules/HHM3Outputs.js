@@ -69,7 +69,9 @@ exports.create = function (c, io) {
             (io.matches(c.enable,false) &&
                 (lastLevelAt === null || now-lastLevelAt >= 30000));
         if (needLevel) {
-            if (!pump(false)) {
+            // First opening starts with pump OFF; ordinary Level retargeting
+            // must not cycle an already operating pump.
+            if (level === null && !pump(false)) {
                 state='PUMP_WRITE_ERROR';fault='PUMP_WRITE_ERROR';return report(false);
             }
             var w = io.write(c.level,target,true);
