@@ -5,6 +5,10 @@ exports.create=function(options={}){
     let now=epoch,owner='',failPath='',bridge=true;
     const stores=options.stores||{},values={boiler:Object.assign({},options.values&&options.values.boiler),gazebo:Object.assign({},options.values&&options.values.gazebo)};
     const handlers={boiler:{},gazebo:{}},modules={},contexts={},writes=[],messages=[],logs=[],effects=[],modelPosition={},rules={boiler:{},gazebo:{}},definitions={};
+    const lastSample={boiler:{},gazebo:{}};
+    function periodic(board,p,v){const k=topic(p),prev=lastSample[board][k];
+        if(!prev||prev.value!==v||now-prev.at>=60000){lastSample[board][k]={value:v,at:now};deliver(board,k,v,false);}
+    }
     // Emulate wb-rules PersistentStorage restrictions; a plain JS object must fail.
     const storeProxies={};
     class StorableObject {constructor(obj){Object.assign(this,obj||{});}}
@@ -33,6 +37,7 @@ exports.create=function(options={}){
     Object.values(C.circuits).forEach(c=>{own[c.pump]='500';if(c.level){own[c.level]='500';own[c.enable]='500';}});
     own[C.source.setpoint]=own[C.source.chEnable]='500';
     function deliver(board,topic,value,retained=false){
+        if(topic.endsWith('/meta/error'))delete lastSample[board][topic.slice(0,-11)];
         // v2.40 newTrackHandler exports exactly topic/value. Do not keep the
         // newer metadata on a side channel when this profile is selected.
         const m=options.apiVersion==='2.40.0'?require('./wb240-callback')(topic,String(value)):{topic,value:String(value),qos:0};
@@ -58,11 +63,9 @@ exports.create=function(options={}){
             if(failure&&failure!=='after'){w.error=true;throw new Error('simulated IO failure');}
             o[k]=v;
             const echo=p=>!options.dropReadback||!options.dropReadback(p);
-            if(isPhysical&&/ Dimming Level$/.test(k)){
-                const sw=k.replace(' Dimming Level',' Switch');o[sw]=v>0;
-                effects.push({path:sw,value:v>0,level:v,at:now});
-                if(echo(sw))deliver(board,topic(sw),v>0?1:0,false);
-            }
+            // Ordinary WB-MAO4 Level does NOT turn Switch ON. Model them
+            // independently: the field failure was hidden by an auto-on mock.
+            if(isPhysical&&/ Switch$/.test(k))effects.push({path:k,value:v,at:now});
             for(const [id,c]of Object.entries(C.circuits))if(k===c.level||k===c.enable){
                 modelPosition[id]=o[c.enable]?(o[c.level]||0):0;w.modelPosition=modelPosition[id];
             }
@@ -92,11 +95,15 @@ exports.create=function(options={}){
     temperatures[C.source.temperature]=50;temperatures[C.source.connection]=0;temperatures[C.source.fault]=0;
     Z.forEach(z=>temperatures[z.sensor]=z.kind==='floor'?20:18);
     const gazeboTemperatures={'921.09_MSW_TH/Temperature':20,'921.10_TEMP_NONE/External Sensor 1':23};
-    function samples(){for(const [p,v]of Object.entries(temperatures))if(v!==undefined)deliver('boiler',topic(p),v,false);
+    function samples(){
+        // Match the real 60-second max_unchanged_interval rather than sending
+        // 50+ unchanged values every 5 seconds. Changes publish immediately.
+        for(const [p,v]of Object.entries(temperatures))if(v!==undefined)periodic('boiler',p,v);
         for(const p of Object.keys(own))if(values.boiler[p]!==undefined&&(!options.dropReadback||!options.dropReadback(p))){
-            const v=values.boiler[p];deliver('boiler',topic(p),typeof v==='boolean'?(v?1:0):v,false);
+            const v=values.boiler[p];periodic('boiler',p,typeof v==='boolean'?(v?1:0):v);
         }
-        for(const[p,v]of Object.entries(gazeboTemperatures))if(v!==undefined)deliver('gazebo',topic(p),v,false);}
+        for(const [p,v]of Object.entries(gazeboTemperatures))if(v!==undefined)periodic('gazebo',p,v);
+    }
     return {C,Z,stores,values,definitions,writes,messages,logs,effects,modelPosition,contexts,load,temperatures,gazeboTemperatures,topic,
         now:()=>now,time:t=>now=t,tick,rule,deliver,samples,topics:board=>Object.keys(handlers[board]),
         start:()=>rule('boiler','hhm3_first_start',true),

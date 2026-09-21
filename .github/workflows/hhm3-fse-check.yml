@@ -29,3 +29,11 @@ jobs:
         run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/persistent-storage-regressions.js
       - name: Verify entire release manifest and dependencies
         run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/manifest.js --check
+      - name: Preserve exact source used in the verification job
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hhm3-fse-source
+          path: objects/05_31_Ivolga_13/HHM3_FSE/
+          if-no-files-found: error
+          retention-days: 3

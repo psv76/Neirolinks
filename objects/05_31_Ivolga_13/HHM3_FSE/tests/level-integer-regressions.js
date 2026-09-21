@@ -1,89 +1,57 @@
 'use strict';
-// Standalone regression for integer WB-MAO4 readback and omitted duplicate ON.
-// Run: node tests/level-integer-regressions.js
 const assert=require('node:assert/strict');
 const createOutputs=require('../modules/HHM3Outputs').create;
 module.exports=function(test){
-function fixture(){
-    const c={periodMs:5000,commandTimeoutMs:10000,commandRetryMs:5000,
-        valveActiveMinLevel:1,valveActiveMaxLevel:100,valveOffCommand:false,
-        pump:'A03/K4',level:'A05/Channel 3 Dimming Level',enable:'A05/Channel 3 Switch'};
-    let now=100000,counts={},values={},attempts=[],writes=[];
-    let omitSameOn=true,integerReadback=true,dropEnable=false,dropLevel=false;
-    function record(path,value){
-        if((path===c.enable&&dropEnable)||(path===c.level&&dropLevel))return;
-        counts[path]=(counts[path]||0)+1;
-        values[path]=typeof value==='boolean'?value?1:0:value;
-    }
-    const io={
-        seq:path=>counts[path]||0,
-        read:path=>Object.prototype.hasOwnProperty.call(values,path)?values[path]:null,
-        readback:path=>({value:io.read(path),seq:io.seq(path),at:now}),
-        matches:(path,value)=>io.read(path)===(typeof value==='boolean'?value?1:0:value),
-        commands:paths=>attempts.filter(w=>paths.indexOf(w.path)>=0),
-        write:(path,value)=>{
-            const w={path,value,sent:true,ok:true};attempts.push(w);writes.push(w);
-            if(path===c.level){
-                assert.equal(value%1,0,'a level command must be integer');
-                const before=io.read(c.enable);
-                record(c.level,integerReadback?Math.round(value):value);
-                const on=value>0?1:0;
-                if(before!==on||!omitSameOn)record(c.enable,on);
-            }else record(path,value);
-            return w;
-        }
-    };
-    const step=createOutputs(c,io);
-    return {c,io,writes,values,dropSwitch:v=>dropEnable=v,dropLevel:v=>dropLevel=v,
-        inject:(path,value)=>record(path,value),
-        run:(valve,pump=true,dt=5000)=>{now+=dt;attempts=[];return step({valve,pump},now);}};
-}
-test('20% target sends integer 21 and qualifies readback 21',()=>{
-    const f=fixture();f.run(0,false);
-    const r=f.run(20,true);
-    assert.equal(r.state,'OPEN');assert.equal(r.ready,true);
-    assert.equal(r.requested_level,21);assert.equal(r.saved_level,21);
-    assert.equal(f.io.read(f.c.enable),1);
-    assert.equal(f.io.read(f.c.pump),1);
-});
-test('live probe: retarget 20/ON to 40/ON needs new Level, no duplicate ON',()=>{
-    const f=fixture();f.run(0,false);assert.equal(f.run(20,true).state,'OPEN');
-    const oldSeq=f.io.seq(f.c.enable),r=f.run(40,true);
-    assert.equal(f.io.seq(f.c.enable),oldSeq);assert.equal(r.state,'OPEN');assert.equal(r.ready,true);
-    assert.equal(r.requested_level,41);assert.equal(f.io.read(f.c.pump),1);
-});
-test('retarget rejects absent Level acknowledgment and OFF invalidates prior ON',()=>{
-    const f=fixture();f.run(0,false);assert.equal(f.run(20,true).state,'OPEN');
-    f.dropLevel(true);let r=f.run(40,true);assert.equal(r.state,'OPENING');
-    assert.equal(r.ready,false);assert.equal(f.io.read(f.c.pump),0);
-    f.inject(f.c.enable,0);f.dropLevel(false);f.inject(f.c.level,41);
-    r=f.run(40,true,1000);assert.equal(r.ready,false);assert.equal(r.state,'CLOSED');
-    assert.equal(f.io.read(f.c.enable),0);assert.equal(f.io.read(f.c.pump),0);
-});
-test('first opening from OFF cannot reuse historical ON',()=>{
-    const f=fixture();f.run(0,false);f.dropSwitch(true);
-    let r=f.run(20,true);assert.equal(r.state,'OPENING');assert.equal(r.ready,false);
-    assert.equal(f.io.read(f.c.pump),0);
-    r=f.run(20,true,10000);assert.equal(r.ready,false);
-    assert.equal(f.writes.filter(w=>w.path===f.c.enable&&w.value===true).length,0);
-});
-test('closing preserves remembered integer Level; no Level write on close',()=>{
-    const f=fixture();f.run(0,false);f.run(20,true);
-    const n=f.writes.length;
-    const r=f.run(0,false);
-    assert.equal(r.state,'CLOSED');assert.equal(r.closed_readback_match,true);
-    assert.equal(r.saved_level,21);assert.equal(f.io.read(f.c.enable),0);
-    assert.equal(f.writes.slice(n).filter(w=>w.path===f.c.level).length,0);
-});
-test('missing new OFF acknowledgment cannot claim safe closure',()=>{
-    const f=fixture();f.run(0,false);f.run(20,true);f.dropSwitch(true);
-    const r=f.run(0,false);
-    assert.equal(r.ready,false);assert.equal(r.closed_readback_match,false);
-    assert.equal(f.io.read(f.c.pump),0);
-});
+ function fixture(){
+  const c={periodMs:5000,valveActiveMinLevel:1,valveActiveMaxLevel:100,valveOffCommand:false,
+   pump:'A03/K4',level:'A05/Channel 3 Dimming Level',enable:'A05/Channel 3 Switch'};
+  let now=100000;const values={},writes=[];let noEcho=false,fail='';
+  const io={read:p=>noEcho?null:(values[p]===undefined?null:values[p]),
+   matches:(p,v)=>io.read(p)===(typeof v==='boolean'?(v?1:0):v),
+   readback:p=>({value:io.read(p)}),
+   write:(p,v)=>{writes.push({p,v});if(p===fail)return {ok:false,sent:false};
+    values[p]=typeof v==='boolean'?(v?1:0):v;
+    if(p===c.level)assert.equal(v%1,0);
+    return {ok:true,sent:true};}};
+  const step=createOutputs(c,io);
+  return {c,values,writes,noEcho:v=>noEcho=v,fail:v=>fail=v,
+   run:(valve,pump=true,dt=5000)=>step({valve,pump},now+=dt)};
+ }
+ test('integer MAO4 command 20% becomes 21 with explicit Switch ON',()=>{
+  const f=fixture();f.run(0,false);const r=f.run(20);
+  assert.equal(r.state,'HEAT_COMMANDED');assert.equal(r.ready,true);
+  assert.equal(r.requested_level,21);assert.equal(f.values[f.c.enable],1);
+  assert.equal(f.values[f.c.pump],1);assert.ok(f.writes.some(w=>w.p===f.c.enable&&w.v===true));
+ });
+ test('missing readback never cancels an accepted Level and pump command',()=>{
+  const f=fixture();f.run(0,false);f.noEcho(true);
+  for(let i=0;i<8;i++){const r=f.run(20);assert.equal(r.ready,true);assert.equal(r.state,'HEAT_COMMANDED');}
+  assert.equal(f.values[f.c.pump],1);assert.equal(f.values[f.c.enable],1);
+  assert.equal(f.writes.filter(w=>w.p===f.c.level).length,1);
+ });
+ test('retarget preserves pump and sends Level before Switch ON',()=>{
+  const f=fixture();f.run(0,false);f.run(20);const n=f.writes.length;
+  const r=f.run(40);assert.equal(r.ready,true);assert.equal(r.requested_level,41);
+  assert.equal(f.values[f.c.pump],1);
+  assert.ok(!f.writes.slice(n).some(w=>w.p===f.c.pump&&w.v===false));
+  assert.ok(f.writes.slice(n).some(w=>w.p===f.c.enable&&w.v===true));
+ });
+ test('OFF preserves Level, uses Switch OFF and does not assert hydraulic closure',()=>{
+  const f=fixture();f.run(0,false);f.run(20);const n=f.writes.length;
+  const r=f.run(0,false);assert.equal(r.state,'OFF_COMMANDED');assert.equal(r.ready,false);
+  assert.equal(r.saved_level,21);assert.equal(f.values[f.c.enable],0);
+  assert.ok(!f.writes.slice(n).some(w=>w.p===f.c.level));
+ });
+ test('actual Level write error cancels request and attempts OFF',()=>{
+  const f=fixture();f.run(0,false);f.fail(f.c.level);const r=f.run(30);
+  assert.equal(r.ready,false);assert.equal(r.state,'LEVEL_WRITE_ERROR');
+  assert.equal(f.values[f.c.pump],0);assert.equal(f.values[f.c.enable],0);
+ });
+ test('OFF write error prevents new heating until OFF command accepted',()=>{
+  const f=fixture();f.fail(f.c.enable);let r=f.run(0,false);
+  assert.equal(r.state,'OFF_WRITE_ERROR');f.run(40);const count=f.writes.filter(w=>w.p===f.c.level).length;
+  assert.equal(count,0);f.fail('');r=f.run(40);assert.equal(r.state,'OFF_COMMANDED');
+  r=f.run(40);assert.equal(r.state,'HEAT_COMMANDED');
+ });
 };
-if(require.main===module){
-    let passed=0;
-    module.exports(function(name,fn){fn();passed++;console.log('PASS '+name);});
-    console.log('PASS integer MAO4 regressions: '+passed+' groups');
-}
+if(require.main===module){let passed=0;module.exports((n,fn)=>{fn();passed++;console.log('PASS '+n);});console.log('RESULT: '+passed+' integer MAO4 groups PASS');}
