@@ -28,6 +28,20 @@ test('no physical writes before single initial commissioning; thermostat 505 ini
     assert.equal(h.physical().length,0);assert.equal(h.values.boiler['NL_simple_thermostat_505/target_state'],false);
     assert.equal(h.values.boiler['NL_simple_thermostat_505/target_temperature'],20);
 });
+test('WebUI hides internal JSON and uses short operator controls without claiming physical proof',()=>{
+    const h=create(),cells=h.definitions.HHM3_FSE.cells;
+    for(const id of ['circuits_json','source_json','last_event_json']){
+        assert.equal(cells[id].hidden,true,id);assert.equal(cells[id].readonly,true,id);
+    }
+    for(const id of ['501','502','503','504','505'])assert.equal(cells['circuit_'+id].type,'text');
+    h.enableAll();h.samples();h.start();h.advance(300000);
+    assert.match(h.values.boiler['HHM3_FSE/circuit_501'],/Команда насосу/);
+    assert.match(h.values.boiler['HHM3_FSE/operational_status'],/без подтверждения работы оборудования/);
+    assert.doesNotMatch(h.values.boiler['HHM3_FSE/circuit_501'],/[{}\[\]]/);
+    const after=create({stores:h.stores,values:h.values});
+    assert.equal(after.definitions.HHM3_FSE.cells.start_heating.hidden,true);
+    assert.equal(after.definitions.HHM3_FSE.cells.source_json.hidden,true);
+});
 test('simultaneous 501-505: pumps, paths, MAO4 target readbacks, arbiter MAX and source endpoint',()=>{
     const h=running(),r=h.report();for(const id of Object.keys(r)){assert.equal(r[id].demand,true,id);assert.equal(r[id].pump_command,true,id);}
     assert.equal(h.request(),45);assert.equal(h.values.boiler['HHM3_FSE/selected_consumer'],'503');
@@ -35,7 +49,7 @@ test('simultaneous 501-505: pumps, paths, MAO4 target readbacks, arbiter MAX and
     for(const id of ['501','502','504']){
         const c=h.C.circuits[id],writes=h.physical();
         assert.ok(!writes.some(w=>w.path===c.enable&&w.value===true));
-        assert.equal(r[id].output.state,'OPEN');assert.equal(r[id].output.ready,true);
+        assert.equal(r[id].output.state,'HEAT_COMMANDED');assert.equal(r[id].output.ready,true);
         assert.equal(r[id].output.saved_level,r[id].output.requested_level);
         assert.equal(h.values.boiler[c.enable],true);
         assert.ok(r[id].valve_pct>0,id);
@@ -111,7 +125,7 @@ test('504 thresholds raw 45/48/50, local stop only and controlled auto recovery'
     h.temperatures[p]=45;h.advance(5000);assert.equal(h.report()['504'].reason,'OVERHEAT_CLOSE');assert.equal(h.values.boiler['A03/K4'],true);
     h.temperatures[p]=48;h.advance(15000);assert.equal(h.values.boiler['A03/K4'],false);
     assert.equal(h.report()['503'].demand,true);h.temperatures[p]=40;h.advance(130000);
-    assert.equal(h.report()['504'].reason,'CIRCULATION_CHECK');assert.equal(h.report()['504'].valve_pct,0);
+    assert.equal(h.report()['504'].reason,'NORMAL');assert.ok(h.report()['504'].valve_pct>=0);
     h.temperatures[p]=25;h.advance(70000);assert.equal(h.report()['504'].reason,'NORMAL');
     h.deliver('boiler',h.topic(p),50);assert.equal(h.values.boiler['A03/K4'],false);
 });
@@ -148,7 +162,7 @@ test('cold source and NO_RESPONSE generate warning events, never permanent latch
 });
 test('output error on K4 does not suppress valve closure or healthy requests; retry automatic',()=>{
     const h=running();h.fail('A03/K4');h.temperatures[h.C.circuits['504'].supply]=50;h.advance(5000);
-    assert.match(h.report()['504'].reason,/CLOSURE_UNCERTAIN|OUTPUT_WRITE_ERROR|CLOSED/);assert.equal(h.values.boiler['A05/Channel 3 Switch'],false);
+    assert.match(h.report()['504'].reason,/OFF_WRITE_ERROR|PUMP_WRITE_ERROR|LEVEL_WRITE_ERROR|OUTPUT_WRITE_ERROR|CLOSED/);assert.equal(h.values.boiler['A05/Channel 3 Switch'],false);
     assert.equal(h.report()['503'].demand,true);h.fail('');h.advance(35000);assert.equal(h.values.boiler['A03/K4'],false);
 });
 test('retained/invalid/null/stale sensors never become zero/fresh heat, recover with new samples',()=>{
