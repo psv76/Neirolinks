@@ -5,6 +5,21 @@ exports.create=function(options={}){
     let now=epoch,owner='',failPath='',bridge=true;
     const stores=options.stores||{},values={boiler:Object.assign({},options.values&&options.values.boiler),gazebo:Object.assign({},options.values&&options.values.gazebo)};
     const handlers={boiler:{},gazebo:{}},modules={},contexts={},writes=[],messages=[],logs=[],effects=[],modelPosition={},rules={boiler:{},gazebo:{}},definitions={};
+    // Emulate wb-rules PersistentStorage restrictions; a plain JS object must fail.
+    const storeProxies={};
+    class StorableObject {constructor(obj){Object.assign(this,obj||{});}}
+    function persistentStorage(name){
+        if(!stores[name])stores[name]={};
+        if(!storeProxies[name])storeProxies[name]=new Proxy(stores[name],{
+            set(o,k,v){
+                if(v!==null&&typeof v==='object'&&!(v instanceof StorableObject))
+                    throw new Error("don't write pure objects to PersistentStorage, use new StorableObject(obj) instead");
+                o[k]=v;
+                return true;
+            }
+        });
+        return storeProxies[name];
+    }
     function load(n){
         if(modules[n])return modules[n];
         const e={};modules[n]=e;
@@ -56,7 +71,8 @@ exports.create=function(options={}){
             return true;
         }});
         const context=vm.createContext({dev,Date:Clock,require:load,log:()=>{},
-            PersistentStorage:function(n){return stores[n]||(stores[n]={});},
+            PersistentStorage:persistentStorage,
+            StorableObject:StorableObject,
             defineVirtualDevice:(id,d)=>{definitions[id]=d;Object.entries(d.cells).forEach(([k,c])=>{if(c.forceDefault||values[board][id+'/'+k]===undefined)values[board][id+'/'+k]=c.value;});},
             defineRule:(key,r)=>{rules[board][key]={owner:name,...r};},
             trackMqtt:(t,fn)=>{(handlers[board][t]||(handlers[board][t]=[])).push({owner:name,fn});},
