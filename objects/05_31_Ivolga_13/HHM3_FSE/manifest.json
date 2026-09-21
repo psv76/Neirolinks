@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 59,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "7c5a5e47c0c5bf653e35aade136a9abbe5259417a6ac7b3121538efdf481a135",
+  "aggregate_sha256": "288a43fe5e150681d055f5ccd6e55b92b1983fa01a59cbf14fba3a243379a440",
   "files": [
     {
       "file": "INSTALL.md",
@@ -36,7 +36,7 @@
     },
     {
       "file": "boiler/wb-rules/620_thermostats.js",
-      "sha256": "6c15335e9b6275d4abf81909de620f19cb5ad85fe559af229de5db740445d9a8",
+      "sha256": "81808c1de4334d17cf42de75509dba54ed9cc99c54592e440e9b5713ad914bd6",
       "boards": [
         "boiler"
       ],
@@ -131,7 +131,7 @@
     },
     {
       "file": "tests/harness.js",
-      "sha256": "804e4d4d61a5d0e051f837ea604824d98727329510da3d34153e723f5c6dcf6c",
+      "sha256": "c18732d0753c895224c8cad77aa7572d4d3fba95be8e2ea1ca4d35d77f76d28b",
       "role": "test"
     },
     {
@@ -142,6 +142,11 @@
     {
       "file": "tests/manifest.js",
       "sha256": "91bb3253d7ddeb3eb23deb0decd644d5ab64a04929631cac28ebed70eeabfa5d",
+      "role": "test"
+    },
+    {
+      "file": "tests/persistent-storage-regressions.js",
+      "sha256": "62b9135481f56621af893c230ae48141e00b5653cb2ceafcb383ed1e131a977a",
       "role": "test"
     },
     {
