@@ -106,7 +106,14 @@ function evaluateOnce(){
         var c=C.circuits[id],g=id==='504'?null:(hl.frame?hl.frame.groups[id]:fallback(id)),r;
         if(operation.inService!==true)r={reason:'FIRST_COMMISSIONING',warning:'',write:false,pump:false,valve:0,demand:false,valid:false,target:0};
         else if(!io.compatible())r={reason:'RUNTIME_UNSUPPORTED',warning:W.RUNTIME_ERROR_RU,write:true,pump:false,valve:0,demand:false,valid:false,target:0};
-        else if(c.kind==='direct')r=direct(id,c,g,now);
+        else if(c.kind==='direct'){
+            r=direct(id,c,g,now);
+            if(g&&g.output_blocked===true){
+                r.pump=false;r.demand=false;r.valid=false;r.target=0;
+                r.reason='ZONE_OUTPUT_UNCONFIRMED';
+                r.warning='Ошибка зонального выхода либо OFF не подтверждён; насос остановлен';
+            }
+        }
         else {
             var f=id==='504'?gl.frame:{
                 // Only an authenticated partial-ready group (pending ON with
@@ -125,7 +132,9 @@ function evaluateOnce(){
                 r.pump=false;r.valve=0;r.demand=false;r.target=0;r.valid=false;
                 if(r.reason!=='OVERHEAT_STOP'&&r.reason!=='OVERHEAT_CLOSE')
                     r.reason='ZONE_OUTPUT_UNCONFIRMED';
-                r.warning+='; зональный выход: ошибка записи либо OFF не подтверждён';
+                if(r.reason==='OVERHEAT_CLOSE')
+                    r.warning='Перегрев: подмес закрыт; рециркуляция запрещена из-за неподтверждённого OFF зоны';
+                else r.warning+='; зональный выход: ошибка записи либо OFF не подтверждён';
                 engines[id].reset();
             }
             if(id!=='504'&&g.partial_ready===true&&r.reason==='NORMAL')
