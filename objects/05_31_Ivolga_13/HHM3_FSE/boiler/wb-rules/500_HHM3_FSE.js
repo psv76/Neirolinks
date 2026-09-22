@@ -6,7 +6,7 @@ var W=require('HHM3Wire'),R=require('HHM3Runtime'),Policy=require('HHM3Circuit')
 var Outputs=require('HHM3Outputs'),outputSteps={},evaluating=false;
 var operation=new PersistentStorage('hhm3_operation',{global:true});
 var userSettings=new PersistentStorage('hhm3_thermostats',{global:true});
-var VD='HHM3_FSE',initialized=false,engines={},thermal={},directCool={},lastNow=null,openSince={};
+var VD='HHM3_FSE',initialized=false,engines={},thermal={},directCool={},lastNow=null,openSince={},valveHistory={};
 var allowed=[C.source.setpoint,C.source.chEnable];
 Object.keys(C.circuits).forEach(function(id){var c=C.circuits[id];allowed.push(c.pump);if(c.kind==='mixed')allowed.push(c.level,c.enable);});
 var io=R.io({dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log,
@@ -109,13 +109,28 @@ function evaluateOnce(){
         else if(c.kind==='direct')r=direct(id,c,g,now);
         else {
             var f=id==='504'?gl.frame:{
-                valid:g.valid&&!g.degraded,enabled:true,demand:g.demand,floor:g.floor,
+                // Only an authenticated partial-ready group (pending ON with
+                // another confirmed ready path, no sensor/command fault) may
+                // retain NORMAL. Never treat the pending zone as open.
+                valid:g.valid&&(!g.degraded||(g.partial_ready===true&&g.ready&&g.demand)),
+                enabled:true,demand:g.demand,floor:g.floor,
                 mode:'HEAT',heat:c.floorTargetMaxC,hold:c.floorTargetMaxC,reason:g.reason,
                 sent_ms:hl.frame?hl.frame.sent_ms:now,session_id:hl.frame?hl.frame.session_id:0,seq:hl.frame?hl.frame.seq:0};
             if(id!=='504'&&!g.enabled)f.valid=true;
             r=engines[id].step({now:now,supply:io.read(c.supply),supplyAt:io.at(c.supply),
                 ret:io.read(c.ret),source:io.read(C.source.temperature),frame:f,linkReason:gl.reason});
-            if(id!=='504'&&(!g.ready||!g.demand)){
+            // A failed write or an unconfirmed OFF might leave an unsafe
+            // zone energized; no shared hot water until its OFF/readback is known.
+            if(id!=='504'&&g.output_blocked===true){
+                r.pump=false;r.valve=0;r.demand=false;r.target=0;r.valid=false;
+                if(r.reason!=='OVERHEAT_STOP'&&r.reason!=='OVERHEAT_CLOSE')
+                    r.reason='ZONE_OUTPUT_UNCONFIRMED';
+                r.warning+='; зональный выход: ошибка записи либо OFF не подтверждён';
+                engines[id].reset();
+            }
+            if(id!=='504'&&g.partial_ready===true&&r.reason==='NORMAL')
+                r.warning+='; другая зона ожидает readback, подтверждённый путь сохранён';
+            if(id!=='504'&&g.output_blocked!==true&&(!g.ready||!g.demand)){
                 r.pump=false;r.valve=0;r.demand=false;r.target=0;
                 if(r.reason!=='OVERHEAT_STOP'&&r.reason!=='OVERHEAT_CLOSE')r.reason=g.reason;
                 if(!g.enabled)r.valid=true;
@@ -141,6 +156,15 @@ function evaluateOnce(){
         // A write error remains invalid; never turn an output fault into known zero.
         requests[id]={at:now,valid:r.valid&&!failed&&(!r.demand||ok),
             demand:r.demand&&ok,ready:r.pump&&ok,temperature:temperature};
+        // Report abrupt calculated drops as events; do not call a command a physical movement.
+        // Ordinary mixing steps are bounded to 4 points, so >=8 merits a trace.
+        if(c.kind==='mixed'){
+            if(valveHistory[id]!==undefined&&valveHistory[id]-r.valve>=8)
+                io.event(id+'_valve_transition','VALVE_COMMAND_DROP',
+                    'расчёт '+valveHistory[id]+' -> '+r.valve+'%; причина='+r.reason+
+                    '; выход='+out.state);
+            valveHistory[id]=r.valve;
+        }
         reports[id]={reason:r.reason,warning:r.warning,pump_command:out.pump,requested_pump:r.pump,valve_pct:r.valve,
             output:out,commands:commands,command_sent:commands.some(function(w){return w.sent;}),
             demand:requests[id].demand,requested_source_temperature:temperature,
