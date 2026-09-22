@@ -94,10 +94,14 @@ exports.create=function(c,storage,Mixing){
             var target=Math.min(c.maxSupplyC,remoteValid?c.normalSupplyC:c.autonomousSupplyC);
             var nextMode=supply===null?'FLOOR_ONLY':(remoteValid?'NORMAL':'AUTONOMOUS');
             var warning=remoteValid?'':('Автономия: '+(f?f.reason:i.linkReason));
-            if(nextMode!==mode){newMixer();floorStepAt=null;mode=nextMode;}
+            var modeChanged=nextMode!==mode;
+            if(modeChanged){newMixer();floorStepAt=null;mode=nextMode;}
             if(!demand){
-                if(idleAt===null)idleAt=now;
-                responseAt=null;newMixer();
+                if(idleAt===null){
+                    idleAt=now;
+                    if(!modeChanged)newMixer(); // once on demand loss, not every idle tick
+                }
+                responseAt=null;
                 return result('NO_DEMAND',now-idleAt<c.postrunMs,false,0,0);
             }
             idleAt=null;
