@@ -5,7 +5,7 @@ const sha=s=>crypto.createHash('sha256').update(s).digest('hex');
 function walk(p){return fs.readdirSync(p,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(p,e.name)):[path.join(p,e.name)]);}
 function destination(file){
  if(file.startsWith('modules/')){
-  const name=path.basename(file),both=['HHM3Config.js','HHM3Wire.js','HHM3Runtime.js'].includes(name);
+  const name=path.basename(file),both=['HHM3Config.js','HHM3Wire.js','HHM3Runtime.js','HHM3Freshness.js'].includes(name);
   return {boards:both?['boiler','gazebo']:['boiler'],destination:'/etc/wb-rules-modules/'+name,role:'module'};
  }
  if(file.includes('/wb-rules/'))return {boards:[file.split('/')[0]],destination:'/etc/wb-rules/'+path.basename(file),role:'rule'};
