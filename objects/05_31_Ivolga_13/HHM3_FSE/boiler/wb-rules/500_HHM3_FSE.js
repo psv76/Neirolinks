@@ -14,10 +14,10 @@ var io=R.io({dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log,
 var house=W.receiver(Date.now(),R.houseValid),gazebo=W.receiver(Date.now());
 trackMqtt(C.houseTopic,function(m){house.accept(m.value,m.retained,Date.now());if(initialized)evaluate();});
 trackMqtt(W.TOPIC,function(m){gazebo.accept(m.value,m.retained,Date.now());if(initialized)evaluate();});
-[C.source.temperature,C.source.connection,C.source.fault].forEach(function(p){io.watch(p,p===C.source.temperature?-20:0,p===C.source.temperature?110:1);});
+[C.source.temperature,C.source.connection,C.source.fault].forEach(function(p){io.watch(p,p===C.source.temperature?-20:0,p===C.source.temperature?110:1,p===C.source.temperature);});
 Z.forEach(function(z){z.outputs.forEach(function(p){io.watch(p,0,1);});});
 Object.keys(C.circuits).forEach(function(id){
-    var c=C.circuits[id];io.watch(c.supply,-20,110);io.watch(c.ret,-20,110);
+    var c=C.circuits[id];io.watch(c.supply,-20,110,true);io.watch(c.ret,-20,110,true);
     thermal[id]=new PersistentStorage('hhm3_circuit_'+id,{global:true});
     if(c.kind==='mixed')engines[id]=Policy.create(c,thermal[id],Mix);
     if(c.kind==='mixed')outputSteps[id]=Outputs.create(c,io);
@@ -96,6 +96,7 @@ function evaluate(){
 }
 function evaluateOnce(){
     io.begin();
+    io.probe();
     var now=Date.now(),hl=house.read(now),gl=gazebo.read(now),requests={},reports={},faultCount=0;
     if(lastNow!==null&&(now<lastNow||now-lastNow>C.periodMs*3)){directCool={};openSince={};}
     lastNow=now;
@@ -170,3 +171,4 @@ defineRule('hhm3_first_start',{whenChanged:VD+'/start_heating',then:function(val
     evaluate();
 }});
 initialized=true;evaluate();setInterval(evaluate,C.periodMs);
+setInterval(function(){io.probe();},2000);
