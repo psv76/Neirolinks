@@ -73,6 +73,17 @@ module.exports=function(test,create){
   assert.equal(latest(h).output_blocked,false);
   assert.equal(h.report()['502'].reason,'NORMAL');
  });
+ test('503 direct circuit also blocks heat when a zone output write fails',()=>{
+  const h=setup(()=>false);
+  h.set('boiler','NL_simple_thermostat_005/target_state',true);h.advance(190000);
+  assert.equal(h.report()['503'].demand,true);
+  h.fail('A08/K6');h.set('boiler','NL_simple_thermostat_006/target_state',true);step(h);
+  const frame=JSON.parse(h.messages.filter(m=>m.topic===h.C.houseTopic).at(-1).payload).groups['503'];
+  assert.equal(frame.output_blocked,true);assert.equal(h.report()['503'].demand,false);
+  assert.equal(h.report()['503'].reason,'ZONE_OUTPUT_UNCONFIRMED');
+  assert.equal(h.values.boiler['A03/K3'],false);
+  h.fail('');step(h);assert.equal(h.report()['503'].demand,true);
+ });
  test('502 abrupt valve command drop produces diagnostic event without new writers',()=>{
   const h=setup(()=>false);
   h.advance(700000);const before=h.report()['502'].valve_pct;
