@@ -1,18 +1,23 @@
 /* HHM3 common runtime: freshness, ownership and structured transition events. ES5. */
 var W = require('HHM3Wire');
 var C = require('HHM3Config').config;
+var Freshness = require('HHM3Freshness');
 exports.number = W.number;
 exports.topic = function (path) { var p=path.indexOf('/'); return '/devices/'+path.slice(0,p)+'/controls/'+path.slice(p+1); };
 exports.io = function (env, owner, allowed) {
     var sensors={}, lastCommands={}, lastEvents={}, attempts=[];
+    var fresh=Freshness.create(env,owner,function(){if(env.onSample)env.onSample();});
     function numeric(v){return typeof v==='boolean'?(v?1:0):v;}
     var api={
-        watch:function(path,min,max) {
+        watch:function(path,min,max,probe) {
             if(sensors[path])return;
             var s=W.sensor();sensors[path]={sensor:s,min:min,max:max,seq:0};
+            if(probe===true)fresh.add(path,s,min,max);
             env.trackMqtt(exports.topic(path),function(m){s.sample(m.value,m.retained,env.now());if(m.retained===false&&s.runtimeStatus()==='SUPPORTED')sensors[path].seq++;if(env.onSample)env.onSample();});
             env.trackMqtt(exports.topic(path)+'/meta/error',function(m){s.error(m.value,m.retained);if(env.onSample)env.onSample();});
         },
+        probe:function(){fresh.tick();},
+        probeStatus:function(path){return fresh.status(path);},
         read:function(path) {var s=sensors[path];return s?s.sensor.read(env.now(),s.min,s.max):null;},
         at:function(path) {var s=sensors[path];return s?s.sensor.timestamp():null;},
         seq:function(path) {return sensors[path]?sensors[path].seq:0;},
