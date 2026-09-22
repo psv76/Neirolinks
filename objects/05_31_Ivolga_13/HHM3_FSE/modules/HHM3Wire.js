@@ -63,30 +63,38 @@ exports.combo = function (memory, air, floor, s) {
 // Only fresh non-retained sensor publications advance freshness. Errors invalidate
 // immediately; clearing an error requires a subsequent fresh measurement.
 exports.sensor = function () {
-    var value = null, at = null, error = '', runtime = 'UNVERIFIED', lastNow = null;
+    var value = null, at = null, error = '', runtime = 'UNVERIFIED', lastNow = null, revision = 0;
     function clock(now) {
-        if (lastNow !== null && now < lastNow) { value = null; at = null; }
+        if (lastNow !== null && now < lastNow) { value = null; at = null; revision++; }
         lastNow = now;
     }
     return {
         sample: function (v, retained, now) {
             clock(now);
-            if (typeof retained !== 'boolean') { runtime = 'RUNTIME_UNSUPPORTED'; value = null; at = null; }
+            if (typeof retained !== 'boolean') { runtime = 'RUNTIME_UNSUPPORTED'; value = null; at = null; revision++; }
             if (runtime === 'RUNTIME_UNSUPPORTED') return;
             runtime = 'SUPPORTED';
             if (retained !== false) return;
-            value = number(v); at = now;
+            value = number(v); at = now; revision++;
         },
         error: function (v, retained) {
             // An error is conservative even if retained. Its clearance is not:
             // an old empty meta/error must never clear a newer live fault.
             var next = String(v || '');
-            if (typeof retained !== 'boolean') { runtime = 'RUNTIME_UNSUPPORTED'; value = null; at = null; }
-            if (next) { error = next; value = null; at = null; }
+            if (typeof retained !== 'boolean') { runtime = 'RUNTIME_UNSUPPORTED'; value = null; at = null; revision++; }
+            if (next) { error = next; value = null; at = null; revision++; }
             else if (retained === false && runtime !== 'RUNTIME_UNSUPPORTED') {
-                error = ''; value = null; at = null;
+                error = ''; value = null; at = null; revision++;
             }
         },
+        rpcSample: function (v, now, expectedRevision) {
+            clock(now);
+            if (runtime === 'RUNTIME_UNSUPPORTED' || error || revision !== expectedRevision ||
+                !between(v,-20,110)) return false;
+            value=v; at=now; revision++; runtime='SUPPORTED'; return true;
+        },
+        invalidate: function () { value=null; at=null; revision++; },
+        revision: function () { return revision; },
         runtimeStatus: function () { return runtime; },
         timestamp: function () { return at; },
         read: function (now, min, max) {
