@@ -27,10 +27,14 @@ Config.zones.forEach(function(z){
 function stateValue(v){if(v===true||v===1||v==='1')return 1;if(v===false||v===0||v==='0')return 0;return null;}
 function evaluate(){
     io.begin();
-    var now=Date.now(),groups={};
+    var now=Date.now(),groups={},pending={},unsafe={},blocked={};
     if(lastNow!==null&&(now<lastNow||now-lastNow>C.periodMs*3))opened={};
     lastNow=now;
-    ['501','502','503','505'].forEach(function(id){groups[id]={valid:true,demand:false,ready:false,enabled:false,degraded:false,reason:'OFF',floor:null};});
+    ['501','502','503','505'].forEach(function(id){
+        groups[id]={valid:true,demand:false,ready:false,enabled:false,degraded:false,
+            partial_ready:false,output_blocked:false,reason:'OFF',floor:null};
+        pending[id]=false;unsafe[id]=false;blocked[id]=false;
+    });
     Config.zones.forEach(function(z){
         var base='NL_simple_thermostat_'+z.id+'/',enabled=stateValue(dev[base+'target_state']);
         var target=W.number(dev[base+'target_temperature']),t=io.read(z.sensor);
@@ -58,10 +62,19 @@ function evaluate(){
             }
         }else memory[z.id]=false;
         if(!io.compatible()){on=false;valid=false;reason='RUNTIME_UNSUPPORTED';memory[z.id]=false;}
-        if(!valid&&enabled!==0){g.degraded=true;g.reason=reason;}
+        if(!valid&&enabled!==0){g.degraded=true;g.reason=reason;unsafe[z.circuit]=true;}
         var sent=true;
         if(operation.inService===true)z.outputs.forEach(function(p){var w=io.write(p,on);error=error||!w.ok;sent=w.ok&&io.matches(p,on)&&sent;});
-        if(!sent){reason=error?'OUTPUT_WRITE_ERROR':'WAIT_OUTPUT_READBACK';g.degraded=true;g.valid=false;}
+        if(!sent){
+            reason=error?'OUTPUT_WRITE_ERROR':'WAIT_OUTPUT_READBACK';
+            g.degraded=true;g.valid=false;
+            // A pending ON is not a ready path, but another already-confirmed
+            // ready zone may keep heating. Failed writes or an unconfirmed OFF
+            // are unsafe for the entire shared circuit.
+            if(!error&&on&&valid&&enabled===1)pending[z.circuit]=true;
+            else unsafe[z.circuit]=true;
+            if(error||!on)blocked[z.circuit]=true; // OFF not confirmed or write failed
+        }
         sc(z.id,'output_json',JSON.stringify(io.commands(z.outputs)));
         if(on&&sent&&operation.inService===true){
             if(opened[z.id]===undefined||now<opened[z.id])opened[z.id]=now;
@@ -76,8 +89,11 @@ function evaluate(){
     });
     Object.keys(groups).forEach(function(id){
         var g=groups[id];
-        if(g.demand)g.valid=true; // independent healthy/open path survives another failed zone
+        if(g.demand)g.valid=true; // one confirmed ON is a real path, not proof of all zones
+        g.partial_ready=g.demand&&g.ready&&pending[id]&&!unsafe[id];
+        g.output_blocked=blocked[id];
         if(!g.enabled){g.valid=true;g.reason='OFF';}
+        else if(g.partial_ready)g.reason='HEAT';
         else if(!g.demand&&!g.degraded)g.reason='NO_DEMAND';
     });
     seq+=1;
