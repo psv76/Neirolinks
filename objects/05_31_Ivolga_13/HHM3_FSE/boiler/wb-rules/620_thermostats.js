@@ -22,11 +22,12 @@ Config.zones.forEach(function(z){
         output_json:{title:'Команды и MQTT readback (не положение привода)',type:'text',value:'[]',readonly:true,forceDefault:true}
     }});
     memory[z.id]=false;
-    io.watch(z.sensor,-20,z.kind==='floor'?70:60);
+    io.watch(z.sensor,-20,z.kind==='floor'?70:60,true);
 });
 function stateValue(v){if(v===true||v===1||v==='1')return 1;if(v===false||v===0||v==='0')return 0;return null;}
 function evaluate(){
     io.begin();
+    io.probe();
     var now=Date.now(),groups={};
     if(lastNow!==null&&(now<lastNow||now-lastNow>C.periodMs*3))opened={};
     lastNow=now;
@@ -89,3 +90,4 @@ Config.zones.forEach(function(z){
         'NL_simple_thermostat_'+z.id+'/target_temperature'],then:evaluate});
 });
 evaluate();setInterval(evaluate,C.periodMs);
+setInterval(function(){io.probe();},2000);

@@ -3,11 +3,13 @@
  * Физических выходов и удалённых /on здесь нет.
  */
 var H = require('HHM3Wire');
+var Freshness = require('HHM3Freshness');
 var C = require('HHM3Config').config.circuits['504'];
 var events = require('HHM3Runtime').io({dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log},'624_combo_besedka',[]);
 var VD = 'NL_combo_thermostat_504';
 var memory = { airHeat: false, floorHeat: false };
 var air = H.sensor(), floor = H.sensor();
+var fresh = Freshness.create({now:Date.now,trackMqtt:trackMqtt,publish:publish},'624',null);
 var store504 = new PersistentStorage('hhm3_504_sender', { global: true });
 var session = H.nextSession(store504);
 var seq = 0, lastReason = '';
@@ -40,8 +42,11 @@ function watch(path, sensor) {
     trackMqtt(topic + '/meta/error', function (m) { sensor.error(m.value, m.retained); });
 }
 watch('921.09_MSW_TH/Temperature', air);
+fresh.add('921.09_MSW_TH/Temperature',air,-20,60);
 watch('921.10_TEMP_NONE/External Sensor 1', floor);
+fresh.add('921.10_TEMP_NONE/External Sensor 1',floor,-20,70);
 function evaluate() {
+    fresh.tick();
     var now = Date.now(), a = air.read(now, -20, 60), f = floor.read(now, -20, 70);
     sc('target_state', 1); // Compatibility display only; never a user OFF command.
     var s = { target: H.number(dev[VD + '/target_temperature']),
@@ -79,5 +84,6 @@ function evaluate() {
         hold: s.hold, heat: s.heat, enabled: s.enabled, valid: r.valid,
         demand: r.demand, mode: r.mode, reason: r.reason }), 0, false);
 }
-setTimeout(function () { evaluate(); setInterval(evaluate, 5000); }, 3000);
+setTimeout(function () { evaluate(); setInterval(evaluate, 5000);
+    setInterval(function(){fresh.tick();},2000); }, 3000);
 log.info('[отопление][624_combo_besedka][504 беседка]; SCRIPT=Самопроверка; физических writes нет');
