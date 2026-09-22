@@ -15,7 +15,8 @@ exports.create = function (env, owner, onSample) {
         // A new non-retained measurement or error transition supersedes the RPC.
         if (e.sensor.revision() === current.revision) e.sensor.invalidate();
         e.errors = Math.min(4, e.errors + 1);
-        e.next = now + Math.min(300000, 30000 * Math.pow(2, e.errors - 1));
+        e.next = now + Math.min(300000, 30000 * Math.pow(2, e.errors - 1)) +
+            Math.floor(Math.random() * 3000);
         e.reason = reason;
         current = null;
         if (onSample) onSample();
