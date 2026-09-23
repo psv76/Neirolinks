@@ -7,6 +7,7 @@ on:
   pull_request:
     paths:
       - 'objects/05_31_Ivolga_13/HHM3_FSE/**'
+      - 'objects/05_31_Ivolga_13/Wirenboard/wb-rules/600_Heat_diagnostics.js'
       - '.github/workflows/hhm3-fse-check.yml'
 
 permissions:
@@ -38,6 +39,11 @@ jobs:
           bash -n objects/05_31_Ivolga_13/HHM3_FSE/tools/install_620_current_state_bool_fix.sh
           bash -n objects/05_31_Ivolga_13/HHM3_FSE/tools/install_hhm3_ui_cleanup_v2.sh
           bash -n objects/05_31_Ivolga_13/HHM3_FSE/tools/install_hhm3_legacy_json_purge.sh
+          bash -n objects/05_31_Ivolga_13/HHM3_FSE/tools/install_diagnostics_feed_fix.sh
+      - name: Verify object heating diagnostics no longer depends on raw HHM3 JSON
+        run: |
+          node --check objects/05_31_Ivolga_13/Wirenboard/wb-rules/600_Heat_diagnostics.js
+          ! grep -E "HHM3_FSE/(circuits_json|source_json)" objects/05_31_Ivolga_13/Wirenboard/wb-rules/600_Heat_diagnostics.js
       - name: Preserve exact source used in the verification job
         if: always()
         uses: actions/upload-artifact@v4

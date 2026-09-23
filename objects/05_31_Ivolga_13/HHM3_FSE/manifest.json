@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 59,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "8c2f32c064501838a53a1af3f40d37c08337b5a615dd6091337d7f35986f9a37",
+  "aggregate_sha256": "f1797326ebc82078ac250586be8ba05adfbe21376c3e54cb7bfbff0336cf0525",
   "files": [
     {
       "file": "INSTALL.md",
@@ -32,7 +32,7 @@
     },
     {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
-      "sha256": "cb92dc00f57be3e757b89d6c7b624e2b5e0c6e3cc0e419059206257230d8ec9e",
+      "sha256": "03d4ec69dadcef8872b4ca792236bdb37b62fbed849dac52e201aae08995d501",
       "boards": [
         "boiler"
       ],
@@ -166,7 +166,7 @@
     },
     {
       "file": "tests/run.js",
-      "sha256": "b52865259519a2341b64a439f276770bdbc774d36103cd00aa19f18d22581606",
+      "sha256": "421fdfe370af97f0be3c94e0256c1e88bbd2c7301f74c5aba9d2e7811f02d3db",
       "role": "test"
     },
     {
@@ -192,6 +192,11 @@
     {
       "file": "tools/install_620_current_state_bool_fix.sh",
       "sha256": "1b77ae29a311e56118e24aa98cdf17d6e56cdab9edd7979013670aef15e377f7",
+      "role": "documentation"
+    },
+    {
+      "file": "tools/install_diagnostics_feed_fix.sh",
+      "sha256": "882d5965ca794b03929410deebdd3ab1894f6e8e7d38c2fc32120daaf104079c",
       "role": "documentation"
     },
     {
