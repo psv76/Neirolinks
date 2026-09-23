@@ -1,0 +1,183 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "component",
+    "version",
+    "object",
+    "role",
+    "release",
+    "files",
+    "services",
+    "preflight",
+    "verify",
+    "rollback"
+  ],
+  "properties": {
+    "schema": {
+      "const": 1
+    },
+    "component": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "object": {
+      "type": "string",
+      "minLength": 1
+    },
+    "role": {
+      "type": "string",
+      "minLength": 1
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit",
+        "repository"
+      ],
+      "properties": {
+        "commit": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "target",
+          "sha256"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*[\\\\:])(?!.*//).+$"
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^/etc/"
+          },
+          "sha256": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "services": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stop",
+        "start"
+      ],
+      "properties": {
+        "stop": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "wb-rules",
+              "wb-mqtt-serial"
+            ]
+          }
+        },
+        "start": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "wb-rules",
+              "wb-mqtt-serial"
+            ]
+          }
+        }
+      }
+    },
+    "preflight": {
+      "enum": [
+        [
+          "identity",
+          "drift"
+        ],
+        [
+          "identity",
+          "drift",
+          "hhm"
+        ]
+      ]
+    },
+    "verify": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "controls",
+        "runtime_version",
+        "health_contract"
+      ],
+      "properties": {
+        "controls": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_ .-]+$"
+              },
+              "equals": {
+                "type": "string",
+                "maxLength": 511
+              }
+            }
+          }
+        },
+        "runtime_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "health_contract": {
+          "enum": [
+            "none",
+            "legacy-3.0",
+            "m1w2-health-v1"
+          ]
+        }
+      }
+    },
+    "rollback": {
+      "const": "previous-managed-release"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NLI release manifest v1",
+  "description": "Structural schema. nli.manifest.validate and trusted plugin checks additionally enforce paths, identity, ownership, balanced services and release contracts."
+}

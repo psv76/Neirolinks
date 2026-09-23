@@ -1,0 +1,17 @@
+# Безопасность NLI v0.1
+
+Доверенная граница: локальный root-owned config, reviewed manifest hash, Python plugins и системные исполняемые файлы. Artifact hash без доверенного manifest не является подписью. `.deb.sha256` защищает целостность; подпись repository/release остаётся ответственностью канала доставки. Не передавать конфигурацию от непривилегированного пользователя в root NLI. NLI не хранит токены.
+
+Manifest не содержит shell callbacks. Service actions — только start/stop из разрешённого перечня, с согласованными списками; HHM policy сужает их до wb-rules. Все subprocess — argv без `shell=True`. Read-only MQTT реализован только `mosquitto_sub`; publisher/Modbus/OT клиента в NLI нет.
+
+Absolute managed targets ограничены plugin allowlist; `..`, backslash, drive paths, symlink/junction, duplicate keys/targets, неизвестные поля, hooks и mutable commit запрещены. Перед backup запрещены hardlinked/non-regular targets. Hash проверяется до остановки и повторно перед записью. Файлы меняются через fsync+rename в той же filesystem; metadata/state — атомарные JSON. Набор файлов v0.1 фиксирован между releases, удаления не поддержаны.
+
+Mutation lock защищает все NLI component и firmware команды друг от друга. Он не блокирует root-редактор или процессы, игнорирующие NLI. Окно обслуживания требует отсутствия стороннего deploy и обновления package/config. Внешний updater проверяется по `/proc` до запуска; общего native updater lock в изученной реализации не обнаружено. Между последней проверкой и запуском остаётся race со сторонним root-запуском. На период firmware maintenance оператор исключает параллельный запуск WebUI/CLI/updater вне NLI. NLI никогда не завершает чужой updater.
+
+HHM interlocks — текущие локальные MQTT значения подпитки/A04 и active wb-mqtt-serial. Это не аппаратная блокировка: состояние может измениться после проверки, retained OFF без independent feedback не является доказательством клапана. Preflight повторяется непосредственно перед остановкой, но инженер всё равно контролирует окно обслуживания. Давление не является gate.
+
+Ownership allowlist проверяет все локальные активные `.js` в rules/modules по SHA. Это обнаруживает неизвестный код, включая вычисляемые writers, но не доказывает отсутствие внешнего MQTT publisher или корректность reviewed кода. ACL/remote ownership и гидравлика проверяются отдельно. NLI не пишет физические outputs ради проверки.
+
+Crash-политика: durable intent до stop; best-effort rollback при Python exception/Ctrl-C; при power loss/SIGKILL — явный pending и блок новых updates. Автоматический rollback тоже может не пройти interlocks/диск/runtime: тогда partial failure и ручное восстановление по runbook, без ложного успеха. State/backup/audit должны лежать на локальной надёжной filesystem; fsync не даёт гарантии против отказа накопителя.
+
+Read-only команды не записывают собственные timestamps/cache/history; Linux filesystem может обновлять atime при чтении, а broker/system services вести свои обычные журналы. Read-only NLI не публикует MQTT и не изменяет NLI/system configuration.

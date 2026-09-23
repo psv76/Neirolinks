@@ -1,0 +1,42 @@
+name: NLI v0.1
+on:
+  push:
+    branches: ['codex/nli-v0.1']
+    paths: ['NLI/**', '.github/workflows/nli-check.yml']
+  pull_request:
+    paths: ['NLI/**', '.github/workflows/nli-check.yml']
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Core, HHM, firmware, package and security regressions
+        run: python -B -m unittest discover -s NLI/tests -v
+      - name: Both controller roles with pinned HHM source and fake WB backend
+        run: python -B NLI/tests/sandbox.py
+      - name: Build Debian package
+        run: python -B NLI/tools/build_deb.py
+      - name: Inspect package and install in disposable Debian Trixie container
+        run: |
+          dpkg-deb --info NLI/dist/neiro-nli_0.1.0_all.deb
+          dpkg-deb --contents NLI/dist/neiro-nli_0.1.0_all.deb
+          docker run --rm -v "$PWD/NLI/dist:/packages:ro" debian:trixie-slim sh -ec '
+            apt-get update -qq
+            apt-get install -y /packages/neiro-nli_0.1.0_all.deb
+            nli --version
+            nli --json status
+            test ! -e /var/lib/neiro/nli
+            test ! -e /var/log/neiro/nli
+          '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neiro-nli-deb
+          path: NLI/dist/*
+          if-no-files-found: error
