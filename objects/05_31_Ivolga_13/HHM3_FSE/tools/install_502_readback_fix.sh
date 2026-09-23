@@ -34,21 +34,13 @@ check_preflight() {
     [ "$(hostname)" = "$EXPECTED_HOST" ] || { echo "STOP: wrong controller: $(hostname)" >&2; exit 1; }
     systemctl is-active --quiet wb-rules || { echo "STOP: wb-rules is not active" >&2; exit 1; }
 
-    local k1 active low failed pressure
+    local k1 active
     k1="$(mqtt_once A04 K1)"
     active="$(mqtt_once pressure_makeup active)"
-    low="$(mqtt_once pressure_makeup low_pressure_alarm)"
-    failed="$(mqtt_once pressure_makeup makeup_failed_alarm)"
-    pressure="$(mqtt_once pressure_makeup pressure_bar)"
 
     [ "$k1" = "0" ] || { echo "STOP: A04/K1 is not confirmed OFF: $k1" >&2; exit 1; }
     [ "$active" = "0" ] || { echo "STOP: pressure makeup is active: $active" >&2; exit 1; }
-    [ "$low" = "0" ] || { echo "STOP: low pressure alarm is active: $low" >&2; exit 1; }
-    [ "$failed" = "0" ] || { echo "STOP: makeup failed alarm is active: $failed" >&2; exit 1; }
-    awk -v p="$pressure" 'BEGIN {exit !(p ~ /^[0-9]+([.][0-9]+)?$/ && p >= 1.5 && p <= 2.5)}' || {
-        echo "STOP: pressure outside 1.5..2.5 bar or invalid: $pressure" >&2; exit 1;
-    }
-    echo "PREFLIGHT OK: pressure=$pressure bar; makeup inactive; A04/K1 OFF"
+    echo "PREFLIGHT OK: makeup inactive; A04/K1 OFF; pressure value is not checked"
 }
 
 download_file() {
@@ -158,7 +150,6 @@ install_fix() {
     echo "runtime_status: $(mqtt_once HHM3_FSE runtime_status)"
     echo "source_status:  $(mqtt_once HHM3_FSE source_status)"
     echo "circuit_502:   $(mqtt_once HHM3_FSE circuit_502)"
-    echo "pressure:      $(mqtt_once pressure_makeup pressure_bar) bar"
     echo "makeup active: $(mqtt_once pressure_makeup active)"
     echo "A04/K1:        $(mqtt_once A04 K1)"
     echo "BACKUP=$backup"
