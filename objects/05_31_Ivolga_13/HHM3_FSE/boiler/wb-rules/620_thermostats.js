@@ -106,7 +106,7 @@ function evaluate(){
             if(!g.degraded)g.reason='HEAT';
         }else delete opened[z.id];
         if(enabled!==0&&!on&&!valid)g.valid=false;
-        sc(z.id,'valid',sensorFresh);sc(z.id,'current_state',on?1:0);
+        sc(z.id,'valid',sensorFresh);sc(z.id,'current_state',!!on);
         sc(z.id,'status',statusText(operation.inService===true?reason:'FIRST_COMMISSIONING'));
         io.event(z.id,reason,(!valid&&enabled!==0)||error?'Недостоверность датчика/настроек/команды; исправные зоны продолжают работу':'');
     });

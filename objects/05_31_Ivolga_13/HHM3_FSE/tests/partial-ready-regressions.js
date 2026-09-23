@@ -22,7 +22,7 @@ module.exports=function(test,create){
   assert.match(r.warning,/ожидает readback/);
   // Even though its ON was commanded, pending 607 must never be used to make
   // a non-ready group ready; the ready grant here belongs to 606 only.
-  assert.equal(h.values.boiler['NL_simple_thermostat_607/current_state'],1);
+  assert.equal(h.values.boiler['NL_simple_thermostat_607/current_state'],true);
   drop=false;h.deliver('boiler',h.topic('A13/K2'),1,false);step(h);
   assert.equal(latest(h).partial_ready,false);assert.equal(h.report()['502'].reason,'NORMAL');
  });
