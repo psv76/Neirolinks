@@ -3,11 +3,11 @@
   "object": "05_31_Ivolga_13",
   "issue": 59,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "f1797326ebc82078ac250586be8ba05adfbe21376c3e54cb7bfbff0336cf0525",
+  "aggregate_sha256": "74be3523fce1f2ed4db442c764597c6446f4660716078d52329ed76b1bdc990f",
   "files": [
     {
       "file": "INSTALL.md",
-      "sha256": "253d93e143e6eb70301c92a99b7d56984d0fb4cb52d1be6b485cfcbd1cc5d92d",
+      "sha256": "97387ff89f05087949c0691e331b1dd6f4c56025033c3c1174363e7190e5d594",
       "role": "documentation"
     },
     {
@@ -22,12 +22,12 @@
     },
     {
       "file": "README.md",
-      "sha256": "176102ce4605071601e8018308678103eb6986162d0a2427796a96b59141fbb2",
+      "sha256": "a3c42b82b52aec007f5c3eab9f917d908a1e7855f966b99cac87953546e74fc6",
       "role": "documentation"
     },
     {
       "file": "TEST_RESULTS.md",
-      "sha256": "267594c737189e36f1ec69c24b5da77e48c8a0e3791f2556e4207ea54b641bcd",
+      "sha256": "01bbb4dd9ad332c4565d068c2010e8eac2a9fb8a9a96ee2c4288dcf627d67651",
       "role": "documentation"
     },
     {
