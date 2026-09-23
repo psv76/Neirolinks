@@ -3,33 +3,8 @@
   "object": "05_31_Ivolga_13",
   "issue": 59,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "aaf57ce451a58ec245454f4345cd66bbcf47165acb0d271a01f75afcb5b1a4fd",
+  "aggregate_sha256": "9da0845619eee5bca19f977b28bf66cdb9b07c5556a4fc805126bf04e0ff0a34",
   "files": [
-    {
-      "file": "INSTALL.md",
-      "sha256": "253d93e143e6eb70301c92a99b7d56984d0fb4cb52d1be6b485cfcbd1cc5d92d",
-      "role": "documentation"
-    },
-    {
-      "file": "ISSUE61.md",
-      "sha256": "7d248f3c83a4850cb9a125ce55436240102b50331490be77d84df610d9457d30",
-      "role": "documentation"
-    },
-    {
-      "file": "ISSUE_502_READBACK.md",
-      "sha256": "ae8a85af38619ce2fbadf4ec1817839d8be4ec5d7caf2761c8912def09fd59f8",
-      "role": "documentation"
-    },
-    {
-      "file": "README.md",
-      "sha256": "176102ce4605071601e8018308678103eb6986162d0a2427796a96b59141fbb2",
-      "role": "documentation"
-    },
-    {
-      "file": "TEST_RESULTS.md",
-      "sha256": "267594c737189e36f1ec69c24b5da77e48c8a0e3791f2556e4207ea54b641bcd",
-      "role": "documentation"
-    },
     {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
       "sha256": "dbad805288bdfbc1ea066e0f49912cc2ed82d3db44b5ab379bacde84fcf3d420",
@@ -76,6 +51,21 @@
       ],
       "destination": "/etc/wb-rules/624_combo_besedka.js",
       "role": "rule"
+    },
+    {
+      "file": "INSTALL.md",
+      "sha256": "253d93e143e6eb70301c92a99b7d56984d0fb4cb52d1be6b485cfcbd1cc5d92d",
+      "role": "documentation"
+    },
+    {
+      "file": "ISSUE_502_READBACK.md",
+      "sha256": "ae8a85af38619ce2fbadf4ec1817839d8be4ec5d7caf2761c8912def09fd59f8",
+      "role": "documentation"
+    },
+    {
+      "file": "ISSUE61.md",
+      "sha256": "7d248f3c83a4850cb9a125ce55436240102b50331490be77d84df610d9457d30",
+      "role": "documentation"
     },
     {
       "file": "modules/HHM3Circuit.js",
@@ -135,6 +125,16 @@
       "role": "module"
     },
     {
+      "file": "README.md",
+      "sha256": "176102ce4605071601e8018308678103eb6986162d0a2427796a96b59141fbb2",
+      "role": "documentation"
+    },
+    {
+      "file": "TEST_RESULTS.md",
+      "sha256": "267594c737189e36f1ec69c24b5da77e48c8a0e3791f2556e4207ea54b641bcd",
+      "role": "documentation"
+    },
+    {
       "file": "tests/harness.js",
       "sha256": "c3ffe586f1fbd07fe793fe0853e7f111aeaf2612cf63752f5b4b38b19092bcf4",
       "role": "test"
@@ -187,6 +187,11 @@
     {
       "file": "tools/install_502_readback_fix.sh",
       "sha256": "0e1caf22e07a9091b1ad6b6b2e4797aca28f40640f1a73922d7a249f746c8620",
+      "role": "documentation"
+    },
+    {
+      "file": "tools/install_hhm3_ui_cleanup.sh",
+      "sha256": "c8091c0cc4ab071c4ccfe1cab7820901b3a3abb8b252f709b3d34480aebb0700",
       "role": "documentation"
     },
     {
