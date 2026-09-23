@@ -4,7 +4,7 @@
 
 | Проверка | Результат |
 |---|---|
-| Python unittest | 50 tests: 49 PASS, 1 SKIP (Windows symlink privilege) |
+| Python unittest | 51 tests: 50 PASS, 1 SKIP (Windows symlink privilege) |
 | Sandbox CLI на exact Git blobs PR #65 | boiler и gazebo: status/check/update/verify/rollback PASS |
 | Firmware check | unavailable/exit 3, без disk writes и updater execution |
 | Firmware wrapper update/recover | fake runner PASS для обеих ролей, partial failures/unknown summary/Ctrl-C recovery проверены |
@@ -22,7 +22,11 @@ Core coverage: malformed/duplicate manifest fields, unknown component, role/host
 
 HHM coverage: 507 byte-preservation and exclusion from backup, pressure not gate, active/unknown makeup and A04 block, interlock recheck after download, strict role payload separation, local writer inventory, fresh frame/runtime journal failure, read-only verify, conditional 3.1 health attestation.
 
-[Не проверено локально] В Windows нет WSL/dpkg-deb. Workflow `NLI v0.1` выполняет Linux symlink test, `dpkg-deb --info/--contents` и установку в disposable Debian Trixie container. Фактический результат CI будет дополнен после push. Никакая проверка не является доказательством реального WB runtime, физического тепла, bootloader recovery или полевого принятия.
+[Проверено в Linux CI] [Run 35919438626](https://github.com/psv76/Neirolinks/actions/runs/35919438626), commit `13837f95bd0deaa3698debd24c9a1bfe0dff5e27`: SUCCESS. Python 3.13: все 50 тестов того commit PASS, включая symlink; sandbox обеих ролей PASS; `dpkg-deb --info/--contents` PASS; установка в disposable Debian Trixie через apt PASS, `/usr/bin/nli --version` и `nli --json status` PASS, read-only status не создал `/var/lib/neiro/nli` и `/var/log/neiro/nli`. Сохранён CI artifact `neiro-nli-deb`.
+
+После этого добавлены явная зависимость `ca-certificates` и тест hostname gate firmware; актуальный suite содержит 51 тест. Статус проверки итогового SHA опубликован в [draft PR #71](https://github.com/psv76/Neirolinks/pull/71). Первая CI установка выявила отсутствующие directory entries в Debian data tar; исправлено, regression проверяет все parent directories.
+
+[Не проверено] Реальный WB runtime, физическое тепло, bootloader recovery и полевое принятие. В Windows нет WSL/dpkg-deb; проверка настоящей Debian установки выполнена только в изолированном CI container.
 
 Команды:
 

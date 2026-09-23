@@ -107,6 +107,7 @@ class Firmware:
         with Lock(e.target("/var/lib/neiro/nli/mutation.lock")):
             started = False
             try:
+                require(e.config["hostname"] == e.system.hostname(), "Wrong controller hostname")
                 previous = e.pending()
                 require(not previous or (action == "recover" and previous["component"] == "firmware"),
                         "Unresolved previous mutation; inspect status")

@@ -524,6 +524,13 @@ class FirmwareTests(Fixture):
         self.assertEqual(Firmware(self.engine, self.runner).execute("update")["final_status"], "failed")
         self.assertEqual(self.calls, [])
 
+    def test_firmware_wrong_controller_blocks(self):
+        self.config["hostname"] = "different-wb"
+        r = Firmware(self.engine, self.runner).execute("update")
+        self.assertEqual(r["final_status"], "failed")
+        self.assertIn("hostname", r["error"])
+        self.assertEqual(self.calls, [])
+
     def test_interrupted_updater_does_not_automatically_retry(self):
         def interrupted(*args):
             raise KeyboardInterrupt()
