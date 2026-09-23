@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 59,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "738d05141a7159781f5b724962c0e48d0b713699d22de7349ad3d5c44ccd2d4c",
+  "aggregate_sha256": "68c93492eb6aff38c226a77331ddbb7aefa8a4abc1b566c255cca9edecd224cc",
   "files": [
     {
       "file": "INSTALL.md",
@@ -41,7 +41,7 @@
     },
     {
       "file": "boiler/wb-rules/620_thermostats.js",
-      "sha256": "cfee47376aa8443a7bbf9ca843aa8ad9a78858e41b268fe93873a6bb189f49b5",
+      "sha256": "570874b06a045723feb3fac857f6f36fc007953ddc0b8ec0599a45837a0327fc",
       "boards": [
         "boiler"
       ],
@@ -151,7 +151,7 @@
     },
     {
       "file": "tests/partial-ready-regressions.js",
-      "sha256": "87fedaa6f61b261702bd0de78f3539353fe59f87ee99fbfdfc5c867c2306e451",
+      "sha256": "7bb1bc20b1a15900a4a3f8d88cf75c1c88f3db81ab7b5b5d061faa4721674303",
       "role": "test"
     },
     {
@@ -187,6 +187,11 @@
     {
       "file": "tools/install_502_readback_fix.sh",
       "sha256": "0e1caf22e07a9091b1ad6b6b2e4797aca28f40640f1a73922d7a249f746c8620",
+      "role": "documentation"
+    },
+    {
+      "file": "tools/install_620_current_state_bool_fix.sh",
+      "sha256": "1b77ae29a311e56118e24aa98cdf17d6e56cdab9edd7979013670aef15e377f7",
       "role": "documentation"
     },
     {
