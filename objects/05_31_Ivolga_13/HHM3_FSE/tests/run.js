@@ -55,6 +55,22 @@ test('WebUI omits raw JSON and keeps short operator controls without claiming ph
     const after=create({stores:h.stores,values:h.values});
     assert.equal(after.definitions.HHM3_FSE.cells.start_heating.hidden,true);
 });
+test('compact diagnostic request feed replaces raw JSON for heating dashboard',()=>{
+    const h=running();
+    for(const id of ['501','502','503','504','505']){
+        const v=h.values.boiler['HHM3_FSE/diag_request_'+id];
+        assert.equal(typeof v,'number',id);
+        assert.ok(v>0&&v<=100,id);
+    }
+    assert.equal(h.values.boiler['HHM3_FSE/diag_request_boiler'],h.values.boiler['HHM3_FSE/requested_heating_setpoint']);
+    assert.equal(h.values.boiler['HHM3_FSE/circuits_json'],undefined);
+    assert.equal(h.values.boiler['HHM3_FSE/source_json'],undefined);
+    h.Z.forEach(z=>h.set('boiler','NL_simple_thermostat_'+z.id+'/target_state',false));
+    h.gazeboTemperatures['921.09_MSW_TH/Temperature']=25;
+    h.gazeboTemperatures['921.10_TEMP_NONE/External Sensor 1']=30;
+    h.advance(15000);
+    for(const id of ['501','502','503','504','505'])assert.equal(h.values.boiler['HHM3_FSE/diag_request_'+id],0,id);
+});
 test('simultaneous 501-505: pumps, paths, MAO4 target readbacks, arbiter MAX and source endpoint',()=>{
     const h=running(),r=h.report();for(const id of Object.keys(r)){assert.equal(r[id].demand,true,id);assert.equal(r[id].pump_command,true,id);}
     assert.equal(h.request(),45);assert.equal(h.values.boiler['HHM3_FSE/selected_consumer'],'503');
