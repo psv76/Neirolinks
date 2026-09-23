@@ -39,6 +39,12 @@ defineVirtualDevice(VD,{title:'HHM3 — Иволга | отопление',cells
     source_status:{title:'Котёл / источник',type:'text',value:'Ожидает первого ввода',readonly:true,forceDefault:true,order:23},
     runtime_status:{title:'Связь и данные',type:'text',value:'Запуск',readonly:true,forceDefault:true,order:24},
     last_event:{title:'Последнее событие',type:'text',value:'—',readonly:true,forceDefault:true,order:25},
+    diag_request_501:{title:'501 diagnostic request',type:'value',value:-1,readonly:true,forceDefault:true,hidden:true},
+    diag_request_502:{title:'502 diagnostic request',type:'value',value:-1,readonly:true,forceDefault:true,hidden:true},
+    diag_request_503:{title:'503 diagnostic request',type:'value',value:-1,readonly:true,forceDefault:true,hidden:true},
+    diag_request_504:{title:'504 diagnostic request',type:'value',value:-1,readonly:true,forceDefault:true,hidden:true},
+    diag_request_505:{title:'505 diagnostic request',type:'value',value:-1,readonly:true,forceDefault:true,hidden:true},
+    diag_request_boiler:{title:'Boiler diagnostic request',type:'value',value:-1,readonly:true,forceDefault:true,hidden:true},
     start_heating:{title:'Первый ввод отопления',type:'pushbutton',value:false,forceDefault:true,order:90,hidden:operation.inService===true}
 }});
 var hhm3Device=getDevice(VD);
@@ -60,6 +66,23 @@ function linkState(r){return r&&r.reason?r.reason:'NORMAL';}
 function event(id,r){
     var e=io.event(id,r.reason||r.state,r.warning);
     if(e)sc('last_event',String(id)+': '+String(e.state)+(e.warning?' · '+String(e.warning).slice(0,80):''));
+}
+function diagnosticCircuitRequest(id,r){
+    var c=C.circuits[id],n,margin;
+    if(!r || typeof r.demand!=='boolean' || !c)return -1;
+    if(!r.demand)return 0;
+    n=r.requested_source_temperature;
+    if(typeof n!=='number' || !isFinite(n) || n<=0)return -1;
+    margin=c.kind==='mixed'?c.sourceMarginC:0;
+    if(typeof margin!=='number' || !isFinite(margin))return -1;
+    n-=margin;
+    return n>=0&&n<=100?Math.round(n*10)/10:-1;
+}
+function diagnosticBoilerRequest(source){
+    var n;
+    if(!source || source.state==='REQUESTS_UNAVAILABLE')return -1;
+    n=source.requested_heating_setpoint;
+    return typeof n==='number'&&isFinite(n)&&n>=0&&n<=100?Math.round(n*10)/10:-1;
 }
 function operatorCircuit(id,r,out){
     if(operation.inService!==true)return 'Ожидает первого ввода';
@@ -187,6 +210,7 @@ function evaluateOnce(){
             output:out,commands:commands,command_sent:commands.some(function(w){return w.sent;}),
             demand:requests[id].demand,requested_source_temperature:temperature,
             supply:io.read(c.supply),return_temperature:io.read(c.ret)};
+        sc('diag_request_'+id,diagnosticCircuitRequest(id,reports[id]));
         sc('circuit_'+id,operatorCircuit(id,r,out));
         event(id,r);
     });
@@ -200,6 +224,7 @@ function evaluateOnce(){
         'Команды отопления разрешены (без подтверждения работы оборудования)');
     sc('selected_consumer',selected.consumer||'Нет');sc('requested_source_temperature',selected.temperature);
     sc('requested_heating_setpoint',source.requested_heating_setpoint);
+    sc('diag_request_boiler',diagnosticBoilerRequest(source));
     sc('source_status',source.state+(source.warning?' · '+source.warning.slice(0,80):''));
     sc('runtime_status',io.runtime()+' · дом '+linkState(hl)+' · беседка '+linkState(gl));
     event('source',source);
