@@ -41,6 +41,10 @@ defineVirtualDevice(VD,{title:'HHM3 — Иволга | отопление',cells
     last_event:{title:'Последнее событие',type:'text',value:'—',readonly:true,forceDefault:true,order:25},
     start_heating:{title:'Первый ввод отопления',type:'pushbutton',value:false,forceDefault:true,order:90,hidden:operation.inService===true}
 }});
+var hhm3Device=getDevice(VD);
+['circuits_json','source_json','last_event_json'].forEach(function(id){
+    if(hhm3Device&&hhm3Device.isControlExists(id))hhm3Device.removeControl(id);
+});
 function sc(k,v){
     var p=VD+'/'+k;
     if(dev[p]!==v)dev[p]=v;

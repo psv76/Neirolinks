@@ -28,6 +28,17 @@ test('no physical writes before single initial commissioning; thermostat 505 ini
     assert.equal(h.physical().length,0);assert.equal(h.values.boiler['NL_simple_thermostat_505/target_state'],false);
     assert.equal(h.values.boiler['NL_simple_thermostat_505/target_temperature'],20);
 });
+test('legacy HHM3 raw JSON controls are removed from an existing virtual device',()=>{
+    const h=create({values:{boiler:{
+        'HHM3_FSE/circuits_json':'{"legacy":1}',
+        'HHM3_FSE/source_json':'{"legacy":2}',
+        'HHM3_FSE/last_event_json':'{"legacy":3}'
+    }}});
+    for(const id of ['circuits_json','source_json','last_event_json']){
+        assert.equal(h.values.boiler['HHM3_FSE/'+id],undefined,id);
+        assert.equal(h.definitions.HHM3_FSE.cells[id],undefined,id);
+    }
+});
 test('WebUI omits raw JSON and keeps short operator controls without claiming physical proof',()=>{
     const h=create(),cells=h.definitions.HHM3_FSE.cells;
     for(const id of ['circuits_json','source_json','last_event_json'])assert.equal(cells[id],undefined,id);
