@@ -68,12 +68,13 @@ function evaluate(){
         if(!sent){
             reason=error?'OUTPUT_WRITE_ERROR':'WAIT_OUTPUT_READBACK';
             g.degraded=true;g.valid=false;
-            // A pending ON is not a ready path, but another already-confirmed
-            // ready zone may keep heating. Failed writes or an unconfirmed OFF
-            // are unsafe for the entire shared circuit.
-            if(!error&&on&&valid&&enabled===1)pending[z.circuit]=true;
+            // A clean thermostat transition may wait for MQTT readback while
+            // another already-confirmed ready zone keeps the shared circuit heating.
+            // The pending zone itself is never counted as an open/ready path.
+            // Explicit disable, sensor/settings faults and write errors remain blocking.
+            if(!error&&valid&&enabled===1)pending[z.circuit]=true;
             else unsafe[z.circuit]=true;
-            if(error||!on)blocked[z.circuit]=true; // OFF not confirmed or write failed
+            if(error||(!on&&enabled!==1))blocked[z.circuit]=true;
         }
         sc(z.id,'output_json',JSON.stringify(io.commands(z.outputs)));
         if(on&&sent&&operation.inService===true){

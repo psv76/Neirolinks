@@ -46,6 +46,22 @@ module.exports=function(test,create){
   assert.equal(h.values.boiler[z.outputs[0]],false,'failed floor zone must be commanded OFF');
   assert.notEqual(h.report()['502'].reason,'NORMAL','genuine sensor fault must not use partial-ready bypass');
  });
+ test('502 thermostat-demand OFF may wait for readback while another ready zone keeps NORMAL',()=>{
+  let drop=false;const h=setup(p=>drop&&p==='A13/K2'),z=h.Z.find(z=>z.id==='607');
+  h.set('boiler','NL_simple_thermostat_607/target_state',true);h.advance(190000);
+  assert.equal(h.values.boiler['A13/K2'],true);
+  const before=h.report()['502'].valve_pct;
+  drop=true;
+  h.temperatures[z.sensor]=h.values.boiler['NL_simple_thermostat_607/target_temperature'];
+  h.samples();step(h);
+  const g=latest(h),r=h.report()['502'];
+  assert.equal(h.values.boiler['NL_simple_thermostat_607/status'],'WAIT_OUTPUT_READBACK');
+  assert.equal(g.partial_ready,true);assert.equal(g.output_blocked,false);
+  assert.equal(g.demand,true);assert.equal(g.ready,true);
+  assert.equal(r.reason,'NORMAL');assert.equal(r.demand,true);assert.equal(r.pump_command,true);
+  assert.ok(r.valve_pct>=before-4,'mixer must continue normal bounded regulation, not reset to zero');
+  assert.equal(h.values.boiler['A05/Channel 2 Switch'],true);
+ });
  test('502 unconfirmed OFF cannot be bypassed by another ready ON zone',()=>{
   let drop=false;const h=setup(p=>drop&&p==='A13/K2');
   h.set('boiler','NL_simple_thermostat_607/target_state',true);h.advance(190000);
