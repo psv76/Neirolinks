@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 59,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "c7cefae114775eaf212994e68e930585ddd3c4789fd418ae10689f96805b2a96",
+  "aggregate_sha256": "e36dc5f2544406c661b99664679e820db5bce49e0e8c300180ef387b7af570a1",
   "files": [
     {
       "file": "INSTALL.md",
@@ -159,7 +159,7 @@
     },
     {
       "file": "tools/install_502_readback_fix.sh",
-      "sha256": "4d1f99d18c6e9fbe4e7cbaba038827cfcf4f6b8feb58e78d1ba11ec75df91c00",
+      "sha256": "0d1f2f659b39ca54c72a4b31381a3beec6c415fe6e5256dd4674ec6d4aae1b1e",
       "role": "documentation"
     },
     {
