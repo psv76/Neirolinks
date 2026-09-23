@@ -3,7 +3,7 @@ import hashlib
 import importlib.util
 import io
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import subprocess
 import sys
 import tarfile
@@ -59,6 +59,10 @@ class PackageTests(unittest.TestCase):
             with tarfile.open(fileobj=io.BytesIO(members["control.tar.gz"]), mode="r:gz") as tar:
                 self.assertEqual(set(tar.getnames()), {"./control", "./conffiles"})
             with tarfile.open(fileobj=io.BytesIO(members["data.tar.gz"]), mode="r:gz") as tar:
+                for item in tar.getmembers():
+                    for parent in PurePosixPath(item.name).parents:
+                        if str(parent) != ".":
+                            self.assertTrue(tar.getmember("./" + str(parent)).isdir(), str(parent))
                 self.assertEqual(tar.getmember("./usr/bin/nli").mode, 0o755)
                 self.assertIn("./usr/lib/neiro-nli/nli/core.py", tar.getnames())
                 self.assertIn("./etc/neiro/nli/config.json", tar.getnames())

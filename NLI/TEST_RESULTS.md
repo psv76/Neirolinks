@@ -4,7 +4,7 @@
 
 | Проверка | Результат |
 |---|---|
-| Python unittest | 49 tests: 48 PASS, 1 SKIP (Windows symlink privilege) |
+| Python unittest | 50 tests: 49 PASS, 1 SKIP (Windows symlink privilege) |
 | Sandbox CLI на exact Git blobs PR #65 | boiler и gazebo: status/check/update/verify/rollback PASS |
 | Firmware check | unavailable/exit 3, без disk writes и updater execution |
 | Firmware wrapper update/recover | fake runner PASS для обеих ролей, partial failures/unknown summary/Ctrl-C recovery проверены |

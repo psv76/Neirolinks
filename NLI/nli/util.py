@@ -68,9 +68,21 @@ def sync_dir(path):
             os.close(fd)
 
 
+def mkdir_durable(path):
+    path = Path(path)
+    missing = []
+    current = path
+    while not current.exists():
+        missing.append(current)
+        current = current.parent
+    for directory in reversed(missing):
+        directory.mkdir(exist_ok=True)
+        sync_dir(directory.parent)
+
+
 def atomic(path, data, mode=0o600, owner=None):
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    mkdir_durable(path.parent)
     fd, name = tempfile.mkstemp(prefix=".nli-", dir=path.parent)
     try:
         with os.fdopen(fd, "wb") as stream:
@@ -97,7 +109,7 @@ class Lock:
         self.path = Path(path)
 
     def __enter__(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        mkdir_durable(self.path.parent)
         self.file = self.path.open("a+b")
         try:
             if os.name == "posix":

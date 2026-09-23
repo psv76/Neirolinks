@@ -325,6 +325,20 @@ except Error:
             p = subprocess.run([sys.executable, "-B", "-c", code, str(ROOT), str(path)])
         self.assertEqual(p.returncode, 0)
 
+    def test_automatic_restore_recreates_missing_managed_file(self):
+        original = self.engine.install
+        count = []
+        def interrupted(*args):
+            count.append(1)
+            if len(count) == 1:
+                self.engine.target(self.base["files"][0]["target"]).unlink()
+                raise OSError("injected missing target during failure")
+            return original(*args)
+        with patch.object(self.engine, "install", side_effect=interrupted):
+            result = self.engine.mutate("update", "demo")
+        self.assertEqual(result["final_status"], "rolled_back", result)
+        self.assertEqual(self.engine.target(self.base["files"][0]["target"]).read_bytes(), b"old")
+
     def test_duplicate_json_keys_rejected(self):
         from nli.util import decode
         with self.assertRaisesRegex(Error, "Duplicate"):

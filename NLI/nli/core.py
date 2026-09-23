@@ -208,7 +208,7 @@ class Engine:
             data = payload[f["target"]]
             require(digest(data) == f["sha256"], "Staged payload changed")
             meta = saved.get(f["target"])
-            existing = p.stat()
+            existing = p.stat() if meta is None else None
             atomic(p, data, meta["mode"] if meta else 0o644,
                    (meta["uid"], meta["gid"]) if meta else (existing.st_uid, existing.st_gid))
 

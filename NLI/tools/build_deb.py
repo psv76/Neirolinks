@@ -5,7 +5,7 @@ import gzip
 import hashlib
 import io
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,6 +14,14 @@ ROOT = Path(__file__).resolve().parents[1]
 def archive(entries, epoch):
     out = io.BytesIO()
     with tarfile.open(fileobj=out, mode="w", format=tarfile.GNU_FORMAT) as tar:
+        directories = {str(parent) for name, _, _ in entries for parent in PurePosixPath(name).parents
+                       if str(parent) != "."}
+        for name in sorted(directories, key=lambda p: (p.count("/"), p)):
+            info = tarfile.TarInfo("./" + name + "/")
+            info.type, info.mode, info.mtime = tarfile.DIRTYPE, 0o755, epoch
+            info.uid = info.gid = 0
+            info.uname = info.gname = "root"
+            tar.addfile(info)
         for name, data, mode in sorted(entries):
             info = tarfile.TarInfo("./" + name)
             info.size, info.mode, info.mtime = len(data), mode, epoch
