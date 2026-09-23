@@ -111,8 +111,8 @@ exports.create=function(options={}){
         enableAll:()=>Z.forEach(z=>values.boiler['NL_simple_thermostat_'+z.id+'/target_state']=true),
         advance:(ms,feed=true)=>{for(let t=0;t<ms;t+=5000){now+=5000;if(feed)samples();tick('620');tick('624');tick('500');}},
         fail:p=>failPath=p,bridge:v=>bridge=v,
-        report:()=>JSON.parse(values.boiler['HHM3_FSE/circuits_json']),
-        source:()=>JSON.parse(values.boiler['HHM3_FSE/source_json']),
+        report:()=>contexts['500'].lastReports,
+        source:()=>contexts['500'].lastSource,
         physical:()=>writes.filter(w=>own[w.path]),
         request:()=>values.boiler['HHM3_FSE/requested_source_temperature']
     };

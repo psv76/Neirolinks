@@ -6,7 +6,7 @@ var W=require('HHM3Wire'),R=require('HHM3Runtime'),Policy=require('HHM3Circuit')
 var Outputs=require('HHM3Outputs'),outputSteps={},evaluating=false;
 var operation=new PersistentStorage('hhm3_operation',{global:true});
 var userSettings=new PersistentStorage('hhm3_thermostats',{global:true});
-var VD='HHM3_FSE',initialized=false,engines={},thermal={},directCool={},lastNow=null,openSince={},valveHistory={};
+var VD='HHM3_FSE',initialized=false,engines={},thermal={},directCool={},lastNow=null,openSince={},valveHistory={},lastReports={},lastSource={};
 var allowed=[C.source.setpoint,C.source.chEnable];
 Object.keys(C.circuits).forEach(function(id){var c=C.circuits[id];allowed.push(c.pump);if(c.kind==='mixed')allowed.push(c.level,c.enable);});
 var io=R.io({dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log,
@@ -23,34 +23,32 @@ Object.keys(C.circuits).forEach(function(id){
     if(c.kind==='mixed')outputSteps[id]=Outputs.create(c,io);
 });
 var sourceStep=R.source(C.source,new PersistentStorage('hhm3_source',{global:true}),io);
-// Keep JSON channels for existing diagnostics, but exclude raw JSON from WB WebUI.
-// Operator-facing controls report actions and measurements, not false proof of motion.
-defineVirtualDevice(VD,{title:'HHM3 — Иволга | состояние отопления',cells:{
-    in_service:{title:'Управление отоплением разрешено',type:'switch',value:false,readonly:true,forceDefault:true,order:1},
-    operational_status:{title:'Состояние системы',type:'text',value:'Ожидает первого ввода',readonly:true,forceDefault:true,order:2},
+// Operator-facing virtual controls only. Detailed per-cycle structures stay in memory
+// for regression tests and are not published as large MQTT/WebUI JSON strings.
+defineVirtualDevice(VD,{title:'HHM3 — Иволга | отопление',cells:{
+    in_service:{title:'Отопление разрешено',type:'switch',value:false,readonly:true,forceDefault:true,order:1},
+    operational_status:{title:'Общий статус',type:'text',value:'Ожидает первого ввода',readonly:true,forceDefault:true,order:2},
     circuit_501:{title:'501 · ТП дом, паркет',type:'text',value:'—',readonly:true,forceDefault:true,order:10},
     circuit_502:{title:'502 · ГП дом, плитка',type:'text',value:'—',readonly:true,forceDefault:true,order:11},
     circuit_503:{title:'503 · Радиаторы дом',type:'text',value:'—',readonly:true,forceDefault:true,order:12},
     circuit_504:{title:'504 · ГП беседка',type:'text',value:'—',readonly:true,forceDefault:true,order:13},
     circuit_505:{title:'505 · Радиаторы хозблок',type:'text',value:'—',readonly:true,forceDefault:true,order:14},
-    selected_consumer:{title:'Источник для контура',type:'text',value:'',readonly:true,forceDefault:true,order:20},
-    requested_source_temperature:{title:'Требуется от источника',type:'value',value:0,units:'deg C',readonly:true,forceDefault:true,order:21},
-    requested_heating_setpoint:{title:'Команда котлу',type:'value',value:0,units:'deg C',readonly:true,forceDefault:true,order:22},
-    source_status:{title:'Котёл',type:'text',value:'Ожидает первого ввода',readonly:true,forceDefault:true,order:23},
-    runtime_status:{title:'Связь HHM3',type:'text',value:'STARTUP',readonly:true,forceDefault:true,order:24},
+    selected_consumer:{title:'Ведущий контур',type:'text',value:'',readonly:true,forceDefault:true,order:20},
+    requested_source_temperature:{title:'Требуемая температура котла',type:'value',value:0,units:'deg C',readonly:true,forceDefault:true,order:21},
+    requested_heating_setpoint:{title:'Расчётная уставка котла',type:'value',value:0,units:'deg C',readonly:true,forceDefault:true,order:22},
+    source_status:{title:'Котёл / источник',type:'text',value:'Ожидает первого ввода',readonly:true,forceDefault:true,order:23},
+    runtime_status:{title:'Связь и данные',type:'text',value:'Запуск',readonly:true,forceDefault:true,order:24},
     last_event:{title:'Последнее событие',type:'text',value:'—',readonly:true,forceDefault:true,order:25},
-    start_heating:{title:'Первый ввод отопления',type:'pushbutton',value:false,forceDefault:true,order:90,hidden:operation.inService===true},
-    circuits_json:{title:'Служебные данные контуров',type:'text',value:'{}',readonly:true,forceDefault:true,hidden:true},
-    source_json:{title:'Служебные данные котла',type:'text',value:'{}',readonly:true,forceDefault:true,hidden:true},
-    last_event_json:{title:'Служебные данные событий',type:'text',value:'{}',readonly:true,forceDefault:true,hidden:true}
+    start_heating:{title:'Первый ввод отопления',type:'pushbutton',value:false,forceDefault:true,order:90,hidden:operation.inService===true}
 }});
-function sc(k,v){dev[VD+'/'+k]=v;}
+function sc(k,v){
+    var p=VD+'/'+k;
+    if(dev[p]!==v)dev[p]=v;
+}
+function linkState(r){return r&&r.reason?r.reason:'NORMAL';}
 function event(id,r){
     var e=io.event(id,r.reason||r.state,r.warning);
-    if(e){
-        sc('last_event_json',JSON.stringify(e));
-        sc('last_event',String(id)+': '+String(e.state)+(e.warning?' · '+String(e.warning).slice(0,80):''));
-    }
+    if(e)sc('last_event',String(id)+': '+String(e.state)+(e.warning?' · '+String(e.warning).slice(0,80):''));
 }
 function operatorCircuit(id,r,out){
     if(operation.inService!==true)return 'Ожидает первого ввода';
@@ -183,15 +181,16 @@ function evaluateOnce(){
     });
     var selected=R.select(requests,now),source=sourceStep(selected.temperature,operation.inService===true&&io.compatible(),now,selected.demandKnown);
     if(operation.inService===true&&!io.compatible()){source.state='RUNTIME_UNSUPPORTED';source.warning=W.RUNTIME_ERROR_RU;}
-    sc('in_service',operation.inService===true);sc('circuits_json',JSON.stringify(reports));
+    lastReports=reports;lastSource=source;
+    sc('in_service',operation.inService===true);
     sc('operational_status',operation.inService!==true?'Ожидает первого ввода':
         !io.compatible()?'Несовместимая версия wb-rules':
         faultCount?'Ошибки команд контуров: '+faultCount:
         'Команды отопления разрешены (без подтверждения работы оборудования)');
     sc('selected_consumer',selected.consumer||'Нет');sc('requested_source_temperature',selected.temperature);
-    sc('requested_heating_setpoint',source.requested_heating_setpoint);sc('source_json',JSON.stringify(source));
+    sc('requested_heating_setpoint',source.requested_heating_setpoint);
     sc('source_status',source.state+(source.warning?' · '+source.warning.slice(0,80):''));
-    sc('runtime_status',io.runtime()+'; house='+hl.reason+'; gazebo='+gl.reason);
+    sc('runtime_status',io.runtime()+' · дом '+linkState(hl)+' · беседка '+linkState(gl));
     event('source',source);
 }
 defineRule('hhm3_first_start',{whenChanged:VD+'/start_heating',then:function(value){

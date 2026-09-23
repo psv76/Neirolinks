@@ -9,17 +9,40 @@ var allowed=[],memory={},opened={},lastNow=null;
 Config.zones.forEach(function(z){allowed=allowed.concat(z.outputs);});
 var io=R.io({dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log},'620',allowed);
 function sc(id,k,v){dev['NL_simple_thermostat_'+id+'/'+k]=v;}
+function thermostatTitle(z){
+    var t=z.title,p=t.indexOf(' ');
+    if(p>=0&&p+1<t.length)t=t.substring(0,p+1)+t.charAt(p+1).toUpperCase()+t.substring(p+2);
+    return z.id+' '+t;
+}
+function statusText(reason){
+    var texts={
+        STARTUP:'Запуск',
+        OFF:'Выключен',
+        NO_DEMAND:'Ожидание',
+        HEAT:'Нагрев',
+        SETTINGS_INVALID:'Ошибка уставки',
+        SENSOR_FALLBACK:'Нагрев без датчика',
+        FLOOR_SENSOR_UNAVAILABLE:'Нет датчика пола',
+        FLOOR_HARD_MAX:'Перегрев пола',
+        RUNTIME_UNSUPPORTED:'Ошибка среды',
+        OUTPUT_WRITE_ERROR:'Ошибка выхода',
+        WAIT_OUTPUT_READBACK:'Ждём подтверждение',
+        FIRST_COMMISSIONING:'Первичный пуск'
+    };
+    return texts[reason]||'Неизвестно';
+}
 Config.zones.forEach(function(z){
     var saved=settings[z.id],state=saved&&saved.state===1?1:0,target=saved?W.number(saved.target):z.target;
+    var targetTitle=z.kind==='floor'?'Уставка пола, °C':'Уставка воздуха, °C';
+    var temperatureTitle=z.kind==='floor'?'Температура пола':'Температура воздуха';
     if(target===null)target=z.target;
-    defineVirtualDevice('NL_simple_thermostat_'+z.id,{title:z.title,cells:{
-        temperature:{title:'Температура, °C (см. достоверность)',type:'temperature',value:0,readonly:true,forceDefault:true},
-        target_temperature:{title:'Уставка, °C',type:'range',value:target,min:z.min,max:z.max,forceDefault:false},
-        target_state:{title:'Включено',type:'switch',value:state===1,forceDefault:false},
-        current_state:{title:'Запрос тепла',type:'value',value:0,readonly:true,forceDefault:true},
-        valid:{title:'Свежий датчик',type:'switch',value:false,readonly:true,forceDefault:true},
-        status:{title:'Состояние',type:'text',value:'STARTUP',readonly:true,forceDefault:true},
-        output_json:{title:'Команды и MQTT readback (не положение привода)',type:'text',value:'[]',readonly:true,forceDefault:true}
+    defineVirtualDevice('NL_simple_thermostat_'+z.id,{title:thermostatTitle(z),cells:{
+        target_state:{title:'Логика термостата',type:'switch',value:state===1,forceDefault:false,order:1},
+        target_temperature:{title:targetTitle,type:'range',value:target,min:z.min,max:z.max,forceDefault:false,order:2},
+        temperature:{title:temperatureTitle,type:'temperature',value:0,readonly:true,forceDefault:true,order:3},
+        status:{title:'Состояние',type:'text',value:'Запуск',readonly:true,forceDefault:true,order:4},
+        valid:{title:'Показания свежие',type:'switch',value:false,readonly:true,forceDefault:true,order:5},
+        current_state:{title:'Запрос тепла',type:'switch',value:false,readonly:true,forceDefault:true,order:6}
     }});
     memory[z.id]=false;
     io.watch(z.sensor,-20,z.kind==='floor'?70:60);
@@ -45,7 +68,7 @@ function evaluate(){
            (!previous||previous.state!==enabled||previous.target!==target)) {
             settings[z.id]=new StorableObject({state:enabled,target:target});
         }
-        var valid=t!==null,on=false,reason='OFF',g=groups[z.circuit],error=false;
+        var sensorFresh=t!==null,valid=sensorFresh,on=false,reason='OFF',g=groups[z.circuit],error=false;
         if(t!==null){sc(z.id,'temperature',t);if(z.kind==='floor')g.floor=g.floor===null?t:Math.max(g.floor,t);}
         if(enabled!==0){
             g.enabled=true;
@@ -76,7 +99,6 @@ function evaluate(){
             else unsafe[z.circuit]=true;
             if(error||(!on&&enabled!==1))blocked[z.circuit]=true;
         }
-        sc(z.id,'output_json',JSON.stringify(io.commands(z.outputs)));
         if(on&&sent&&operation.inService===true){
             if(opened[z.id]===undefined||now<opened[z.id])opened[z.id]=now;
             g.demand=true;
@@ -84,8 +106,8 @@ function evaluate(){
             if(!g.degraded)g.reason='HEAT';
         }else delete opened[z.id];
         if(enabled!==0&&!on&&!valid)g.valid=false;
-        sc(z.id,'valid',valid);sc(z.id,'current_state',on?1:0);
-        sc(z.id,'status',operation.inService===true?reason:'FIRST_COMMISSIONING');
+        sc(z.id,'valid',sensorFresh);sc(z.id,'current_state',on?1:0);
+        sc(z.id,'status',statusText(operation.inService===true?reason:'FIRST_COMMISSIONING'));
         io.event(z.id,reason,(!valid&&enabled!==0)||error?'Недостоверность датчика/настроек/команды; исправные зоны продолжают работу':'');
     });
     Object.keys(groups).forEach(function(id){

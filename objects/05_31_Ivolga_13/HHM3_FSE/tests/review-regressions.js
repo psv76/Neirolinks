@@ -220,8 +220,8 @@ module.exports=function(test,create,epoch){
  test('integration: per-circuit Level failure excludes failing transactions; neighbours continue',()=>{
   for(const id of ids){const h=create();h.enableAll();h.samples();h.start();h.advance(300000);const c=h.C.circuits[id],n=h.writes.length;
    h.fail(w=>w.path===c.level);h.temperatures[c.supply]=18;h.advance(350000);
-   const errors=h.writes.slice(n).filter(w=>w.path==='HHM3_FSE/circuits_json').map(w=>JSON.parse(w.value)[id]).filter(r=>r.output.fault);
-   assert.ok(errors.length>0);errors.forEach(r=>assert.equal(r.demand,false));
+   const errorReport=h.report()[id];
+   assert.ok(errorReport.output.fault);assert.equal(errorReport.demand,false);
    for(const other of ['501','502','503','504','505'].filter(x=>x!==id))assert.equal(h.report()[other].demand,true,other);
    h.fail('');h.advance(100000);assert.equal(h.report()[id].demand,true);
   }

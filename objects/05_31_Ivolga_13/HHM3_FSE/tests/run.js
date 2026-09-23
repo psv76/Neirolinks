@@ -28,19 +28,21 @@ test('no physical writes before single initial commissioning; thermostat 505 ini
     assert.equal(h.physical().length,0);assert.equal(h.values.boiler['NL_simple_thermostat_505/target_state'],false);
     assert.equal(h.values.boiler['NL_simple_thermostat_505/target_temperature'],20);
 });
-test('WebUI hides internal JSON and uses short operator controls without claiming physical proof',()=>{
+test('WebUI omits raw JSON and keeps short operator controls without claiming physical proof',()=>{
     const h=create(),cells=h.definitions.HHM3_FSE.cells;
-    for(const id of ['circuits_json','source_json','last_event_json']){
-        assert.equal(cells[id].hidden,true,id);assert.equal(cells[id].readonly,true,id);
-    }
+    for(const id of ['circuits_json','source_json','last_event_json'])assert.equal(cells[id],undefined,id);
     for(const id of ['501','502','503','504','505'])assert.equal(cells['circuit_'+id].type,'text');
     h.enableAll();h.samples();h.start();h.advance(300000);
     assert.match(h.values.boiler['HHM3_FSE/circuit_501'],/Команда насосу/);
     assert.match(h.values.boiler['HHM3_FSE/operational_status'],/без подтверждения работы оборудования/);
     assert.doesNotMatch(h.values.boiler['HHM3_FSE/circuit_501'],/[{}\[\]]/);
+    assert.equal(h.values.boiler['HHM3_FSE/circuits_json'],undefined);
+    assert.equal(h.values.boiler['HHM3_FSE/source_json'],undefined);
+    assert.equal(h.values.boiler['HHM3_FSE/last_event_json'],undefined);
+    assert.ok(h.report()['501']);
+    assert.ok(h.source().state);
     const after=create({stores:h.stores,values:h.values});
     assert.equal(after.definitions.HHM3_FSE.cells.start_heating.hidden,true);
-    assert.equal(after.definitions.HHM3_FSE.cells.source_json.hidden,true);
 });
 test('simultaneous 501-505: pumps, paths, MAO4 target readbacks, arbiter MAX and source endpoint',()=>{
     const h=running(),r=h.report();for(const id of Object.keys(r)){assert.equal(r[id].demand,true,id);assert.equal(r[id].pump_command,true,id);}
