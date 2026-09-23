@@ -15,7 +15,7 @@ module.exports=function(test,create){
   let drop=false;const h=setup(p=>drop&&p==='A13/K2');const before=h.report()['502'].valve_pct;
   drop=true;h.set('boiler','NL_simple_thermostat_607/target_state',true);step(h);
   const g=latest(h),r=h.report()['502'];
-  assert.equal(h.values.boiler['NL_simple_thermostat_607/status'],'WAIT_OUTPUT_READBACK');
+  assert.equal(h.values.boiler['NL_simple_thermostat_607/status'],'Ждём подтверждение');
   assert.equal(g.partial_ready,true);assert.equal(g.degraded,true);assert.equal(g.ready,true);
   assert.equal(r.reason,'NORMAL');assert.equal(r.demand,true);assert.equal(r.requested_source_temperature,37);
   assert.equal(r.output.pump,true);assert.ok(r.valve_pct>=before,'no fall to zero on pending zone');
@@ -55,7 +55,7 @@ module.exports=function(test,create){
   h.temperatures[z.sensor]=h.values.boiler['NL_simple_thermostat_607/target_temperature'];
   h.samples();step(h);
   const g=latest(h),r=h.report()['502'];
-  assert.equal(h.values.boiler['NL_simple_thermostat_607/status'],'WAIT_OUTPUT_READBACK');
+  assert.equal(h.values.boiler['NL_simple_thermostat_607/status'],'Ждём подтверждение');
   assert.equal(g.partial_ready,true);assert.equal(g.output_blocked,false);
   assert.equal(g.demand,true);assert.equal(g.ready,true);
   assert.equal(r.reason,'NORMAL');assert.equal(r.demand,true);assert.equal(r.pump_command,true);
