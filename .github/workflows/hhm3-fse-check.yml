@@ -37,6 +37,7 @@ jobs:
           bash -n objects/05_31_Ivolga_13/HHM3_FSE/tools/install_hhm3_ui_cleanup.sh
           bash -n objects/05_31_Ivolga_13/HHM3_FSE/tools/install_620_current_state_bool_fix.sh
           bash -n objects/05_31_Ivolga_13/HHM3_FSE/tools/install_hhm3_ui_cleanup_v2.sh
+          bash -n objects/05_31_Ivolga_13/HHM3_FSE/tools/install_hhm3_legacy_json_purge.sh
       - name: Preserve exact source used in the verification job
         if: always()
         uses: actions/upload-artifact@v4
