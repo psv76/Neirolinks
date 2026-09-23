@@ -28,7 +28,7 @@ test('no physical writes before single initial commissioning; thermostat 505 ini
     assert.equal(h.physical().length,0);assert.equal(h.values.boiler['NL_simple_thermostat_505/target_state'],false);
     assert.equal(h.values.boiler['NL_simple_thermostat_505/target_temperature'],20);
 });
-test('legacy HHM3 raw JSON controls are removed from an existing virtual device',()=>{
+test('legacy HHM3 retained-only JSON controls are recreated and removed through device API',()=>{
     const h=create({values:{boiler:{
         'HHM3_FSE/circuits_json':'{"legacy":1}',
         'HHM3_FSE/source_json':'{"legacy":2}',

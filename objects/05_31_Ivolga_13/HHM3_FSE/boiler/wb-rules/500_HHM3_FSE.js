@@ -43,7 +43,14 @@ defineVirtualDevice(VD,{title:'HHM3 — Иволга | отопление',cells
 }});
 var hhm3Device=getDevice(VD);
 ['circuits_json','source_json','last_event_json'].forEach(function(id){
-    if(hhm3Device&&hhm3Device.isControlExists(id))hhm3Device.removeControl(id);
+    if(!hhm3Device)return;
+    // These controls existed in earlier releases and may survive only as retained
+    // MQTT metadata while no longer belonging to the current virtual-device model.
+    // Recreate them in the model first, then remove through the wb-rules API so the
+    // broker receives proper retained tombstones.
+    if(!hhm3Device.isControlExists(id))
+        hhm3Device.addControl(id,{title:'Legacy cleanup',type:'text',value:'',readonly:true,hidden:true,forceDefault:true});
+    hhm3Device.removeControl(id);
 });
 function sc(k,v){
     var p=VD+'/'+k;

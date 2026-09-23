@@ -78,7 +78,8 @@ exports.create=function(options={}){
             definitions[id]=d;
             Object.entries(d.cells).forEach(([k,c])=>{if(c.forceDefault||values[board][id+'/'+k]===undefined)values[board][id+'/'+k]=c.value;});
             const obj={
-                isControlExists:k=>Object.prototype.hasOwnProperty.call(d.cells,k)||values[board][id+'/'+k]!==undefined,
+                isControlExists:k=>Object.prototype.hasOwnProperty.call(d.cells,k),
+                addControl:(k,c)=>{d.cells[k]=c;if(c.forceDefault||values[board][id+'/'+k]===undefined)values[board][id+'/'+k]=c.value;},
                 removeControl:k=>{delete d.cells[k];delete values[board][id+'/'+k];},
                 getId:()=>id
             };
