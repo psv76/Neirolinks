@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 59,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "ab96731f976893ebf0871e821dbd44a53961a949258c7610f01e2300ff46b3fc",
+  "aggregate_sha256": "aaf57ce451a58ec245454f4345cd66bbcf47165acb0d271a01f75afcb5b1a4fd",
   "files": [
     {
       "file": "INSTALL.md",
@@ -22,7 +22,7 @@
     },
     {
       "file": "README.md",
-      "sha256": "350a038827fbeb55ad8f3ac3667616f061afc3acbdfa5669847eff4e9cada4d3",
+      "sha256": "176102ce4605071601e8018308678103eb6986162d0a2427796a96b59141fbb2",
       "role": "documentation"
     },
     {
@@ -32,7 +32,7 @@
     },
     {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
-      "sha256": "fc71ce0255d46929854aea12f3c69fbeecdbe3b6d5b3f3cb0957b8a1c4421846",
+      "sha256": "dbad805288bdfbc1ea066e0f49912cc2ed82d3db44b5ab379bacde84fcf3d420",
       "boards": [
         "boiler"
       ],
@@ -41,7 +41,7 @@
     },
     {
       "file": "boiler/wb-rules/620_thermostats.js",
-      "sha256": "a33e62406d6ed146c497f270dbb303c074b61cb59a4fcb956a708c18c43abbc2",
+      "sha256": "cfee47376aa8443a7bbf9ca843aa8ad9a78858e41b268fe93873a6bb189f49b5",
       "boards": [
         "boiler"
       ],
@@ -136,7 +136,7 @@
     },
     {
       "file": "tests/harness.js",
-      "sha256": "8e21e5e2dad2c84d9b9bf7e21867c7f02e85b57bb15d1fd7d3fc3e58451c5874",
+      "sha256": "c3ffe586f1fbd07fe793fe0853e7f111aeaf2612cf63752f5b4b38b19092bcf4",
       "role": "test"
     },
     {
@@ -151,7 +151,7 @@
     },
     {
       "file": "tests/partial-ready-regressions.js",
-      "sha256": "41547a0be9ecc2f12491f0c24e383a7a4e68fcc3afd66bbb4f18cc921c3a242b",
+      "sha256": "87fedaa6f61b261702bd0de78f3539353fe59f87ee99fbfdfc5c867c2306e451",
       "role": "test"
     },
     {
@@ -161,12 +161,12 @@
     },
     {
       "file": "tests/review-regressions.js",
-      "sha256": "d5278a27d19d4289866382ac7c8110ed3f5b1b6508e1de56307cd414f4585dde",
+      "sha256": "147ad3804e67e573d5a016007cb15d2fcf516aaae20fa1925352bdf66dd02e9b",
       "role": "test"
     },
     {
       "file": "tests/run.js",
-      "sha256": "dc6c67ddd8060f5ac6f31ab4bc40ff9c5c7768ee597e65035eea9e23f54ae9e2",
+      "sha256": "edb9b714c7455fb7b08675a6feb3f87a335d3900532533b5b0aa319094a9cdea",
       "role": "test"
     },
     {
