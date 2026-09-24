@@ -258,7 +258,7 @@
 | 229 | `wb-mr6c_156/Input 5` | FIELD_CONFIRMED | повторная полевая проверка новым определителем |
 | 230 | `wb-mr6c_206/Input 2` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; тот же физический вход, что у 222 |
 | 231 | `wb-mr6c_206/Input 3` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; тот же физический вход, что у 223 |
-| 233 | `wb-mr6c_138/Input 4` + `wb-led_26/Input 1` | FIELD_CONFIRMED | одна физическая кнопка заведена в релейный и LED-модуль |
+| 233 | `wb-led_26/Input 1` + `wb-mr6c_138/Input 4` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw также показал `wb-mr6c_138/Input 4 counter` |
 | 234 | `wb-mr6c_138/Input 5` | FIELD_CONFIRMED | тип события уточнить |
 | 235 | `wb-mr6c_138/Input 3` | FIELD_CONFIRMED | raw input; локальная mapping-матрица этого входа уже известна |
 | 236 | `wb-mr6c_138/Input 1 Single Press Counter` | FIELD_CONFIRMED | тот же физический вход модуля, который виден у 221 |
