@@ -240,7 +240,7 @@
 | 204 | `wb-led_11/Input 3` + `wb-mr6c_218/Input 3` | FIELD_CONFIRMED | одна кнопка заведена одновременно в LED и MR6C |
 | 205 | `wb-led_224/Input 1` + `wb-led_245/Input 1` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; клавиша физически заведена на два WB-LED |
 | 206 | `wb-mr6c_203/Input 4` + `wb-mr6c_203/Input 5` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw показал также `Input 4 counter`, `Input 5 counter` и `Input 4 Single Press Counter` |
-| 207 | `wb-mr6c_218/Input 1` | FIELD_CONFIRMED | тип события уточнить |
+| 207 | `wb-mr6c_218/Input 1` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw также показал `wb-mr6c_218/Input 1 counter` |
 | 208 | `wb-led_26/Input 3` | FIELD_CONFIRMED | прежняя гипотеза `wb-mr6c_138/Input 6` не подтверждена |
 | 209 | `wb-led_23/Input 4` | FIELD_CONFIRMED | рукописная заметка «42 вход 1» не подтвердилась живым тестом |
 | 210 | `wb-mr6c_156/Input 1` + `wb-mr6c_156/Input 4` | FIELD_CONFIRMED | пользователь увидел оба входа; нужно отдельно понять роль каждого события |
