@@ -9,20 +9,22 @@
 // - 211 short: WB-MR6C156 локально переключает гр.329.2.
 //
 // Этот скрипт добавляет только то, чего нет в локальной логике:
-// - 210 short: синхронизирует гр.311 + 311.1 с гр.312 и при включении
-//              дополнительно включает гр.338, но не выключает ее при OFF;
+// - 209 long: переключает режим DAY/NIGHT для гр.311 + 311.1;
+// - 210 short: синхронизирует гр.311 + 311.1 с гр.312, задаёт DAY=80%
+//              и при включении дополнительно включает гр.338, но не выключает ее при OFF;
 // - 211 long: переключает гр.311 + 311.1 по фактическому состоянию;
-// - 212 short: выключает гр.311 + 311.1.
+// - 212 short: выключает гр.311 + 311.1;
+// - 212 long: переключает режим DAY/NIGHT для гр.311 + 311.1.
 //
-// Не реализовано до согласования:
-// - 209 long: DAY/NIGHT для гр.311 + 311.1;
-// - 212 long: DAY/NIGHT для гр.311 + 311.1;
-// - установка режима DAY при 210 short: в ТЗ нет числовых яркостей DAY/NIGHT.
+// Режимы спальни:
+// - DAY = 80%;
+// - NIGHT = 10%.
+// Режим DAY/NIGHT здесь ручной, по длинным нажатиям 209/212, без расписания.
+//
+// В WB-MR6C156 включён опрос счётчиков коротких и длинных нажатий.
 //
 // ВАЖНО ПЕРЕД УСТАНОВКОЙ:
-// 1) в wb-mqtt-serial для WB-MR6C156 должен быть опубликован
-//    "Input 1 Single Press Counter", иначе 210 short нельзя отличить от 210 long;
-// 2) в старом "Правило света с различных кнопок.js" надо отключить спальню:
+// В старом "Правило света с различных кнопок.js" надо отключить спальню:
 //    switch_control_lamps1 (212 short) и switch_control_lamps2 (211 long),
 //    иначе два скрипта будут одновременно писать в гр.311/311.1.
 // ============================================================================
@@ -32,9 +34,11 @@
 // 2. ФИЗИЧЕСКИЕ КАНАЛЫ
 // ============================================================================
 
-var BUTTON_210_SHORT = "wb-mr6c_156/Input 1 Single Press Counter"; // Кнопка 210, короткое нажатие
-var BUTTON_211_LONG = "wb-mr6c_156/Input 3 Long Press Counter";    // Кнопка 211, длинное нажатие
-var BUTTON_212_SHORT = "wb-mr6c_156/Input 0 counter";              // Кнопка 212, короткое нажатие; старый рабочий event
+var BUTTON_209_RAW = "wb-led_42/Input 1";                           // Кнопка 209, физический вход; используем для определения long
+var BUTTON_210_SHORT = "wb-mr6c_156/Input 1 Single Press Counter";  // Кнопка 210, короткое нажатие
+var BUTTON_211_LONG = "wb-mr6c_156/Input 3 Long Press Counter";     // Кнопка 211, длинное нажатие
+var BUTTON_212_SHORT = "wb-mr6c_156/Input 0 Single Press Counter";  // Кнопка 212, короткое нажатие
+var BUTTON_212_LONG = "wb-mr6c_156/Input 0 Long Press Counter";     // Кнопка 212, длинное нажатие
 
 var LIGHT_312 = "wb-mr6c_156/K1";              // Основной свет спальни, гр.312
 var LIGHT_329_2 = "wb-mr6c_156/K3";            // Подвесной светильник, гр.329.2
@@ -57,12 +61,18 @@ var LOCAL_MAPPING_SETTLE_MS = 150;
 var STARTUP_IGNORE_MS = 3000;
 var SCRIPT_STARTED_AT_MS = Date.now();
 
-// В ТЗ режимы DAY/NIGHT заданы словами, числовых яркостей нет.
-// Пока значения null, скрипт НЕ меняет яркость самовольно.
-var DAY_BRIGHTNESS_311 = null;      // TODO после согласования, 0..100 %
-var DAY_BRIGHTNESS_311_1 = null;    // TODO после согласования, 0..100 %
-var NIGHT_BRIGHTNESS_311 = null;    // TODO после согласования, 0..100 %
-var NIGHT_BRIGHTNESS_311_1 = null;  // TODO после согласования, 0..100 %
+// Ручные режимы освещения спальни.
+var DAY_BRIGHTNESS_311 = 80;       // Режим DAY, гр.311, %
+var DAY_BRIGHTNESS_311_1 = 80;     // Режим DAY, гр.311.1, %
+var NIGHT_BRIGHTNESS_311 = 10;     // Режим NIGHT, гр.311, %
+var NIGHT_BRIGHTNESS_311_1 = 10;   // Режим NIGHT, гр.311.1, %
+
+// Для кнопки 209 long используем сырой физический вход WB-LED42.
+// Short у 209 остаётся полностью локальным в WB-LED23/WB-LED42.
+var BUTTON_209_LONG_PRESS_MS = 1000;
+
+var button209Pressed = false;
+var button209PressId = 0;
 
 
 // ============================================================================
@@ -79,22 +89,31 @@ function setIfDifferent(channel, value) {
     }
 }
 
-function brightnessConfigured(value) {
-    return typeof value === "number" && isFinite(value) && value >= 0 && value <= 100;
-}
-
-function dayModeConfigured() {
-    return brightnessConfigured(DAY_BRIGHTNESS_311) &&
-           brightnessConfigured(DAY_BRIGHTNESS_311_1);
-}
-
-function setDayBrightnessIfConfigured() {
-    if (!dayModeConfigured()) {
-        return;
-    }
-
+function setDayBrightness() {
     setIfDifferent(BRIGHTNESS_311, DAY_BRIGHTNESS_311);
     setIfDifferent(BRIGHTNESS_311_1, DAY_BRIGHTNESS_311_1);
+}
+
+function setNightBrightness() {
+    setIfDifferent(BRIGHTNESS_311, NIGHT_BRIGHTNESS_311);
+    setIfDifferent(BRIGHTNESS_311_1, NIGHT_BRIGHTNESS_311_1);
+}
+
+function isNightBrightnessNow() {
+    return dev[BRIGHTNESS_311] === NIGHT_BRIGHTNESS_311 &&
+           dev[BRIGHTNESS_311_1] === NIGHT_BRIGHTNESS_311_1;
+}
+
+function toggleDayNightMode(source) {
+    if (isNightBrightnessNow()) {
+        setDayBrightness();
+        log.info("[освещение][41_lighting_bedroom][спальня]; КОМАНДА=" + source +
+            "; режим=DAY; гр.311=80%; гр.311.1=80%");
+    } else {
+        setNightBrightness();
+        log.info("[освещение][41_lighting_bedroom][спальня]; КОМАНДА=" + source +
+            "; режим=NIGHT; гр.311=10%; гр.311.1=10%");
+    }
 }
 
 function setBedroomLeds(value) {
@@ -120,6 +139,43 @@ function toggleBedroomLeds() {
 // ============================================================================
 
 // --------------------------------------------------------------------------
+// Кнопка 209, длинное нажатие.
+//
+// Short у 209 уже обрабатывается локально двумя WB-LED и переключает
+// гр.311 + 311.1, сохраняя последнюю выставленную яркость.
+//
+// Для long используем сырой вход wb-led_42/Input 1:
+// - ON -> запускаем ожидание;
+// - если кнопка остаётся нажатой 1 секунду -> переключаем DAY/NIGHT;
+// - OFF раньше 1 секунды -> ничего не делаем, short остаётся локальным.
+// --------------------------------------------------------------------------
+
+defineRule("bedroom_209_raw_input", {
+    whenChanged: BUTTON_209_RAW,
+    then: function (newValue) {
+        if (isStartupWindow()) {
+            return;
+        }
+
+        if (newValue === true) {
+            button209Pressed = true;
+            button209PressId += 1;
+
+            var thisPressId = button209PressId;
+
+            setTimeout(function () {
+                if (button209Pressed && button209PressId === thisPressId) {
+                    toggleDayNightMode("209 long");
+                }
+            }, BUTTON_209_LONG_PRESS_MS);
+        } else {
+            button209Pressed = false;
+        }
+    }
+});
+
+
+// --------------------------------------------------------------------------
 // Кнопка 210, короткое нажатие.
 //
 // Гр.312 уже переключается локально самим WB-MR6C156.
@@ -127,7 +183,7 @@ function toggleBedroomLeds() {
 //
 // После короткого нажатия:
 // - если гр.312 стала ON:
-//      применяем DAY-яркость, если она согласована;
+//      задаём режим DAY = 80%;
 //      включаем 311 + 311.1;
 //      включаем 338;
 // - если гр.312 стала OFF:
@@ -146,7 +202,7 @@ defineRule("bedroom_210_short_additional_logic", {
             var mainLightOn = dev[LIGHT_312] === true;
 
             if (mainLightOn) {
-                setDayBrightnessIfConfigured();
+                setDayBrightness();
                 setBedroomLeds(true);
                 setIfDifferent(LIGHT_338, true);
 
@@ -210,24 +266,35 @@ defineRule("bedroom_212_short_leds_off", {
 });
 
 
-// ============================================================================
-// 6. НЕЗАКРЫТЫЕ ФУНКЦИИ
+// --------------------------------------------------------------------------
+// Кнопка 212, длинное нажатие.
 //
-// 209 long:
-// - DAY/NIGHT для 311 + 311.1;
-// - нужны числовые яркости DAY и NIGHT.
-//
-// 212 long:
-// - DAY/NIGHT для 311 + 311.1;
-// - нужны те же значения;
-// - отдельно требуется подтвердить корректный event long для Input0.
-//
-// 210 short:
-// - после задания DAY_BRIGHTNESS_* уже существующее правило автоматически
-//   начнет устанавливать режим DAY перед включением LED.
-// ============================================================================
+// Счётчик long теперь опрашивается WB-MR6C156.
+// Меняем только яркость гр.311 + 311.1:
+// DAY 80% <-> NIGHT 10%.
+// Состояние ON/OFF групп не меняем.
+// --------------------------------------------------------------------------
 
-if (!dayModeConfigured()) {
-    log.warning("[освещение][41_lighting_bedroom][спальня]; НАСТРОЙКА=DAY/NIGHT не завершена; " +
-        "яркости DAY/NIGHT в ТЗ не указаны; 209 long и 212 long пока не реализованы");
-}
+defineRule("bedroom_212_long_day_night", {
+    whenChanged: BUTTON_212_LONG,
+    then: function () {
+        if (isStartupWindow()) {
+            return;
+        }
+
+        toggleDayNightMode("212 long");
+    }
+});
+
+
+// ============================================================================
+// 6. ПРИМЕЧАНИЕ ПО РЕЖИМАМ
+//
+// DAY/NIGHT в спальне не привязаны ко времени суток.
+// Это ручной режим яркости:
+// - DAY = 80%;
+// - NIGHT = 10%.
+//
+// 209 long и 212 long переключают эти два режима.
+// 210 short при включении основного света всегда задаёт DAY = 80%.
+// ============================================================================
