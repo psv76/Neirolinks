@@ -72,7 +72,7 @@ class CliUiTests(unittest.TestCase):
         engine = StubEngine({"status": status_record()})
         code, output = self.capture(["status"], engine=engine)
         self.assertEqual(code, 0)
-        self.assertIn("Объект:       05 31 Ivolga 13", output)
+        self.assertIn("Объект:       05 31 Иволга 13", output)
         self.assertIn("Роль:         Котельная", output)
         self.assertIn("КОМПОНЕНТЫ", output)
         self.assertIn("Подпитка отопления", output)
