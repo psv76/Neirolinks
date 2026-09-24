@@ -246,7 +246,7 @@
 | 210 | `wb-mr6c_156/Input 1` + `wb-mr6c_156/Input 4` | FIELD_CONFIRMED | повторная полевая проверка новым определителем подтвердила оба входа; raw также показал `Input 1 counter` и `Input 4 counter` |
 | 211 | `wb-mr6c_156/Input 3` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw показал `Input 3 counter` и `Input 3 Single Press Counter` |
 | 212 | `wb-mr6c_156/Input 0` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw показал `Input 0 counter` и `Input 0 Single Press Counter`; необычное имя Input 0 подтверждено непосредственно на объекте |
-| 215 | `wb-mr6c_117/Input 2` | FIELD_CONFIRMED | тип события уточнить |
+| 215 | `wb-mr6c_117/Input 2` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw показал `Input 2 counter` и `Input 2 Single Press Counter` |
 | 216 | `wb-mr6c_156/Input 6 Single Press Counter` | FIELD_CONFIRMED | прежняя запись про несколько устройств относится к старой реализации и требует отдельной проверки, но реальный определитель показал Input 6 |
 | 218 | `wb-mr6c_206/Input 4 Single Press Counter` | FIELD_CONFIRMED | подтверждено нажатием |
 | 219 | `wb-mr6c_206/Input 5` | FIELD_CONFIRMED | тип события уточнить |
