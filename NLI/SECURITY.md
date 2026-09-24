@@ -19,3 +19,9 @@ Ownership allowlist проверяет все локальные активны�
 Crash-политика: durable intent до stop; best-effort rollback при Python exception/Ctrl-C; при power loss/SIGKILL — явный pending и блок новых updates. Автоматический rollback тоже может не пройти interlocks/диск/runtime: тогда partial failure и ручное восстановление по runbook, без ложного успеха. State/backup/audit должны лежать на локальной надёжной filesystem; fsync не даёт гарантии против отказа накопителя.
 
 Read-only команды не записывают собственные timestamps/cache/history; Linux filesystem может обновлять atime при чтении, а broker/system services вести свои обычные журналы. Read-only NLI не публикует MQTT и не изменяет NLI/system configuration.
+
+## Независимый owner pressure_makeup
+
+507 разрешён только component id/plugin pressure_makeup с точным single-file target, object Иволга и role boiler. HHM не может заявить этот файл; произвольные output claims в manifest запрещены. A04/K1 закреплён за trusted pressure_makeup policy. Registry проверяет peer manifests/hashes; одно имя в config не является доверием. Managed path нельзя одновременно allowlist-ить как unmanaged. Backup/rollback ограничены файлами инициирующего компонента.
+
+Принятый reset pulseCount/alarm flags при restart не является ошибкой. Postverify проверяет startup marker после активации, virtual controls и журнал; оно не восстанавливает counters и не обещает физический OFF после штатного evaluate. Preflight OFF остаётся обязательным. Exact 1.0 payload имеет сохранённые live bytes без final LF; normalization и автоматического принятия drift нет. Config-only registration helper запускается явно инженером при отсутствии конкурирующих NLI/config editors; сохраняет исходный config и все прочие reviewed entries, не пишет JS/MQTT/services. См. [PRESSURE_MAKEUP.md](PRESSURE_MAKEUP.md).

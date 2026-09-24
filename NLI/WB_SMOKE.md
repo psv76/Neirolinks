@@ -1,8 +1,10 @@
-# NLI 0.1.2: второй boiler smoke и восстановление после FIT
+# NLI 0.1.2: bootstrap и восстановление после FIT
+
+Для уже настроенного boiler после smoke 0.1.1 использовать [PRESSURE_MAKEUP.md](PRESSURE_MAKEUP.md): сохранить существующий config/allowlist, явно зарегистрировать pressure_makeup, затем check hhm и check pressure_makeup. Ниже — только первоначальный bootstrap при отсутствии config.
 
 Это runbook для отдельного согласованного полевого окна, а не автоматический deploy.
 Пакет не устанавливает HHM, не содержит maintainer scripts и не перезапускает сервисы.
-Второй smoke заканчивается на **read-only `nli check hhm`**. Не выполнять update,
+Smoke заканчивается на **read-only `nli check hhm`, затем `nli check pressure_makeup`**. Не выполнять update,
 rollback, firmware update/recover или restart в рамках этого smoke.
 
 ## Проверка пакета и upgrade 0.1.0 → 0.1.2
@@ -51,6 +53,8 @@ test ! -e /mnt/data/var/log/neiro/nli
 install -d -m 0755 /mnt/data/etc/neiro/nli/releases
 test ! -e /mnt/data/etc/neiro/nli/releases/hhm-boiler-3.0.json
 install -m 0644 /usr/share/neiro-nli/examples/hhm-boiler-3.0.json /mnt/data/etc/neiro/nli/releases/hhm-boiler-3.0.json
+test ! -e /mnt/data/etc/neiro/nli/releases/pressure-makeup-boiler-1.0.json
+install -m 0644 /usr/share/neiro-nli/examples/pressure-makeup-boiler-1.0.json /mnt/data/etc/neiro/nli/releases/pressure-makeup-boiler-1.0.json
 install -m 0600 /usr/share/neiro-nli/examples/config-boiler.json /mnt/data/etc/neiro/nli/config.json
 sha256sum /mnt/data/etc/neiro/nli/releases/hhm-boiler-3.0.json
 ```
@@ -59,17 +63,20 @@ Manifest SHA256: `1fb788c6c848cb12f23d81d5bcb93982587fe953e719d3dc2b00ba3a8d2026
 Config уже задаёт `05_31_Ivolga_13`, `boiler`, `wirenboard-ABF62SL`;
 baseline = target = exact HHM `3.0.0-FSE+d75710dad939`, commit
 `d75710dad93906af8869dcce48d26e14673b63fb`. Это не HHM 3.1.
+Второй manifest задаёт baseline=target pressure_makeup `1.0`; его hash и
+provenance описаны в [PRESSURE_MAKEUP.md](PRESSURE_MAKEUP.md).
 
 Инженер должен прочитать и проверить все unmanaged JS в обоих каталогах
 правил/modules, затем вручную записать проверенные логические `/etc/...` paths
 и SHA256 в `components.hhm.unmanaged_rules` persistent config. Пустой allowlist
-на реальном объекте ожидаемо блокирует посторонние writers, включая 506/507.
+на реальном объекте ожидаемо блокирует посторонние writers, включая 506; 507 уже принадлежит pressure_makeup.
 Не генерировать доверенный список автоматически и не добавлять hash только ради
-прохождения check. NLI читает 507 для inventory, но не изменяет и не backup-ит его.
+прохождения check. HHM читает 507 для inventory, но не изменяет и не backup-ит его. Отдельный pressure_makeup обслуживает только 507.
 
 ```sh
 nli --json status
 nli --json check hhm
+nli --json check pressure_makeup
 ```
 
 Ожидание после review: `preflight=ok`, `final_status=ok`, exit 0, нет новых

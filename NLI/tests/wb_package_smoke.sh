@@ -11,6 +11,8 @@ if [ "$1" = first ]; then
     test "$(nli --version)" = 0.1.0
     printf '%s\n' '{"object":"legacy-reviewed","role":"boiler","hostname":"wirenboard-ABF62SL","components":{}}' > /etc/neiro/nli/config.json
     sha256sum /etc/neiro/nli/config.json > /evidence/old-conffile.sha256
+    apt-get install -y /old/neiro-nli_0.1.1_all.deb
+    test "$(nli --version)" = 0.1.1
     apt-get install -y /packages/neiro-nli_0.1.2_all.deb
     sha256sum -c /evidence/old-conffile.sha256
     test "$(nli --version)" = 0.1.2

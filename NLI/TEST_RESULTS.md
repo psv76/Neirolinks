@@ -1,5 +1,34 @@
 # Проверки NLI v0.1
 
+## 0.1.2 — самостоятельный pressure_makeup
+
+[Проверено локально, 24.09.2026] 117 Python tests: 80 PASS, 37 SKIP
+(Windows symlink privilege). Исходные 76 NLI/WB tests сохранены. Добавлены
+standalone check/update/verify/rollback 507, exact no-final-LF baseline,
+checksum/drift peer-компонентов, managed/unmanaged conflict, запрет HHM claim
+507/A04, односторонние backup/rollback, accepted restart resets/normal ON,
+runtime marker/controls/journal failures и config-only migration с сохранением
+прочих reviewed entries. Весь component suite повторяется с canonical WB links.
+
+Node VM исполняет exact baseline с fake dev/timers: 3 группы PASS (reset counters/
+alarms, init OFF → ordinary evaluate ON, повторное возникновение alarms по inputs).
+Никакой PersistentStorage для runtime полей не добавлено. HHM 67 main + 10
+partial-ready групп, PersistentStorage 18+505, manifest 33 files PASS. Sandbox
+boiler/gazebo PASS. Объектный 507, HHM и legacy installers не изменены.
+
+[Linux CI 35971892009](https://github.com/psv76/Neirolinks/actions/runs/35971892009)
+на checkpoint `0fc4b2099a91591d04d939c4358ee07557ddbc44` — SUCCESS: все 111
+тестов того commit без skips; Node/HHM regressions; actual installed two-component
+bootstrap/config migration, nodoc, independent update/rollback через fake WB,
+reinstall и FIT simulation с сохранением config/pins/state/backups/pending/audit.
+После checkpoint добавлены ещё 6 peer/standalone/restart tests и промежуточный
+реальный upgrade 0.1.1 в CI цепочку 0.1.0 → 0.1.1 → 0.1.2.
+
+Green CI **итогового HEAD**, artifact `neiro-nli-0.1.2-deb` и SHA256 конкретного
+`neiro-nli_0.1.2_all.deb` публикуются в [PR #71](https://github.com/psv76/Neirolinks/pull/71).
+Live WB не затрагивался. Следующий read-only smoke выполняется инженером по
+[PRESSURE_MAKEUP.md](PRESSURE_MAKEUP.md): check hhm, затем check pressure_makeup.
+
 ## 0.1.1 — полевые WB-блокеры PR #71
 
 [Проверено локально, 24.09.2026] 76 Python tests: 56 PASS, 20 SKIP

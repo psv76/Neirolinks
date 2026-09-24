@@ -40,11 +40,11 @@ nli status
 
 1. Сопоставить объект, фактический hostname и роль с `examples/config-boiler.json` или `config-gazebo.json`. Boiler hostname подтверждён installer-ами; hostname gazebo нужно получить на тестовом/целевом WB, он намеренно не выдуман. Изменение config выполняет инженер в отдельном согласованном окне.
 2. Поместить проверенные manifest в `/mnt/data/etc/neiro/nli/releases/`, закрепить их SHA256 в `baseline` и `target`. Пример первоначально использует один и тот же релиз: это adoption точной установленной 3.0-базы с backup, а не обещание уже готовой 3.1.
-3. Сверить все существующие JS в `/etc/wb-rules` и `/etc/wb-rules-modules`. В `unmanaged_rules` перечислить абсолютный путь → SHA256 **каждого** проверенного файла вне managed payload, включая 506/507 и чужие modules. Не генерировать allowlist вслепую: его смысл — review ownership. Неизвестный или изменённый JS блокирует check/update/verify; NLI не отключает такие файлы автоматически.
+3. Сверить все существующие JS в `/etc/wb-rules` и `/etc/wb-rules-modules`. В `unmanaged_rules` перечислить абсолютный путь → SHA256 **каждого** проверенного файла вне managed payload, включая 506 и чужие modules; managed 507 принадлежит только pressure_makeup и исключается из unmanaged allowlist. Не генерировать allowlist вслепую: его смысл — review ownership. Неизвестный или изменённый JS блокирует check/update/verify; NLI не отключает такие файлы автоматически.
 4. `nli check hhm` требует точного baseline. Отсутствующий/неизвестный live-файл — blocker, даже если его имя знакомо. При первоначальном внедрении HHM на пустом WB требуется отдельная процедура ПНР; NLI v0.1 обслуживает уже проверенный установленный HHM. Перенос старых HM2 writers и MQTT ACL не выполняется автоматически.
 5. Согласовать окно: restart `wb-rules` влияет также на 507, хотя его файл не меняется. Перед остановкой: `pressure_makeup/active=0`, `A04/K1=0`, active `wb-mqtt-serial`, доступный wb-rules >=2.42.0, роли/файлы/ownership проверены. Значение давления не является gate. Беседка не владеет A04 и не опрашивает чужую подпитку.
 
-Полный managed payload boiler: 500, 620, 600 и шесть HHM3 modules. Gazebo: 624 и HHM3Config/HHM3Wire/HHM3Runtime. 507, OT config, MQTT bridge, ACL, WebUI/Sprut config не входят в managed set. Файлы сохраняются и заменяются по одному атомарно при остановленном wb-rules.
+Полный managed payload boiler: 500, 620, 600 и шесть HHM3 modules. Gazebo: 624 и HHM3Config/HHM3Wire/HHM3Runtime. 507 входит только в отдельный компонент pressure_makeup. OT config, MQTT bridge, ACL, WebUI/Sprut config не входят в managed set. Файлы сохраняются и заменяются по одному атомарно при остановленном wb-rules.
 
 Штатные WB links `/etc/wb-rules → /mnt/data/etc/wb-rules` и `/etc/wb-rules-modules → /mnt/data/etc/wb-rules-modules` разрешены только при точном абсолютном target. Manifests/backup metadata сохраняют логические `/etc/...` paths; чтение, backup и atomic replacement идут по persistent bytes. Другие links, junctions, ссылки внутри этих деревьев и traversal запрещены. Обычные каталоги поддерживаются для non-WB sandbox.
 
@@ -120,3 +120,11 @@ Ctrl-C update вызывает автоматический rollback. SIGKILL/po
 После принятия NLI и полевой проверки legacy становятся `install_502_readback_fix.sh`, `install_620_current_state_bool_fix.sh`, `install_hhm3_ui_cleanup.sh`, `install_hhm3_ui_cleanup_v2.sh`, `install_hhm3_legacy_json_purge.sh`, `install_diagnostics_feed_fix.sh` из HHM3_FSE/tools. Они сохраняются без изменений. Старый cold-slab HM2 installer относится к другой исторической системе и не является способом обновления HHM3 через NLI.
 
 Унаследованные semantic-only base checks, предупреждения после успешного install и rollback без preflight не копируются: NLI требует exact reviewed hashes и включает verify/rollback в транзакцию. Текущий INSTALL PR #65 содержит исторические инструкции; для NLI используются этот manifest и runbook. Это не разрешение на live deployment.
+
+## pressure_makeup 1.0 (NLI 0.1.2)
+
+Boiler example содержит два компонента: hhm и pressure_makeup. Единственный owner A04/K1 — 507. Shared inventory проверяет manifest и фактические hashes peer-компонентов; managed/unmanaged overlap блокируется. HHM никогда не backup-ит и не изменяет 507. Отдельные check/update/verify/rollback pressure_makeup затрагивают только 507. Версия 1.0 — external manifest metadata для exact reviewed live bytes, без изменения алгоритма.
+
+Restart wb-rules штатно сбрасывает pulseCount/alarm flags и запускает init/evaluate; при enabled/auto 507 может вновь открыть клапан. NLI не сохраняет runtime state и не требует OFF после restart; прежний OFF preflight остаётся. Специальной блокировки HHM update из-за принятого restart behavior нет.
+
+Миграция существующего config с сохранением reviewed allowlist, контракт verify и следующий read-only smoke: [PRESSURE_MAKEUP.md](PRESSURE_MAKEUP.md). Сначала `nli check hhm`, затем `nli check pressure_makeup`.

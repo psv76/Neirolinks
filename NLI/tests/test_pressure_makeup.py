@@ -67,6 +67,39 @@ class PressureFixture(fixtures.Fixture):
 
 
 class PressureTests(PressureFixture):
+    def test_standalone_component_with_reviewed_unmanaged_peers(self):
+        del self.config['components']['hhm']
+        self.config['components'][self.component]['unmanaged_rules'] = {
+            f['target']: f['sha256'] for f in self.hhm['files']}
+        r = self.engine.read_operation('check', self.component)
+        self.assertEqual(r['final_status'], 'ok', r)
+        self.assertEqual(self.engine.mutate('update', self.component)['final_status'], 'ok')
+        self.assertEqual(self.engine.mutate('rollback', self.component)['final_status'], 'ok')
+
+    def test_peer_hhm_drift_blocks_pressure_before_backup(self):
+        self.put(self.hhm['files'][0]['target'], b'changed HHM peer')
+        r = self.engine.mutate('update', self.component)
+        self.assertEqual(r['final_status'], 'failed', r)
+        self.assertIn('drift', r['error'])
+        self.assertIsNone(r['backup'])
+        self.assertEqual(self.system.actions, [])
+
+    def test_hhm_restart_accepts_normal_pressure_runtime_reset_and_on(self):
+        before = self.engine.target(MAKEUP_TARGET).read_bytes()
+        self.system.controls.update({'pressure_makeup/pulse_count': '5', 'pressure_makeup/watchdog_alarm': '1'})
+        original = self.system.service
+        def restarted(action, name):
+            original(action, name)
+            if action == 'start':
+                self.system.controls.update({'pressure_makeup/pulse_count': '0', 'pressure_makeup/watchdog_alarm': '0',
+                                             'pressure_makeup/active': '1', 'A04/K1': '1'})
+        self.system.service = restarted
+        r = self.engine.mutate('update', 'hhm')
+        self.assertEqual(r['final_status'], 'ok', r)
+        self.assertEqual(self.engine.target(MAKEUP_TARGET).read_bytes(), before)
+        self.assertEqual(self.system.controls['pressure_makeup/pulse_count'], '0')
+        self.assertEqual(self.system.controls['A04/K1'], '1')
+
     def test_exact_baseline_readonly_commands_no_state_or_logs(self):
         r = self.config['components'][self.component]
         r['target'] = r['baseline']

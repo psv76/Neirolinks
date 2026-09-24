@@ -39,6 +39,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/nli-old-source" "$RUNNER_TEMP/nli-old-package" "$RUNNER_TEMP/nli-persistent" "$RUNNER_TEMP/nli-evidence"
           git archive 7a022d657dc65e6b69973e459c35a78fb2e540cc NLI | tar -x -C "$RUNNER_TEMP/nli-old-source"
           python -B "$RUNNER_TEMP/nli-old-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.0_all.deb"
+          mkdir -p "$RUNNER_TEMP/nli-011-source"
+          git archive 77b2cdc923272e1c7da68e4d46ed7bb88c53c719 NLI | tar -x -C "$RUNNER_TEMP/nli-011-source"
+          python -B "$RUNNER_TEMP/nli-011-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.1_all.deb"
           python -B NLI/tools/prepare_hhm.py --commit d75710dad93906af8869dcce48d26e14673b63fb --role boiler --output NLI/build/field-hhm
           docker run --rm --hostname wirenboard-ABF62SL -e NLI_DISPOSABLE_CI=1 \
             -v "$PWD/NLI/dist:/packages:ro" -v "$RUNNER_TEMP/nli-old-package:/old:ro" \
