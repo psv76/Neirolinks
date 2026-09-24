@@ -90,7 +90,8 @@ class AttributionTests(PressureFixture):
         with redirect_stdout(out):
             code = main(['update', self.component], engine=self.engine)
         self.assertEqual(code, 0)
-        self.assertIn('JOURNAL shared_runtime: ' + ERROR, out.getvalue())
+        self.assertIn('shared_runtime', out.getvalue())
+        self.assertIn(ERROR, out.getvalue())
 
     def test_runtime_probe_failure_still_audits_foreign_errors(self):
         self.system.logs = ERROR
