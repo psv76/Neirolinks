@@ -23,6 +23,7 @@ jobs:
         run: python -B NLI/tests/sandbox.py
       - name: Existing HHM regressions
         run: |
+          node NLI/tests/pressure_makeup_runtime.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/run.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/partial-ready-regressions.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/persistent-storage-regressions.js
@@ -30,9 +31,9 @@ jobs:
       - name: Build Debian package
         run: |
           python -B NLI/tools/build_deb.py
-          sha256sum NLI/dist/neiro-nli_0.1.1_all.deb
-          dpkg-deb --info NLI/dist/neiro-nli_0.1.1_all.deb
-          dpkg-deb --contents NLI/dist/neiro-nli_0.1.1_all.deb
+          sha256sum NLI/dist/neiro-nli_0.1.2_all.deb
+          dpkg-deb --info NLI/dist/neiro-nli_0.1.2_all.deb
+          dpkg-deb --contents NLI/dist/neiro-nli_0.1.2_all.deb
       - name: WB nodoc, upgrade, installed boiler bootstrap, reinstall and simulated FIT
         run: |
           mkdir -p "$RUNNER_TEMP/nli-old-source" "$RUNNER_TEMP/nli-old-package" "$RUNNER_TEMP/nli-persistent" "$RUNNER_TEMP/nli-evidence"
@@ -50,6 +51,6 @@ jobs:
             debian:trixie-slim sh /tests/wb_package_smoke.sh fit
       - uses: actions/upload-artifact@v4
         with:
-          name: neiro-nli-0.1.1-deb
-          path: NLI/dist/neiro-nli_0.1.1_all.deb*
+          name: neiro-nli-0.1.2-deb
+          path: NLI/dist/neiro-nli_0.1.2_all.deb*
           if-no-files-found: error

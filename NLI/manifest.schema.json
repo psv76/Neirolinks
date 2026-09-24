@@ -21,7 +21,7 @@
     "component": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$"
     },
     "version": {
       "type": "string",
@@ -126,6 +126,11 @@
           "identity",
           "drift",
           "hhm"
+        ],
+        [
+          "identity",
+          "drift",
+          "pressure_makeup"
         ]
       ]
     },

@@ -16,7 +16,7 @@ import nli
 from nli.core import Engine
 from nli.layout import CONFIG_DIR, DEFAULT_CONFIG, DATA_DIR, STATE_DIR, LOG_DIR, load_config
 from nli.util import digest, read_json, write_json
-assert nli.__version__ == '0.1.1'
+assert nli.__version__ == '0.1.2'
 assert nli.__file__.startswith('/usr/lib/neiro-nli/')
 
 
@@ -39,7 +39,10 @@ class FakeWB:
         return '2.46.5'
 
     def control(self, path):
-        return '0' if path in ('pressure_makeup/active', 'A04/K1') else 'OK'
+        return '0' if path == 'A04/K1' or (path.startswith('pressure_makeup/') and not path.endswith('last_event')) else 'OK'
+
+    def rule_started(self, marker, since=None):
+        pass
 
     def mqtt(self, topic, fresh=False):
         assert fresh
@@ -58,9 +61,10 @@ def readonly(engine, pending=False):
     before = snapshot()
     status = engine.read_operation('status')
     assert status['final_status'] == ('recovery_required' if pending else 'ok'), status
-    for command in ('check', 'verify'):
-        r = engine.read_operation(command, 'hhm')
-        assert r['final_status'] == ('failed' if pending else 'ok'), r
+    for component in ('hhm', 'pressure_makeup'):
+        for command in ('check', 'verify'):
+            r = engine.read_operation(command, component)
+            assert r['final_status'] == ('failed' if pending else 'ok'), r
     cli = subprocess.run(['/usr/bin/nli', '--json', 'status'], capture_output=True, text=True)
     assert cli.returncode == (1 if pending else 0), cli.stdout + cli.stderr
     assert json.loads(cli.stdout)['object'] == '05_31_Ivolga_13'
@@ -69,8 +73,8 @@ def readonly(engine, pending=False):
 
 mode = sys.argv[1]
 if mode == 'bootstrap':
-    for name in ('manifest.schema.json', 'WB_SMOKE.md', 'examples/config-boiler.json',
-                 'examples/hhm-boiler-3.0.json'):
+    for name in ('manifest.schema.json', 'WB_SMOKE.md', 'PRESSURE_MAKEUP.md', 'register_pressure_makeup.py',
+                 'examples/config-boiler.json', 'examples/pressure-makeup-boiler-1.0.json', 'examples/hhm-boiler-3.0.json'):
         assert (Path(DATA_DIR) / name).is_file(), name
     assert not Path('/usr/share/doc/neiro-nli/README.md').exists(), 'nodoc policy not exercised'
     config = read_json(Path(DATA_DIR) / 'examples/config-boiler.json')
@@ -93,11 +97,25 @@ if mode == 'bootstrap':
     Path(r['target']['path']).write_bytes(manifest_bytes)
     shutil.copytree('/payload', '/mnt/data/neiro/ci-payload')
     r['payload_dir'] = '/mnt/data/neiro/ci-payload'  # offline test fixture, never bypass SHA
+    makeup = config['components'].pop('pressure_makeup')
+    makeup_raw = (Path(DATA_DIR) / 'examples/pressure-makeup-boiler-1.0.json').read_bytes()
+    makeup_manifest = json.loads(makeup_raw)
+    f = makeup_manifest['files'][0]
+    makeup_bytes = (Path(DATA_DIR) / 'payload' / f['source']).read_bytes()
+    assert digest(makeup_bytes) == f['sha256']
+    Path(f['target']).write_bytes(makeup_bytes)
+    r['unmanaged_rules'][f['target']] = f['sha256']
+    # Upgrade an existing reviewed 0.1.1 config using the installed config-only helper.
     write_json(Path(DEFAULT_CONFIG), config)
+    subprocess.run(['/usr/bin/python3', '-B', DATA_DIR + '/register_pressure_makeup.py'], check=True)
+    config = load_config()
+    assert config['components']['pressure_makeup'] == makeup
+    r = config['components']['hhm']
+    assert f['target'] not in r['unmanaged_rules']
     engine = Engine(load_config(), system=FakeWB())
     readonly(engine)
     assert not Path(STATE_DIR).exists() and not Path(LOG_DIR).exists()
-    unknown = Path('/etc/wb-rules/507_Pressure_makeup.js')
+    unknown = Path('/etc/wb-rules/unknown-rule.js')
     unknown.write_bytes(b'// isolated CI fixture; no physical controls')
     failed = engine.read_operation('check', 'hhm')
     assert failed['final_status'] == 'failed' and 'possible writer' in failed['error'], failed
@@ -105,9 +123,11 @@ if mode == 'bootstrap':
     r['unmanaged_rules'][str(unknown)] = digest(unknown.read_bytes())
     write_json(Path(DEFAULT_CONFIG), config)
     engine = Engine(load_config(), system=FakeWB())  # next CLI invocation reloads reviewed config
-    for command in ('update', 'rollback'):
-        result = engine.mutate(command, 'hhm')
-        assert result['final_status'] == 'ok', result
+    for component in ('hhm', 'pressure_makeup'):
+        for command in ('update', 'rollback'):
+            result = engine.mutate(command, component)
+            assert result['final_status'] == 'ok', result
+        assert Path(f['target']).read_bytes() == makeup_bytes
     assert digest(unknown.read_bytes()) == r['unmanaged_rules'][str(unknown)]
     # Simulate crash/failed rollback: a reinstall must preserve pending recovery.
     with patch.object(engine, 'install', side_effect=OSError('simulated storage interruption')):
@@ -115,7 +135,7 @@ if mode == 'bootstrap':
     assert result['final_status'] == 'partial_failure', result
     readonly(engine, pending=True)
     Path('/evidence/persistent.json').write_text(json.dumps(snapshot()), encoding='utf-8')
-    print('INSTALLED BOILER: runtime bootstrap, exact payload, canonical links, read-only, strict inventory, update/rollback, pending PASS')
+    print('INSTALLED BOILER: two components, config migration, exact 507, canonical links, read-only, strict inventory, independent update/rollback, pending PASS')
 elif mode in ('reinstall', 'fit'):
     assert snapshot() == read_json('/evidence/persistent.json'), 'Package changed durable data'
     if mode == 'fit':

@@ -59,6 +59,16 @@ class System:
         self.run(["/usr/bin/dpkg", "--compare-versions", version, "ge", "2.42.0"])
         return version
 
+    def rule_started(self, marker, since=None):
+        # 507 schedules its ordinary startup at +3 s. Wait only for observed log,
+        # never execute a rule, publish MQTT or manipulate its runtime state.
+        deadline = time.monotonic() + 15
+        while True:
+            if marker in self.journal(since):
+                return
+            require(time.monotonic() < deadline, "Missing rule startup marker: " + marker)
+            time.sleep(0.5)
+
     def firmware_busy(self):
         require(Path("/proc").is_dir(), "Cannot inspect updater processes")
         found = []

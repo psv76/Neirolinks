@@ -45,7 +45,8 @@ class Engine:
         require(component in self.config["components"], "Unknown component: " + component)
         r = self.config["components"][component]
         require(r.get("plugin") in PLUGINS, "Unknown component plugin")
-        require(component != "hhm" or r["plugin"] == "hhm", "HHM policy is mandatory")
+        for reserved in ("hhm", "pressure_makeup"):
+            require(component != reserved or r["plugin"] == reserved, reserved + " policy is mandatory")
         return r
 
     def validate(self, m, component):
@@ -110,6 +111,57 @@ class Engine:
         for f in m["files"]:
             p = self.target(f["target"])
             require(p.is_file() and digest(p.read_bytes()) == f["sha256"], "Unknown file drift: " + f["target"])
+
+    def ownership(self, operating):
+        """Use the in-flight manifest for its owner, installed/baseline pins for peers.
+
+        No recursion through preflight. Merely registering a name never trusts its
+        bytes; every peer manifest is validated and its files checked by inventory.
+        """
+        manifests, files, outputs = {}, {}, {}
+        for component in self.config["components"]:
+            m = operating if component == operating["component"] else self.current(component)
+            self.validate(m, component)
+            manifests[component] = m
+            for f in m["files"]:
+                require(f["target"] not in files, "Conflicting managed file owner: " + f["target"])
+                files[f["target"]] = component
+            plugin = PLUGINS[self.registration(component)["plugin"]]
+            for output in plugin.outputs:
+                require(output not in outputs, "Conflicting physical output owner: " + output)
+                outputs[output] = component
+        return manifests, files, outputs
+
+    def rules_inventory(self, operating):
+        manifests, managed, _ = self.ownership(operating)
+        approved = {}
+        for component, m in manifests.items():
+            if component != operating["component"]:
+                self.files_match(m)  # missing/drifted peer is never silently allowlisted
+            registration = self.registration(component)
+            if registration["plugin"] not in ("hhm", "pressure_makeup"):
+                continue
+            entries = registration.get("unmanaged_rules", {})
+            require(type(entries) is dict, "Invalid unmanaged rules allowlist")
+            for path, sha in entries.items():
+                require(isinstance(path, str) and path.startswith(("/etc/wb-rules/", "/etc/wb-rules-modules/"))
+                        and path.endswith(".js"), "Invalid unmanaged rule path")
+                self.target(path)
+                match(sha, SHA, "unmanaged rule hash")
+                require(path not in managed, "Managed/unmanaged ownership conflict: " + path)
+                require(path not in approved or approved[path] == sha, "Conflicting unmanaged hash: " + path)
+                approved[path] = sha
+        for directory in ("/etc/wb-rules", "/etc/wb-rules-modules"):
+            folder = self.target(directory)
+            require(folder.is_dir(), "Missing rules directory")
+            for path in folder.rglob("*"):
+                logical = directory + "/" + path.relative_to(folder).as_posix()
+                self.target(logical)  # reject nested links/junctions, including directories
+                if path.suffix != ".js" or path.is_dir():
+                    continue
+                if logical not in managed:
+                    require(logical in approved and digest(path.read_bytes()) == approved[logical],
+                            "Unknown/drifted possible writer: " + logical)
 
     def preflight(self, current, target, recovery=False):
         self.validate(current, current["component"])

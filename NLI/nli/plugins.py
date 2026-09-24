@@ -2,7 +2,8 @@
 import json
 import re
 import time
-from .util import digest, require
+from .manifest import MAKEUP_TARGET
+from .util import require
 
 COMMON = {"/etc/wb-rules-modules/" + name + ".js" for name in
           ("HHM3Config", "HHM3Wire", "HHM3Runtime")}
@@ -14,6 +15,8 @@ GAZEBO = COMMON | {"/etc/wb-rules/624_combo_besedka.js"}
 
 
 class Files:
+    outputs = frozenset()
+
     def validate(self, m, registration):
         allowed = registration.get("allowed_targets", [])
         require(all(f["target"] in allowed for f in m["files"]), "Target outside local component whitelist")
@@ -51,21 +54,7 @@ class HHM(Files):
             require(health == "legacy-3.0", "Cannot claim HHM 3.1 health for 3.0")
 
     def inventory(self, engine, m):
-        managed = {f["target"] for f in m["files"]}
-        approved = engine.config["components"]["hhm"].get("unmanaged_rules", {})
-        # Conservative allowlist: unknown code may hide a computed second writer.
-        # Includes modules as well as rules; does not claim to prove remote MQTT ACLs.
-        for directory in ("/etc/wb-rules", "/etc/wb-rules-modules"):
-            folder = engine.target(directory)
-            require(folder.is_dir(), "Missing rules directory")
-            for path in folder.rglob("*"):
-                target = directory + "/" + path.relative_to(folder).as_posix()
-                engine.target(target)  # reject symlink, including 507 (never read into backup)
-                if path.suffix != ".js" or path.is_dir():
-                    continue
-                if target not in managed:
-                    require(target in approved and digest(path.read_bytes()) == approved[target],
-                            "Unknown/drifted possible writer: " + target)
+        engine.rules_inventory(m)
 
     def preflight(self, engine, m, recovery=False):
         engine.system.rules_version()
@@ -103,4 +92,47 @@ class HHM(Files):
                 "wb-rules journal reports errors; inspect journal")
 
 
-PLUGINS = {"hhm": HHM(), "files": Files()}
+class PressureMakeup(Files):
+    # Fixed trusted policy, never a manifest-supplied physical-output claim.
+    outputs = frozenset({"A04/K1"})
+
+    def validate(self, m, registration):
+        require(m["component"] == "pressure_makeup" and m["object"] == "05_31_Ivolga_13"
+                and m["role"] == "boiler", "Wrong pressure_makeup identity/role")
+        require({f["target"] for f in m["files"]} == {MAKEUP_TARGET}, "pressure_makeup owns only 507")
+        require(m["services"] == {"stop": ["wb-rules"], "start": ["wb-rules"]},
+                "pressure_makeup only controls wb-rules")
+        require(m["preflight"] == ["identity", "drift", "pressure_makeup"], "Missing pressure_makeup preflight")
+        require(re.fullmatch(r"[0-9]+\.[0-9]+(?:\.[0-9]+)?", m["version"]), "Invalid pressure_makeup release version")
+        require(m["verify"]["runtime_version"] == m["version"] and m["verify"]["health_contract"] == "none",
+                "Invalid pressure_makeup version contract")
+        # Legacy version is attested by exact file hash, not a nonexistent runtime VD.
+        require(m["verify"]["controls"] == [], "pressure_makeup verify policy is fixed")
+
+    def preflight(self, engine, m, recovery=False):
+        engine.system.rules_version()
+        engine.system.active("wb-mqtt-serial")
+        if not recovery:
+            engine.system.active("wb-rules")
+        for control in ("pressure_makeup/active", "A04/K1"):
+            require(engine.system.control(control) == "0", "pressure_makeup blocked: " + control + " not confirmed OFF")
+        engine.rules_inventory(m)
+
+    def verify(self, engine, m, since=None):
+        engine.system.active("wb-rules")
+        engine.rules_inventory(m)
+        engine.system.rule_started("[507_Pressure_makeup] Запуск скрипта", since)
+        # Reset counters/alarms and subsequent normal evaluate (including ON) are
+        # accepted. Do not restore these runtime values or assert post-restart OFF.
+        for cell in ("active", "valve_open", "enabled", "auto_mode", "sensor_alarm",
+                     "low_pressure_alarm", "makeup_failed_alarm", "watchdog_alarm"):
+            require(engine.system.control("pressure_makeup/" + cell) in ("0", "1"),
+                    "Missing/invalid pressure_makeup control: " + cell)
+        count = engine.system.control("pressure_makeup/pulse_count")
+        require(re.fullmatch(r"[0-9]+", count) is not None, "Invalid pressure_makeup pulse_count")
+        require(bool(engine.system.control("pressure_makeup/last_event")), "Missing pressure_makeup last_event")
+        require(not re.search(r"SyntaxError|ReferenceError|TypeError|exception|ERROR|write ignored",
+                              engine.system.journal(since), re.I), "wb-rules journal reports errors; inspect journal")
+
+
+PLUGINS = {"hhm": HHM(), "pressure_makeup": PressureMakeup(), "files": Files()}

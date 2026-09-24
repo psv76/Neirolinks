@@ -3,7 +3,8 @@ import re
 from .util import require, safe_relative
 
 SHA = r"[0-9a-f]{64}"
-NAME = r"[a-z][a-z0-9-]{0,63}"
+NAME = r"[a-z][a-z0-9_-]{0,63}"
+MAKEUP_TARGET = "/etc/wb-rules/507_Pressure_makeup.js"
 SERVICES = {"wb-rules", "wb-mqtt-serial"}
 
 
@@ -35,7 +36,9 @@ def validate(m):
         require(isinstance(f["target"], str) and f["target"].startswith("/etc/"), "Target must be in /etc")
         safe_relative(f["target"][1:])
         require(f["target"] not in targets, "Duplicate target")
-        require("507" not in f["target"] and "PersistentStorage" not in f["target"], "Protected target")
+        require(("507" not in f["target"] or
+                 (m["component"] == "pressure_makeup" and f["target"] == MAKEUP_TARGET))
+                and "PersistentStorage" not in f["target"], "Protected target")
         targets.add(f["target"])
         match(f["sha256"], SHA, "SHA-256")
     keys(m["services"], ("stop", "start"))
@@ -44,7 +47,8 @@ def validate(m):
         require(type(seq) is list and all(isinstance(s, str) and s in SERVICES for s in seq), "Unsafe service")
         require(len(seq) == len(set(seq)), "Duplicate service")
     require(set(m["services"]["stop"]) == set(m["services"]["start"]), "Unbalanced services")
-    require(m["preflight"] in (["identity", "drift"], ["identity", "drift", "hhm"]), "Unknown preflight")
+    require(m["preflight"] in (["identity", "drift"], ["identity", "drift", "hhm"],
+                               ["identity", "drift", "pressure_makeup"]), "Unknown preflight")
     require(m["rollback"] == "previous-managed-release", "Unknown rollback policy")
     keys(m["verify"], ("controls", "runtime_version", "health_contract"))
     match(m["verify"]["runtime_version"], r"[A-Za-z0-9_.+-]{1,128}", "runtime version")

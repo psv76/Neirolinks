@@ -1,26 +1,26 @@
-# NLI 0.1.1: второй boiler smoke и восстановление после FIT
+# NLI 0.1.2: второй boiler smoke и восстановление после FIT
 
 Это runbook для отдельного согласованного полевого окна, а не автоматический deploy.
 Пакет не устанавливает HHM, не содержит maintainer scripts и не перезапускает сервисы.
 Второй smoke заканчивается на **read-only `nli check hhm`**. Не выполнять update,
 rollback, firmware update/recover или restart в рамках этого smoke.
 
-## Проверка пакета и upgrade 0.1.0 → 0.1.1
+## Проверка пакета и upgrade 0.1.0 → 0.1.2
 
-Использовать `neiro-nli_0.1.1_all.deb` из artifact `neiro-nli-0.1.1-deb`
+Использовать `neiro-nli_0.1.2_all.deb` из artifact `neiro-nli-0.1.2-deb`
 конкретного зелёного CI run, указанного вместе с SHA256 в PR #71. Сначала
 сверить SHA256 с независимым значением в PR; checksum-файл рядом с пакетом
 сам по себе не доказывает происхождение. Команды ниже выполнять в каталоге
 с обоими проверенными файлами, от root (или через sudo для install/apt).
 
 ```sh
-sha256sum -c neiro-nli_0.1.1_all.deb.sha256
+sha256sum -c neiro-nli_0.1.2_all.deb.sha256
 test "$(hostname)" = wirenboard-ABF62SL
 test "$(readlink /etc/wb-rules)" = /mnt/data/etc/wb-rules
 test "$(readlink /etc/wb-rules-modules)" = /mnt/data/etc/wb-rules-modules
 findmnt /mnt/data
 systemctl show wb-rules wb-mqtt-serial -p Id -p ActiveEnterTimestampMonotonic
-apt install ./neiro-nli_0.1.1_all.deb
+apt install ./neiro-nli_0.1.2_all.deb
 nli --version
 nli --json status
 systemctl show wb-rules wb-mqtt-serial -p Id -p ActiveEnterTimestampMonotonic
@@ -29,7 +29,7 @@ test -r /usr/share/neiro-nli/examples/hhm-boiler-3.0.json
 test -r /usr/share/neiro-nli/manifest.schema.json
 ```
 
-Ожидание: версия `0.1.1`, status `ok`, timestamps сервисов не изменились.
+Ожидание: версия `0.1.2`, status `ok`, timestamps сервисов не изменились.
 На ещё не настроенном NLI команды status/check/verify/firmware check не создают
 `/mnt/data/etc/neiro/nli`, `/mnt/data/var/lib/neiro/nli`, `/mnt/data/var/log/neiro/nli`.
 Проверить отсутствие этих каталогов **до bootstrap**, если их не было до upgrade.
@@ -89,7 +89,7 @@ hostname, runtime prerequisites и OFF interlocks. Любой drift/unknown writ
 | Переустанавливаемый executable/modules | `/usr/bin/nli`, `/usr/lib/neiro-nli/` |
 | Переустанавливаемые runtime examples/schema/runbook | `/usr/share/neiro-nli/` |
 
-NLI 0.1.1 не содержит conffiles: config создаётся инженером, хранится отдельно
+NLI 0.1.2 не содержит conffiles: config создаётся инженером, хранится отдельно
 и не принадлежит dpkg. `apt install --reinstall` и удаление пакета не стирают
 persistent config/pins/history. Старый conffile 0.1.0 `/etc/neiro/nli/config.json`
 может остаться как obsolete conffile dpkg; NLI игнорирует только его точное
@@ -105,8 +105,8 @@ rootfs. NLI не обещает, что сам исполняемый файл �
 
 ```sh
 cd /mnt/data/neiro/nli-bootstrap
-sha256sum -c neiro-nli_0.1.1_all.deb.sha256
-apt install --reinstall ./neiro-nli_0.1.1_all.deb
+sha256sum -c neiro-nli_0.1.2_all.deb.sha256
+apt install --reinstall ./neiro-nli_0.1.2_all.deb
 nli --version
 nli --json status
 ```
@@ -123,7 +123,7 @@ HHM. Rollback — отдельное согласованное действие
 Зафиксированный полевой smoke остановился до настройки; для него миграция
 данных не требуется. Если на другом контроллере есть настроенный старый
 `/etc/neiro/nli/config.json`, `/var/lib/neiro/nli` или `/var/log/neiro/nli`, NLI
-0.1.1 выдаёт `LEGACY_MIGRATION_REQUIRED` до bootstrap. Инженер отдельно:
+0.1.2 выдаёт `LEGACY_MIGRATION_REQUIRED` до bootstrap. Инженер отдельно:
 
 1. Исключает конкурирующий процесс NLI, сохраняет внешнюю копию всех трёх
    каталогов вместе с metadata; проверяет отсутствие конфликтующих persistent

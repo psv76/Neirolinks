@@ -41,9 +41,17 @@ def build(output, epoch=0):
     for path in sorted((ROOT / "examples").rglob("*.json")):
         data.append(("usr/share/neiro-nli/examples/" + path.relative_to(ROOT / "examples").as_posix(),
                      path.read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    # Immutable baseline payload is runtime data. Preserve exact bytes (no LF
+    # normalization); live 507 1.0 intentionally has no terminal LF.
+    for path in sorted((ROOT / "releases").rglob("*.js")):
+        data.append(("usr/share/neiro-nli/payload/NLI/" + path.relative_to(ROOT).as_posix(),
+                     path.read_bytes(), 0o644))
     data.append(("usr/share/neiro-nli/manifest.schema.json", (ROOT / "manifest.schema.json").read_bytes().replace(b"\r\n", b"\n"), 0o644))
     # Smoke/bootstrap instructions are needed even on WB with dpkg nodoc policy.
     data.append(("usr/share/neiro-nli/WB_SMOKE.md", (ROOT / "WB_SMOKE.md").read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    data.append(("usr/share/neiro-nli/PRESSURE_MAKEUP.md", (ROOT / "PRESSURE_MAKEUP.md").read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    data.append(("usr/share/neiro-nli/register_pressure_makeup.py",
+                 (ROOT / "tools/register_pressure_makeup.py").read_bytes().replace(b"\r\n", b"\n"), 0o644))
     for name in ("README.md", "SECURITY.md", "FIRMWARE.md", "TEST_RESULTS.md"):
         data.append(("usr/share/doc/neiro-nli/" + name, (ROOT / name).read_bytes().replace(b"\r\n", b"\n"), 0o644))
     content = bytearray(b"!<arch>\n")
@@ -64,6 +72,6 @@ def build(output, epoch=0):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--output", type=Path, default=ROOT / "dist/neiro-nli_0.1.1_all.deb")
+    p.add_argument("--output", type=Path, default=ROOT / "dist/neiro-nli_0.1.2_all.deb")
     args = p.parse_args()
     build(args.output, int(os.environ.get("SOURCE_DATE_EPOCH", "0")))
