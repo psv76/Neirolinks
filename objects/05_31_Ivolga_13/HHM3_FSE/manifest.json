@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 68,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "45b8b03e69c706de3f591247c4aada6d47f3872c35e87ea4a95b8cbb167337ec",
+  "aggregate_sha256": "f8bdd64df66768ce195424ecc21d7c787001fb9e1da28013994ba0424357f581",
   "files": [
     {
       "file": "INSTALL.md",
@@ -32,7 +32,7 @@
     },
     {
       "file": "TEST_RESULTS.md",
-      "sha256": "e86800d8313bbdf8ba2d9a52849288a50ac8e463b0025948d10c66e2ba29813b",
+      "sha256": "1e786dc064c02a6effbc7b97a2eb569733eb280188d6db933e5841aeed31025d",
       "role": "documentation"
     },
     {
@@ -176,7 +176,7 @@
     },
     {
       "file": "tests/sensor-health-regressions.js",
-      "sha256": "b7e729f15f7152cdfc5b55537a8c3fc10df8d1f0165dadaf677695fbd580fd97",
+      "sha256": "3383b9308f0c83a71da9f3261c352d1954a4646294ae78030390708c409d987f",
       "role": "test"
     },
     {

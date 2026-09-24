@@ -21,6 +21,16 @@ jobs:
         run: python -B -m unittest discover -s NLI/tests -v
       - name: Both controller roles with pinned HHM source and fake WB backend
         run: python -B NLI/tests/sandbox.py
+      - name: Build immutable HHM 3.1 boiler and gazebo payloads
+        run: |
+          HHM31_COMMIT="$(python -c 'import json; print(json.load(open("NLI/releases/hhm-boiler-3.1.json"))["release"]["commit"])')"
+          python -B NLI/tools/prepare_hhm31.py --commit "$HHM31_COMMIT" --role boiler --output NLI/build/hhm31
+          python -B NLI/tools/prepare_hhm31.py --commit "$HHM31_COMMIT" --role gazebo --output NLI/build/hhm31
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hhm-3.1.0-role-payloads
+          path: NLI/build/hhm31/
+          if-no-files-found: error
       - name: Existing HHM regressions
         run: |
           node NLI/tests/pressure_makeup_runtime.js

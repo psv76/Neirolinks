@@ -121,6 +121,19 @@ test('floor fault remains local under existing 502 safety policy; neighbours kee
     h.deliver('boiler',h.topic(h.C.m1w2Health[z.sensor]),1);h.advance(240000);
     assert.equal(h.report()['502'].reason,'NORMAL');
 });
+test('rules restart with retained-only values cannot reuse previously qualified M1W2 state',()=>{
+    const old=running(),h=create({stores:old.stores,values:old.values});
+    for(const [p,ok]of Object.entries(h.C.m1w2Health)){
+        const board=p.startsWith('921.')?'gazebo':'boiler';
+        h.deliver(board,h.topic(p),old.values[board][p],true);
+        h.deliver(board,h.topic(ok),1,true);
+    }
+    h.advance(150000,false);
+    assert.equal(h.values.gazebo['NL_combo_thermostat_504/floor_valid'],false);
+    for(const z of h.Z.filter(z=>h.C.m1w2Health[z.sensor]))assert.equal(h.values.boiler['NL_simple_thermostat_'+z.id+'/valid'],false);
+    h.samples();h.advance(300000);
+    assert.equal(h.report()['504'].reason,'NORMAL');assert.equal(h.report()['502'].reason,'NORMAL');
+});
 test('MSW and house/gazebo frames still expire independently of local sensor health',()=>{
     const h=running();freezeLocal(h);
     h.gazeboTemperatures['921.09_MSW_TH/Temperature']=undefined;h.advance(125000);

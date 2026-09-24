@@ -7,9 +7,11 @@
 - `node tests/run.js`: 67 групп основной модели, review/MAO4/2.40 regressions PASS.
 - `node tests/partial-ready-regressions.js`: 10 групп PASS, включая 502, локальные faults и mixer continuity.
 - `node tests/persistent-storage-regressions.js`: PASS, 18+505 настройки и restart без повторного ввода.
-- `node tests/sensor-health-regressions.js`: 18 групп PASS. Stable 24 h без публикаций, редкие изменения, retained-only startup и empty errors, OK flapping/recovery, errors обоих controls, missing/invalid/range, callback/cache ordering, clock rollback, 20-channel mapping, 10 минут совместной работы 500/620/624 без M1W2 publications, MSW/frame TTL, thermal stop/cooling/recovery, диагностика 411–420 и отсутствие нового interlock от 412.
+- `node tests/sensor-health-regressions.js`: 19 групп PASS. Stable 24 h без публикаций, редкие изменения, retained-only startup и empty errors, OK flapping/recovery, errors обоих controls, missing/invalid/range, callback/cache ordering, clock rollback, 20-channel mapping, 10 минут совместной работы 500/620/624 без M1W2 publications, MSW/frame TTL, thermal stop/cooling/recovery, диагностика 411–420 и отсутствие нового interlock от 412.
 
 Базовые tests не заменены новыми: прежние негативные сценарии и ownership остаются обязательными. Модель по умолчанию публикует неизменные значения раз в 60 с; новые health tests отдельно полностью прекращают temperature и OK публикации после qualification, продолжая MSW и frames.
+
+Python/NLI локально: 160 tests — 123 PASS, 37 SKIP (Windows symlink privilege). Первый запуск унаследовал NO_COLOR=1/TERM=dumb и выявил зависимость существующего CLI color-test от окружения; повтор в изолированном test process с обычным TERM и без NO_COLOR прошёл. Пользовательские настройки и код NLI не менялись. Exact-507 Node regression также PASS.
 
 ## Release и NLI
 
