@@ -243,7 +243,7 @@
 | 207 | `wb-mr6c_218/Input 1` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw также показал `wb-mr6c_218/Input 1 counter` |
 | 208 | `wb-led_26/Input 3` + `wb-mr6c_138/Input 6` | FIELD_CONFIRMED | повторная полевая проверка новым определителем поймала оба физических входа; raw также показал `wb-mr6c_138/Input 6 counter` |
 | 209 | `wb-led_23/Input 4` + `wb-led_42/Input 1` | FIELD_CONFIRMED | повторная полевая проверка новым определителем поймала оба физических входа; тем самым рукописная заметка «42 вход 1» подтверждена как неполная часть общей привязки |
-| 210 | `wb-mr6c_156/Input 1` + `wb-mr6c_156/Input 4` | FIELD_CONFIRMED | пользователь увидел оба входа; нужно отдельно понять роль каждого события |
+| 210 | `wb-mr6c_156/Input 1` + `wb-mr6c_156/Input 4` | FIELD_CONFIRMED | повторная полевая проверка новым определителем подтвердила оба входа; raw также показал `Input 1 counter` и `Input 4 counter` |
 | 211 | `wb-mr6c_156/Input 3 Single Press Counter` | FIELD_CONFIRMED | подтверждает прежние заметки по модулю 156 |
 | 212 | `wb-mr6c_156/Input 0 Single Press Counter` | FIELD_CONFIRMED | необычное имя Input 0 подтверждено непосредственно на объекте |
 | 215 | `wb-mr6c_117/Input 2` | FIELD_CONFIRMED | тип события уточнить |
