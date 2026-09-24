@@ -3,7 +3,7 @@ import json
 import re
 import time
 from .manifest import MAKEUP_TARGET
-from .util import require
+from .util import Error, require
 
 COMMON = {"/etc/wb-rules-modules/" + name + ".js" for name in
           ("HHM3Config", "HHM3Wire", "HHM3Runtime")}
@@ -35,6 +35,8 @@ class Files:
 
 
 class HHM(Files):
+    readiness_timeout = 30.0
+    readiness_interval = 0.5
     device_prefixes = ('HHM3', 'hhm3', 'NL_simple_thermostat_', 'NL_combo_thermostat_', 'heat_diagnostics')
     def validate(self, m, registration):
         require(m["component"] == "hhm" and m["object"] == "05_31_Ivolga_13", "Wrong HHM object")
@@ -73,8 +75,40 @@ class HHM(Files):
         text = engine.target("/etc/wb-rules-modules/HHM3Config.js").read_text(encoding="utf-8")
         require(re.search(r"version\s*:\s*['\"]" + re.escape(m["verify"]["runtime_version"]) + r"['\"]", text),
                 "HHM runtime version mismatch")
+        if not post_restart:
+            self.runtime(engine, m)  # one strict observation, no retry
+            return
+        started = time.monotonic()
+        deadline = started + self.readiness_timeout
+        report = dict(timeout_seconds=self.readiness_timeout, attempts=0, elapsed_seconds=0,
+                      status='waiting', last_error=None)
+        while time.monotonic() < deadline:
+            report['attempts'] += 1
+            try:
+                self.runtime(engine, m, deadline)
+                require(time.monotonic() < deadline, 'HHM readiness deadline expired')
+                report.update(status='ready', elapsed_seconds=time.monotonic() - started)
+                return report
+            except (Error, json.JSONDecodeError) as exc:
+                report.update(last_error=str(exc), elapsed_seconds=time.monotonic() - started)
+                remaining = deadline - time.monotonic()
+                # Poll only after an observed failure; no unconditional startup sleep.
+                if remaining > 0:
+                    time.sleep(min(self.readiness_interval, remaining))
+        report.update(status='timeout', elapsed_seconds=time.monotonic() - started)
+        failure = Error('HHM readiness timeout: ' + str(report['last_error']))
+        failure.readiness = report
+        raise failure
+
+    def runtime(self, engine, m, deadline=None):
+        def probe(method, *args, **kwargs):
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                require(remaining > 0, 'HHM readiness deadline expired')
+                kwargs['timeout'] = remaining
+            return method(*args, **kwargs)
         topic = "/neiro/ivolga/hhm3/house/frame" if m["role"] == "boiler" else "/neiro/ivolga/504/v2/frame"
-        frame = json.loads(engine.system.mqtt(topic, fresh=True))
+        frame = json.loads(probe(engine.system.mqtt, topic, fresh=True))
         expected_source = "ivolga-hhm3-house" if m["role"] == "boiler" else "ivolga-besedka-504"
         require(type(frame) is dict and type(frame.get("sent_ms")) in (int, float)
                 and -2000 <= time.time() * 1000 - frame["sent_ms"] < 30000,
@@ -84,10 +118,12 @@ class HHM(Files):
         required = (["HHM3_FSE/runtime_status", "HHM3_FSE/circuit_502", "heat_diagnostics/request_504"]
                     if m["role"] == "boiler" else ["NL_combo_thermostat_504/runtime_status", "NL_combo_thermostat_504/state"])
         for control in required:
-            value = engine.system.control(control)
+            value = probe(engine.system.control, control)
             require(value and not any(x in value for x in ("RUNTIME_UNSUPPORTED", "STARTUP", "Ожидание MQTT", "Запуск")),
                     "HHM runtime not loaded: " + control)
-        super().verify(engine, m, since)
+        for c in m['verify']['controls']:
+            value = probe(engine.system.control, c['path'])
+            require(value != '' and ('equals' not in c or value == c['equals']), 'Control mismatch: ' + c['path'])
 
 
 class PressureMakeup(Files):

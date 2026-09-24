@@ -219,10 +219,14 @@ class Engine:
             plugin = PLUGINS[self.registration(m["component"])["plugin"]]
             runtime_error = None
             try:
-                plugin.verify(self, m, observation_since, post_restart=post_restart)
+                readiness = plugin.verify(self, m, observation_since, post_restart=post_restart)
+                if readiness is not None:
+                    attempt['readiness'] = readiness
             except Exception as exc:
                 runtime_error = exc
                 attempt['runtime_error'] = str(exc)
+                if hasattr(exc, 'readiness'):
+                    attempt['readiness'] = exc.readiness
             if 'wb-rules' in m['services']['start']:
                 sources = self.rules_inventory(m)
                 self.files_match(m)

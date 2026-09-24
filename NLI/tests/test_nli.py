@@ -43,13 +43,13 @@ class FakeSystem:
     def active(self, name):
         pass
 
-    def control(self, path):
+    def control(self, path, timeout=None):
         return self.controls.get(path, "OK")
 
     def rules_version(self):
         return "2.46.5"
 
-    def mqtt(self, topic, fresh=False):
+    def mqtt(self, topic, fresh=False, timeout=None):
         assert fresh
         return json.dumps(self.frame)
 

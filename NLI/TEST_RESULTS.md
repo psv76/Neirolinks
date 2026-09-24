@@ -1,5 +1,18 @@
 # Проверки NLI v0.1
 
+## 0.1.5 — bounded HHM readiness после restart
+
+[Локально, 25.09.2026] 150 Python tests: 113 PASS, 37 SKIP (Windows symlink
+privilege). 12 новых tests используют virtual time: delayed update/explicit
+rollback, немедленная готовность без sleep, timeout update + delayed autorollback,
+двойной timeout/pending + recovery, strict standalone без записей, исходная
+journal boundary, malformed/stale/wrong frames, missing MQTT с исчерпанием budget,
+gazebo controls/frame, fractional subprocess budget/defaults/timeout conversion.
+Installed package smoke также воспроизводит STARTUP на первой HHM попытке для
+update и rollback с одновременной foreign journal warning. Upgrade chain включает
+0.1.4 → 0.1.5, nodoc/reinstall/FIT сохранены. Green HEAD/artifact/SHA256 в PR #71.
+Live WB не затрагивается.
+
 ## 0.1.4 — attribution shared runtime и pending recovery
 
 [Локально, 24.09.2026] 138 Python tests: 101 PASS, 37 SKIP (Windows

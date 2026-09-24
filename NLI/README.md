@@ -18,8 +18,8 @@
 python3 -B -m unittest discover -s NLI/tests -v
 python3 -B NLI/tests/sandbox.py
 python3 -B NLI/tools/build_deb.py
-(cd NLI/dist && sha256sum -c neiro-nli_0.1.4_all.deb.sha256)
-dpkg-deb --info NLI/dist/neiro-nli_0.1.4_all.deb
+(cd NLI/dist && sha256sum -c neiro-nli_0.1.5_all.deb.sha256)
+dpkg-deb --info NLI/dist/neiro-nli_0.1.5_all.deb
 ```
 
 Build использует только stdlib; создаёт воспроизводимый Debian ar с control/data tar.gz, root ownership и `/usr/bin/nli` mode 0755. `SOURCE_DATE_EPOCH` задаёт timestamp (по умолчанию 0). Нет maintainer scripts, service units, restart при установке или зависимости HHM от пакета. CI проверяет `dpkg-deb` и установку в одноразовом Debian Trixie container.
@@ -27,12 +27,12 @@ Build использует только stdlib; создаёт воспроиз�
 В тестовом Debian/WB-окружении после проверки происхождения пакета:
 
 ```sh
-sudo apt install ./neiro-nli_0.1.4_all.deb
+sudo apt install ./neiro-nli_0.1.5_all.deb
 nli --version
 nli status
 ```
 
-Пакет устанавливает Python sources в `/usr/lib/neiro-nli`, примеры в `/usr/share/neiro-nli/examples`, schema и bootstrap runbook в `/usr/share/neiro-nli/`. Они доступны при WB dpkg `path-exclude /usr/share/doc/*`. Config `/mnt/data/etc/neiro/nli/config.json` создаётся инженером и **не принадлежит пакету**; conffiles/maintainer scripts в 0.1.4 отсутствуют. Пока config не создан, CLI читает packaged `default-config.json` без записи на диск. При существующих данных и потерянном config либо настроенных старых данных 0.1.0 CLI требует разбор/миграцию, а не создаёт пустой профиль. HHM payload пакет **не устанавливает**. Библиотеки Python кроме stdlib не требуются. `systemd`/`mosquitto-clients` нужны только для WB probes/service actions. Штатный firmware updater — отдельный suggested пакет.
+Пакет устанавливает Python sources в `/usr/lib/neiro-nli`, примеры в `/usr/share/neiro-nli/examples`, schema и bootstrap runbook в `/usr/share/neiro-nli/`. Они доступны при WB dpkg `path-exclude /usr/share/doc/*`. Config `/mnt/data/etc/neiro/nli/config.json` создаётся инженером и **не принадлежит пакету**; conffiles/maintainer scripts в 0.1.5 отсутствуют. Пока config не создан, CLI читает packaged `default-config.json` без записи на диск. При существующих данных и потерянном config либо настроенных старых данных 0.1.0 CLI требует разбор/миграцию, а не создаёт пустой профиль. HHM payload пакет **не устанавливает**. Библиотеки Python кроме stdlib не требуются. `systemd`/`mosquitto-clients` нужны только для WB probes/service actions. Штатный firmware updater — отдельный suggested пакет.
 
 Полевой bootstrap, upgrade 0.1.0, conffile policy и переустановка после FIT: [WB_SMOKE.md](WB_SMOKE.md). После FIT executable/modules могут исчезнуть; переустановка `.deb` подхватывает persistent config/pins/state/backups/pending/audit. Это проверяется заменой rootfs в CI, не является утверждением о выполненной проверке FIT на реальном WB.
 
@@ -92,7 +92,7 @@ Exit codes: 0 — success; 1 — failed/rolled_back/partial_failure/recovery_req
 Пример sandbox adoption:
 
 ```text
-NLI 0.1.4
+NLI 0.1.5
 object: 05_31_Ivolga_13
 role: boiler
 command: update
@@ -123,7 +123,18 @@ Ctrl-C update вызывает автоматический rollback. SIGKILL/po
 
 Унаследованные semantic-only base checks, предупреждения после успешного install и rollback без preflight не копируются: NLI требует exact reviewed hashes и включает verify/rollback в транзакцию. Текущий INSTALL PR #65 содержит исторические инструкции; для NLI используются этот manifest и runbook. Это не разрешение на live deployment.
 
-## pressure_makeup 1.0 (NLI 0.1.4)
+## pressure_makeup 1.0 (NLI 0.1.5)
+
+NLI 0.1.5 устраняет HHM startup race: только post-restart HHM verify (boiler и
+gazebo) повторяет весь набор runtime checks в общем monotonic budget 30 секунд.
+Нужны свежий non-retained frame с правильными source/version/seq/timestamp,
+готовые HHM controls и manifest attestations. Каждый MQTT subprocess ограничен
+оставшимся временем; polling pause до 0.5 секунды выполняется только после
+неуспеха. Готовый runtime проходит сразу. Timeout строго fatal; update запускает
+rollback, failed rollback сохраняет pending. Hash/inventory/version checks не
+ретраятся. Исходная journal boundary перед start не меняется. В audit есть
+`verification_attempts[].readiness` с timeout/attempts/elapsed/status/last_error.
+Standalone проверяет текущее состояние одной попыткой, без readiness grace period.
 
 После update/rollback общий журнал wb-rules атрибутируется компоненту. Ошибки
 собственных файлов/devices и неизвестного источника строго вызывают failure и

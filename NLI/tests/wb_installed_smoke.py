@@ -16,7 +16,7 @@ import nli
 from nli.core import Engine
 from nli.layout import CONFIG_DIR, DEFAULT_CONFIG, DATA_DIR, STATE_DIR, LOG_DIR, load_config
 from nli.util import digest, read_json, write_json
-assert nli.__version__ == '0.1.4'
+assert nli.__version__ == '0.1.5'
 assert nli.__file__.startswith('/usr/lib/neiro-nli/')
 assert Path('/usr/share/neiro-nli/RECOVERY.md').is_file()
 
@@ -39,13 +39,13 @@ class FakeWB:
     def rules_version(self):
         return '2.46.5'
 
-    def control(self, path):
+    def control(self, path, timeout=None):
         return '0' if path == 'A04/K1' or (path.startswith('pressure_makeup/') and not path.endswith('last_event')) else 'OK'
 
     def rule_started(self, marker, since=None):
         pass
 
-    def mqtt(self, topic, fresh=False):
+    def mqtt(self, topic, fresh=False, timeout=None):
         assert fresh
         return json.dumps(dict(sent_ms=time.time() * 1000, source='ivolga-hhm3-house', v=3, seq=1))
 
@@ -124,12 +124,24 @@ if mode == 'bootstrap':
     r['unmanaged_rules'][str(unknown)] = digest(unknown.read_bytes())
     write_json(Path(DEFAULT_CONFIG), config)
     engine = Engine(load_config(), system=FakeWB())  # next CLI invocation reloads reviewed config
+    original_control = engine.system.control
+    readiness_reads = []
+    def delayed_control(path, timeout=None):
+        if path == 'HHM3_FSE/runtime_status':
+            readiness_reads.append(path)
+            if len(readiness_reads) == 1:
+                return 'STARTUP'
+        return original_control(path, timeout=timeout)
     for component in ('hhm', 'pressure_makeup'):
         for command in ('update', 'rollback'):
-            with patch.object(engine.system, 'journal', return_value='ERROR on device ci-other-device: Control already exists'):
+            readiness_reads.clear()
+            with patch.object(engine.system, 'journal', return_value='ERROR on device ci-other-device: Control already exists'), \
+                 patch.object(engine.system, 'control', side_effect=delayed_control):
                 result = engine.mutate(command, component)
             assert result['final_status'] == 'ok', result
             assert result['verification_attempts'][0]['journal'][0]['category'] == 'shared_runtime', result
+            if component == 'hhm':
+                assert result['verification_attempts'][0]['readiness']['attempts'] == 2, result
         assert Path(f['target']).read_bytes() == makeup_bytes
     assert digest(unknown.read_bytes()) == r['unmanaged_rules'][str(unknown)]
     # Simulate crash/failed rollback: a reinstall must preserve pending recovery.

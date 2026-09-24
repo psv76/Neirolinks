@@ -36,3 +36,11 @@ literal assignment; dynamic/escaped IDs не выводятся. Trust пост�
 повторно проверенных manifest/approved hashes, не из имени стороннего устройства.
 Все найденные ошибки, включая допустимые, сохраняются в audit по attempts.
 См. RECOVERY.md: старый pending завершается только verified explicit rollback.
+
+0.1.5: HHM readiness retry действует только после NLI-driven restart, с общим
+monotonic deadline 30 s и subprocess timeout не более оставшегося budget. Это
+ожидание доказанной готовности frame/controls, не разрешение игнорировать failure.
+Deadline не зависит от перевода wall clock; journal since остаётся исходным перед
+service start. Собственные/неатрибутированные journal errors остаются fatal даже
+если runtime стал готов. Standalone, pressure_makeup, drift/ownership и interlocks
+не получают grace period. Timeout записывается в audit и вызывает обычный rollback.

@@ -1,5 +1,6 @@
 """Real WB read probes and tightly bounded service operations."""
 import os
+import math
 from pathlib import Path
 import socket
 import subprocess
@@ -36,16 +37,19 @@ class System:
                         raise
                     time.sleep(0.5)
 
-    def mqtt(self, topic, fresh=False):
+    def mqtt(self, topic, fresh=False, timeout=None):
         require(topic.startswith(("/devices/", "/neiro/")) and not topic.endswith("/on"), "Unsafe MQTT probe")
-        args = ["/usr/bin/mosquitto_sub", "-h", "127.0.0.1", "-t", topic, "-C", "1", "-W", "15"]
+        budget = 18 if timeout is None else min(18, timeout)
+        require(budget > 0, "MQTT probe deadline expired")
+        wait = 15 if timeout is None else max(1, min(15, math.ceil(budget)))
+        args = ["/usr/bin/mosquitto_sub", "-h", "127.0.0.1", "-t", topic, "-C", "1", "-W", str(wait)]
         if fresh:
             args.append("-R")
-        return self.run(args, timeout=18)
+        return self.run(args, timeout=budget)
 
-    def control(self, path):
+    def control(self, path, timeout=None):
         device, control = path.split("/", 1)
-        return self.mqtt("/devices/" + device + "/controls/" + control)
+        return self.mqtt("/devices/" + device + "/controls/" + control, timeout=timeout)
 
     def journal(self, since=None):
         require(isinstance(since, str) and bool(since), "Explicit journal observation boundary required")
