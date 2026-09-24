@@ -1,0 +1,3 @@
+# NLI manifests hash exact release bytes on Windows and Linux.
+HHM3_FSE/** text eol=lf
+Wirenboard/wb-rules/600_Heat_diagnostics.js text eol=lf

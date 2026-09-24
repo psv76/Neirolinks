@@ -1,13 +1,13 @@
 {
-  "release": "HHM 3.0.0-FSE",
+  "release": "HHM 3.1.0",
   "object": "05_31_Ivolga_13",
-  "issue": 59,
+  "issue": 68,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "74be3523fce1f2ed4db442c764597c6446f4660716078d52329ed76b1bdc990f",
+  "aggregate_sha256": "45b8b03e69c706de3f591247c4aada6d47f3872c35e87ea4a95b8cbb167337ec",
   "files": [
     {
       "file": "INSTALL.md",
-      "sha256": "97387ff89f05087949c0691e331b1dd6f4c56025033c3c1174363e7190e5d594",
+      "sha256": "9c6bf4ea8f73a1f0d4539b2d09efe509bed4ddfc4c4f5d07240cf4682c4f6504",
       "role": "documentation"
     },
     {
@@ -22,17 +22,22 @@
     },
     {
       "file": "README.md",
-      "sha256": "a3c42b82b52aec007f5c3eab9f917d908a1e7855f966b99cac87953546e74fc6",
+      "sha256": "4e957473335dd0455fb96826bc4a623b39ecc593e11698879ff8f2441e42c53a",
+      "role": "documentation"
+    },
+    {
+      "file": "SENSOR_HEALTH.md",
+      "sha256": "368ca1653eebf8878ee4a172dd30f885a5d7f8d56594785fbe7727f6d1dfdc89",
       "role": "documentation"
     },
     {
       "file": "TEST_RESULTS.md",
-      "sha256": "01bbb4dd9ad332c4565d068c2010e8eac2a9fb8a9a96ee2c4288dcf627d67651",
+      "sha256": "e86800d8313bbdf8ba2d9a52849288a50ac8e463b0025948d10c66e2ba29813b",
       "role": "documentation"
     },
     {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
-      "sha256": "03d4ec69dadcef8872b4ca792236bdb37b62fbed849dac52e201aae08995d501",
+      "sha256": "37035f3a102d196d9247338c3c294898706cc062c81c6de37377593b4a345030",
       "boards": [
         "boiler"
       ],
@@ -41,7 +46,7 @@
     },
     {
       "file": "boiler/wb-rules/620_thermostats.js",
-      "sha256": "570874b06a045723feb3fac857f6f36fc007953ddc0b8ec0599a45837a0327fc",
+      "sha256": "0d75038ad290ed1219b7b5985a0d9c9f9c37a3ec946f7f8e80840759f89caca7",
       "boards": [
         "boiler"
       ],
@@ -70,7 +75,7 @@
     },
     {
       "file": "gazebo/wb-rules/624_combo_besedka.js",
-      "sha256": "fd17a68d6b707df00ec752d7d650182c75361647ad099de26591d0acdf636c4a",
+      "sha256": "1b969ff121c8b52f92c22604c10559a500cdd8b84dcb6967b4d5dc4f4eea3489",
       "boards": [
         "gazebo"
       ],
@@ -88,7 +93,7 @@
     },
     {
       "file": "modules/HHM3Config.js",
-      "sha256": "99f7d993c2060015dd2e90f91d755597f0393d049c7904f31baf398b1bed5faf",
+      "sha256": "ecf27c5b2510461095dc00b1fdd06fe0337a257d4dcb147fa02b8ba6b38c0842",
       "boards": [
         "boiler",
         "gazebo"
@@ -116,7 +121,7 @@
     },
     {
       "file": "modules/HHM3Runtime.js",
-      "sha256": "67469decabfd44b0498c5822524ad734dc8b883bba91f272dfe1a048529ebe43",
+      "sha256": "060da4a198c51f5d47b368a418df07253946f4d5a3593e3d940427ed7760dc79",
       "boards": [
         "boiler",
         "gazebo"
@@ -126,7 +131,7 @@
     },
     {
       "file": "modules/HHM3Wire.js",
-      "sha256": "b35baa255c4948f8ec926943efeee1ac5a29b594d508112478e8be4ea1360ada",
+      "sha256": "978c7479b5b2431bdef41735c18e48fe7b9e3db31a04288aebd5d39bcc909d21",
       "boards": [
         "boiler",
         "gazebo"
@@ -136,7 +141,7 @@
     },
     {
       "file": "tests/harness.js",
-      "sha256": "f4c120d3748255458a9bf89d79849f2c70b4fd514527e185d069fdc3a91657b2",
+      "sha256": "9f6891cf68503f0e9d7ab14b8d48a53b5063bebafba75610f5196ae01c37c9a0",
       "role": "test"
     },
     {
@@ -146,7 +151,7 @@
     },
     {
       "file": "tests/manifest.js",
-      "sha256": "91bb3253d7ddeb3eb23deb0decd644d5ab64a04929631cac28ebed70eeabfa5d",
+      "sha256": "5b768f289e5d86ace6152e1af72acd525e96d7eb0d69e43249fa1a8421cecda6",
       "role": "test"
     },
     {
@@ -167,6 +172,11 @@
     {
       "file": "tests/run.js",
       "sha256": "421fdfe370af97f0be3c94e0256c1e88bbd2c7301f74c5aba9d2e7811f02d3db",
+      "role": "test"
+    },
+    {
+      "file": "tests/sensor-health-regressions.js",
+      "sha256": "b7e729f15f7152cdfc5b55537a8c3fc10df8d1f0165dadaf677695fbd580fd97",
       "role": "test"
     },
     {

@@ -38,6 +38,11 @@ exports.create=function(options={}){
     own[C.source.setpoint]=own[C.source.chEnable]='500';
     function deliver(board,topic,value,retained=false){
         if(topic.endsWith('/meta/error'))delete lastSample[board][topic.slice(0,-11)];
+        const control=topic.match(/^\/devices\/(.+?)\/controls\/(.+)$/);
+        if(control){
+            const p=control[1]+'/'+control[2].replace(/\/meta\/error$/, '#error');
+            if(!own[p])values[board][p]=value;
+        }
         // v2.40 newTrackHandler exports exactly topic/value. Do not keep the
         // newer metadata on a side channel when this profile is selected.
         const m=options.apiVersion==='2.40.0'?require('./wb240-callback')(topic,String(value)):{topic,value:String(value),qos:0};
@@ -56,7 +61,7 @@ exports.create=function(options={}){
         const dev=new Proxy(values[board],{set(o,k,v){
             const isPhysical=!!own[k]||/^(A\d+\/|wbe2-i-opentherm_11\/)/.test(k);
             if(isPhysical){assert.equal(board,'boiler');assert.equal(own[k],owner,'writer '+owner+' -> '+k);}
-            else assert.ok((owner==='620'&&k.startsWith('NL_simple_thermostat_'))||(owner==='624'&&k.startsWith('NL_combo_thermostat_504/'))||(owner==='500'&&k.startsWith('HHM3_FSE/')),'unknown VD writer '+owner+' '+k);
+            else assert.ok((owner==='620'&&k.startsWith('NL_simple_thermostat_'))||(owner==='624'&&k.startsWith('NL_combo_thermostat_504/'))||(owner==='500'&&k.startsWith('HHM3_FSE/'))||(owner==='600'&&/^(heat_diagnostics|boiler_state)\//.test(k)),'unknown VD writer '+owner+' '+k);
             assert.notEqual(v,null);assert.notEqual(v,undefined);if(typeof v==='number')assert.ok(Number.isFinite(v));
             const w={owner,path:k,value:v,at:now,board};writes.push(w);
             const failure=typeof failPath==='function'?failPath(w):k===failPath;
@@ -95,30 +100,35 @@ exports.create=function(options={}){
             trackMqtt:(t,fn)=>{(handlers[board][t]||(handlers[board][t]=[])).push({owner:name,fn});},
             publish:(...a)=>publish(board,...a),setInterval:()=>1,setTimeout:()=>1});
         for(const level of ['info','warning','error'])context.log[level]=text=>logs.push({level,text,owner});
-        vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context,{filename:file});
+        vm.runInContext(fs.readFileSync(path.resolve(root,file),'utf8'),context,{filename:file});
         contexts[name]=context;owner=saved;
     }
     const scripts={'500':['boiler','boiler/wb-rules/500_HHM3_FSE.js'],
         '620':['boiler','boiler/wb-rules/620_thermostats.js'],
-        '624':['gazebo','gazebo/wb-rules/624_combo_besedka.js']};
+        '624':['gazebo','gazebo/wb-rules/624_combo_besedka.js'],
+        '600':['boiler','../Wirenboard/wb-rules/600_Heat_diagnostics.js']};
     for(const name of options.startOrder||['500','620','624'])runtime(scripts[name][0],name,scripts[name][1]);
-    function tick(id){const saved=owner;owner=id;try{contexts[id].evaluate();}finally{owner=saved;}}
+    function tick(id){const saved=owner;owner=id;try{if(id==='600')contexts[id].hdEvaluate();else contexts[id].evaluate();}finally{owner=saved;}}
     function rule(board,name,value){const r=rules[board][name],saved=owner;owner=r.owner;try{r.then(value);}finally{owner=saved;}}
     const temperatures={};
     Object.values(C.circuits).forEach(c=>{temperatures[c.supply]=25;temperatures[c.ret]=23;});
     temperatures[C.source.temperature]=50;temperatures[C.source.connection]=0;temperatures[C.source.fault]=0;
     Z.forEach(z=>temperatures[z.sensor]=z.kind==='floor'?20:18);
     const gazeboTemperatures={'921.09_MSW_TH/Temperature':20,'921.10_TEMP_NONE/External Sensor 1':23};
+    const health={boiler:{},gazebo:{}};
+    for(const [p,h]of Object.entries(C.m1w2Health))health[p.startsWith('921.')?'gazebo':'boiler'][h]=1;
+    temperatures['wb-m1w2_170/External Sensor 2']=40;
     function samples(){
         // Match the real 60-second max_unchanged_interval rather than sending
         // 50+ unchanged values every 5 seconds. Changes publish immediately.
+        for(const board of ['boiler','gazebo'])for(const [p,v]of Object.entries(health[board]))if(v!==undefined)periodic(board,p,v);
         for(const [p,v]of Object.entries(temperatures))if(v!==undefined)periodic('boiler',p,v);
         for(const p of Object.keys(own))if(values.boiler[p]!==undefined&&(!options.dropReadback||!options.dropReadback(p))){
             const v=values.boiler[p];periodic('boiler',p,typeof v==='boolean'?(v?1:0):v);
         }
         for(const [p,v]of Object.entries(gazeboTemperatures))if(v!==undefined)periodic('gazebo',p,v);
     }
-    return {C,Z,stores,values,definitions,writes,messages,logs,effects,modelPosition,contexts,load,temperatures,gazeboTemperatures,topic,
+    return {C,Z,stores,values,definitions,writes,messages,logs,effects,modelPosition,contexts,load,health,temperatures,gazeboTemperatures,topic,
         now:()=>now,time:t=>now=t,tick,rule,deliver,samples,topics:board=>Object.keys(handlers[board]),
         start:()=>rule('boiler','hhm3_first_start',true),
         set:(board,p,v)=>{values[board][p]=v;},

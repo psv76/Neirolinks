@@ -4,7 +4,7 @@ on:
     branches: ['codex/nli-v0.1']
     paths: ['NLI/**', '.github/workflows/nli-check.yml']
   pull_request:
-    paths: ['NLI/**', '.github/workflows/nli-check.yml']
+    paths: ['NLI/**', 'objects/05_31_Ivolga_13/HHM3_FSE/**', 'objects/05_31_Ivolga_13/Wirenboard/wb-rules/600_Heat_diagnostics.js', '.github/workflows/nli-check.yml']
 permissions:
   contents: read
 jobs:
@@ -25,6 +25,7 @@ jobs:
         run: |
           node NLI/tests/pressure_makeup_runtime.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/run.js
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/sensor-health-regressions.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/partial-ready-regressions.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/persistent-storage-regressions.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/manifest.js --check

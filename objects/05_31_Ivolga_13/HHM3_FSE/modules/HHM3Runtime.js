@@ -13,8 +13,38 @@ exports.io = function (env, owner, allowed) {
             env.trackMqtt(exports.topic(path),function(m){s.sample(m.value,m.retained,env.now());if(m.retained===false&&s.runtimeStatus()==='SUPPORTED')sensors[path].seq++;if(env.onSample)env.onSample();});
             env.trackMqtt(exports.topic(path)+'/meta/error',function(m){s.error(m.value,m.retained);if(env.onSample)env.onSample();});
         },
+        watchM1w2:function(path,min,max) {
+            var healthPath=C.m1w2Health[path];
+            if(!healthPath)throw new Error('Missing explicit M1W2 health mapping: '+path);
+            if(sensors[path])throw new Error('Duplicate sensor policy: '+path);
+            var paths=[path,healthPath],s=W.localM1w2(function(channel){
+                var p=paths[channel],value=env.dev[p];
+                if(value===undefined||value===null)return null;
+                return {value:value,error:env.dev[p+'#error']};
+            });
+            sensors[path]={sensor:s,min:min,max:max,seq:0,local:true};
+            paths.forEach(function(p,channel){
+                env.trackMqtt(exports.topic(p),function(m){
+                    s.sample(channel,m.value,m.retained,env.now());
+                    if(channel===0&&m.retained===false)sensors[path].seq++;
+                    if(env.onSample)env.onSample();
+                });
+                env.trackMqtt(exports.topic(p)+'/meta/error',function(m){
+                    s.error(channel,m.value,m.retained,env.now());
+                    if(env.onSample)env.onSample();
+                });
+            });
+        },
+        watchTemperature:function(path,min,max) {
+            if(sensors[path])return;
+            if(C.m1w2Health[path])api.watchM1w2(path,min,max);
+            else api.watch(path,min,max);
+        },
         read:function(path) {var s=sensors[path];return s?s.sensor.read(env.now(),s.min,s.max):null;},
         at:function(path) {var s=sensors[path];return s?s.sensor.timestamp():null;},
+        // A health-qualified local observation is not a new numeric measurement.
+        // Thermal dwell logic uses this; command/readback age still uses at().
+        observedAt:function(path) {var s=sensors[path];return api.read(path)===null?null:(s.local?env.now():api.at(path));},
         seq:function(path) {return sensors[path]?sensors[path].seq:0;},
         matches:function(path,value) {return api.read(path)===numeric(value);},
         begin:function(){attempts=[];},
@@ -98,15 +128,15 @@ exports.source=function(config,storage,io) {
         if(t!==null&&t>=config.hardMaxC)storage.hot=true;
         if(storage.hot) {
             if(t===null||t>config.recoverC)coolAt=null;
-            else if(coolAt===null){coolAt=now;firstSample=io.at(config.temperature);}
-            if(coolAt!==null&&now-coolAt>=config.coolMs&&io.at(config.temperature)>firstSample)storage.hot=false;
+            else if(coolAt===null){coolAt=now;firstSample=io.observedAt(config.temperature);}
+            if(coolAt!==null&&now-coolAt>=config.coolMs&&io.observedAt(config.temperature)>firstSample)storage.hot=false;
         }
         var state='ACTIVE',warning='',command=null,ok=true,sent=false;
         function write(path,value){var w=io.write(path,value);sent=w.sent||sent;return w.ok;}
         if(!inService)state='FIRST_COMMISSIONING';
         else if(storage.hot){state='SOURCE_OVERHEAT';warning='Аппаратные защиты котла обязательны; насосы соседей не выключаются';}
         else if(connection!==0||fault!==0){state='OT_UNAVAILABLE';warning='Нет свежей исправной связи OT; новые команды удержаны';}
-        else if(t===null){state='SOURCE_SENSOR_UNAVAILABLE';warning='Нет свежего 411; новые команды удержаны';}
+        else if(t===null){state='SOURCE_SENSOR_UNAVAILABLE';warning='Нет достоверного 411; новые команды удержаны';}
         else if(requested===0&&demandKnown===false){state='REQUESTS_UNAVAILABLE';warning='Запрос 0, но отсутствие спроса не подтверждено: команду OFF не выдаём';}
         else if(requested===0){
             state='NO_DEMAND';

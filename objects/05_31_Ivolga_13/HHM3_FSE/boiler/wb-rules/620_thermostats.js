@@ -1,4 +1,4 @@
-/* HHM 3.0 FSE / Иволга: единственный writer зональных A08/A09/A13/A14.
+/* HHM 3.1.0 / Иволга: единственный writer зональных A08/A09/A13/A14.
  * 505 — только термостат, его насос принадлежит manager, задержки приводов нет.
  */
 var Config=require('HHM3Config'),C=Config.config,W=require('HHM3Wire'),R=require('HHM3Runtime');
@@ -41,11 +41,11 @@ Config.zones.forEach(function(z){
         target_temperature:{title:targetTitle,type:'range',value:target,min:z.min,max:z.max,forceDefault:false,order:2},
         temperature:{title:temperatureTitle,type:'temperature',value:0,readonly:true,forceDefault:true,order:3},
         status:{title:'Состояние',type:'text',value:'Запуск',readonly:true,forceDefault:true,order:4},
-        valid:{title:'Показания свежие',type:'switch',value:false,readonly:true,forceDefault:true,order:5},
+        valid:{title:'Показания достоверны',type:'switch',value:false,readonly:true,forceDefault:true,order:5},
         current_state:{title:'Запрос тепла',type:'switch',value:false,readonly:true,forceDefault:true,order:6}
     }});
     memory[z.id]=false;
-    io.watch(z.sensor,-20,z.kind==='floor'?70:60);
+    io.watchTemperature(z.sensor,-20,z.kind==='floor'?70:60);
 });
 function stateValue(v){if(v===true||v===1||v==='1')return 1;if(v===false||v===0||v==='0')return 0;return null;}
 function evaluate(){

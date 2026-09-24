@@ -60,6 +60,7 @@ exports.combo = function (memory, air, floor, s) {
     return result;
 };
 
+// Network/MSW/ack policy only. Local M1W2 uses localM1w2 below.
 // Only fresh non-retained sensor publications advance freshness. Errors invalidate
 // immediately; clearing an error requires a subsequent fresh measurement.
 exports.sensor = function () {
@@ -94,6 +95,72 @@ exports.sensor = function () {
             if (at !== null && now - at >= exports.SENSOR_TTL_MS) { value = null; at = null; }
             return runtime !== 'RUNTIME_UNSUPPORTED' && !error && at !== null && now >= at &&
                 between(value, min, max) ? value : null;
+        }
+    };
+};
+
+// m1w2-health-v1. readControl returns the actual local value and #error.
+// Neither retained values, empty error metadata nor repeated reads qualify startup.
+// Both channels need a live value. Once a live value has been seen, a live error
+// clearance can requalify the unchanged control after a polling failure.
+// After qualification validity is state based, not numeric-publication age based.
+exports.localM1w2 = function (readControl) {
+    var proof = [false, false], seen = [false, false], faults = ['', ''], runtime = 'UNVERIFIED';
+    var reported = [null, null], measuredAt = null, lastNow = null, reason = 'STARTUP_VALIDATION';
+    function clock(now) {
+        if (lastNow !== null && now < lastNow) { proof = [false, false]; seen = [false, false]; measuredAt = null; }
+        lastNow = now;
+    }
+    function metadata(retained) {
+        if (typeof retained !== 'boolean') { runtime = 'RUNTIME_UNSUPPORTED'; proof = [false, false]; }
+        else if (runtime !== 'RUNTIME_UNSUPPORTED') runtime = 'SUPPORTED';
+        return runtime !== 'RUNTIME_UNSUPPORTED' && retained === false;
+    }
+    function ok(v) { return v === true || v === 1 || v === '1'; }
+    return {
+        sample: function (channel, value, retained, now) {
+            clock(now);
+            // A late retained delivery must not replace a qualified live reading.
+            if (retained === true) { proof[channel] = false; seen[channel] = false; }
+            if (!metadata(retained)) return;
+            reported[channel] = channel === 0 ? number(value) : ok(value);
+            proof[channel] = channel === 0 ? number(value) !== null : ok(value);
+            seen[channel] = proof[channel];
+            if (channel === 0) measuredAt = now;
+        },
+        error: function (channel, value, retained, now) {
+            clock(now);
+            var live = metadata(retained), error = value === undefined || value === null ? '' : String(value);
+            if (error) { faults[channel] = error; proof[channel] = false; }
+            else if (live) { faults[channel] = ''; proof[channel] = seen[channel]; }
+        },
+        runtimeStatus: function () { return runtime; },
+        timestamp: function () { return measuredAt; },
+        status: function () { return reason; },
+        read: function (now, min, max) {
+            clock(now);
+            if (runtime === 'RUNTIME_UNSUPPORTED') { reason = runtime; return null; }
+            var t, h, value;
+            try { t = readControl(0); h = readControl(1); }
+            catch (e) { t = null; h = null; }
+            if (!t || !h) {
+                if (!t) { proof[0] = false; seen[0] = false; }
+                if (!h) { proof[1] = false; seen[1] = false; }
+                reason = 'CONTROL_MISSING'; return null;
+            }
+            if (t.error || h.error || faults[0] || faults[1]) {
+                if (t.error || faults[0]) proof[0] = false;
+                if (h.error || faults[1]) proof[1] = false;
+                reason = 'CONTROL_ERROR'; return null;
+            }
+            value = number(t.value);
+            if (!between(value, min, max)) { proof[0] = false; reason = 'VALUE_INVALID'; return null; }
+            if (!ok(h.value)) { proof[1] = false; reason = 'SENSOR_NOT_OK'; return null; }
+            if (!proof[0] || !proof[1]) { reason = 'STARTUP_VALIDATION'; return null; }
+            // trackMqtt and the device-model subscriber may run in either order.
+            // Never pair a new proof with an older cached numeric value.
+            if (value !== reported[0] || ok(h.value) !== reported[1]) { reason = 'CONTROL_SYNC_WAIT'; return null; }
+            reason = 'VALID'; return value;
         }
     };
 };

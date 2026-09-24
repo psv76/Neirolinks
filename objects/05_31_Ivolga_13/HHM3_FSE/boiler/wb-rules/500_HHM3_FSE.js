@@ -14,10 +14,11 @@ var io=R.io({dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log,
 var house=W.receiver(Date.now(),R.houseValid),gazebo=W.receiver(Date.now());
 trackMqtt(C.houseTopic,function(m){house.accept(m.value,m.retained,Date.now());if(initialized)evaluate();});
 trackMqtt(W.TOPIC,function(m){gazebo.accept(m.value,m.retained,Date.now());if(initialized)evaluate();});
-[C.source.temperature,C.source.connection,C.source.fault].forEach(function(p){io.watch(p,p===C.source.temperature?-20:0,p===C.source.temperature?110:1);});
+io.watchTemperature(C.source.temperature,-20,110);
+[C.source.connection,C.source.fault].forEach(function(p){io.watch(p,0,1);});
 Z.forEach(function(z){z.outputs.forEach(function(p){io.watch(p,0,1);});});
 Object.keys(C.circuits).forEach(function(id){
-    var c=C.circuits[id];io.watch(c.supply,-20,110);io.watch(c.ret,-20,110);
+    var c=C.circuits[id];io.watchTemperature(c.supply,-20,110);io.watchTemperature(c.ret,-20,110);
     thermal[id]=new PersistentStorage('hhm3_circuit_'+id,{global:true});
     if(c.kind==='mixed')engines[id]=Policy.create(c,thermal[id],Mix);
     if(c.kind==='mixed')outputSteps[id]=Outputs.create(c,io);
@@ -26,6 +27,7 @@ var sourceStep=R.source(C.source,new PersistentStorage('hhm3_source',{global:tru
 // Operator-facing virtual controls only. Detailed per-cycle structures stay in memory
 // for regression tests and are not published as large MQTT/WebUI JSON strings.
 defineVirtualDevice(VD,{title:'HHM3 — Иволга | отопление',cells:{
+    sensor_health_contract:{type:'text',value:C.healthContract,readonly:true,forceDefault:true,hidden:true},
     in_service:{title:'Отопление разрешено',type:'switch',value:false,readonly:true,forceDefault:true,order:1},
     operational_status:{title:'Общий статус',type:'text',value:'Ожидает первого ввода',readonly:true,forceDefault:true,order:2},
     circuit_501:{title:'501 · ТП дом, паркет',type:'text',value:'—',readonly:true,forceDefault:true,order:10},
@@ -107,7 +109,7 @@ function fallback(id){
         degraded:enabled,reason:enabled?'HOUSE_LINK_LOST':'OFF',floor:null};
 }
 function direct(id,c,g,now){
-    var t=io.read(c.supply),s=thermal[id],stamp=io.at(c.supply);
+    var t=io.read(c.supply),s=thermal[id],stamp=io.observedAt(c.supply);
     if(t!==null&&t>=c.hardMaxC)s.hot=true;
     if(s.hot){
         if(t===null||t>c.recoverC)delete directCool[id];
@@ -156,7 +158,7 @@ function evaluateOnce(){
                 mode:'HEAT',heat:c.floorTargetMaxC,hold:c.floorTargetMaxC,reason:g.reason,
                 sent_ms:hl.frame?hl.frame.sent_ms:now,session_id:hl.frame?hl.frame.session_id:0,seq:hl.frame?hl.frame.seq:0};
             if(id!=='504'&&!g.enabled)f.valid=true;
-            r=engines[id].step({now:now,supply:io.read(c.supply),supplyAt:io.at(c.supply),
+            r=engines[id].step({now:now,supply:io.read(c.supply),supplyAt:io.observedAt(c.supply),
                 ret:io.read(c.ret),source:io.read(C.source.temperature),frame:f,linkReason:gl.reason});
             // A failed write or an unconfirmed OFF might leave an unsafe
             // zone energized; no shared hot water until its OFF/readback is known.

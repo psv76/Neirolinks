@@ -3,7 +3,7 @@ name: HHM3 FSE checks
 on:
   push:
     branches:
-      - codex/issue-59-hhm3-fse
+      - codex/issue-68-hhm-3-1-sensor-health
   pull_request:
     paths:
       - 'objects/05_31_Ivolga_13/HHM3_FSE/**'
@@ -26,6 +26,8 @@ jobs:
           node-version: '22'
       - name: Run complete simulation and regression suite
         run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/run.js
+      - name: Verify M1W2 health, startup, recovery, diagnostics and thermal protection
+        run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/sensor-health-regressions.js
       - name: Verify 502 partial-ready, output-block and valve-transition regressions
         run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/partial-ready-regressions.js
       - name: Reproduce WB PersistentStorage contract and preserve 18+505 settings

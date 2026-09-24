@@ -7,7 +7,8 @@ var C = require('HHM3Config').config.circuits['504'];
 var events = require('HHM3Runtime').io({dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log},'624_combo_besedka',[]);
 var VD = 'NL_combo_thermostat_504';
 var memory = { airHeat: false, floorHeat: false };
-var air = H.sensor(), floor = H.sensor();
+var air = H.sensor(), floorPath = '921.10_TEMP_NONE/External Sensor 1';
+events.watchM1w2(floorPath,-20,70);
 var store504 = new PersistentStorage('hhm3_504_sender', { global: true });
 var session = H.nextSession(store504);
 var seq = 0, lastReason = '';
@@ -31,6 +32,7 @@ cell('demand_valid', 'Запрос достоверен', 'switch', false, true)
 cell('state', 'Состояние', 'text', 'Самопроверка датчиков', true);
 cell('reason', 'Причина', 'text', 'STARTUP', true);
 cell('runtime_status', 'Совместимость wb-rules', 'text', 'Ожидание MQTT: требуется wb-rules >= 2.42.0', true);
+cells.sensor_health_contract={type:'text',value:require('HHM3Config').config.healthContract,readonly:true,forceDefault:true,hidden:true};
 defineVirtualDevice(VD, { title: '504 Беседка — воздух и пол', cells: cells });
 function sc(k, v) { dev[VD + '/' + k] = v; }
 function watch(path, sensor) {
@@ -40,18 +42,18 @@ function watch(path, sensor) {
     trackMqtt(topic + '/meta/error', function (m) { sensor.error(m.value, m.retained); });
 }
 watch('921.09_MSW_TH/Temperature', air);
-watch('921.10_TEMP_NONE/External Sensor 1', floor);
+
 function evaluate() {
-    var now = Date.now(), a = air.read(now, -20, 60), f = floor.read(now, -20, 70);
+    var now = Date.now(), a = air.read(now, -20, 60), f = events.read(floorPath);
     sc('target_state', 1); // Compatibility display only; never a user OFF command.
     var s = { target: H.number(dev[VD + '/target_temperature']),
         hold: H.number(dev[VD + '/floor_min_temperature']),
         heat: H.number(dev[VD + '/floor_max_temperature']),
         enabled: true };
     var r = H.combo(memory, a, f, s);
-    var unsupported = air.runtimeStatus() === 'RUNTIME_UNSUPPORTED' || floor.runtimeStatus() === 'RUNTIME_UNSUPPORTED';
+    var unsupported = air.runtimeStatus() === 'RUNTIME_UNSUPPORTED' || events.runtime().indexOf('RUNTIME_UNSUPPORTED') === 0;
     sc('runtime_status', unsupported ? H.RUNTIME_ERROR_RU :
-        (air.runtimeStatus() === 'SUPPORTED' && floor.runtimeStatus() === 'SUPPORTED' ?
+        (air.runtimeStatus() === 'SUPPORTED' && events.compatible() ?
         'trackMqtt.retained поддерживается; версию проверить до установки' : 'Ожидание MQTT: требуется wb-rules >= 2.42.0'));
     if (unsupported) {
         memory.airHeat = false; memory.floorHeat = false;

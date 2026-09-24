@@ -17,7 +17,7 @@ const files=walk(root).map(f=>path.relative(root,f).split(path.sep).join('/')).f
  const content=fs.readFileSync(path.join(root,file),'utf8').replace(/\r\n/g,'\n');
  return {file,sha256:sha(content),...destination(file)};
 });
-const result={release:'HHM 3.0.0-FSE',object:'05_31_Ivolga_13',issue:59,encoding:'UTF-8; SHA-256 over LF-normalized text',
+const result={release:'HHM 3.1.0',object:'05_31_Ivolga_13',issue:68,encoding:'UTF-8; SHA-256 over LF-normalized text',
  aggregate_sha256:sha(files.map(f=>f.file+'\0'+f.sha256+'\n').join('')),files};
 if(process.argv.includes('--check')){
  const saved=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));assert.deepEqual(saved,result);
