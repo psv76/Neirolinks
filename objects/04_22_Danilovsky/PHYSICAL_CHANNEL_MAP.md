@@ -247,7 +247,7 @@
 | 211 | `wb-mr6c_156/Input 3` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw показал `Input 3 counter` и `Input 3 Single Press Counter` |
 | 212 | `wb-mr6c_156/Input 0` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw показал `Input 0 counter` и `Input 0 Single Press Counter`; необычное имя Input 0 подтверждено непосредственно на объекте |
 | 215 | `wb-mr6c_117/Input 2` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw показал `Input 2 counter` и `Input 2 Single Press Counter` |
-| 216 | `wb-mr6c_156/Input 6 Single Press Counter` | FIELD_CONFIRMED | прежняя запись про несколько устройств относится к старой реализации и требует отдельной проверки, но реальный определитель показал Input 6 |
+| 216 | `wb-led_42/Input 4` + `wb-mr6c_117/Input 1` + `wb-mr6c_156/Input 6` | FIELD_CONFIRMED | повторная полевая проверка новым определителем поймала три физических входа одной клавиши; raw также показал `117/Input 1 counter`, `156/Input 6 counter`, `156/Input 6 Single Press Counter`, `117/Input 1 Single Press Counter` |
 | 218 | `wb-mr6c_206/Input 4 Single Press Counter` | FIELD_CONFIRMED | подтверждено нажатием |
 | 219 | `wb-mr6c_206/Input 5` | FIELD_CONFIRMED | тип события уточнить |
 | 220 | `wb-mr6c_138/Input 2 Single Press Counter` | FIELD_CONFIRMED | совпадает со старым JS и рукописными заметками |
@@ -273,7 +273,7 @@
 - 204 — `wb-led_11/Input 3` + `wb-mr6c_218/Input 3`;
 - 208 — уточнено повторной полевой проверкой: `wb-led_26/Input 3` + `wb-mr6c_138/Input 6`;
 - 209 — уточнено повторной полевой проверкой: `wb-led_23/Input 4` + `wb-led_42/Input 1`;
-- 216 — `wb-mr6c_156/Input 6 Single Press Counter`.
+- 216 — уточнено повторной полевой проверкой: `wb-led_42/Input 4` + `wb-mr6c_117/Input 1` + `wb-mr6c_156/Input 6`.
 
 При разработке новых правил приоритет у **FIELD_CONFIRMED**, а старые скрипты и рукописные заметки используются только как пояснение старой реализации.
 
