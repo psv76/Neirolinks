@@ -95,4 +95,4 @@ class StartupProbeTests(unittest.TestCase):
         system=System()
         with patch.object(system,'journal',return_value=''), \
              patch('nli.system.time.monotonic',side_effect=[0,16]):
-            with self.assertRaisesRegex(Error,'Missing rule startup'): system.rule_started('marker')
+            with self.assertRaisesRegex(Error,'Missing rule startup'): system.rule_started('marker', 'restart-time')

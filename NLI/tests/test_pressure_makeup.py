@@ -221,7 +221,9 @@ class PressureTests(PressureFixture):
 
     def test_startup_missing_and_runtime_errors_fail_verify(self):
         with patch.object(self.system,'rule_started',side_effect=Error('Missing rule startup marker')):
-            self.assertEqual(self.engine.read_operation('verify',self.component)['final_status'],'failed')
+            self.assertEqual(self.engine.read_operation('verify',self.component)['final_status'],'ok')
+            with self.assertRaisesRegex(Error, 'Missing rule startup marker'):
+                self.engine.verify(self.base, 'restart-time')
         for path in ('pressure_makeup/active','pressure_makeup/pulse_count','pressure_makeup/last_event'):
             old=self.system.controls[path]
             self.system.controls[path]=''

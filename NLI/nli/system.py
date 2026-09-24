@@ -48,9 +48,7 @@ class System:
         return self.mqtt("/devices/" + device + "/controls/" + control)
 
     def journal(self, since=None):
-        if since is None:
-            since = self.run(["/usr/bin/systemctl", "show", "wb-rules", "--property=ActiveEnterTimestamp", "--value"])
-            require(bool(since), "No wb-rules activation timestamp")
+        require(isinstance(since, str) and bool(since), "Explicit journal observation boundary required")
         return self.run(["/usr/bin/journalctl", "-u", "wb-rules", "--since", since,
                          "--no-pager", "-o", "cat"], timeout=30)
 

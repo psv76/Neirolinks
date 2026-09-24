@@ -20,6 +20,8 @@ Crash-политика: durable intent до stop; best-effort rollback при Py
 
 Read-only команды не записывают собственные timestamps/cache/history; Linux filesystem может обновлять atime при чтении, а broker/system services вести свои обычные журналы. Read-only NLI не публикует MQTT и не изменяет NLI/system configuration.
 
+Standalone verify в 0.1.3 ограничивает health gate журнала текущим observation window от начала files/runtime probes до финального чтения; он не является историческим аудитом или непрерывным мониторингом. Pressure_makeup проверяет текущие controls без требования нового startup marker. Post-update/rollback сохраняет исходную границу перед service start и обязательный marker после restart, не пропуская ошибки между start и поздним verify. Missing journal boundary даёт явную ошибку без fallback на lifetime. Все прежние error patterns и recovery/interlocks сохранены.
+
 ## Независимый owner pressure_makeup
 
 507 разрешён только component id/plugin pressure_makeup с точным single-file target, object Иволга и role boiler. HHM не может заявить этот файл; произвольные output claims в manifest запрещены. A04/K1 закреплён за trusted pressure_makeup policy. Registry проверяет peer manifests/hashes; одно имя в config не является доверием. Managed path нельзя одновременно allowlist-ить как unmanaged. Backup/rollback ограничены файлами инициирующего компонента.

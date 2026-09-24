@@ -1,5 +1,25 @@
 # Проверки NLI v0.1
 
+## 0.1.3 — scoped standalone verify
+
+[Проверено локально, 24.09.2026] 125 Python tests: 88 PASS, 37 SKIP
+(Windows symlink privilege). Добавлены timestamped journal regressions для обоих
+plugins: старая ERROR history не мешает standalone verify; каждый из шести
+error patterns, возникший после начала file/runtime probes, блокирует verify;
+здоровый давно запущенный 507 не требует нового startup marker. Для update
+каждый pattern после restart вызывает rollback; rollback получает отдельную
+новую границу и не наследует ошибки неуспешного update. Ошибки после explicit
+rollback оставляют partial_failure/pending. Startup marker после restart
+по-прежнему обязателен. Journal без явной границы fails closed, без systemctl
+activation lookup. Standalone не создаёт state/log и не вызывает services.
+
+CI также проверяет реальные upgrades 0.1.0 → 0.1.1 → 0.1.2 → 0.1.3, nodoc,
+оба установленных компонента, сохранность config/state при reinstall и FIT
+simulation. Итоговый green run/HEAD, artifact `neiro-nli-0.1.3-deb` и точный
+SHA256 `.deb` публикуются в [PR #71](https://github.com/psv76/Neirolinks/pull/71).
+Live WB не затрагивается; scoped verify не заменяет физическую приёмку и не
+является мониторингом ошибок после завершения команды.
+
 ## 0.1.2 — самостоятельный pressure_makeup
 
 [Проверено локально, 24.09.2026] 117 Python tests: 80 PASS, 37 SKIP

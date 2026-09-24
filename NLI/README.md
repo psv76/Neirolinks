@@ -18,8 +18,8 @@
 python3 -B -m unittest discover -s NLI/tests -v
 python3 -B NLI/tests/sandbox.py
 python3 -B NLI/tools/build_deb.py
-(cd NLI/dist && sha256sum -c neiro-nli_0.1.2_all.deb.sha256)
-dpkg-deb --info NLI/dist/neiro-nli_0.1.2_all.deb
+(cd NLI/dist && sha256sum -c neiro-nli_0.1.3_all.deb.sha256)
+dpkg-deb --info NLI/dist/neiro-nli_0.1.3_all.deb
 ```
 
 Build использует только stdlib; создаёт воспроизводимый Debian ar с control/data tar.gz, root ownership и `/usr/bin/nli` mode 0755. `SOURCE_DATE_EPOCH` задаёт timestamp (по умолчанию 0). Нет maintainer scripts, service units, restart при установке или зависимости HHM от пакета. CI проверяет `dpkg-deb` и установку в одноразовом Debian Trixie container.
@@ -27,12 +27,12 @@ Build использует только stdlib; создаёт воспроиз�
 В тестовом Debian/WB-окружении после проверки происхождения пакета:
 
 ```sh
-sudo apt install ./neiro-nli_0.1.2_all.deb
+sudo apt install ./neiro-nli_0.1.3_all.deb
 nli --version
 nli status
 ```
 
-Пакет устанавливает Python sources в `/usr/lib/neiro-nli`, примеры в `/usr/share/neiro-nli/examples`, schema и bootstrap runbook в `/usr/share/neiro-nli/`. Они доступны при WB dpkg `path-exclude /usr/share/doc/*`. Config `/mnt/data/etc/neiro/nli/config.json` создаётся инженером и **не принадлежит пакету**; conffiles/maintainer scripts в 0.1.2 отсутствуют. Пока config не создан, CLI читает packaged `default-config.json` без записи на диск. При существующих данных и потерянном config либо настроенных старых данных 0.1.0 CLI требует разбор/миграцию, а не создаёт пустой профиль. HHM payload пакет **не устанавливает**. Библиотеки Python кроме stdlib не требуются. `systemd`/`mosquitto-clients` нужны только для WB probes/service actions. Штатный firmware updater — отдельный suggested пакет.
+Пакет устанавливает Python sources в `/usr/lib/neiro-nli`, примеры в `/usr/share/neiro-nli/examples`, schema и bootstrap runbook в `/usr/share/neiro-nli/`. Они доступны при WB dpkg `path-exclude /usr/share/doc/*`. Config `/mnt/data/etc/neiro/nli/config.json` создаётся инженером и **не принадлежит пакету**; conffiles/maintainer scripts в 0.1.3 отсутствуют. Пока config не создан, CLI читает packaged `default-config.json` без записи на диск. При существующих данных и потерянном config либо настроенных старых данных 0.1.0 CLI требует разбор/миграцию, а не создаёт пустой профиль. HHM payload пакет **не устанавливает**. Библиотеки Python кроме stdlib не требуются. `systemd`/`mosquitto-clients` нужны только для WB probes/service actions. Штатный firmware updater — отдельный suggested пакет.
 
 Полевой bootstrap, upgrade 0.1.0, conffile policy и переустановка после FIT: [WB_SMOKE.md](WB_SMOKE.md). После FIT executable/modules могут исчезнуть; переустановка `.deb` подхватывает persistent config/pins/state/backups/pending/audit. Это проверяется заменой rootfs в CI, не является утверждением о выполненной проверке FIT на реальном WB.
 
@@ -79,7 +79,9 @@ nli --json status
 nli --config /mnt/data/etc/neiro/nli/config.json --json check hhm
 ```
 
-`status/check/verify/firmware check` не создают lock/cache/state/history/pyc; результат только stdout/stderr. `check` проверяет preflight и payload в памяти, ничего не устанавливает. `verify` сверяет installed manifest (либо pinned baseline при первом внедрении), exact hashes/version, active services, fresh role frame, required controls, ownership inventory и ошибки журнала с последнего запуска wb-rules. Данные MQTT не доказывают физическую работу. Исторические runtime ошибки с момента активации дают conservative failure и требуют разбора инженером.
+`status/check/verify/firmware check` не создают lock/cache/state/history/pyc; результат только stdout/stderr. `check` проверяет preflight и payload в памяти, ничего не устанавливает. Standalone `verify` сверяет installed manifest (либо pinned baseline), exact hashes/version, active services, fresh HHM frame, required controls и ownership inventory. Журнал ограничен текущим окном: timestamp фиксируется перед чтением файлов и runtime probes, ошибки проверяются финальным journal query. Старые ошибки до начала этой проверки не дают failure. Pressure_makeup не требует нового startup marker без restart. Это конечная проверка текущего состояния, а не мониторинг будущих ошибок после её завершения; MQTT не доказывает физическую работу.
+
+Post-update/rollback verify сохраняет строгую границу **перед service start транзакции**, не заменяя её временем позднейшего verify. Любой новый `SyntaxError|ReferenceError|TypeError|exception|ERROR|write ignored` с этой границы остаётся failure; pressure_makeup обязан показать startup marker после данного restart. Неуспешный rollback сохраняет pending/partial_failure. Journal API требует явной временной границы и больше не возвращается к lifetime service activation.
 
 Update: preflight → managed backup → artifact checksum → повторный preflight → stop → atomic install → start/active → runtime verify → state/audit success. HHM останавливает только wb-rules, не wb-mqtt-serial. Postverify входит в транзакцию: ошибка вызывает rollback, а не предупреждение после success.
 
@@ -90,7 +92,7 @@ Exit codes: 0 — success; 1 — failed/rolled_back/partial_failure/recovery_req
 Пример sandbox adoption:
 
 ```text
-NLI 0.1.2
+NLI 0.1.3
 object: 05_31_Ivolga_13
 role: boiler
 command: update
@@ -121,7 +123,7 @@ Ctrl-C update вызывает автоматический rollback. SIGKILL/po
 
 Унаследованные semantic-only base checks, предупреждения после успешного install и rollback без preflight не копируются: NLI требует exact reviewed hashes и включает verify/rollback в транзакцию. Текущий INSTALL PR #65 содержит исторические инструкции; для NLI используются этот manifest и runbook. Это не разрешение на live deployment.
 
-## pressure_makeup 1.0 (NLI 0.1.2)
+## pressure_makeup 1.0 (NLI 0.1.3)
 
 Boiler example содержит два компонента: hhm и pressure_makeup. Единственный owner A04/K1 — 507. Shared inventory проверяет manifest и фактические hashes peer-компонентов; managed/unmanaged overlap блокируется. HHM никогда не backup-ит и не изменяет 507. Отдельные check/update/verify/rollback pressure_makeup затрагивают только 507. Версия 1.0 — external manifest metadata для exact reviewed live bytes, без изменения алгоритма.
 

@@ -13,9 +13,11 @@ if [ "$1" = first ]; then
     sha256sum /etc/neiro/nli/config.json > /evidence/old-conffile.sha256
     apt-get install -y /old/neiro-nli_0.1.1_all.deb
     test "$(nli --version)" = 0.1.1
-    apt-get install -y /packages/neiro-nli_0.1.2_all.deb
-    sha256sum -c /evidence/old-conffile.sha256
+    apt-get install -y /old/neiro-nli_0.1.2_all.deb
     test "$(nli --version)" = 0.1.2
+    apt-get install -y /packages/neiro-nli_0.1.3_all.deb
+    sha256sum -c /evidence/old-conffile.sha256
+    test "$(nli --version)" = 0.1.3
     if nli --json status > /evidence/legacy-status.json; then
         echo 'Configured legacy profile was silently discarded' >&2
         exit 1
@@ -30,12 +32,12 @@ if [ "$1" = first ]; then
     test ! -e /var/lib/neiro/nli
     test ! -e /var/log/neiro/nli
     python3 -B /tests/wb_installed_smoke.py bootstrap
-    apt-get install --reinstall -y /packages/neiro-nli_0.1.2_all.deb
+    apt-get install --reinstall -y /packages/neiro-nli_0.1.3_all.deb
     python3 -B /tests/wb_installed_smoke.py reinstall
     # Modified legacy obsolete conffile is neither replaced nor deleted on reinstall.
     printf '%s\n' '{"object":"legacy-reviewed","role":"boiler","hostname":"wirenboard-ABF62SL","components":{}}' > /etc/neiro/nli/config.json
     sha256sum /etc/neiro/nli/config.json > /evidence/modified-conffile.sha256
-    apt-get install --reinstall -y /packages/neiro-nli_0.1.2_all.deb
+    apt-get install --reinstall -y /packages/neiro-nli_0.1.3_all.deb
     sha256sum -c /evidence/modified-conffile.sha256
     python3 -B /tests/wb_installed_smoke.py reinstall
 else
@@ -43,7 +45,7 @@ else
     # Fresh container loses /usr and dpkg database, but mounts the same /mnt/data.
     test ! -e /usr/bin/nli
     test -f /mnt/data/etc/neiro/nli/config.json
-    apt-get install -y /packages/neiro-nli_0.1.2_all.deb
+    apt-get install -y /packages/neiro-nli_0.1.3_all.deb
     python3 -B /tests/wb_installed_smoke.py fit
 fi
 test -z "$(find /usr/lib/neiro-nli -name '*.pyc' -print)"

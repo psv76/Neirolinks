@@ -28,7 +28,7 @@ class Files:
     def preflight(self, engine, m, recovery=False):
         pass
 
-    def verify(self, engine, m, since=None):
+    def verify(self, engine, m, since=None, post_restart=False):
         for c in m["verify"]["controls"]:
             value = engine.system.control(c["path"])
             require(value != "" and ("equals" not in c or value == c["equals"]), "Control mismatch: " + c["path"])
@@ -66,7 +66,7 @@ class HHM(Files):
                 require(engine.system.control(control) == "0", "HHM blocked: " + control + " not confirmed OFF")
         self.inventory(engine, m)
 
-    def verify(self, engine, m, since=None):
+    def verify(self, engine, m, since=None, post_restart=False):
         engine.system.active("wb-rules")
         self.inventory(engine, m)
         text = engine.target("/etc/wb-rules-modules/HHM3Config.js").read_text(encoding="utf-8")
@@ -118,10 +118,11 @@ class PressureMakeup(Files):
             require(engine.system.control(control) == "0", "pressure_makeup blocked: " + control + " not confirmed OFF")
         engine.rules_inventory(m)
 
-    def verify(self, engine, m, since=None):
+    def verify(self, engine, m, since=None, post_restart=False):
         engine.system.active("wb-rules")
         engine.rules_inventory(m)
-        engine.system.rule_started("[507_Pressure_makeup] Запуск скрипта", since)
+        if post_restart:
+            engine.system.rule_started("[507_Pressure_makeup] Запуск скрипта", since)
         # Reset counters/alarms and subsequent normal evaluate (including ON) are
         # accepted. Do not restore these runtime values or assert post-restart OFF.
         for cell in ("active", "valve_open", "enabled", "auto_mode", "sensor_alarm",

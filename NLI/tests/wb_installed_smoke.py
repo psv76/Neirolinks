@@ -16,7 +16,7 @@ import nli
 from nli.core import Engine
 from nli.layout import CONFIG_DIR, DEFAULT_CONFIG, DATA_DIR, STATE_DIR, LOG_DIR, load_config
 from nli.util import digest, read_json, write_json
-assert nli.__version__ == '0.1.2'
+assert nli.__version__ == '0.1.3'
 assert nli.__file__.startswith('/usr/lib/neiro-nli/')
 
 

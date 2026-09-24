@@ -200,10 +200,15 @@ class Engine:
         return result
 
     def verify(self, m, since=None):
+        # Standalone observation starts BEFORE files/services/runtime probes.
+        # A supplied boundary belongs to a transaction and must never be reset.
+        post_restart = since is not None
+        observation_since = since if post_restart else now()
         self.files_match(m)
         for service in m["services"]["start"]:
             self.system.active(service)
-        PLUGINS[self.registration(m["component"])["plugin"]].verify(self, m, since)
+        PLUGINS[self.registration(m["component"])["plugin"]].verify(
+            self, m, observation_since, post_restart=post_restart)
 
     def backup(self, current, target, record):
         folder = self.target(STATE_DIR + "/backups/" + record["id"])
