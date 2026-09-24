@@ -428,9 +428,21 @@ WB-MWAC остаётся владельцем:
 
 ## `42_lighting_kitchen_living.js`
 
+**Статус: PARTIAL / создан безопасный рабочий черновик** — `Wirenboard/wb-rules/42_lighting_kitchen_living.js`.
+
 Самый сложный световой скрипт объекта.
 
 ### Простые функции
+
+Текущий файл уже реализует:
+
+- 218 short: гр.307 остаётся локальным, JS синхронизирует с ним гр.333.3;
+- 228 short: та же логика с другой клавиши;
+- 229 long: OFF 301.1 + 301 + 302.
+
+Перед установкой нужны local mapping-правки: MR206 Input4 short -> K4 toggle, MR206 Input1 short -> K4 toggle, MR156 Input5 short -> K5 ON. Старые handlers `switch_control_lamps` и `switch_control_lamps6` надо отключить, чтобы не было двойного управления.
+
+Полный перечень ТЗ для раздела:
 
 - 219 short: toggle 304;
 - 219 long: toggle 333.4;
