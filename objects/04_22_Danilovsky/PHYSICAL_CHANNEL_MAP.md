@@ -233,7 +233,7 @@
 
 | Кнопка | Вход / событие, увиденное на объекте | Статус | Примечание |
 |---:|---|---|---|
-| 201 | `wb-led_58/Input 1` + `wb-led_13/Input 1` | FIELD_CONFIRMED | одна физическая кнопка приходит сразу в два WB-LED |
+| 201 | `wb-mr6c_203/Input 1` + `wb-led_13/Input 1` + `wb-led_58/Input 1` | FIELD_CONFIRMED | определитель входов после доработки поймал три физических входа одной клавиши; raw также показал `wb-mr6c_203/Input 1 counter` |
 | 202 | `wb-mr6c_203/Input 3` | FIELD_CONFIRMED | тип события уточнить при настройке short/long/double |
 | 203 | `wb-mr6c_218/Input 4` | FIELD_CONFIRMED | совпадает с локальной логикой вентилятора 326 |
 | 204 | `wb-led_11/Input 3` + `wb-mr6c_218/Input 3` | FIELD_CONFIRMED | одна кнопка заведена одновременно в LED и MR6C |
@@ -266,7 +266,7 @@
 
 Живой тест показал, что часть прежних выводов по старым JS и mapping-матрицам была неверной:
 
-- 201 — не `wb-mr6c_203/Input 1`, а пара `wb-led_58/Input 1` + `wb-led_13/Input 1`;
+- 201 — уточнено повторной полевой проверкой: клавиша одновременно приходит в `wb-mr6c_203/Input 1`, `wb-led_13/Input 1` и `wb-led_58/Input 1`;
 - 205 — `wb-mr6c_203/Input 4 Single Press Counter`;
 - 206 — `wb-led_245/Input 1` + `wb-led_224/Input 1`;
 - 204 — `wb-led_11/Input 3` + `wb-mr6c_218/Input 3`;
