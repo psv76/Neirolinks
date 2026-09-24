@@ -234,7 +234,7 @@
 | Кнопка | Вход / событие, увиденное на объекте | Статус | Примечание |
 |---:|---|---|---|
 | 201 | `wb-mr6c_203/Input 1` + `wb-led_13/Input 1` + `wb-led_58/Input 1` | FIELD_CONFIRMED | определитель входов после доработки поймал три физических входа одной клавиши; raw также показал `wb-mr6c_203/Input 1 counter` |
-| 202 | `wb-mr6c_203/Input 3` | FIELD_CONFIRMED | тип события уточнить при настройке short/long/double |
+| 202 | `wb-mr6c_203/Input 2` + `wb-mr6c_203/Input 3` | FIELD_CONFIRMED | повторная полевая проверка новым определителем поймала два физических входа одной клавиши; raw показал также `Input 2 counter` и `Input 3 counter` |
 | 203 | `wb-mr6c_218/Input 4` | FIELD_CONFIRMED | совпадает с локальной логикой вентилятора 326 |
 | 204 | `wb-led_11/Input 3` + `wb-mr6c_218/Input 3` | FIELD_CONFIRMED | одна кнопка заведена одновременно в LED и MR6C |
 | 205 | `wb-mr6c_203/Input 4 Single Press Counter` | FIELD_CONFIRMED | исправляет прежнюю гипотезу о кнопке 206 |
