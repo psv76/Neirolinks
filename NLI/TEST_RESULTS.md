@@ -28,6 +28,11 @@ reuse данных и явное восстановление pending через
 
 Результат CI **итогового HEAD**, имя artifact `neiro-nli-0.1.1-deb` и SHA256
 конкретного `neiro-nli_0.1.1_all.deb` публикуются в [PR #71](https://github.com/psv76/Neirolinks/pull/71).
+Первый [Linux run 35963332056](https://github.com/psv76/Neirolinks/actions/runs/35963332056)
+подтвердил все 76 unit tests без skips, HHM regressions и Debian upgrade/nodoc;
+installed smoke обнаружил ошибку fixture: после review allowlist она повторно
+использовала старый in-memory config. Исправлено повторным load_config как при
+новом запуске CLI; ownership gate не изменён.
 Локальная Windows-сборка не подменяет CI artifact. Полевая проверка 0.1.1 и
 реальный FIT не выполнялись. Второй read-only smoke: [WB_SMOKE.md](WB_SMOKE.md).
 

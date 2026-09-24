@@ -104,6 +104,7 @@ if mode == 'bootstrap':
     assert not Path(STATE_DIR).exists() and not Path(LOG_DIR).exists()
     r['unmanaged_rules'][str(unknown)] = digest(unknown.read_bytes())
     write_json(Path(DEFAULT_CONFIG), config)
+    engine = Engine(load_config(), system=FakeWB())  # next CLI invocation reloads reviewed config
     for command in ('update', 'rollback'):
         result = engine.mutate(command, 'hhm')
         assert result['final_status'] == 'ok', result
