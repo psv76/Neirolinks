@@ -7,6 +7,7 @@ import urllib.request
 import uuid
 from . import __version__
 from .manifest import validate, match, SHA, NAME
+from .layout import CONFIG_DIR, STATE_DIR, LOG_DIR, target as resolve_target
 from .plugins import PLUGINS
 from .system import System
 from .util import Error, Lock, atomic, beneath, decode, digest, read_json, require, sync_dir, write_json
@@ -32,13 +33,12 @@ class Engine:
         for field in ("object", "role", "hostname", "components"):
             require(field in config, "Missing config: " + field)
         require(type(config["components"]) is dict, "Invalid component registry")
-        self.state_dir = self.target("/var/lib/neiro/nli")
-        self.log_dir = self.target("/var/log/neiro/nli")
-        self.pending_path = self.target("/var/lib/neiro/nli/pending.json")
+        self.state_dir = self.target(STATE_DIR)
+        self.log_dir = self.target(LOG_DIR)
+        self.pending_path = self.target(STATE_DIR + "/pending.json")
 
     def target(self, path):
-        require(isinstance(path, str) and path.startswith("/"), "Expected absolute path")
-        return beneath(self.root, path[1:])
+        return resolve_target(self.root, path)
 
     def registration(self, component):
         match(component, NAME, "component")
@@ -62,13 +62,15 @@ class Engine:
     def pinned(self, reference, component):
         require(type(reference) is dict and set(reference) == {"path", "sha256"}, "Expected pinned manifest path/hash")
         match(reference["sha256"], SHA, "manifest hash")
+        require(isinstance(reference["path"], str) and reference["path"].startswith(CONFIG_DIR + "/"),
+                "Release pin must be persisted under " + CONFIG_DIR)
         data = self.target(reference["path"]).read_bytes()
         require(digest(data) == reference["sha256"], "Manifest checksum mismatch")
         return self.validate(decode(data), component)
 
     def state_path(self, component):
         self.registration(component)
-        return self.target("/var/lib/neiro/nli/" + component + ".json")
+        return self.target(STATE_DIR + "/" + component + ".json")
 
     def state(self, component):
         p = self.state_path(component)
@@ -94,7 +96,7 @@ class Engine:
 
     def audit(self, record):
         # One durable file per operation, updated after each action. No unbounded log append.
-        write_json(self.target("/var/log/neiro/nli/" + record["id"] + ".json"), record)
+        write_json(self.target(LOG_DIR + "/" + record["id"] + ".json"), record)
 
     def checkpoint(self, record):
         write_json(self.pending_path, record)
@@ -152,7 +154,7 @@ class Engine:
         PLUGINS[self.registration(m["component"])["plugin"]].verify(self, m, since)
 
     def backup(self, current, target, record):
-        folder = self.target("/var/lib/neiro/nli/backups/" + record["id"])
+        folder = self.target(STATE_DIR + "/backups/" + record["id"])
         items = []
         for i, f in enumerate(current["files"]):
             p = self.target(f["target"])
@@ -171,7 +173,7 @@ class Engine:
 
     def load_backup(self, reference, component):
         match(reference["id"], r"[0-9a-f]{32}", "backup id")
-        folder = self.target("/var/lib/neiro/nli/backups/" + reference["id"])
+        folder = self.target(STATE_DIR + "/backups/" + reference["id"])
         data = beneath(folder, "metadata.json").read_bytes()
         require(digest(data) == reference["metadata_sha256"], "Corrupted backup metadata")
         meta = decode(data)
@@ -262,7 +264,7 @@ class Engine:
         return record
 
     def mutate(self, command, component):
-        with Lock(self.target("/var/lib/neiro/nli/mutation.lock")):
+        with Lock(self.target(STATE_DIR + "/mutation.lock")):
             record = self.record(command, component)
             mutation = False
             original_pending = self.pending()

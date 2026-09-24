@@ -6,11 +6,11 @@
     "hhm": {
       "plugin": "hhm",
       "baseline": {
-        "path": "/etc/neiro/nli/releases/hhm-boiler-3.0.json",
+        "path": "/mnt/data/etc/neiro/nli/releases/hhm-boiler-3.0.json",
         "sha256": "1fb788c6c848cb12f23d81d5bcb93982587fe953e719d3dc2b00ba3a8d202630"
       },
       "target": {
-        "path": "/etc/neiro/nli/releases/hhm-boiler-3.0.json",
+        "path": "/mnt/data/etc/neiro/nli/releases/hhm-boiler-3.0.json",
         "sha256": "1fb788c6c848cb12f23d81d5bcb93982587fe953e719d3dc2b00ba3a8d202630"
       },
       "unmanaged_rules": {}

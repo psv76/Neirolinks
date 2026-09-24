@@ -1,4 +1,4 @@
-name: NLI v0.1
+name: NLI v0.1 WB compatibility
 on:
   push:
     branches: ['codex/nli-v0.1']
@@ -21,22 +21,35 @@ jobs:
         run: python -B -m unittest discover -s NLI/tests -v
       - name: Both controller roles with pinned HHM source and fake WB backend
         run: python -B NLI/tests/sandbox.py
-      - name: Build Debian package
-        run: python -B NLI/tools/build_deb.py
-      - name: Inspect package and install in disposable Debian Trixie container
+      - name: Existing HHM regressions
         run: |
-          dpkg-deb --info NLI/dist/neiro-nli_0.1.0_all.deb
-          dpkg-deb --contents NLI/dist/neiro-nli_0.1.0_all.deb
-          docker run --rm -v "$PWD/NLI/dist:/packages:ro" debian:trixie-slim sh -ec '
-            apt-get update -qq
-            apt-get install -y /packages/neiro-nli_0.1.0_all.deb
-            nli --version
-            nli --json status
-            test ! -e /var/lib/neiro/nli
-            test ! -e /var/log/neiro/nli
-          '
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/run.js
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/partial-ready-regressions.js
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/persistent-storage-regressions.js
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/manifest.js --check
+      - name: Build Debian package
+        run: |
+          python -B NLI/tools/build_deb.py
+          sha256sum NLI/dist/neiro-nli_0.1.1_all.deb
+          dpkg-deb --info NLI/dist/neiro-nli_0.1.1_all.deb
+          dpkg-deb --contents NLI/dist/neiro-nli_0.1.1_all.deb
+      - name: WB nodoc, upgrade, installed boiler bootstrap, reinstall and simulated FIT
+        run: |
+          mkdir -p "$RUNNER_TEMP/nli-old-source" "$RUNNER_TEMP/nli-old-package" "$RUNNER_TEMP/nli-persistent" "$RUNNER_TEMP/nli-evidence"
+          git archive 7a022d657dc65e6b69973e459c35a78fb2e540cc NLI | tar -x -C "$RUNNER_TEMP/nli-old-source"
+          python -B "$RUNNER_TEMP/nli-old-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.0_all.deb"
+          python -B NLI/tools/prepare_hhm.py --commit d75710dad93906af8869dcce48d26e14673b63fb --role boiler --output NLI/build/field-hhm
+          docker run --rm --hostname wirenboard-ABF62SL -e NLI_DISPOSABLE_CI=1 \
+            -v "$PWD/NLI/dist:/packages:ro" -v "$RUNNER_TEMP/nli-old-package:/old:ro" \
+            -v "$PWD/NLI/tests:/tests:ro" -v "$PWD/NLI/build/field-hhm/payload:/payload:ro" \
+            -v "$RUNNER_TEMP/nli-persistent:/mnt/data" -v "$RUNNER_TEMP/nli-evidence:/evidence" \
+            debian:trixie-slim sh /tests/wb_package_smoke.sh first
+          docker run --rm --hostname wirenboard-ABF62SL -e NLI_DISPOSABLE_CI=1 \
+            -v "$PWD/NLI/dist:/packages:ro" -v "$PWD/NLI/tests:/tests:ro" \
+            -v "$RUNNER_TEMP/nli-persistent:/mnt/data" -v "$RUNNER_TEMP/nli-evidence:/evidence" \
+            debian:trixie-slim sh /tests/wb_package_smoke.sh fit
       - uses: actions/upload-artifact@v4
         with:
-          name: neiro-nli-deb
-          path: NLI/dist/*
+          name: neiro-nli-0.1.1-deb
+          path: NLI/dist/neiro-nli_0.1.1_all.deb*
           if-no-files-found: error

@@ -1,5 +1,38 @@
 # Проверки NLI v0.1
 
+## 0.1.1 — полевые WB-блокеры PR #71
+
+[Проверено локально, 24.09.2026] 76 Python tests: 56 PASS, 20 SKIP
+(19 тестов canonical WB symlink layout и прежний symlink test требуют Linux/
+Windows symlink privilege). Исходные 51 тест сохранены; изменены только пути
+durable NLI data. Exact Git blob sandbox boiler/gazebo PASS, сборка 0.1.1 и
+reproducibility/layout проверки PASS. HHM: 67 main + 10 partial-ready groups,
+PersistentStorage 18+505 и manifest 33 files PASS. Изменений HHM/507 нет.
+
+Новые unit cases проверяют canonical roots, literal wrong/relative/chained
+targets, nested symlink file/directory, symlink managed file, missing persistent
+target, traversal, drift, реальные изменённые bytes после update и восстановление
+mode/uid/gid после rollback. Весь HHM suite повторяется на WB layout, включая
+строгий unmanaged inventory, untouched 507 и preflight/rollback failures.
+Проверены no-write default config, приоритет persistent config, missing/corrupt
+config, запрет silent legacy fallback и повторное открытие pending/backup/audit.
+
+CI workflow дополнительно выполняет реальную установку `.deb` в disposable
+Debian Trixie c WB `path-exclude /usr/share/doc/*`: upgrade 0.1.0 → 0.1.1,
+сохранность modified obsolete conffile, bootstrap из **установленных** runtime
+examples без Git checkout, canonical links, exact HHM blobs, fake WB services,
+строгий ownership gate, update/rollback. Reinstall сравнивает hash/mode/uid/gid
+всех `/mnt/data` файлов, включая config/pins/state/backups/pending/audit. Второй
+чистый container с тем же `/mnt/data` моделирует потерю rootfs/FIT и проверяет
+reuse данных и явное восстановление pending через fake backend.
+
+Результат CI **итогового HEAD**, имя artifact `neiro-nli-0.1.1-deb` и SHA256
+конкретного `neiro-nli_0.1.1_all.deb` публикуются в [PR #71](https://github.com/psv76/Neirolinks/pull/71).
+Локальная Windows-сборка не подменяет CI artifact. Полевая проверка 0.1.1 и
+реальный FIT не выполнялись. Второй read-only smoke: [WB_SMOKE.md](WB_SMOKE.md).
+
+## Исторические проверки 0.1.0
+
 [Проверено локально, 24.09.2026] Windows, Python 3.12 (bundled runtime), Node.js. Все NLI тесты изолированы TemporaryDirectory/fake WB; live deploy/SSH/physical commands не выполнялись.
 
 | Проверка | Результат |

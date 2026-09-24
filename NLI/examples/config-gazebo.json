@@ -6,11 +6,11 @@
     "hhm": {
       "plugin": "hhm",
       "baseline": {
-        "path": "/etc/neiro/nli/releases/hhm-gazebo-3.0.json",
+        "path": "/mnt/data/etc/neiro/nli/releases/hhm-gazebo-3.0.json",
         "sha256": "733a2c31422c8d44fd5101d3586974067e3444ddb012bd4a7249bdca15bcf53b"
       },
       "target": {
-        "path": "/etc/neiro/nli/releases/hhm-gazebo-3.0.json",
+        "path": "/mnt/data/etc/neiro/nli/releases/hhm-gazebo-3.0.json",
         "sha256": "733a2c31422c8d44fd5101d3586974067e3444ddb012bd4a7249bdca15bcf53b"
       },
       "unmanaged_rules": {}

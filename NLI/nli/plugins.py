@@ -58,9 +58,11 @@ class HHM(Files):
         for directory in ("/etc/wb-rules", "/etc/wb-rules-modules"):
             folder = engine.target(directory)
             require(folder.is_dir(), "Missing rules directory")
-            for path in folder.rglob("*.js"):
+            for path in folder.rglob("*"):
                 target = directory + "/" + path.relative_to(folder).as_posix()
                 engine.target(target)  # reject symlink, including 507 (never read into backup)
+                if path.suffix != ".js" or path.is_dir():
+                    continue
                 if target not in managed:
                     require(target in approved and digest(path.read_bytes()) == approved[target],
                             "Unknown/drifted possible writer: " + target)

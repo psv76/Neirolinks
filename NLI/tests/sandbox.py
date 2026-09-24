@@ -31,8 +31,8 @@ def run(role):
             put(f["target"], data)
             put("/payload/" + f["source"], data)
         raw = json.dumps(manifest).encode()
-        put("/etc/neiro/nli/release.json", raw)
-        ref = dict(path="/etc/neiro/nli/release.json", sha256=digest(raw))
+        put("/mnt/data/etc/neiro/nli/release.json", raw)
+        ref = dict(path="/mnt/data/etc/neiro/nli/release.json", sha256=digest(raw))
         config = dict(object=manifest["object"], role=role, hostname="sandbox-wb", components={
             "hhm": dict(plugin="hhm", baseline=ref, target=ref, payload_dir="/payload", unmanaged_rules={})})
         system = FakeSystem()

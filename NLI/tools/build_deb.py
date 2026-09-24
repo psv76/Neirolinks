@@ -32,17 +32,19 @@ def archive(entries, epoch):
 
 
 def build(output, epoch=0):
-    control = [("control", (ROOT / "debian/control").read_bytes().replace(b"\r\n", b"\n"), 0o644),
-               ("conffiles", b"/etc/neiro/nli/config.json\n", 0o644)]
+    control = [("control", (ROOT / "debian/control").read_bytes().replace(b"\r\n", b"\n"), 0o644)]
     data = [("usr/bin/nli", (ROOT / "bin/nli").read_bytes().replace(b"\r\n", b"\n"), 0o755),
-            ("etc/neiro/nli/config.json", b'{"object":"unconfigured","role":"unconfigured",'
+            ("usr/share/neiro-nli/default-config.json", b'{"object":"unconfigured","role":"unconfigured",'
              b'"hostname":"unconfigured","components":{}}\n', 0o644)]
     for path in sorted((ROOT / "nli").glob("*.py")):
         data.append(("usr/lib/neiro-nli/nli/" + path.name, path.read_bytes().replace(b"\r\n", b"\n"), 0o644))
     for path in sorted((ROOT / "examples").rglob("*.json")):
-        data.append(("usr/share/doc/neiro-nli/examples/" + path.relative_to(ROOT / "examples").as_posix(),
+        data.append(("usr/share/neiro-nli/examples/" + path.relative_to(ROOT / "examples").as_posix(),
                      path.read_bytes().replace(b"\r\n", b"\n"), 0o644))
-    for name in ("README.md", "SECURITY.md", "FIRMWARE.md", "TEST_RESULTS.md", "manifest.schema.json"):
+    data.append(("usr/share/neiro-nli/manifest.schema.json", (ROOT / "manifest.schema.json").read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    # Smoke/bootstrap instructions are needed even on WB with dpkg nodoc policy.
+    data.append(("usr/share/neiro-nli/WB_SMOKE.md", (ROOT / "WB_SMOKE.md").read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    for name in ("README.md", "SECURITY.md", "FIRMWARE.md", "TEST_RESULTS.md"):
         data.append(("usr/share/doc/neiro-nli/" + name, (ROOT / name).read_bytes().replace(b"\r\n", b"\n"), 0o644))
     content = bytearray(b"!<arch>\n")
     for name, value in [("debian-binary", b"2.0\n"), ("control.tar.gz", archive(control, epoch)),
@@ -62,6 +64,6 @@ def build(output, epoch=0):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--output", type=Path, default=ROOT / "dist/neiro-nli_0.1.0_all.deb")
+    p.add_argument("--output", type=Path, default=ROOT / "dist/neiro-nli_0.1.1_all.deb")
     args = p.parse_args()
     build(args.output, int(os.environ.get("SOURCE_DATE_EPOCH", "0")))

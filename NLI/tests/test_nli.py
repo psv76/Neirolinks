@@ -98,8 +98,8 @@ class Fixture(unittest.TestCase):
         return dict(path=path, sha256=digest(data))
 
     def setup_component(self):
-        r = dict(plugin="files", baseline=self.pin("/etc/neiro/nli/base.json", self.base),
-                 target=self.pin("/etc/neiro/nli/target.json", self.new), payload_dir="/opt/payload",
+        r = dict(plugin="files", baseline=self.pin("/mnt/data/etc/neiro/nli/base.json", self.base),
+                 target=self.pin("/mnt/data/etc/neiro/nli/target.json", self.new), payload_dir="/opt/payload",
                  allowed_targets=[f["target"] for f in self.new["files"]])
         self.config["components"][self.component] = r
         self.put(self.base["files"][0]["target"], b"old")
@@ -107,7 +107,7 @@ class Fixture(unittest.TestCase):
         self.engine = Engine(self.config, self.root, self.system)
 
     def repin(self):
-        self.config["components"][self.component]["target"] = self.pin("/etc/neiro/nli/target.json", self.new)
+        self.config["components"][self.component]["target"] = self.pin("/mnt/data/etc/neiro/nli/target.json", self.new)
 
     def snapshot(self):
         return {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
@@ -151,7 +151,7 @@ class CoreTests(Fixture):
         self.assertEqual(self.engine.mutate("update", "demo")["final_status"], "failed")
 
     def test_manifest_hash_mismatch(self):
-        self.put("/etc/neiro/nli/target.json", b"{}")
+        self.put("/mnt/data/etc/neiro/nli/target.json", b"{}")
         self.assertIn("Manifest checksum", self.engine.mutate("update", "demo")["error"])
 
     def test_payload_checksum_mismatch_before_mutation(self):
@@ -214,7 +214,7 @@ class CoreTests(Fixture):
     def test_corrupted_backup_rejected_before_install(self):
         result = self.engine.mutate("update", "demo")
         backup = result["backup"]["id"]
-        self.put("/var/lib/neiro/nli/backups/" + backup + "/0.bin", b"corrupt")
+        self.put("/mnt/data/var/lib/neiro/nli/backups/" + backup + "/0.bin", b"corrupt")
         result = self.engine.mutate("rollback", "demo")
         self.assertEqual(result["final_status"], "failed")
         self.assertIn("Corrupted backup", result["error"])
@@ -222,11 +222,11 @@ class CoreTests(Fixture):
 
     def test_corrupted_backup_metadata(self):
         result = self.engine.mutate("update", "demo")
-        self.put("/var/lib/neiro/nli/backups/" + result["backup"]["id"] + "/metadata.json", b"{}")
+        self.put("/mnt/data/var/lib/neiro/nli/backups/" + result["backup"]["id"] + "/metadata.json", b"{}")
         self.assertIn("Corrupted backup", self.engine.mutate("rollback", "demo")["error"])
 
     def test_lock_concurrent_update(self):
-        path = self.engine.target("/var/lib/neiro/nli/mutation.lock")
+        path = self.engine.target("/mnt/data/var/lib/neiro/nli/mutation.lock")
         with Lock(path):
             with self.assertRaisesRegex(Error, "NLI_BUSY"):
                 self.engine.mutate("update", "demo")
@@ -310,7 +310,7 @@ e.mutate('update', 'demo')
         self.assertEqual(self.engine.target(self.base["files"][0]["target"]).read_bytes(), b"old")
 
     def test_process_lock_is_exclusive(self):
-        path = self.engine.target("/var/lib/neiro/nli/mutation.lock")
+        path = self.engine.target("/mnt/data/var/lib/neiro/nli/mutation.lock")
         code = """
 import sys
 sys.path.insert(0, sys.argv[1])
@@ -360,8 +360,8 @@ class HHMTests(Fixture):
             self.put(f["target"], data)
             self.put("/opt/payload/" + f["source"], data)
         r = self.config["components"]["hhm"]
-        r["baseline"] = self.pin("/etc/neiro/nli/base.json", self.base)
-        r["target"] = self.pin("/etc/neiro/nli/target.json", self.new)
+        r["baseline"] = self.pin("/mnt/data/etc/neiro/nli/base.json", self.base)
+        r["target"] = self.pin("/mnt/data/etc/neiro/nli/target.json", self.new)
         self.engine = Engine(self.config, self.root, self.system)
 
     def hhm_manifest(self, role):

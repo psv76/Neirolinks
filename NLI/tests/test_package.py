@@ -57,7 +57,7 @@ class PackageTests(unittest.TestCase):
                 pos += 60 + size + size % 2
             self.assertEqual(members["debian-binary"], b"2.0\n")
             with tarfile.open(fileobj=io.BytesIO(members["control.tar.gz"]), mode="r:gz") as tar:
-                self.assertEqual(set(tar.getnames()), {"./control", "./conffiles"})
+                self.assertEqual(set(tar.getnames()), {"./control"})
             with tarfile.open(fileobj=io.BytesIO(members["data.tar.gz"]), mode="r:gz") as tar:
                 for item in tar.getmembers():
                     for parent in PurePosixPath(item.name).parents:
@@ -65,7 +65,10 @@ class PackageTests(unittest.TestCase):
                             self.assertTrue(tar.getmember("./" + str(parent)).isdir(), str(parent))
                 self.assertEqual(tar.getmember("./usr/bin/nli").mode, 0o755)
                 self.assertIn("./usr/lib/neiro-nli/nli/core.py", tar.getnames())
-                self.assertIn("./etc/neiro/nli/config.json", tar.getnames())
+                for name in ("default-config.json", "manifest.schema.json", "WB_SMOKE.md",
+                             "examples/config-boiler.json", "examples/hhm-boiler-3.0.json"):
+                    self.assertIn("./usr/share/neiro-nli/" + name, tar.getnames())
+                self.assertFalse(any(p.startswith(("./etc", "./mnt", "./var")) for p in tar.getnames()))
                 self.assertFalse(any("507" in p or "systemd" in p for p in tar.getnames()))
 
 

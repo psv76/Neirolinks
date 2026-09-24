@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 from .util import Error, Lock, digest, require
+from .layout import STATE_DIR, LOG_DIR
 
 UPDATER = "/usr/bin/wb-mcu-fw-updater"
 BOOTLOADER_NOTICE = ("Штатный updater может обновить bootloader и firmware; временно нарушить связь "
@@ -104,7 +105,7 @@ class Firmware:
             except (Error, OSError) as exc:
                 record.update(final_status="failed", error=str(exc))
             return record
-        with Lock(e.target("/var/lib/neiro/nli/mutation.lock")):
+        with Lock(e.target(STATE_DIR + "/mutation.lock")):
             started = False
             try:
                 require(e.config["hostname"] == e.system.hostname(), "Wrong controller hostname")
@@ -125,7 +126,7 @@ class Firmware:
                 if self.live_runner:
                     require(info["debug_supported"], "Unsupported updater logging interface")
                     self.confirm(action)
-                log_path = e.target("/var/log/neiro/nli/" + record["id"] + ".firmware.log")
+                log_path = e.target(LOG_DIR + "/" + record["id"] + ".firmware.log")
                 record.update(preflight="ok", output_log=str(log_path))
                 e.checkpoint(record)
                 started = True

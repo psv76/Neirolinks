@@ -4,13 +4,14 @@ import sys
 from . import __version__
 from .core import Engine
 from .firmware import Firmware
-from .util import Error, read_json
+from .layout import load_config
+from .util import Error
 
 
 def main(argv=None, engine=None):
     parser = argparse.ArgumentParser(prog="nli", description="NEIROLINKS Installer / Updater")
     parser.add_argument("--version", action="version", version=__version__)
-    parser.add_argument("--config", default="/etc/neiro/nli/config.json")
+    parser.add_argument("--config", help="Persistent config under /mnt/data/etc/neiro/nli/")
     parser.add_argument("--json", action="store_true", help="Emit complete audit record, including read-only operations")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("status")
@@ -19,7 +20,7 @@ def main(argv=None, engine=None):
     sub.add_parser("firmware").add_argument("action", choices=("check", "update", "recover"))
     args = parser.parse_args(argv)
     try:
-        e = engine or Engine(read_json(args.config))
+        e = engine or Engine(load_config(args.config))
         if args.command == "firmware":
             result = Firmware(e).execute(args.action)
         elif args.command in ("update", "rollback"):
