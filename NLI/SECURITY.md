@@ -1,0 +1,46 @@
+# Безопасность NLI v0.1
+
+Доверенная граница: локальный root-owned config, reviewed manifest hash, Python plugins и системные исполняемые файлы. Artifact hash без доверенного manifest не является подписью. `.deb.sha256` защищает целостность; подпись repository/release остаётся ответственностью канала доставки. Не передавать конфигурацию от непривилегированного пользователя в root NLI. NLI не хранит токены.
+
+Manifest не содержит shell callbacks. Service actions — только start/stop из разрешённого перечня, с согласованными списками; HHM policy сужает их до wb-rules. Все subprocess — argv без `shell=True`. Read-only MQTT реализован только `mosquitto_sub`; publisher/Modbus/OT клиента в NLI нет.
+
+Absolute managed targets ограничены plugin allowlist; `..`, backslash, drive paths, symlink/junction, duplicate keys/targets, неизвестные поля, hooks и mutable commit запрещены. Перед backup запрещены hardlinked/non-regular targets. Hash проверяется до остановки и повторно перед записью. Файлы меняются через fsync+rename в той же filesystem; metadata/state — атомарные JSON. Набор файлов v0.1 фиксирован между releases, удаления не поддержаны.
+
+Единственное исключение symlink policy: exact WB root mappings `/etc/wb-rules → /mnt/data/etc/wb-rules` и `/etc/wb-rules-modules → /mnt/data/etc/wb-rules-modules`. Проверяется literal link target до доступа, без общего `resolve()`/следования цепочкам. Persistent target и каждый вложенный путь проходят прежний запрет links/junctions/traversal. Inventory проверяет также symlink directories и non-JS entries. Обычные каталоги остаются допустимы для sandbox; manifest не может добавить новое исключение. Защита не рассчитана на враждебный root, одновременно заменяющий каталоги во время syscall; администратор исключает внешние writers на время транзакции.
+
+Config и manifest pins допускаются только под `/mnt/data/etc/neiro/nli/`; state/backups/pending — `/mnt/data/var/lib/neiro/nli/`, audit/transcripts — `/mnt/data/var/log/neiro/nli/`. Пакет не владеет этими данными, не выполняет их bootstrap/migration из maintainer scripts. Config имеет приоритет над packaged default; missing config при существующей истории/pins блокируется. Настроенная legacy 0.1.0 требует reviewed migration. [WB_SMOKE.md](WB_SMOKE.md) описывает conffiles и reuse данных после reinstall/FIT. Runtime `.deb` вне `/mnt/data` может исчезнуть после FIT; безусловного обещания survival нет.
+
+Mutation lock защищает все NLI component и firmware команды друг от друга. Он не блокирует root-редактор или процессы, игнорирующие NLI. Окно обслуживания требует отсутствия стороннего deploy и обновления package/config. Внешний updater проверяется по `/proc` до запуска; общего native updater lock в изученной реализации не обнаружено. Между последней проверкой и запуском остаётся race со сторонним root-запуском. На период firmware maintenance оператор исключает параллельный запуск WebUI/CLI/updater вне NLI. NLI никогда не завершает чужой updater.
+
+HHM interlocks — текущие локальные MQTT значения подпитки/A04 и active wb-mqtt-serial. Это не аппаратная блокировка: состояние может измениться после проверки, retained OFF без independent feedback не является доказательством клапана. Preflight повторяется непосредственно перед остановкой, но инженер всё равно контролирует окно обслуживания. Давление не является gate.
+
+Ownership allowlist проверяет все локальные активные `.js` в rules/modules по SHA. Это обнаруживает неизвестный код, включая вычисляемые writers, но не доказывает отсутствие внешнего MQTT publisher или корректность reviewed кода. ACL/remote ownership и гидравлика проверяются отдельно. NLI не пишет физические outputs ради проверки.
+
+Crash-политика: durable intent до stop; best-effort rollback при Python exception/Ctrl-C; при power loss/SIGKILL — явный pending и блок новых updates. Автоматический rollback тоже может не пройти interlocks/диск/runtime: тогда partial failure и ручное восстановление по runbook, без ложного успеха. State/backup/audit должны лежать на локальной надёжной filesystem; fsync не даёт гарантии против отказа накопителя.
+
+Read-only команды не записывают собственные timestamps/cache/history; Linux filesystem может обновлять atime при чтении, а broker/system services вести свои обычные журналы. Read-only NLI не публикует MQTT и не изменяет NLI/system configuration.
+
+Standalone verify в 0.1.3 ограничивает health gate журнала текущим observation window от начала files/runtime probes до финального чтения; он не является историческим аудитом или непрерывным мониторингом. Pressure_makeup проверяет текущие controls без требования нового startup marker. Post-update/rollback сохраняет исходную границу перед service start и обязательный marker после restart, не пропуская ошибки между start и поздним verify. Missing journal boundary даёт явную ошибку без fallback на lifetime. Все прежние error patterns и recovery/interlocks сохранены.
+
+## Независимый owner pressure_makeup
+
+507 разрешён только component id/plugin pressure_makeup с точным single-file target, object Иволга и role boiler. HHM не может заявить этот файл; произвольные output claims в manifest запрещены. A04/K1 закреплён за trusted pressure_makeup policy. Registry проверяет peer manifests/hashes; одно имя в config не является доверием. Managed path нельзя одновременно allowlist-ить как unmanaged. Backup/rollback ограничены файлами инициирующего компонента.
+
+Принятый reset pulseCount/alarm flags при restart не является ошибкой. Postverify проверяет startup marker после активации, virtual controls и журнал; оно не восстанавливает counters и не обещает физический OFF после штатного evaluate. Preflight OFF остаётся обязательным. Exact 1.0 payload имеет сохранённые live bytes без final LF; normalization и автоматического принятия drift нет. Config-only registration helper запускается явно инженером при отсутствии конкурирующих NLI/config editors; сохраняет исходный config и все прочие reviewed entries, не пишет JS/MQTT/services. См. [PRESSURE_MAKEUP.md](PRESSURE_MAKEUP.md).
+
+В 0.1.4 только mutating verify допускает однозначно атрибутированные ошибки
+проверенных неизменённых сторонних rules. Собственные targets/devices, shared
+modules, неоднозначные и неизвестные источники остаются fatal. Attribution не
+исполняет JS: поддерживает literal device ID либо переменную с единственным
+literal assignment; dynamic/escaped IDs не выводятся. Trust поступает только из
+повторно проверенных manifest/approved hashes, не из имени стороннего устройства.
+Все найденные ошибки, включая допустимые, сохраняются в audit по attempts.
+См. RECOVERY.md: старый pending завершается только verified explicit rollback.
+
+0.1.5: HHM readiness retry действует только после NLI-driven restart, с общим
+monotonic deadline 30 s и subprocess timeout не более оставшегося budget. Это
+ожидание доказанной готовности frame/controls, не разрешение игнорировать failure.
+Deadline не зависит от перевода wall clock; journal since остаётся исходным перед
+service start. Собственные/неатрибутированные journal errors остаются fatal даже
+если runtime стал готов. Standalone, pressure_makeup, drift/ownership и interlocks
+не получают grace period. Timeout записывается в audit и вызывает обычный rollback.

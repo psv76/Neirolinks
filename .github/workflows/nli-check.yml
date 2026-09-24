@@ -1,0 +1,71 @@
+name: NLI v0.1 WB compatibility
+on:
+  push:
+    branches: ['codex/nli-v0.1']
+    paths: ['NLI/**', '.github/workflows/nli-check.yml']
+  pull_request:
+    paths: ['NLI/**', '.github/workflows/nli-check.yml']
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Core, HHM, firmware, package and security regressions
+        run: python -B -m unittest discover -s NLI/tests -v
+      - name: Both controller roles with pinned HHM source and fake WB backend
+        run: python -B NLI/tests/sandbox.py
+      - name: Existing HHM regressions
+        run: |
+          node NLI/tests/pressure_makeup_runtime.js
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/run.js
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/partial-ready-regressions.js
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/persistent-storage-regressions.js
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/manifest.js --check
+      - name: Build Debian package
+        run: |
+          python -B NLI/tools/build_deb.py
+          sha256sum NLI/dist/neiro-nli_0.1.6_all.deb
+          dpkg-deb --info NLI/dist/neiro-nli_0.1.6_all.deb
+          dpkg-deb --contents NLI/dist/neiro-nli_0.1.6_all.deb
+      - name: WB nodoc, upgrade, installed boiler bootstrap, reinstall and simulated FIT
+        run: |
+          mkdir -p "$RUNNER_TEMP/nli-old-source" "$RUNNER_TEMP/nli-old-package" "$RUNNER_TEMP/nli-persistent" "$RUNNER_TEMP/nli-evidence"
+          git archive 7a022d657dc65e6b69973e459c35a78fb2e540cc NLI | tar -x -C "$RUNNER_TEMP/nli-old-source"
+          python -B "$RUNNER_TEMP/nli-old-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.0_all.deb"
+          mkdir -p "$RUNNER_TEMP/nli-011-source"
+          git archive 77b2cdc923272e1c7da68e4d46ed7bb88c53c719 NLI | tar -x -C "$RUNNER_TEMP/nli-011-source"
+          python -B "$RUNNER_TEMP/nli-011-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.1_all.deb"
+          mkdir -p "$RUNNER_TEMP/nli-012-source"
+          git archive 62abbf3b13884ab2e7e41616c85b188b89d3aa37 NLI | tar -x -C "$RUNNER_TEMP/nli-012-source"
+          python -B "$RUNNER_TEMP/nli-012-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.2_all.deb"
+          mkdir -p "$RUNNER_TEMP/nli-013-source"
+          git archive 8d3bdafab55a4c1306e598f3c3829099b7c3af3c NLI | tar -x -C "$RUNNER_TEMP/nli-013-source"
+          python -B "$RUNNER_TEMP/nli-013-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.3_all.deb"
+          mkdir -p "$RUNNER_TEMP/nli-014-source"
+          git archive 447f1fa2d24f5a7559ce60d9fb8f3a1aa7b7122f NLI | tar -x -C "$RUNNER_TEMP/nli-014-source"
+          python -B "$RUNNER_TEMP/nli-014-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.4_all.deb"
+          mkdir -p "$RUNNER_TEMP/nli-015-source"
+          git archive c958ec59c69c267396cd728776c8821e2d21b55d NLI | tar -x -C "$RUNNER_TEMP/nli-015-source"
+          python -B "$RUNNER_TEMP/nli-015-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.5_all.deb"
+          python -B NLI/tools/prepare_hhm.py --commit d75710dad93906af8869dcce48d26e14673b63fb --role boiler --output NLI/build/field-hhm
+          docker run --rm --hostname wirenboard-ABF62SL -e NLI_DISPOSABLE_CI=1 \
+            -v "$PWD/NLI/dist:/packages:ro" -v "$RUNNER_TEMP/nli-old-package:/old:ro" \
+            -v "$PWD/NLI/tests:/tests:ro" -v "$PWD/NLI/build/field-hhm/payload:/payload:ro" \
+            -v "$RUNNER_TEMP/nli-persistent:/mnt/data" -v "$RUNNER_TEMP/nli-evidence:/evidence" \
+            debian:trixie-slim sh /tests/wb_package_smoke.sh first
+          docker run --rm --hostname wirenboard-ABF62SL -e NLI_DISPOSABLE_CI=1 \
+            -v "$PWD/NLI/dist:/packages:ro" -v "$PWD/NLI/tests:/tests:ro" \
+            -v "$RUNNER_TEMP/nli-persistent:/mnt/data" -v "$RUNNER_TEMP/nli-evidence:/evidence" \
+            debian:trixie-slim sh /tests/wb_package_smoke.sh fit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neiro-nli-0.1.6-deb
+          path: NLI/dist/neiro-nli_0.1.6_all.deb*
+          if-no-files-found: error
