@@ -248,8 +248,8 @@
 | 212 | `wb-mr6c_156/Input 0` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw показал `Input 0 counter` и `Input 0 Single Press Counter`; необычное имя Input 0 подтверждено непосредственно на объекте |
 | 215 | `wb-mr6c_117/Input 2` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw показал `Input 2 counter` и `Input 2 Single Press Counter` |
 | 216 | `wb-led_42/Input 4` + `wb-mr6c_117/Input 1` + `wb-mr6c_156/Input 6` | FIELD_CONFIRMED | повторная полевая проверка новым определителем поймала три физических входа одной клавиши; raw также показал `117/Input 1 counter`, `156/Input 6 counter`, `156/Input 6 Single Press Counter`, `117/Input 1 Single Press Counter` |
-| 218 | `wb-mr6c_206/Input 4 Single Press Counter` | FIELD_CONFIRMED | подтверждено нажатием |
-| 219 | `wb-mr6c_206/Input 5` | FIELD_CONFIRMED | тип события уточнить |
+| 218 | `wb-mr6c_206/Input 4` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw показал `Input 4 counter` и `Input 4 Single Press Counter` |
+| 219 | `wb-mr6c_206/Input 5` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw показал `Input 5 counter`; Single Press Counter в этом захвате не пришёл |
 | 220 | `wb-mr6c_138/Input 2 Single Press Counter` | FIELD_CONFIRMED | совпадает со старым JS и рукописными заметками |
 | 221 | `wb-mr6c_138/Input 1` + `wb-mr6c_138/Input 1 Single Press Counter` | FIELD_CONFIRMED | raw Input и счётчик одного физического входа |
 | 222 | `wb-mr6c_206/Input 2 Single Press Counter` | FIELD_CONFIRMED | тот же вход, что у кнопки 230; вероятно параллельные места управления, но это пока только наблюдение |
