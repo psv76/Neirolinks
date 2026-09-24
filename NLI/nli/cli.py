@@ -10,10 +10,10 @@ from .util import Error
 
 
 BANNER = r""" _   _ _     ___
-| \\ | | |   |_ _|
-|  \\| | |    | |
-| |\\  | |___ | |
-|_| \\_|_____|___|"""
+| \ | | |   |_ _|
+|  \| | |    | |
+| |\  | |___ | |
+|_| \_|_____|___|"""
 
 ANSI = {
     "reset": "\\033[0m",
@@ -31,7 +31,8 @@ def paint(text, style, enabled):
 
 
 def human_object(value):
-    return str(value or "—").replace("_", " ")
+    known = {"05_31_Ivolga_13": "05 31 Иволга 13"}
+    return known.get(value, str(value or "—").replace("_", " "))
 
 
 def human_role(value):
