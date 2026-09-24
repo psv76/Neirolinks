@@ -15,7 +15,7 @@ dev читает локальную модель controls, включая #error
 
 1. Новый экземпляр не квалифицирован. Для temperature и Sensor OK отдельно требуется non-retained значение. Пустой error, retained OK=1/температура и периодическое чтение dev не квалифицируют startup.
 2. Live numeric temperature не обязана повторяться. При чтении нужны: оба доказательства, доступные controls, отсутствие ошибок temperature/health, finite temperature в диапазоне и точный OK (true/1/"1").
-3. MQTT callback и локальная модель могут обновляться в разном порядке. До совпадения их значений read возвращает null. Не сочетать новое доказательство с предыдущим числом в cache.
+3. MQTT callback и локальная модель могут обновляться в разном порядке. При startup/recovery до совпадения значений read возвращает null. После квалификации приоритет имеет текущее состояние dev; краткий callback/cache skew не создаёт ложный invalid и не сбрасывает mixer.
 4. Ошибка блокирует затронутый канал. Retained error консервативно блокирует; retained empty не стирает live fault. Non-retained error clear восстанавливает ранее подтверждённый live канал при прежнем валидном значении. Для канала, не видевшего live value после запуска, одного error clear недостаточно.
 5. OK=0, invalid numeric, пропавший control или диапазон вне допуска дают null. OK 0→1 / валидный numeric event восстанавливают автоматически; re-arm нет. Retained values после live отзывают допуск соответствующего канала. Clock rollback сбрасывает оба startup proofs.
 6. Неизвестный/nonboolean retain flag даёт sticky RUNTIME_UNSUPPORTED, как у прежнего транспорта. Ни TTL датчика, ни искусственный heartbeat не вводятся.

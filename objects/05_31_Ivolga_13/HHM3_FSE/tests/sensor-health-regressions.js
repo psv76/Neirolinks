@@ -76,11 +76,13 @@ test('unsupported MQTT metadata remains sticky for M1W2 as well as network data'
         assert.equal(u.s.runtimeStatus(),'RUNTIME_UNSUPPORTED');
     }
 });
-test('MQTT callback and local control-cache ordering cannot validate the previous temperature',()=>{
+test('callback/cache ordering blocks old startup cache but never invalidates qualified local controls',()=>{
     const u=unit();u.arm();u.s.sample(0,80,false,epoch);assert.equal(u.read(),null);
     u.channels[0].value=80;assert.equal(u.read(),80);
-    u.channels[0].value=25;assert.equal(u.read(),null);
+    u.channels[0].value=25;assert.equal(u.read(),25,'qualified current control is authoritative');
     u.s.sample(0,25,false,epoch);assert.equal(u.read(),25);
+    u.s.sample(0,26,false,epoch);assert.equal(u.read(),25,'old qualified value until local model advances');
+    u.channels[0].value=26;assert.equal(u.read(),26);
 });
 test('explicit inventory contains exactly 20 required sensors and excludes empty inputs/MSW',()=>{
     const h=create(),map=h.C.m1w2Health;
@@ -112,6 +114,15 @@ test('genuine 504 OK/error faults and recovery work with unchanged floor tempera
         h.deliver('gazebo',topic,suffix?'':1);h.advance(10000);
         assert.equal(h.report()['504'].reason,'NORMAL');
     }
+});
+test('delayed local cache after live temperature callback does not reset a running 502 mixer',()=>{
+    const h=running(),p=h.C.circuits['502'].supply,before=h.messages.length;
+    const position=h.report()['502'].valve_pct;
+    h.deliver('boiler',h.topic(p),26,false,true);
+    assert.equal(h.report()['502'].reason,'NORMAL');assert.equal(h.report()['502'].valve_pct,position);
+    h.tick('500');assert.equal(h.report()['502'].reason,'NORMAL');
+    const events=h.messages.slice(before).filter(m=>m.topic===h.C.eventTopic).map(m=>JSON.parse(m.payload));
+    assert.equal(events.some(e=>e.circuit==='502'&&/FLOOR_ONLY|AUTONOMOUS|SENSOR/.test(e.state)),false);
 });
 test('floor fault remains local under existing 502 safety policy; neighbours keep operating',()=>{
     const h=running(),z=h.Z.find(z=>z.circuit==='502'&&h.C.m1w2Health[z.sensor]);freezeLocal(h);

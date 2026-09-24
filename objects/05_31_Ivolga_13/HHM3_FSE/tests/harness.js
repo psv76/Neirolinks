@@ -36,18 +36,20 @@ exports.create=function(options={}){
     Z.forEach(z=>z.outputs.forEach(p=>own[p]='620'));
     Object.values(C.circuits).forEach(c=>{own[c.pump]='500';if(c.level){own[c.level]='500';own[c.enable]='500';}});
     own[C.source.setpoint]=own[C.source.chEnable]='500';
-    function deliver(board,topic,value,retained=false){
+    function deliver(board,topic,value,retained=false,cacheAfter=false){
         if(topic.endsWith('/meta/error'))delete lastSample[board][topic.slice(0,-11)];
         const control=topic.match(/^\/devices\/(.+?)\/controls\/(.+)$/);
-        if(control){
+        function updateControl(){if(control){
             const p=control[1]+'/'+control[2].replace(/\/meta\/error$/, '#error');
             if(!own[p])values[board][p]=value;
-        }
+        }}
+        if(!cacheAfter)updateControl();
         // v2.40 newTrackHandler exports exactly topic/value. Do not keep the
         // newer metadata on a side channel when this profile is selected.
         const m=options.apiVersion==='2.40.0'?require('./wb240-callback')(topic,String(value)):{topic,value:String(value),qos:0};
         if(options.apiVersion!=='2.40.0'&&retained!==undefined)m.retained=retained;
         for(const h of handlers[board][topic]||[]){const saved=owner;owner=h.owner;try{h.fn(m);}finally{owner=saved;}}
+        if(cacheAfter)updateControl();
     }
     function publish(board,topic,payload,qos,retained){
         messages.push({board,topic,payload,retained,owner,at:now});

@@ -106,9 +106,9 @@ exports.sensor = function () {
 // After qualification validity is state based, not numeric-publication age based.
 exports.localM1w2 = function (readControl) {
     var proof = [false, false], seen = [false, false], faults = ['', ''], runtime = 'UNVERIFIED';
-    var reported = [null, null], measuredAt = null, lastNow = null, reason = 'STARTUP_VALIDATION';
+    var reported = [null, null], qualified = false, measuredAt = null, lastNow = null, reason = 'STARTUP_VALIDATION';
     function clock(now) {
-        if (lastNow !== null && now < lastNow) { proof = [false, false]; seen = [false, false]; measuredAt = null; }
+        if (lastNow !== null && now < lastNow) { proof = [false, false]; seen = [false, false]; qualified = false; measuredAt = null; }
         lastNow = now;
     }
     function metadata(retained) {
@@ -121,17 +121,18 @@ exports.localM1w2 = function (readControl) {
         sample: function (channel, value, retained, now) {
             clock(now);
             // A late retained delivery must not replace a qualified live reading.
-            if (retained === true) { proof[channel] = false; seen[channel] = false; }
+            if (retained === true) { proof[channel] = false; seen[channel] = false; qualified = false; }
             if (!metadata(retained)) return;
             reported[channel] = channel === 0 ? number(value) : ok(value);
             proof[channel] = channel === 0 ? number(value) !== null : ok(value);
             seen[channel] = proof[channel];
+            if (!proof[channel]) qualified = false;
             if (channel === 0) measuredAt = now;
         },
         error: function (channel, value, retained, now) {
             clock(now);
             var live = metadata(retained), error = value === undefined || value === null ? '' : String(value);
-            if (error) { faults[channel] = error; proof[channel] = false; }
+            if (error) { faults[channel] = error; proof[channel] = false; qualified = false; }
             else if (live) { faults[channel] = ''; proof[channel] = seen[channel]; }
         },
         runtimeStatus: function () { return runtime; },
@@ -146,21 +147,23 @@ exports.localM1w2 = function (readControl) {
             if (!t || !h) {
                 if (!t) { proof[0] = false; seen[0] = false; }
                 if (!h) { proof[1] = false; seen[1] = false; }
-                reason = 'CONTROL_MISSING'; return null;
+                qualified = false; reason = 'CONTROL_MISSING'; return null;
             }
             if (t.error || h.error || faults[0] || faults[1]) {
                 if (t.error || faults[0]) proof[0] = false;
                 if (h.error || faults[1]) proof[1] = false;
-                reason = 'CONTROL_ERROR'; return null;
+                qualified = false; reason = 'CONTROL_ERROR'; return null;
             }
             value = number(t.value);
-            if (!between(value, min, max)) { proof[0] = false; reason = 'VALUE_INVALID'; return null; }
-            if (!ok(h.value)) { proof[1] = false; reason = 'SENSOR_NOT_OK'; return null; }
-            if (!proof[0] || !proof[1]) { reason = 'STARTUP_VALIDATION'; return null; }
+            if (!between(value, min, max)) { proof[0] = false; qualified = false; reason = 'VALUE_INVALID'; return null; }
+            if (!ok(h.value)) { proof[1] = false; qualified = false; reason = 'SENSOR_NOT_OK'; return null; }
+            if (!proof[0] || !proof[1]) { qualified = false; reason = 'STARTUP_VALIDATION'; return null; }
             // trackMqtt and the device-model subscriber may run in either order.
-            // Never pair a new proof with an older cached numeric value.
-            if (value !== reported[0] || ok(h.value) !== reported[1]) { reason = 'CONTROL_SYNC_WAIT'; return null; }
-            reason = 'VALID'; return value;
+            // Startup/recovery must synchronize before using a cached value.
+            // Once qualified, the current local control remains authoritative:
+            // a harmless callback/cache skew must not create a false sensor fault.
+            if (!qualified && (value !== reported[0] || ok(h.value) !== reported[1])) { reason = 'CONTROL_SYNC_WAIT'; return null; }
+            qualified = true; reason = 'VALID'; return value;
         }
     };
 };

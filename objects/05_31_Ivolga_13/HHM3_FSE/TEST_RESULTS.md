@@ -7,7 +7,7 @@
 - `node tests/run.js`: 67 групп основной модели, review/MAO4/2.40 regressions PASS.
 - `node tests/partial-ready-regressions.js`: 10 групп PASS, включая 502, локальные faults и mixer continuity.
 - `node tests/persistent-storage-regressions.js`: PASS, 18+505 настройки и restart без повторного ввода.
-- `node tests/sensor-health-regressions.js`: 19 групп PASS. Stable 24 h без публикаций, редкие изменения, retained-only startup и empty errors, OK flapping/recovery, errors обоих controls, missing/invalid/range, callback/cache ordering, clock rollback, 20-channel mapping, 10 минут совместной работы 500/620/624 без M1W2 publications, MSW/frame TTL, thermal stop/cooling/recovery, диагностика 411–420 и отсутствие нового interlock от 412.
+- `node tests/sensor-health-regressions.js`: 20 групп PASS. Stable 24 h без публикаций, редкие изменения, retained-only startup и empty errors, OK flapping/recovery, errors обоих controls, missing/invalid/range, callback/cache ordering, clock rollback, 20-channel mapping, 10 минут совместной работы 500/620/624 без M1W2 publications, MSW/frame TTL, thermal stop/cooling/recovery, диагностика 411–420 и отсутствие нового interlock от 412.
 
 Базовые tests не заменены новыми: прежние негативные сценарии и ownership остаются обязательными. Модель по умолчанию публикует неизменные значения раз в 60 с; новые health tests отдельно полностью прекращают temperature и OK публикации после qualification, продолжая MSW и frames.
 
@@ -22,3 +22,5 @@ Python/NLI локально: 160 tests — 123 PASS, 37 SKIP (Windows symlink pr
 ## Границы
 
 Физическое подключение, Modbus polling на живом объекте, silent failure самого драйвера без публикации ошибок, точность датчиков, безопасный путь циркуляции, положение клапанов и CH-only OFF с сохранением ГВС не доказываются моделью. Runtime опирается на штатную доставку control errors от работающего локального драйвера; искусственный heartbeat или изменение polling configuration не добавлены. Полевую приёмку выполнять отдельно по INSTALL.md. Исторические ограничения wb-rules 2.40 остаются в ISSUE61.md.
+
+Первые Linux CI: HHM [36063442633](https://github.com/psv76/Neirolinks/actions/runs/36063442633) и NLI [36063443246](https://github.com/psv76/Neirolinks/actions/runs/36063443246) — SUCCESS. После дополнительной регрессии callback/cache continuity финальный HEAD проверяется повторно; актуальные run links приведены в PR.
