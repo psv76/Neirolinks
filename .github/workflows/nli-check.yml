@@ -31,9 +31,9 @@ jobs:
       - name: Build Debian package
         run: |
           python -B NLI/tools/build_deb.py
-          sha256sum NLI/dist/neiro-nli_0.1.5_all.deb
-          dpkg-deb --info NLI/dist/neiro-nli_0.1.5_all.deb
-          dpkg-deb --contents NLI/dist/neiro-nli_0.1.5_all.deb
+          sha256sum NLI/dist/neiro-nli_0.1.6_all.deb
+          dpkg-deb --info NLI/dist/neiro-nli_0.1.6_all.deb
+          dpkg-deb --contents NLI/dist/neiro-nli_0.1.6_all.deb
       - name: WB nodoc, upgrade, installed boiler bootstrap, reinstall and simulated FIT
         run: |
           mkdir -p "$RUNNER_TEMP/nli-old-source" "$RUNNER_TEMP/nli-old-package" "$RUNNER_TEMP/nli-persistent" "$RUNNER_TEMP/nli-evidence"
@@ -51,6 +51,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/nli-014-source"
           git archive 447f1fa2d24f5a7559ce60d9fb8f3a1aa7b7122f NLI | tar -x -C "$RUNNER_TEMP/nli-014-source"
           python -B "$RUNNER_TEMP/nli-014-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.4_all.deb"
+          mkdir -p "$RUNNER_TEMP/nli-015-source"
+          git archive c958ec59c69c267396cd728776c8821e2d21b55d NLI | tar -x -C "$RUNNER_TEMP/nli-015-source"
+          python -B "$RUNNER_TEMP/nli-015-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.5_all.deb"
           python -B NLI/tools/prepare_hhm.py --commit d75710dad93906af8869dcce48d26e14673b63fb --role boiler --output NLI/build/field-hhm
           docker run --rm --hostname wirenboard-ABF62SL -e NLI_DISPOSABLE_CI=1 \
             -v "$PWD/NLI/dist:/packages:ro" -v "$RUNNER_TEMP/nli-old-package:/old:ro" \
@@ -63,6 +66,6 @@ jobs:
             debian:trixie-slim sh /tests/wb_package_smoke.sh fit
       - uses: actions/upload-artifact@v4
         with:
-          name: neiro-nli-0.1.5-deb
-          path: NLI/dist/neiro-nli_0.1.5_all.deb*
+          name: neiro-nli-0.1.6-deb
+          path: NLI/dist/neiro-nli_0.1.6_all.deb*
           if-no-files-found: error
