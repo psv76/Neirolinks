@@ -238,8 +238,8 @@
 | 202 | `wb-mr6c_203/Input 2` + `wb-mr6c_203/Input 3` | FIELD_CONFIRMED | повторная полевая проверка новым определителем поймала два физических входа одной клавиши; raw показал также `Input 2 counter` и `Input 3 counter` |
 | 203 | `wb-mr6c_218/Input 4` | FIELD_CONFIRMED | совпадает с локальной логикой вентилятора 326 |
 | 204 | `wb-led_11/Input 3` + `wb-mr6c_218/Input 3` | FIELD_CONFIRMED | одна кнопка заведена одновременно в LED и MR6C |
-| 205 | `wb-led_224/Input 1` + `wb-led_245/Input 1` | FIELD_CONFLICT | повторная проверка новым определителем показала два WB-LED. Это противоречит предыдущей записи `wb-mr6c_203/Input 4 Single Press Counter` и прежней записи для 206; требуется немедленная перепроверка 206 тем же определителем |
-| 206 | `wb-led_245/Input 1` + `wb-led_224/Input 1` | FIELD_CONFIRMED | одна кнопка приходит сразу в два WB-LED |
+| 205 | `wb-led_224/Input 1` + `wb-led_245/Input 1` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; клавиша физически заведена на два WB-LED |
+| 206 | `wb-mr6c_203/Input 4` + `wb-mr6c_203/Input 5` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw показал также `Input 4 counter`, `Input 5 counter` и `Input 4 Single Press Counter` |
 | 207 | `wb-mr6c_218/Input 1` | FIELD_CONFIRMED | тип события уточнить |
 | 208 | `wb-led_26/Input 3` | FIELD_CONFIRMED | прежняя гипотеза `wb-mr6c_138/Input 6` не подтверждена |
 | 209 | `wb-led_23/Input 4` | FIELD_CONFIRMED | рукописная заметка «42 вход 1» не подтвердилась живым тестом |
@@ -268,8 +268,8 @@
 Живой тест показал, что часть прежних выводов по старым JS и mapping-матрицам была неверной:
 
 - 201 — уточнено повторной полевой проверкой: клавиша одновременно приходит в `wb-mr6c_203/Input 1`, `wb-led_13/Input 1` и `wb-led_58/Input 1`;
-- 205 — `wb-mr6c_203/Input 4 Single Press Counter`;
-- 206 — `wb-led_245/Input 1` + `wb-led_224/Input 1`;
+- 205 — `wb-led_224/Input 1` + `wb-led_245/Input 1`;
+- 206 — `wb-mr6c_203/Input 4` + `wb-mr6c_203/Input 5`;
 - 204 — `wb-led_11/Input 3` + `wb-mr6c_218/Input 3`;
 - 208 — `wb-led_26/Input 3`;
 - 209 — `wb-led_23/Input 4`;
