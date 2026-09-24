@@ -18,8 +18,8 @@
 python3 -B -m unittest discover -s NLI/tests -v
 python3 -B NLI/tests/sandbox.py
 python3 -B NLI/tools/build_deb.py
-(cd NLI/dist && sha256sum -c neiro-nli_0.1.5_all.deb.sha256)
-dpkg-deb --info NLI/dist/neiro-nli_0.1.5_all.deb
+(cd NLI/dist && sha256sum -c neiro-nli_0.1.6_all.deb.sha256)
+dpkg-deb --info NLI/dist/neiro-nli_0.1.6_all.deb
 ```
 
 Build использует только stdlib; создаёт воспроизводимый Debian ar с control/data tar.gz, root ownership и `/usr/bin/nli` mode 0755. `SOURCE_DATE_EPOCH` задаёт timestamp (по умолчанию 0). Нет maintainer scripts, service units, restart при установке или зависимости HHM от пакета. CI проверяет `dpkg-deb` и установку в одноразовом Debian Trixie container.
@@ -27,12 +27,12 @@ Build использует только stdlib; создаёт воспроиз�
 В тестовом Debian/WB-окружении после проверки происхождения пакета:
 
 ```sh
-sudo apt install ./neiro-nli_0.1.5_all.deb
+sudo apt install ./neiro-nli_0.1.6_all.deb
 nli --version
 nli status
 ```
 
-Пакет устанавливает Python sources в `/usr/lib/neiro-nli`, примеры в `/usr/share/neiro-nli/examples`, schema и bootstrap runbook в `/usr/share/neiro-nli/`. Они доступны при WB dpkg `path-exclude /usr/share/doc/*`. Config `/mnt/data/etc/neiro/nli/config.json` создаётся инженером и **не принадлежит пакету**; conffiles/maintainer scripts в 0.1.5 отсутствуют. Пока config не создан, CLI читает packaged `default-config.json` без записи на диск. При существующих данных и потерянном config либо настроенных старых данных 0.1.0 CLI требует разбор/миграцию, а не создаёт пустой профиль. HHM payload пакет **не устанавливает**. Библиотеки Python кроме stdlib не требуются. `systemd`/`mosquitto-clients` нужны только для WB probes/service actions. Штатный firmware updater — отдельный suggested пакет.
+Пакет устанавливает Python sources в `/usr/lib/neiro-nli`, примеры в `/usr/share/neiro-nli/examples`, schema и bootstrap runbook в `/usr/share/neiro-nli/`. Они доступны при WB dpkg `path-exclude /usr/share/doc/*`. Config `/mnt/data/etc/neiro/nli/config.json` создаётся инженером и **не принадлежит пакету**; conffiles/maintainer scripts в 0.1.6 отсутствуют. Пока config не создан, CLI читает packaged `default-config.json` без записи на диск. При существующих данных и потерянном config либо настроенных старых данных 0.1.0 CLI требует разбор/миграцию, а не создаёт пустой профиль. HHM payload пакет **не устанавливает**. Библиотеки Python кроме stdlib не требуются. `systemd`/`mosquitto-clients` нужны только для WB probes/service actions. Штатный firmware updater — отдельный suggested пакет.
 
 Полевой bootstrap, upgrade 0.1.0, conffile policy и переустановка после FIT: [WB_SMOKE.md](WB_SMOKE.md). После FIT executable/modules могут исчезнуть; переустановка `.deb` подхватывает persistent config/pins/state/backups/pending/audit. Это проверяется заменой rootfs в CI, не является утверждением о выполненной проверке FIT на реальном WB.
 
@@ -107,6 +107,18 @@ rollback: not_run
 RESULT: ok
 ```
 
+## Human CLI 0.1.6
+
+Обычный CLI предназначен для инженера на терминале WB: русские подписи, понятные
+названия компонентов и цветовая индикация состояния. Цвет включается только при
+выводе в TTY; `--no-color` отключает ANSI вручную, переменная `NO_COLOR` также
+поддерживается. `nli --version` показывает компактный ASCII-баннер и версию.
+Баннер не выводится другими командами.
+
+`--json` остаётся отдельным машинным контрактом: только JSON, без ANSI, баннера и
+локализованного текста. Бизнес-логика Engine/manifest/audit не зависит от human
+formatter.
+
 ## Audit, crash и восстановление
 
 Mutation lock: `/mnt/data/var/lib/neiro/nli/mutation.lock`, kernel advisory lock; файл не удаляется. Crash автоматически освобождает lock. Before-action intent синхронно сохраняется в `pending.json` и `/mnt/data/var/log/neiro/nli/<id>.json`; каждый stop/start имеет intent/result, включая failure. Backup: `/mnt/data/var/lib/neiro/nli/backups/<id>/`, version/commit/current/target manifest, hashes, metadata. Для firmware сохраняется также raw per-device transcript. Никаких logs от read-only команд.
@@ -123,9 +135,9 @@ Ctrl-C update вызывает автоматический rollback. SIGKILL/po
 
 Унаследованные semantic-only base checks, предупреждения после успешного install и rollback без preflight не копируются: NLI требует exact reviewed hashes и включает verify/rollback в транзакцию. Текущий INSTALL PR #65 содержит исторические инструкции; для NLI используются этот manifest и runbook. Это не разрешение на live deployment.
 
-## pressure_makeup 1.0 (NLI 0.1.5)
+## pressure_makeup 1.0 (NLI 0.1.6)
 
-NLI 0.1.5 устраняет HHM startup race: только post-restart HHM verify (boiler и
+NLI 0.1.5+ устраняет HHM startup race: только post-restart HHM verify (boiler и
 gazebo) повторяет весь набор runtime checks в общем monotonic budget 30 секунд.
 Нужны свежий non-retained frame с правильными source/version/seq/timestamp,
 готовые HHM controls и manifest attestations. Каждый MQTT subprocess ограничен
