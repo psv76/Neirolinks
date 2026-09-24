@@ -239,7 +239,7 @@
 | 203 | `wb-mr6c_218/Input 4` | FIELD_CONFIRMED | совпадает с локальной логикой вентилятора 326 |
 | 204 | `wb-led_11/Input 3` + `wb-mr6c_218/Input 3` | FIELD_CONFIRMED | одна кнопка заведена одновременно в LED и MR6C |
 | 205 | `wb-led_224/Input 1` + `wb-led_245/Input 1` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; клавиша физически заведена на два WB-LED |
-| 206 | `wb-mr6c_203/Input 4` + `wb-mr6c_203/Input 5` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw показал также `Input 4 counter`, `Input 5 counter` и `Input 4 Single Press Counter` |
+| 206 | `wb-mr6c_203/Input 4` + `wb-mr6c_203/Input 5` | FIELD_CONFIRMED | повторно подтверждено новым определителем 24.09.2026; raw: `Input 4`, `Input 5`, оба counter, `Input 4 Single Press Counter` | повторная полевая проверка новым определителем; raw показал также `Input 4 counter`, `Input 5 counter` и `Input 4 Single Press Counter` |
 | 207 | `wb-mr6c_218/Input 1` | FIELD_CONFIRMED | повторная полевая проверка новым определителем; raw также показал `wb-mr6c_218/Input 1 counter` |
 | 208 | `wb-led_26/Input 3` + `wb-mr6c_138/Input 6` | FIELD_CONFIRMED | повторная полевая проверка новым определителем поймала оба физических входа; raw также показал `wb-mr6c_138/Input 6 counter` |
 | 209 | `wb-led_23/Input 4` + `wb-led_42/Input 1` | FIELD_CONFIRMED | повторная полевая проверка новым определителем поймала оба физических входа; тем самым рукописная заметка «42 вход 1» подтверждена как неполная часть общей привязки |
