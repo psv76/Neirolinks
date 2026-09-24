@@ -9,6 +9,7 @@ from . import __version__
 from .manifest import validate, match, SHA, NAME
 from .layout import CONFIG_DIR, STATE_DIR, LOG_DIR, target as resolve_target
 from .plugins import PLUGINS
+from .journal import classify
 from .system import System
 from .util import Error, Lock, atomic, beneath, decode, digest, read_json, require, sync_dir, write_json
 
@@ -151,6 +152,7 @@ class Engine:
                 require(path not in managed, "Managed/unmanaged ownership conflict: " + path)
                 require(path not in approved or approved[path] == sha, "Conflicting unmanaged hash: " + path)
                 approved[path] = sha
+        sources = {}
         for directory in ("/etc/wb-rules", "/etc/wb-rules-modules"):
             folder = self.target(directory)
             require(folder.is_dir(), "Missing rules directory")
@@ -162,6 +164,8 @@ class Engine:
                 if logical not in managed:
                     require(logical in approved and digest(path.read_bytes()) == approved[logical],
                             "Unknown/drifted possible writer: " + logical)
+                sources[logical] = path.read_text(encoding='utf-8')
+        return sources
 
     def preflight(self, current, target, recovery=False):
         self.validate(current, current["component"])
@@ -199,16 +203,42 @@ class Engine:
             result[f["target"]] = data
         return result
 
-    def verify(self, m, since=None):
+    def verify(self, m, since=None, record=None):
         # Standalone observation starts BEFORE files/services/runtime probes.
         # A supplied boundary belongs to a transaction and must never be reset.
         post_restart = since is not None
         observation_since = since if post_restart else now()
-        self.files_match(m)
-        for service in m["services"]["start"]:
-            self.system.active(service)
-        PLUGINS[self.registration(m["component"])["plugin"]].verify(
-            self, m, observation_since, post_restart=post_restart)
+        attempt = dict(component=m['component'], since=observation_since,
+                       mode='post_restart' if post_restart else 'standalone', status='running', journal=[])
+        if record is not None:
+            record.setdefault('verification_attempts', []).append(attempt)
+        try:
+            self.files_match(m)
+            for service in m["services"]["start"]:
+                self.system.active(service)
+            plugin = PLUGINS[self.registration(m["component"])["plugin"]]
+            runtime_error = None
+            try:
+                plugin.verify(self, m, observation_since, post_restart=post_restart)
+            except Exception as exc:
+                runtime_error = exc
+                attempt['runtime_error'] = str(exc)
+            if 'wb-rules' in m['services']['start']:
+                sources = self.rules_inventory(m)
+                self.files_match(m)
+                attempt['journal'] = classify(self.system.journal(observation_since), sources,
+                    {f['target'] for f in m['files']}, plugin.device_prefixes, post_restart)
+                if runtime_error is not None:
+                    raise runtime_error
+                require(not any(e['fatal'] for e in attempt['journal']),
+                        'wb-rules journal reports errors; inspect journal attribution')
+            elif runtime_error is not None:
+                raise runtime_error
+            attempt['status'] = 'ok'
+        except BaseException as exc:
+            attempt.update(status='failed', error=str(exc) or type(exc).__name__)
+            raise
+        return attempt
 
     def backup(self, current, target, record):
         folder = self.target(STATE_DIR + "/backups/" + record["id"])
@@ -281,7 +311,7 @@ class Engine:
         self.install(old, payload, meta)
         since = now()
         self.services(old, "start", record)
-        self.verify(old, since)
+        self.verify(old, since, record)
         write_json(self.state_path(component), meta["previous_state"] or {
             "manifest": old, "previous_backup": None, "last_result": "baseline_restored"})
         record["rollback"] = "ok"
@@ -313,7 +343,7 @@ class Engine:
                 record["preflight"] = "ok"
                 self.payload(target)  # read into memory; no cache/temp/log/lock writes
             else:
-                self.verify(current)
+                self.verify(current, None, record)
                 record["verify"] = "ok"
             record["final_status"] = "ok"
         except (Error, OSError, ValueError, KeyError, TypeError) as exc:
@@ -350,7 +380,7 @@ class Engine:
                     since = now()
                     self.services(target, "start", record)
                     record["verify"] = "running"
-                    self.verify(target, since)
+                    self.verify(target, since, record)
                     record["verify"] = "ok"
                     write_json(self.state_path(component), {"manifest": target,
                                "previous_backup": record["backup"], "last_result": "update_ok"})

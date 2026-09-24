@@ -45,6 +45,9 @@ def main(argv=None, engine=None):
             print("RECOVERY REQUIRED: " + json.dumps(result["pending"], ensure_ascii=False))
         for component, record in result.get("last_operations", {}).items():
             print("Last " + str(component) + ": " + record["command"] + " / " + record["final_status"])
+        for attempt in result.get('verification_attempts', []):
+            for event in attempt.get('journal', []):
+                print('JOURNAL ' + event['category'] + ': ' + event['message'])
         print("RESULT: " + result["final_status"])
     return 0 if result["final_status"] == "ok" else (3 if result["final_status"] == "unavailable" else 1)
 

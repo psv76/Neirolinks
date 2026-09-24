@@ -16,8 +16,9 @@ import nli
 from nli.core import Engine
 from nli.layout import CONFIG_DIR, DEFAULT_CONFIG, DATA_DIR, STATE_DIR, LOG_DIR, load_config
 from nli.util import digest, read_json, write_json
-assert nli.__version__ == '0.1.3'
+assert nli.__version__ == '0.1.4'
 assert nli.__file__.startswith('/usr/lib/neiro-nli/')
+assert Path('/usr/share/neiro-nli/RECOVERY.md').is_file()
 
 
 class FakeWB:
@@ -116,7 +117,7 @@ if mode == 'bootstrap':
     readonly(engine)
     assert not Path(STATE_DIR).exists() and not Path(LOG_DIR).exists()
     unknown = Path('/etc/wb-rules/unknown-rule.js')
-    unknown.write_bytes(b'// isolated CI fixture; no physical controls')
+    unknown.write_bytes(b"defineVirtualDevice('ci-other-device', {}); // no physical controls")
     failed = engine.read_operation('check', 'hhm')
     assert failed['final_status'] == 'failed' and 'possible writer' in failed['error'], failed
     assert not Path(STATE_DIR).exists() and not Path(LOG_DIR).exists()
@@ -125,8 +126,10 @@ if mode == 'bootstrap':
     engine = Engine(load_config(), system=FakeWB())  # next CLI invocation reloads reviewed config
     for component in ('hhm', 'pressure_makeup'):
         for command in ('update', 'rollback'):
-            result = engine.mutate(command, component)
+            with patch.object(engine.system, 'journal', return_value='ERROR on device ci-other-device: Control already exists'):
+                result = engine.mutate(command, component)
             assert result['final_status'] == 'ok', result
+            assert result['verification_attempts'][0]['journal'][0]['category'] == 'shared_runtime', result
         assert Path(f['target']).read_bytes() == makeup_bytes
     assert digest(unknown.read_bytes()) == r['unmanaged_rules'][str(unknown)]
     # Simulate crash/failed rollback: a reinstall must preserve pending recovery.

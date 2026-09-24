@@ -1,5 +1,21 @@
 # Проверки NLI v0.1
 
+## 0.1.4 — attribution shared runtime и pending recovery
+
+[Локально, 24.09.2026] 138 Python tests: 101 PASS, 37 SKIP (Windows
+symlink privilege); Node exact-507 runtime regressions PASS. Linux checks,
+установка `.deb` и полный HHM suite запускаются в GitHub Actions.
+
+Новые fake-WB regressions покрывают update/rollback обоих компонентов при
+сторонней ошибке, сохранение raw journal в audit, собственную ошибку с успешным
+autorollback, повторную ошибку восстановления с pending, восстановление legacy
+pending без удаления предыдущего audit, standalone strict gate, drift, ambiguous
+owners, shared modules, stack attribution и соседний INFO. Исторические проверки
+0.1.3 ниже сохранены; в 0.1.4 mutating gate допускает только доказанные foreign
+errors, все прежние patterns по-прежнему обнаруживаются. CI проверяет upgrade
+0.1.0 → 0.1.1 → 0.1.2 → 0.1.3 → 0.1.4, nodoc/reinstall/FIT и HHM/507 regressions.
+Итоговый green HEAD, artifact и SHA256 публикуются в PR #71. Live WB не затрагивается.
+
 ## 0.1.3 — scoped standalone verify
 
 [Проверено локально, 24.09.2026] 125 Python tests: 88 PASS, 37 SKIP

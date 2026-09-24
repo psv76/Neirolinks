@@ -50,6 +50,7 @@ def build(output, epoch=0):
     # Smoke/bootstrap instructions are needed even on WB with dpkg nodoc policy.
     data.append(("usr/share/neiro-nli/WB_SMOKE.md", (ROOT / "WB_SMOKE.md").read_bytes().replace(b"\r\n", b"\n"), 0o644))
     data.append(("usr/share/neiro-nli/PRESSURE_MAKEUP.md", (ROOT / "PRESSURE_MAKEUP.md").read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    data.append(("usr/share/neiro-nli/RECOVERY.md", (ROOT / "RECOVERY.md").read_bytes().replace(b"\r\n", b"\n"), 0o644))
     data.append(("usr/share/neiro-nli/register_pressure_makeup.py",
                  (ROOT / "tools/register_pressure_makeup.py").read_bytes().replace(b"\r\n", b"\n"), 0o644))
     for name in ("README.md", "SECURITY.md", "FIRMWARE.md", "TEST_RESULTS.md"):
@@ -72,6 +73,6 @@ def build(output, epoch=0):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--output", type=Path, default=ROOT / "dist/neiro-nli_0.1.3_all.deb")
+    p.add_argument("--output", type=Path, default=ROOT / "dist/neiro-nli_0.1.4_all.deb")
     args = p.parse_args()
     build(args.output, int(os.environ.get("SOURCE_DATE_EPOCH", "0")))

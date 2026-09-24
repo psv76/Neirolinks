@@ -27,3 +27,12 @@ Standalone verify в 0.1.3 ограничивает health gate журнала �
 507 разрешён только component id/plugin pressure_makeup с точным single-file target, object Иволга и role boiler. HHM не может заявить этот файл; произвольные output claims в manifest запрещены. A04/K1 закреплён за trusted pressure_makeup policy. Registry проверяет peer manifests/hashes; одно имя в config не является доверием. Managed path нельзя одновременно allowlist-ить как unmanaged. Backup/rollback ограничены файлами инициирующего компонента.
 
 Принятый reset pulseCount/alarm flags при restart не является ошибкой. Postverify проверяет startup marker после активации, virtual controls и журнал; оно не восстанавливает counters и не обещает физический OFF после штатного evaluate. Preflight OFF остаётся обязательным. Exact 1.0 payload имеет сохранённые live bytes без final LF; normalization и автоматического принятия drift нет. Config-only registration helper запускается явно инженером при отсутствии конкурирующих NLI/config editors; сохраняет исходный config и все прочие reviewed entries, не пишет JS/MQTT/services. См. [PRESSURE_MAKEUP.md](PRESSURE_MAKEUP.md).
+
+В 0.1.4 только mutating verify допускает однозначно атрибутированные ошибки
+проверенных неизменённых сторонних rules. Собственные targets/devices, shared
+modules, неоднозначные и неизвестные источники остаются fatal. Attribution не
+исполняет JS: поддерживает literal device ID либо переменную с единственным
+literal assignment; dynamic/escaped IDs не выводятся. Trust поступает только из
+повторно проверенных manifest/approved hashes, не из имени стороннего устройства.
+Все найденные ошибки, включая допустимые, сохраняются в audit по attempts.
+См. RECOVERY.md: старый pending завершается только verified explicit rollback.

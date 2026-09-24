@@ -35,6 +35,7 @@ class Files:
 
 
 class HHM(Files):
+    device_prefixes = ('HHM3', 'hhm3', 'NL_simple_thermostat_', 'NL_combo_thermostat_', 'heat_diagnostics')
     def validate(self, m, registration):
         require(m["component"] == "hhm" and m["object"] == "05_31_Ivolga_13", "Wrong HHM object")
         require(m["role"] in ("boiler", "gazebo"), "Wrong HHM role")
@@ -87,12 +88,10 @@ class HHM(Files):
             require(value and not any(x in value for x in ("RUNTIME_UNSUPPORTED", "STARTUP", "Ожидание MQTT", "Запуск")),
                     "HHM runtime not loaded: " + control)
         super().verify(engine, m, since)
-        journal = engine.system.journal(since)
-        require(not re.search(r"SyntaxError|ReferenceError|TypeError|exception|ERROR|write ignored", journal, re.I),
-                "wb-rules journal reports errors; inspect journal")
 
 
 class PressureMakeup(Files):
+    device_prefixes = ('pressure_makeup', '507_Pressure_makeup')
     # Fixed trusted policy, never a manifest-supplied physical-output claim.
     outputs = frozenset({"A04/K1"})
 
@@ -132,8 +131,6 @@ class PressureMakeup(Files):
         count = engine.system.control("pressure_makeup/pulse_count")
         require(re.fullmatch(r"[0-9]+", count) is not None, "Invalid pressure_makeup pulse_count")
         require(bool(engine.system.control("pressure_makeup/last_event")), "Missing pressure_makeup last_event")
-        require(not re.search(r"SyntaxError|ReferenceError|TypeError|exception|ERROR|write ignored",
-                              engine.system.journal(since), re.I), "wb-rules journal reports errors; inspect journal")
 
 
 PLUGINS = {"hhm": HHM(), "pressure_makeup": PressureMakeup(), "files": Files()}

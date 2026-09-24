@@ -18,8 +18,8 @@
 python3 -B -m unittest discover -s NLI/tests -v
 python3 -B NLI/tests/sandbox.py
 python3 -B NLI/tools/build_deb.py
-(cd NLI/dist && sha256sum -c neiro-nli_0.1.3_all.deb.sha256)
-dpkg-deb --info NLI/dist/neiro-nli_0.1.3_all.deb
+(cd NLI/dist && sha256sum -c neiro-nli_0.1.4_all.deb.sha256)
+dpkg-deb --info NLI/dist/neiro-nli_0.1.4_all.deb
 ```
 
 Build использует только stdlib; создаёт воспроизводимый Debian ar с control/data tar.gz, root ownership и `/usr/bin/nli` mode 0755. `SOURCE_DATE_EPOCH` задаёт timestamp (по умолчанию 0). Нет maintainer scripts, service units, restart при установке или зависимости HHM от пакета. CI проверяет `dpkg-deb` и установку в одноразовом Debian Trixie container.
@@ -27,12 +27,12 @@ Build использует только stdlib; создаёт воспроиз�
 В тестовом Debian/WB-окружении после проверки происхождения пакета:
 
 ```sh
-sudo apt install ./neiro-nli_0.1.3_all.deb
+sudo apt install ./neiro-nli_0.1.4_all.deb
 nli --version
 nli status
 ```
 
-Пакет устанавливает Python sources в `/usr/lib/neiro-nli`, примеры в `/usr/share/neiro-nli/examples`, schema и bootstrap runbook в `/usr/share/neiro-nli/`. Они доступны при WB dpkg `path-exclude /usr/share/doc/*`. Config `/mnt/data/etc/neiro/nli/config.json` создаётся инженером и **не принадлежит пакету**; conffiles/maintainer scripts в 0.1.3 отсутствуют. Пока config не создан, CLI читает packaged `default-config.json` без записи на диск. При существующих данных и потерянном config либо настроенных старых данных 0.1.0 CLI требует разбор/миграцию, а не создаёт пустой профиль. HHM payload пакет **не устанавливает**. Библиотеки Python кроме stdlib не требуются. `systemd`/`mosquitto-clients` нужны только для WB probes/service actions. Штатный firmware updater — отдельный suggested пакет.
+Пакет устанавливает Python sources в `/usr/lib/neiro-nli`, примеры в `/usr/share/neiro-nli/examples`, schema и bootstrap runbook в `/usr/share/neiro-nli/`. Они доступны при WB dpkg `path-exclude /usr/share/doc/*`. Config `/mnt/data/etc/neiro/nli/config.json` создаётся инженером и **не принадлежит пакету**; conffiles/maintainer scripts в 0.1.4 отсутствуют. Пока config не создан, CLI читает packaged `default-config.json` без записи на диск. При существующих данных и потерянном config либо настроенных старых данных 0.1.0 CLI требует разбор/миграцию, а не создаёт пустой профиль. HHM payload пакет **не устанавливает**. Библиотеки Python кроме stdlib не требуются. `systemd`/`mosquitto-clients` нужны только для WB probes/service actions. Штатный firmware updater — отдельный suggested пакет.
 
 Полевой bootstrap, upgrade 0.1.0, conffile policy и переустановка после FIT: [WB_SMOKE.md](WB_SMOKE.md). После FIT executable/modules могут исчезнуть; переустановка `.deb` подхватывает persistent config/pins/state/backups/pending/audit. Это проверяется заменой rootfs в CI, не является утверждением о выполненной проверке FIT на реальном WB.
 
@@ -92,7 +92,7 @@ Exit codes: 0 — success; 1 — failed/rolled_back/partial_failure/recovery_req
 Пример sandbox adoption:
 
 ```text
-NLI 0.1.3
+NLI 0.1.4
 object: 05_31_Ivolga_13
 role: boiler
 command: update
@@ -123,7 +123,20 @@ Ctrl-C update вызывает автоматический rollback. SIGKILL/po
 
 Унаследованные semantic-only base checks, предупреждения после успешного install и rollback без preflight не копируются: NLI требует exact reviewed hashes и включает verify/rollback в транзакцию. Текущий INSTALL PR #65 содержит исторические инструкции; для NLI используются этот manifest и runbook. Это не разрешение на live deployment.
 
-## pressure_makeup 1.0 (NLI 0.1.3)
+## pressure_makeup 1.0 (NLI 0.1.4)
+
+После update/rollback общий журнал wb-rules атрибутируется компоненту. Ошибки
+собственных файлов/devices и неизвестного источника строго вызывают failure и
+rollback. Ошибка другого неизменённого скрипта допускается только при однозначной
+связи с проверенным inventory файлом или его literal virtual device declaration.
+Peer manifest и reviewed unmanaged SHA проверяются заново; shared modules и
+неоднозначные источники не освобождаются от failure. Именных исключений нет.
+В `verification_attempts[]` audit сохраняются граница окна, mode, status и полный
+текст ошибок с category/sources/fatal; update и восстановление имеют отдельные
+attempts. `shared_runtime` виден также в обычном CLI, даже при `RESULT: ok`.
+Standalone сохраняет политику 0.1.3: любая новая ошибка внутри его окна fatal.
+Для существующего pending см. [RECOVERY.md](RECOVERY.md), также установленный
+в `/usr/share/neiro-nli/RECOVERY.md` при WB nodoc policy.
 
 Boiler example содержит два компонента: hhm и pressure_makeup. Единственный owner A04/K1 — 507. Shared inventory проверяет manifest и фактические hashes peer-компонентов; managed/unmanaged overlap блокируется. HHM никогда не backup-ит и не изменяет 507. Отдельные check/update/verify/rollback pressure_makeup затрагивают только 507. Версия 1.0 — external manifest metadata для exact reviewed live bytes, без изменения алгоритма.
 
