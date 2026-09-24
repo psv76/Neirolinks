@@ -16,7 +16,7 @@ import nli
 from nli.core import Engine
 from nli.layout import CONFIG_DIR, DEFAULT_CONFIG, DATA_DIR, STATE_DIR, LOG_DIR, load_config
 from nli.util import digest, read_json, write_json
-assert nli.__version__ == '0.1.5'
+assert nli.__version__ == '0.1.6'
 assert nli.__file__.startswith('/usr/lib/neiro-nli/')
 assert Path('/usr/share/neiro-nli/RECOVERY.md').is_file()
 
