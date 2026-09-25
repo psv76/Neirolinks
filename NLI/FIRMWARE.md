@@ -14,9 +14,13 @@
 
 NLI 0.1.8 содержит reviewed policy: package version **1.16.0**, executable Git blob
 `91d705e6de165970d5a87669b34c7ed9c282364f` из официального upstream CLI.
-Допускается только Debian shebang rewrite `#!/usr/bin/python3`; прочие bytes должны
-совпадать. Проверяются dpkg package ownership и `dpkg --verify wb-mcu-fw-updater`
-(включая его package modules). Подмена binary/изменённый package блокируются.
+Допускаются штатные Debian shebang rewrite `#!/usr/bin/python3` и
+`#! /usr/bin/python3`; перед проверкой Git blob они нормализуются к upstream
+`#!/usr/bin/env python3`. Проверяются dpkg package ownership и runtime-часть
+`dpkg --verify wb-mcu-fw-updater` (включая package modules). Расхождения только
+в `/usr/share/doc/wb-mcu-fw-updater/` не блокируют firmware policy, потому что
+не участвуют в выполнении updater; любые runtime-расхождения по-прежнему
+блокируются. Подмена executable/изменённый runtime package блокируются.
 Object pins approved_executable_sha256 / approved_package_version больше не нужны
 и не используются; старые поля config можно оставить до отдельного review config.
 Неизвестная новая/старая version блокируется: поддержку добавляют выпуском NLI,

@@ -518,6 +518,38 @@ class FirmwareTests(Fixture):
         self.assertEqual(Firmware(self.engine, self.runner).execute("update")["final_status"], "failed")
         self.assertEqual(self.calls, [])
 
+    def test_official_debian_shebang_and_missing_docs_are_accepted(self):
+        source = b"#! /usr/bin/python3\n--debug # official fixture commands: update-all recover-all"
+        canonical = b"#!/usr/bin/env python3\n--debug # official fixture commands: update-all recover-all"
+        self.put("/usr/bin/wb-mcu-fw-updater", source)
+        blob = hashlib.sha1(b'blob ' + str(len(canonical)).encode() + b'\0' + canonical).hexdigest()
+
+        def run(argv):
+            if argv[:2] == ['/usr/bin/dpkg-query', '-S']:
+                return 'wb-mcu-fw-updater: /usr/bin/wb-mcu-fw-updater'
+            if argv[:2] == ['/usr/bin/dpkg', '--verify']:
+                return 'missing     /usr/share/doc/wb-mcu-fw-updater/changelog.gz'
+            return '1.99-test'
+
+        with patch('nli.firmware.SUPPORTED', {'1.99-test': blob}), patch.object(self.system, 'run', side_effect=run):
+            result = Firmware(self.engine, self.runner).execute("check")
+        self.assertEqual(result["final_status"], "unavailable", result)
+        self.assertEqual(result["compatibility"], "supported")
+        self.assertNotIn("error", result)
+
+    def test_runtime_package_verify_issue_still_blocks(self):
+        original = self.system.run
+
+        def run(argv):
+            if argv[:2] == ['/usr/bin/dpkg', '--verify']:
+                return '??5?????? /usr/lib/python3/dist-packages/wb_mcu_fw_updater/update_monitor.py'
+            return original(argv)
+
+        with patch.object(self.system, 'run', side_effect=run):
+            result = Firmware(self.engine, self.runner).execute("check")
+        self.assertEqual(result["final_status"], "failed", result)
+        self.assertIn("package verification failed", result["error"])
+
     def test_firmware_wrong_controller_blocks(self):
         self.config["hostname"] = "different-wb"
         r = Firmware(self.engine, self.runner).execute("update")

@@ -51,13 +51,28 @@ class Firmware:
         version = system.run(["/usr/bin/dpkg-query", "-W", "-f=${Version}", "wb-mcu-fw-updater"])
         source = path.read_bytes()
         require(version in SUPPORTED, 'UPDATER_UNSUPPORTED: ' + version + '; обновите NLI: nli self-update')
-        # Debian dh_python may rewrite only the interpreter line.
-        canonical = source.replace(b'#!/usr/bin/python3\n', b'#!/usr/bin/env python3\n', 1)
+        # Debian/dh_python may rewrite only the interpreter line. Accept the
+        # official Debian spellings seen in the field, but normalize to the
+        # reviewed upstream shebang before computing the Git blob identity.
+        canonical = re.sub(br'\A#![ \t]*/usr/bin/python3[ \t]*\r?\n',
+                           b'#!/usr/bin/env python3\n', source, count=1)
         blob = hashlib.sha1(b'blob ' + str(len(canonical)).encode() + b'\0' + canonical).hexdigest()
         require(blob == SUPPORTED[version], 'UPDATER_MODIFIED: executable differs from reviewed upstream')
         require(system.run(['/usr/bin/dpkg-query', '-S', UPDATER]) == 'wb-mcu-fw-updater: ' + UPDATER,
                 'UPDATER_UNOFFICIAL: package ownership mismatch')
-        require(system.run(['/usr/bin/dpkg', '--verify', 'wb-mcu-fw-updater']) == '', 'UPDATER_MODIFIED: package verification failed')
+        verification = system.run(['/usr/bin/dpkg', '--verify', 'wb-mcu-fw-updater'])
+        runtime_issues = []
+        for line in verification.splitlines():
+            item = line.strip()
+            if not item:
+                continue
+            # Package documentation cannot affect flashing. Runtime files and
+            # modules remain covered by dpkg verification.
+            if '/usr/share/doc/wb-mcu-fw-updater/' in item:
+                continue
+            runtime_issues.append(item)
+        require(not runtime_issues,
+                'UPDATER_MODIFIED: package verification failed: ' + '; '.join(runtime_issues[:3]))
         return dict(version=version, executable_sha256=digest(source), compatibility='supported',
                     commands=[x for x in ("update-all", "recover-all") if x.encode() in source],
                     debug_supported=b"--debug" in source,
