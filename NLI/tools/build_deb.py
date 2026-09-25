@@ -46,6 +46,9 @@ def build(output, epoch=0):
     for path in sorted((ROOT / "releases").rglob("*.js")):
         data.append(("usr/share/neiro-nli/payload/NLI/" + path.relative_to(ROOT).as_posix(),
                      path.read_bytes(), 0o644))
+    for path in sorted((ROOT / 'releases').glob('hhm-*.json')):
+        data.append(('usr/share/neiro-nli/known/' + path.name,
+                     path.read_bytes().replace(b'\r\n', b'\n'), 0o644))
     data.append(("usr/share/neiro-nli/manifest.schema.json", (ROOT / "manifest.schema.json").read_bytes().replace(b"\r\n", b"\n"), 0o644))
     # Smoke/bootstrap instructions are needed even on WB with dpkg nodoc policy.
     data.append(("usr/share/neiro-nli/WB_SMOKE.md", (ROOT / "WB_SMOKE.md").read_bytes().replace(b"\r\n", b"\n"), 0o644))
@@ -53,6 +56,7 @@ def build(output, epoch=0):
     data.append(("usr/share/neiro-nli/RECOVERY.md", (ROOT / "RECOVERY.md").read_bytes().replace(b"\r\n", b"\n"), 0o644))
     data.append(("usr/share/neiro-nli/register_pressure_makeup.py",
                  (ROOT / "tools/register_pressure_makeup.py").read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    data.append(('usr/share/neiro-nli/RELEASES.md', (ROOT / 'RELEASES.md').read_bytes().replace(b'\r\n', b'\n'), 0o644))
     for name in ("README.md", "SECURITY.md", "FIRMWARE.md", "TEST_RESULTS.md"):
         data.append(("usr/share/doc/neiro-nli/" + name, (ROOT / name).read_bytes().replace(b"\r\n", b"\n"), 0o644))
     content = bytearray(b"!<arch>\n")
@@ -73,6 +77,6 @@ def build(output, epoch=0):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--output", type=Path, default=ROOT / "dist/neiro-nli_0.1.6_all.deb")
+    p.add_argument("--output", type=Path, default=ROOT / "dist/neiro-nli_0.1.8_all.deb")
     args = p.parse_args()
     build(args.output, int(os.environ.get("SOURCE_DATE_EPOCH", "0")))

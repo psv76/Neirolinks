@@ -1,3 +1,28 @@
+# NLI 0.1.8 — Issue #74
+
+Локально: 164 Python tests, OK (35 Windows symlink privilege skips), sandbox обеих
+ролей PASS. Node: 67 HHM groups, 10 partial-ready groups, PersistentStorage,
+manifest и exact 507 runtime PASS. Точные итоговые HEAD/CI run, artifact и SHA256
+публикуются в draft PR. Linux CI должен пройти без skips.
+
+Новые группы: approved metadata discovery (draft/role/approval/hash/commit/network),
+read-only check, exact selected release update/rollback, minimum NLI/no-op;
+real Git HHM 3.1 bytes + stale 3.0 state/offline/mixed bytes/reconciliation;
+installation-only без MQTT app probes; technical owned load errors и diagnostics;
+self-update metadata-only/checksum/failure/interrupt/pending preservation/package
+hook/path rejection; bounded successful retention/failed evidence/full disk/cleanup
+failure без rollback. Firmware tests не используют object pins: встроенная policy
+подменяется только test fixture, actual upstream никогда не запускается.
+
+CI: полная цепочка package upgrades 0.1.0–0.1.8, включая фактический 0.1.7 package
+из PR #73; WB nodoc/canonical links, exact offline 3.1 recognition из installed
+package, actual dpkg self-update repair с existing component pending, reinstall/FIT.
+Прежние HHM/507 Node suites запускаются без изменения runtime algorithms.
+
+Удалены/переписаны тесты старого HHM readiness и sensor-health/runtime gates согласно
+#74 §1A; сохранять их ради green CI запрещено новым installation-only контрактом.
+Ниже — **исторические результаты предыдущих версий**, не текущая policy 0.1.8.
+
 # Проверки NLI v0.1
 
 ## 0.1.5 — bounded HHM readiness после restart

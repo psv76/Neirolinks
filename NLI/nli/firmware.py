@@ -1,5 +1,6 @@
 """Delegates flashing exclusively to the installed official updater, interactively."""
 import os
+import hashlib
 from pathlib import Path
 import re
 import signal
@@ -9,6 +10,7 @@ from .util import Error, Lock, digest, require
 from .layout import STATE_DIR, LOG_DIR
 
 UPDATER = "/usr/bin/wb-mcu-fw-updater"
+SUPPORTED = {'1.16.0': '91d705e6de165970d5a87669b34c7ed9c282364f'}
 BOOTLOADER_NOTICE = ("Штатный updater может обновить bootloader и firmware; временно нарушить связь "
                      "с модулями и приостановить serial clients. Требуется инженер на объекте. "
                      "NLI не добавляет --force/--allow-downgrade и сохраняет вопросы штатной утилиты.")
@@ -48,7 +50,15 @@ class Firmware:
         # Do not import or execute updater for check/help: imports may create cache/database.
         version = system.run(["/usr/bin/dpkg-query", "-W", "-f=${Version}", "wb-mcu-fw-updater"])
         source = path.read_bytes()
-        return dict(version=version, executable_sha256=digest(source),
+        require(version in SUPPORTED, 'UPDATER_UNSUPPORTED: ' + version + '; обновите NLI: nli self-update')
+        # Debian dh_python may rewrite only the interpreter line.
+        canonical = source.replace(b'#!/usr/bin/python3\n', b'#!/usr/bin/env python3\n', 1)
+        blob = hashlib.sha1(b'blob ' + str(len(canonical)).encode() + b'\0' + canonical).hexdigest()
+        require(blob == SUPPORTED[version], 'UPDATER_MODIFIED: executable differs from reviewed upstream')
+        require(system.run(['/usr/bin/dpkg-query', '-S', UPDATER]) == 'wb-mcu-fw-updater: ' + UPDATER,
+                'UPDATER_UNOFFICIAL: package ownership mismatch')
+        require(system.run(['/usr/bin/dpkg', '--verify', 'wb-mcu-fw-updater']) == '', 'UPDATER_MODIFIED: package verification failed')
+        return dict(version=version, executable_sha256=digest(source), compatibility='supported',
                     commands=[x for x in ("update-all", "recover-all") if x.encode() in source],
                     debug_supported=b"--debug" in source,
                     updates="unavailable", reason="No audited side-effect-free inventory API; no device probing performed",
@@ -110,6 +120,7 @@ class Firmware:
             try:
                 require(e.config["hostname"] == e.system.hostname(), "Wrong controller hostname")
                 previous = e.pending()
+                require(not e.target(STATE_DIR + '/self-update.json').exists(), 'Interrupted package update: nli self-update')
                 require(not previous or (action == "recover" and previous["component"] == "firmware"),
                         "Unresolved previous mutation; inspect status")
                 if previous:
@@ -117,12 +128,7 @@ class Firmware:
                 info = self.inspect()
                 record.update(info)
                 require(("update-all" if action == "update" else "recover-all") in info["commands"], "Unsupported updater command")
-                # Deliberate compatibility pin, reviewed by the operator against installed sources.
-                # Package updates cannot silently change bootloader behavior under NLI.
-                require(info["executable_sha256"] == e.config.get("firmware", {}).get("approved_executable_sha256"),
-                        "Review installed updater and pin approved_executable_sha256 before mutation")
-                require(info["version"] == e.config.get("firmware", {}).get("approved_package_version"),
-                        "Review installed updater package version before mutation")
+                require(info['debug_supported'], 'Unsupported updater logging interface')
                 if self.live_runner:
                     require(info["debug_supported"], "Unsupported updater logging interface")
                     self.confirm(action)
@@ -135,7 +141,11 @@ class Firmware:
                 record["install"] = record["final_status"]
                 e.audit(record)
                 # Completed process report remains inspectable; no automatic retry/recovery.
-                e.clear_pending()
+                if record['final_status'] == 'ok':
+                    e.clear_pending()
+                    e.cleanup(record)
+                else:
+                    e.checkpoint(record)
             except BaseException as exc:
                 record.update(final_status="partial_failure" if started else "failed", error=str(exc))
                 if started:

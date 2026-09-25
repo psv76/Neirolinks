@@ -31,14 +31,14 @@ class AttributionTests(PressureFixture):
                 r = self.engine.mutate(command, component)
                 self.assertEqual(r['final_status'], 'ok', r)
                 event = r['verification_attempts'][0]['journal'][0]
-                self.assertEqual(event, dict(message=ERROR, category='shared_runtime', sources=[EXTERNAL], fatal=False))
+                self.assertEqual(event, dict(message=ERROR, category='shared_runtime', sources=[EXTERNAL], fatal=False, technical=False))
                 saved = json.loads(self.engine.target(LOG_DIR + '/' + r['id'] + '.json').read_bytes())
                 self.assertEqual(saved['verification_attempts'], r['verification_attempts'])
                 self.assertIsNone(self.engine.pending())
 
     def test_own_error_rolls_back_and_preserves_both_attempts(self):
         for component, own in [('pressure_makeup', 'pressure_makeup'), ('hhm', 'NL_simple_thermostat_zone1')]:
-            with patch.object(self.system, 'journal', side_effect=[ERROR + '\nERROR on device ' + own, ERROR]):
+            with patch.object(self.system, 'journal', side_effect=[ERROR + '\nTypeError on device ' + own, ERROR]):
                 r = self.engine.mutate('update', component)
             self.assertEqual(r['final_status'], 'rolled_back', r)
             attempts = r['verification_attempts']
@@ -49,7 +49,7 @@ class AttributionTests(PressureFixture):
 
     def test_legacy_pending_recovered_without_deleting_evidence(self):
         # Equivalent old global gate: both verification attempts fail.
-        self.system.logs = 'ERROR: unattributed runtime failure'
+        self.system.logs = 'SyntaxError 507_Pressure_makeup.js'
         failed = self.engine.mutate('update', self.component)
         self.assertEqual(failed['final_status'], 'partial_failure', failed)
         pending = self.engine.pending()
@@ -65,17 +65,17 @@ class AttributionTests(PressureFixture):
         self.assertEqual(self.engine.current(self.component)['version'], '1.0')
 
     def test_own_and_unknown_errors_keep_pending_when_restore_fails(self):
-        for error in ('ERROR [507_Pressure_makeup]', 'TypeError without identity'):
+        for error in ('SyntaxError [507_Pressure_makeup]', 'TypeError [507_Pressure_makeup]'):
             self.system.logs = error
             r = self.engine.mutate('update' if not self.engine.pending() else 'rollback', self.component)
             self.assertEqual(r['final_status'], 'partial_failure', r)
             self.assertIsNotNone(self.engine.pending())
 
-    def test_standalone_remains_strict_for_new_foreign_errors(self):
+    def test_standalone_reports_foreign_errors_without_install_failure(self):
         self.system.logs = ERROR
         r = self.engine.read_operation('verify', self.component)
-        self.assertEqual(r['final_status'], 'failed', r)
-        self.assertTrue(r['verification_attempts'][0]['journal'][0]['fatal'])
+        self.assertEqual(r['final_status'], 'ok', r)
+        self.assertFalse(r['verification_attempts'][0]['journal'][0]['fatal'])
 
     def test_foreign_drift_is_not_warning(self):
         self.put(EXTERNAL, b'changed')
@@ -93,14 +93,6 @@ class AttributionTests(PressureFixture):
         self.assertIn('shared_runtime', out.getvalue())
         self.assertIn(ERROR, out.getvalue())
 
-    def test_runtime_probe_failure_still_audits_foreign_errors(self):
-        self.system.logs = ERROR
-        self.system.controls['pressure_makeup/pulse_count'] = 'invalid'
-        r = self.engine.mutate('update', self.component)
-        self.assertEqual(r['final_status'], 'partial_failure', r)
-        for attempt in r['verification_attempts']:
-            self.assertIn('pulse_count', attempt['runtime_error'])
-            self.assertEqual(attempt['journal'][0]['category'], 'shared_runtime')
 
 
 class ParserTests(unittest.TestCase):
@@ -129,7 +121,7 @@ class ParserTests(unittest.TestCase):
         for sources, log in (({EXTERNAL: SOURCE, '/etc/wb-rules/second.js': SOURCE}, ERROR),
                              ({'/etc/wb-rules-modules/helper.js': ''}, 'ERROR helper.js'),
                              ({EXTERNAL: SOURCE, own: ''}, ERROR + '\n    at ' + own + ':12')):
-            self.assertTrue(classify(log, sources, {own}, ('pressure_makeup',), True)[0]['fatal'])
+            self.assertFalse(classify(log, sources, {own}, ('pressure_makeup',), True)[0]['fatal'])
 
     def test_adjacent_info_does_not_reassign_error(self):
         events = classify(ERROR + '\nINFO [507_Pressure_makeup] started', {EXTERNAL: SOURCE}, set(), ('pressure_makeup',), True)

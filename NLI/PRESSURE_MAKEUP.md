@@ -1,9 +1,12 @@
-# pressure_makeup 1.0 — отдельный компонент NLI 0.1.5
+> NLI 0.1.8: этот документ описывает первичную adoption. Обычные updates используют approved discovery (README.md); verify проверяет установку, без application controls/startup markers/readiness. Актуальная recovery-процедура — RECOVERY.md.
+
+# pressure_makeup 1.0 — отдельный компонент NLI 0.1.8
 
 Для существующего `recovery_required` использовать [RECOVERY.md](RECOVERY.md),
-не выполнять повторную регистрацию из этого документа. В 0.1.5 post-restart
+не выполнять повторную регистрацию из этого документа. В 0.1.8 post-restart
 ошибки проверенного неизменённого стороннего скрипта сохраняются как
-`shared_runtime` в audit; собственные и неатрибутированные ошибки остаются fatal.
+`shared_runtime` в audit. Fatal остаются атрибутированные компоненту технические
+ошибки загрузки; application errors и неатрибутированные сообщения — diagnostics.
 
 Решение: [PR #71, последний follow-up](https://github.com/psv76/Neirolinks/pull/71#issuecomment-5809381674).
 Компонент `pressure_makeup`, plugin с тем же именем, object `05_31_Ivolga_13`,
@@ -28,9 +31,9 @@ live WB для этой работы не читался. Provenance указа�
 Пакет содержит manifest и exact payload под `/usr/share/neiro-nli/`; WB nodoc
 их не удаляет. Boiler example регистрирует hhm + pressure_makeup, baseline=target
 1.0. Offline `payload_dir=/usr/share/neiro-nli/payload` у pressure_makeup позволяет
-проверить текущий baseline без скачивания. Для нового релиза выпустить отдельный
-immutable manifest/version/SHA, настроить соответствующий offline bundle либо
-убрать payload_dir для загрузки точного Git source. При несовпадении bytes —
+проверить текущий baseline без скачивания в явном режиме `release_source=pinned`.
+Обычный approved discovery получает новый manifest и payload автоматически и
+не использует старый `payload_dir`. При несовпадении bytes —
 ошибка, без нормализации LF/CRLF или auto-adoption текущего файла.
 
 ## Контракт операций
@@ -50,19 +53,17 @@ unmanaged allowlist — конфликт, который нужно явно у�
 Другие unmanaged JS по-прежнему требуют reviewed hash allowlist. Список может
 находиться в hhm или pressure_makeup; противоречивые hashes блокируются.
 
-Verify: exact installed bytes, active wb-rules;
-при post-update/rollback — marker обычного запуска 507
-в журнале после service start транзакции (ожидание до 15 секунд для штатного +3 s init),
-наличие корректных virtual booleans, неотрицательного pulse_count, last_event и
-отсутствие runtime errors. Legacy JS не публикует runtime version; NLI честно
-проверяет release по SHA файла, а не выдуманному version control. Это проверка
-загрузки/интерфейса, не доказательство давления, протока или положения клапана.
+Verify: exact installed bytes, identity, ownership inventory, active services и
+атрибутированные технические ошибки загрузки. Нет gates по startup marker,
+virtual controls, counters или application health. Версия определяется manifest
+и SHA файла. Это проверка установки, не доказательство давления, протока или
+положения клапана.
 
 Standalone verify не ожидает новый marker: 507 уже работает без restart.
-Окно ошибок начинается перед текущими files/runtime probes и завершается
+Окно ошибок начинается перед текущими installation probes и завершается
 финальным чтением журнала; старые ошибки всей жизни wb-rules игнорируются.
 При update/rollback ошибки проверяются строго с сохранённого timestamp перед
-restart, включая время до вызова verify; фильтр ошибок не ослаблен.
+restart, включая время до вызова verify; исходная boundary сохраняется.
 
 Restart штатно сбрасывает pulseCount и alarm flags. PersistentStorage для них
 не добавляется, backup их не захватывает, rollback не восстанавливает counters.
@@ -76,18 +77,18 @@ update цикл активен, rollback тоже обязан пройти inte
 ## Следующий read-only smoke на boiler
 
 Это инструкция оператору отдельного полевого окна. Агент не выполнял её на WB.
-Взять `neiro-nli_0.1.5_all.deb` и `.sha256` из **конкретного зелёного artifact
-`neiro-nli-0.1.5-deb`**, указанного с SHA256 в PR; сверить hash с PR. От root:
+Взять `neiro-nli_0.1.8_all.deb` и `.sha256` из **конкретного зелёного artifact
+`neiro-nli-0.1.8-deb`**, указанного с SHA256 в PR; сверить hash с PR. От root:
 
 ```sh
 set -e
-sha256sum -c neiro-nli_0.1.5_all.deb.sha256
+sha256sum -c neiro-nli_0.1.8_all.deb.sha256
 test "$(hostname)" = wirenboard-ABF62SL
 test "$(readlink /etc/wb-rules)" = /mnt/data/etc/wb-rules
 test "$(readlink /etc/wb-rules-modules)" = /mnt/data/etc/wb-rules-modules
 findmnt /mnt/data
 systemctl show wb-rules wb-mqtt-serial -p Id -p ActiveEnterTimestampMonotonic
-apt install ./neiro-nli_0.1.5_all.deb
+apt install ./neiro-nli_0.1.8_all.deb
 nli --version
 nli --json status
 ```
@@ -119,6 +120,6 @@ from/to = `1.0`. Timestamps сервисов не меняются; если sta
 сеть для своего immutable payload; pressure baseline использует packaged bytes.
 Сохранить результаты. Не выполнять update/rollback/firmware/restart в этом smoke.
 
-Все durable пути и FIT reinstall policy 0.1.1 сохраняются. Reinstall 0.1.5
+Все durable пути и FIT reinstall policy 0.1.1 сохраняются. Reinstall 0.1.8
 возвращает executable/runtime data, автоматически читая прежний persistent
 config/state. Он не регистрирует pressure_makeup за оператора и не меняет allowlist.

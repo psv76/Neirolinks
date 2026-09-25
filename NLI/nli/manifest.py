@@ -52,7 +52,8 @@ def validate(m):
     require(m["rollback"] == "previous-managed-release", "Unknown rollback policy")
     keys(m["verify"], ("controls", "runtime_version", "health_contract"))
     match(m["verify"]["runtime_version"], r"[A-Za-z0-9_.+-]{1,128}", "runtime version")
-    require(m["verify"]["health_contract"] in ("legacy-3.0", "m1w2-health-v1", "none"), "Unknown health contract")
+    # Legacy application metadata is retained for schema compatibility, not interpreted.
+    match(m['verify']['health_contract'], r'[A-Za-z0-9_.+-]{1,128}', 'health contract metadata')
     require(type(m["verify"]["controls"]) is list and len(m["verify"]["controls"]) <= 100, "Invalid controls")
     for c in m["verify"]["controls"]:
         keys(c, ("path",), ("equals",))

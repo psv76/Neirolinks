@@ -1,4 +1,5 @@
 """All mutations stay inside TemporaryDirectory; fake system has no hardware API."""
+import hashlib
 import contextlib
 import copy
 import io
@@ -60,8 +61,11 @@ class FakeSystem:
         return self.busy
 
     def run(self, argv):
-        assert argv[0] == "/usr/bin/dpkg-query"
-        return "1.99-test"
+        if argv[:2] == ['/usr/bin/dpkg-query', '-S']:
+            return 'wb-mcu-fw-updater: /usr/bin/wb-mcu-fw-updater'
+        if argv[:2] == ['/usr/bin/dpkg', '--verify']:
+            return ''
+        return '1.99-test'
 
 
 class Fixture(unittest.TestCase):
@@ -70,7 +74,7 @@ class Fixture(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.system = FakeSystem()
         self.component = "demo"
-        self.config = dict(object="test", role="boiler", hostname="sandbox-wb", components={})
+        self.config = dict(release_source="pinned", object="test", role="boiler", hostname="sandbox-wb", components={})
         self.base = self.manifest("1.0", b"old")
         self.new = self.manifest("1.1", b"new")
         self.setup_component()
@@ -431,28 +435,15 @@ class HHMTests(Fixture):
         self.assertEqual(self.engine.read_operation("verify", "hhm")["final_status"], "ok")
         self.assertEqual(before, self.snapshot())
         self.assertEqual(self.system.actions, [])
-        self.system.logs = "SyntaxError: 500_HHM3"
+        self.system.logs = "SyntaxError: 500_HHM3_FSE.js"
         self.assertEqual(self.engine.read_operation("verify", "hhm")["final_status"], "failed")
 
-    def test_stale_runtime_frame_fails(self):
-        self.system.frame["sent_ms"] -= 60000
-        self.assertEqual(self.engine.read_operation("verify", "hhm")["final_status"], "failed")
 
-    def test_hhm31_contract_cannot_be_faked_by_version(self):
-        self.new["version"] = "3.1.0"
-        self.new["verify"]["runtime_version"] = "3.1.0"
-        with self.assertRaisesRegex(Error, "health contract"):
-            self.engine.validate(self.new, "hhm")
-        self.new["verify"]["health_contract"] = "m1w2-health-v1"
-        with self.assertRaisesRegex(Error, "attestation"):
-            self.engine.validate(self.new, "hhm")
-        self.new["verify"]["controls"] = [dict(path="HHM3_FSE/sensor_health_contract", equals="m1w2-health-v1")]
-        self.engine.validate(self.new, "hhm")
 
     def test_interlock_rechecked_after_download(self):
         original = self.engine.payload
-        def changed(m):
-            data = original(m)
+        def changed(m, **kwargs):
+            data = original(m, **kwargs)
             self.system.controls["pressure_makeup/active"] = "1"
             return data
         with patch.object(self.engine, "payload", side_effect=changed):
@@ -473,9 +464,12 @@ class HHMTests(Fixture):
 class FirmwareTests(Fixture):
     def setUp(self):
         super().setUp()
-        self.source = b"# official fixture commands: update-all recover-all"
+        self.source = b"--debug # official fixture commands: update-all recover-all"
         self.put("/usr/bin/wb-mcu-fw-updater", self.source)
-        self.config["firmware"] = dict(approved_executable_sha256=digest(self.source), approved_package_version="1.99-test")
+        blob = hashlib.sha1(b'blob ' + str(len(self.source)).encode() + b'\0' + self.source).hexdigest()
+        supported = patch('nli.firmware.SUPPORTED', {'1.99-test': blob})
+        supported.start()
+        self.addCleanup(supported.stop)
         self.calls = []
 
     def runner(self, action, log_path):

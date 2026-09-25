@@ -3,11 +3,13 @@ from datetime import datetime, timezone
 import http.client
 from pathlib import Path
 import stat
+import shutil
 import urllib.request
 import uuid
 from . import __version__
 from .manifest import validate, match, SHA, NAME
-from .layout import CONFIG_DIR, STATE_DIR, LOG_DIR, target as resolve_target
+from .layout import CONFIG_DIR, STATE_DIR, LOG_DIR, DATA_DIR, target as resolve_target
+from .releases import Releases, REPO, RAW, TransportError
 from .plugins import PLUGINS
 from .journal import classify
 from .system import System
@@ -26,11 +28,12 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 class Engine:
-    def __init__(self, config, root="/", system=None):
+    def __init__(self, config, root="/", system=None, releases=None):
         self.config = config
         self.root = Path(root).absolute()
         require(system is not None or self.root == Path("/"), "Alternate root requires injected sandbox backend")
         self.system = system or System()
+        self.releases = releases or Releases()
         for field in ("object", "role", "hostname", "components"):
             require(field in config, "Missing config: " + field)
         require(type(config["components"]) is dict, "Invalid component registry")
@@ -78,13 +81,68 @@ class Engine:
         p = self.state_path(component)
         return read_json(p) if p.exists() else None
 
-    def current(self, component):
+    def recorded(self, component):
         state = self.state(component)
         if state:
             return self.validate(state["manifest"], component)
         r = self.registration(component)
         require("baseline" in r, "No installed release or reviewed baseline")
         return self.pinned(r["baseline"], component)
+
+    def current(self, component):
+        original = self.recorded(component)
+        try:
+            self.files_match(original)
+            return original
+        except Error:
+            pass
+        # Recognition only: these package-reviewed bytes are NOT automatic targets.
+        from .known import MANIFESTS
+        for name, sha in MANIFESTS.items():
+            path = self.target(DATA_DIR + '/known/' + name)
+            if not path.is_file():
+                continue
+            data = path.read_bytes()
+            require(digest(data) == sha, 'Corrupted packaged known manifest')
+            m = decode(data)
+            if (m['component'], m['object'], m['role']) != (component, self.config['object'], self.config['role']):
+                continue
+            self.validate(m, component)
+            require({f['target'] for f in m['files']} == {f['target'] for f in original['files']}, 'Migration file set mismatch')
+            try:
+                self.files_match(m)
+                return m
+            except Error:
+                continue
+        return original  # subsequent exact file check reports unknown/drift
+
+    def candidate(self, component, current, record):
+        if self.config.get('release_source') == 'pinned':
+            m = self.pinned(self.registration(component)['target'], component)
+            record['discovery'] = {'source': 'pinned', 'update_available': m != current}
+        else:
+            require(self.config.get('release_source', 'approved') == 'approved', 'Invalid release source')
+            m, record['discovery'] = self.releases.component(self, component, current)
+        return m
+
+    def reconcile(self, m, record):
+        state = self.state(m['component'])
+        if state and state['manifest'] != m:
+            self.files_match(m)
+            record['reconciliation'] = dict(from_version=state['manifest']['version'], to_version=m['version'])
+            write_json(self.state_path(m['component']), dict(state, manifest=m, last_result='reconciled'))
+
+    def cleanup(self, record):
+        from .retention import cleanup
+        try:
+            record['cleanup'] = cleanup(self)
+        except BaseException as exc:
+            record['cleanup'] = {'status': 'warning', 'error': str(exc) or type(exc).__name__}
+        # A cleanup/audit failure must never enter the component rollback handler.
+        try:
+            self.audit(record)
+        except BaseException as exc:
+            record['cleanup'] = {'status': 'warning', 'error': str(exc) or type(exc).__name__}
 
     def pending(self):
         return read_json(self.pending_path) if self.pending_path.exists() else None
@@ -177,16 +235,20 @@ class Engine:
                 "v0.1 requires stable managed file set; review component migration separately")
         PLUGINS[self.registration(target["component"])["plugin"]].preflight(self, target, recovery)
 
-    def payload(self, m):
+    def payload(self, m, remote=False):
         registration = self.registration(m["component"])
         result = {}
         total = 0
         for f in m["files"]:
-            if "payload_dir" in registration:
+            if remote:
+                require(m['release']['repository'] == REPO, 'Release source must be ' + REPO)
+                data = self.releases.fetch(RAW + m['release']['commit'] + '/' + f['source'], MAX_ARTIFACT)
+            elif "payload_dir" in registration:
                 p = beneath(self.target(registration["payload_dir"]), f["source"])
                 require(p.stat().st_size <= MAX_ARTIFACT, "Oversize artifact")
                 data = p.read_bytes()
             else:
+                require(m['release']['repository'] == REPO, 'Release source must be ' + REPO)
                 url = "https://raw.githubusercontent.com/{}/{}/{}".format(
                     m["release"]["repository"], m["release"]["commit"], f["source"])
                 try:
@@ -212,24 +274,29 @@ class Engine:
                        mode='post_restart' if post_restart else 'standalone', status='running', journal=[])
         if record is not None:
             record.setdefault('verification_attempts', []).append(attempt)
+        steps = attempt['installation_steps'] = []
+        def step(name):
+            if steps:
+                steps[-1]['result'] = 'ok'
+            steps.append({'step': name, 'time': now(), 'result': 'running'})
         try:
+            step('managed_file_hashes')
             self.files_match(m)
+            step('required_services')
             for service in m["services"]["start"]:
                 self.system.active(service)
             plugin = PLUGINS[self.registration(m["component"])["plugin"]]
+            step('ownership_inventory')
             runtime_error = None
             try:
-                readiness = plugin.verify(self, m, observation_since, post_restart=post_restart)
-                if readiness is not None:
-                    attempt['readiness'] = readiness
+                plugin.verify(self, m, observation_since, post_restart=post_restart)
             except Exception as exc:
                 runtime_error = exc
                 attempt['runtime_error'] = str(exc)
-                if hasattr(exc, 'readiness'):
-                    attempt['readiness'] = exc.readiness
             if 'wb-rules' in m['services']['start']:
                 sources = self.rules_inventory(m)
                 self.files_match(m)
+                step('technical_load_journal')
                 attempt['journal'] = classify(self.system.journal(observation_since), sources,
                     {f['target'] for f in m['files']}, plugin.device_prefixes, post_restart)
                 if runtime_error is not None:
@@ -239,8 +306,10 @@ class Engine:
             elif runtime_error is not None:
                 raise runtime_error
             attempt['status'] = 'ok'
+            steps[-1]['result'] = 'ok'
         except BaseException as exc:
             attempt.update(status='failed', error=str(exc) or type(exc).__name__)
+            steps[-1].update(result='failed', error=attempt['error'][:2048])
             raise
         return attempt
 
@@ -316,8 +385,11 @@ class Engine:
         since = now()
         self.services(old, "start", record)
         self.verify(old, since, record)
-        write_json(self.state_path(component), meta["previous_state"] or {
-            "manifest": old, "previous_backup": None, "last_result": "baseline_restored"})
+        state = dict(meta['previous_state'] or {}, manifest=old, last_result='baseline_restored')
+        ref = state.get('previous_backup')
+        if ref and not self.target(STATE_DIR + '/backups/' + ref['id'] + '/metadata.json').is_file():
+            state['previous_backup'] = None  # expired successful history
+        write_json(self.state_path(component), state)
         record["rollback"] = "ok"
 
     def read_operation(self, command, component=None):
@@ -325,7 +397,20 @@ class Engine:
         try:
             pending = self.pending()
             if command == "status":
-                record["components"] = {c: self.state(c) for c in self.config["components"]}
+                marker = self.target(STATE_DIR + '/self-update.json')
+                record['self_update_pending'] = read_json(marker) if marker.exists() else None
+                record['components'] = {}
+                drift = False
+                for c in self.config['components']:
+                    state = self.state(c)
+                    try:
+                        actual = self.current(c)
+                        self.files_match(actual)
+                        record['components'][c] = dict(state or {}, manifest=actual,
+                            reconciliation_required=bool(state and state['manifest'] != actual))
+                    except (Error, OSError) as exc:
+                        drift = True
+                        record['components'][c] = dict(manifest={'version': 'unknown/drift'}, error=str(exc))
                 history = []
                 if self.log_dir.is_dir():
                     for path in self.log_dir.glob("*.json"):
@@ -335,23 +420,28 @@ class Engine:
                 for item in sorted(history, key=lambda x: x["time"]):
                     record["last_operations"][item["component"]] = item
                 record["pending"] = pending
-                record["final_status"] = "recovery_required" if pending else "ok"
+                record["final_status"] = "recovery_required" if pending else ('failed' if drift else "ok")
+                if record['self_update_pending']:
+                    record['final_status'] = 'recovery_required'
                 return record
             require(not pending, "Interrupted mutation: use status and rollback " + str((pending or {}).get("component")))
             current = self.current(component)
             record["from_version"] = current["version"]
             if command == "check":
-                target = self.pinned(self.registration(component)["target"], component)
+                target = self.candidate(component, current, record)
                 record.update(to_version=target["version"], release=target["release"])
                 self.preflight(current, target)
                 record["preflight"] = "ok"
-                self.payload(target)  # read into memory; no cache/temp/log/lock writes
+                if target != current or self.config.get('release_source') == 'pinned':
+                    self.payload(target, remote=record['discovery']['source'] == 'approved-releases')
             else:
                 self.verify(current, None, record)
                 record["verify"] = "ok"
             record["final_status"] = "ok"
         except (Error, OSError, ValueError, KeyError, TypeError) as exc:
             record.update(final_status="failed", error=str(exc))
+            if isinstance(exc, TransportError):
+                record['final_status'] = 'unavailable'
         return record
 
     def mutate(self, command, component):
@@ -361,20 +451,34 @@ class Engine:
             original_pending = self.pending()
             try:
                 self.registration(component)
+                require(not self.target(STATE_DIR + '/self-update.json').exists(), 'Interrupted package update: nli self-update')
                 require(not original_pending or (command == "rollback" and original_pending["component"] == component),
                         "Recovery required before new mutation")
-                current = self.current(component)
+                current = self.recorded(component) if original_pending else self.current(component)
                 if command == "update":
-                    target = self.pinned(self.registration(component)["target"], component)
+                    target = self.candidate(component, current, record)
                     record.update(from_version=current["version"], to_version=target["version"], release=target["release"])
                     record["preflight"] = "running"
                     self.preflight(current, target)
                     record["preflight"] = "ok"
-                    record["backup"] = self.backup(current, target, record)
-                    self.audit(record)
-                    payload = self.payload(target)
+                    payload = self.payload(target, remote=record['discovery']['source'] == 'approved-releases') \
+                        if target != current or self.config.get('release_source') == 'pinned' else {}
+                    # Reserve enough for managed backup + atomic staging before any service action.
+                    required = sum(len(data) for data in payload.values()) * 3 + 1024 * 1024
+                    require(shutil.disk_usage(self.state_dir).free >= required, 'Insufficient storage before mutation')
                     # Recheck changing interlocks and file drift after network/backup delay.
                     self.preflight(current, target)
+                    self.reconcile(current, record)
+                    if target == current and self.config.get('release_source') != 'pinned':
+                        self.verify(current, None, record)
+                        write_json(self.state_path(component), dict(self.state(component) or {},
+                            manifest=current, last_result='update_ok'))
+                        record.update(final_status='ok', install='not_needed', verify='ok')
+                        self.audit(record)
+                        self.cleanup(record)
+                        return record
+                    record["backup"] = self.backup(current, target, record)
+                    self.audit(record)
                     self.checkpoint(record)
                     mutation = True  # includes stop failure / Ctrl-C in service action
                     self.services(target, "stop", record)
@@ -408,6 +512,7 @@ class Engine:
                 write_json(self.state_path(component), state)
                 self.audit(record)
                 self.clear_pending()
+                self.cleanup(record)
                 return record
             except BaseException as exc:
                 for stage in ("preflight", "install", "verify"):

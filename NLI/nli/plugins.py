@@ -1,9 +1,7 @@
 """Trusted component policies. Manifest data cannot weaken these checks."""
-import json
 import re
-import time
 from .manifest import MAKEUP_TARGET
-from .util import Error, require
+from .util import require
 
 COMMON = {"/etc/wb-rules-modules/" + name + ".js" for name in
           ("HHM3Config", "HHM3Wire", "HHM3Runtime")}
@@ -29,14 +27,10 @@ class Files:
         pass
 
     def verify(self, engine, m, since=None, post_restart=False):
-        for c in m["verify"]["controls"]:
-            value = engine.system.control(c["path"])
-            require(value != "" and ("equals" not in c or value == c["equals"]), "Control mismatch: " + c["path"])
+        pass  # legacy manifest controls are metadata, never install gates
 
 
 class HHM(Files):
-    readiness_timeout = 30.0
-    readiness_interval = 0.5
     device_prefixes = ('HHM3', 'hhm3', 'NL_simple_thermostat_', 'NL_combo_thermostat_', 'heat_diagnostics')
     def validate(self, m, registration):
         require(m["component"] == "hhm" and m["object"] == "05_31_Ivolga_13", "Wrong HHM object")
@@ -45,16 +39,6 @@ class HHM(Files):
         require(targets == (BOILER if m["role"] == "boiler" else GAZEBO), "Incomplete/wrong-role HHM payload")
         require(m["services"] == {"stop": ["wb-rules"], "start": ["wb-rules"]}, "HHM only controls wb-rules")
         require(m["preflight"] == ["identity", "drift", "hhm"], "HHM preflight cannot be omitted")
-        version = m["verify"]["runtime_version"]
-        require(re.fullmatch(r"3\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?", version), "Unknown HHM runtime version")
-        require(m["version"] == version or m["version"].startswith(version + "+"), "Release/runtime version mismatch")
-        health = m["verify"]["health_contract"]
-        if not version.startswith("3.0."):
-            require(health == "m1w2-health-v1", "HHM >= 3.1 requires sensor health contract")
-            require(any(c["path"].endswith("/sensor_health_contract") and c.get("equals") == health
-                        for c in m["verify"]["controls"]), "Missing health contract runtime attestation")
-        else:
-            require(health == "legacy-3.0", "Cannot claim HHM 3.1 health for 3.0")
 
     def inventory(self, engine, m):
         engine.rules_inventory(m)
@@ -70,60 +54,8 @@ class HHM(Files):
         self.inventory(engine, m)
 
     def verify(self, engine, m, since=None, post_restart=False):
-        engine.system.active("wb-rules")
+        # Installation only. No application controls, frames or health contracts.
         self.inventory(engine, m)
-        text = engine.target("/etc/wb-rules-modules/HHM3Config.js").read_text(encoding="utf-8")
-        require(re.search(r"version\s*:\s*['\"]" + re.escape(m["verify"]["runtime_version"]) + r"['\"]", text),
-                "HHM runtime version mismatch")
-        if not post_restart:
-            self.runtime(engine, m)  # one strict observation, no retry
-            return
-        started = time.monotonic()
-        deadline = started + self.readiness_timeout
-        report = dict(timeout_seconds=self.readiness_timeout, attempts=0, elapsed_seconds=0,
-                      status='waiting', last_error=None)
-        while time.monotonic() < deadline:
-            report['attempts'] += 1
-            try:
-                self.runtime(engine, m, deadline)
-                require(time.monotonic() < deadline, 'HHM readiness deadline expired')
-                report.update(status='ready', elapsed_seconds=time.monotonic() - started)
-                return report
-            except (Error, json.JSONDecodeError) as exc:
-                report.update(last_error=str(exc), elapsed_seconds=time.monotonic() - started)
-                remaining = deadline - time.monotonic()
-                # Poll only after an observed failure; no unconditional startup sleep.
-                if remaining > 0:
-                    time.sleep(min(self.readiness_interval, remaining))
-        report.update(status='timeout', elapsed_seconds=time.monotonic() - started)
-        failure = Error('HHM readiness timeout: ' + str(report['last_error']))
-        failure.readiness = report
-        raise failure
-
-    def runtime(self, engine, m, deadline=None):
-        def probe(method, *args, **kwargs):
-            if deadline is not None:
-                remaining = deadline - time.monotonic()
-                require(remaining > 0, 'HHM readiness deadline expired')
-                kwargs['timeout'] = remaining
-            return method(*args, **kwargs)
-        topic = "/neiro/ivolga/hhm3/house/frame" if m["role"] == "boiler" else "/neiro/ivolga/504/v2/frame"
-        frame = json.loads(probe(engine.system.mqtt, topic, fresh=True))
-        expected_source = "ivolga-hhm3-house" if m["role"] == "boiler" else "ivolga-besedka-504"
-        require(type(frame) is dict and type(frame.get("sent_ms")) in (int, float)
-                and -2000 <= time.time() * 1000 - frame["sent_ms"] < 30000,
-                "Missing fresh HHM frame")
-        require(frame.get("source") == expected_source and frame.get("v") == (3 if m["role"] == "boiler" else 2)
-                and type(frame.get("seq")) is int and frame["seq"] > 0, "Wrong HHM runtime frame")
-        required = (["HHM3_FSE/runtime_status", "HHM3_FSE/circuit_502", "heat_diagnostics/request_504"]
-                    if m["role"] == "boiler" else ["NL_combo_thermostat_504/runtime_status", "NL_combo_thermostat_504/state"])
-        for control in required:
-            value = probe(engine.system.control, control)
-            require(value and not any(x in value for x in ("RUNTIME_UNSUPPORTED", "STARTUP", "Ожидание MQTT", "Запуск")),
-                    "HHM runtime not loaded: " + control)
-        for c in m['verify']['controls']:
-            value = probe(engine.system.control, c['path'])
-            require(value != '' and ('equals' not in c or value == c['equals']), 'Control mismatch: ' + c['path'])
 
 
 class PressureMakeup(Files):
@@ -154,19 +86,7 @@ class PressureMakeup(Files):
         engine.rules_inventory(m)
 
     def verify(self, engine, m, since=None, post_restart=False):
-        engine.system.active("wb-rules")
         engine.rules_inventory(m)
-        if post_restart:
-            engine.system.rule_started("[507_Pressure_makeup] Запуск скрипта", since)
-        # Reset counters/alarms and subsequent normal evaluate (including ON) are
-        # accepted. Do not restore these runtime values or assert post-restart OFF.
-        for cell in ("active", "valve_open", "enabled", "auto_mode", "sensor_alarm",
-                     "low_pressure_alarm", "makeup_failed_alarm", "watchdog_alarm"):
-            require(engine.system.control("pressure_makeup/" + cell) in ("0", "1"),
-                    "Missing/invalid pressure_makeup control: " + cell)
-        count = engine.system.control("pressure_makeup/pulse_count")
-        require(re.fullmatch(r"[0-9]+", count) is not None, "Invalid pressure_makeup pulse_count")
-        require(bool(engine.system.control("pressure_makeup/last_event")), "Missing pressure_makeup last_event")
 
 
 PLUGINS = {"hhm": HHM(), "pressure_makeup": PressureMakeup(), "files": Files()}
