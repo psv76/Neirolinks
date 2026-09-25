@@ -6,9 +6,16 @@ import subprocess
 from unittest.mock import patch
 import test_nli as fixtures
 from test_pressure_makeup import PressureFixture
-from nli.releases import Releases, API, RAW, REPO, TransportError
+from nli.releases import Releases, API, RAW, REPO, TransportError, version
 from nli.layout import DATA_DIR
 from nli.util import Error, digest, write_json
+
+
+class VersionTests(fixtures.Fixture):
+    def test_numeric_order_ignores_prerelease_and_build_metadata(self):
+        self.assertEqual(version('3.0.0-FSE+d75710dad939'), (3, 0, 0))
+        self.assertEqual(version('3.1'), (3, 1, 0))
+        self.assertEqual(version('0.1.8+build.7'), (0, 1, 8))
 
 
 class DiscoveryTests(PressureFixture):
