@@ -44,7 +44,7 @@ def release(version, catalog_id, deb_id, catalog, deb, draft=False, prerelease=F
 
 
 class BootstrapTests(unittest.TestCase):
-    def fixture(self, version="0.1.8"):
+    def fixture(self, version="0.1.9"):
         deb = b"approved deb bytes " + version.encode()
         catalog = {
             "schema": 1,
@@ -58,8 +58,8 @@ class BootstrapTests(unittest.TestCase):
         return deb, catalog, rel, cat
 
     def test_check_selects_latest_published_non_draft(self):
-        old_deb, old_catalog, old_rel, old_cat = self.fixture("0.1.7")
-        deb, catalog, rel, cat = self.fixture("0.1.8")
+        old_deb, old_catalog, old_rel, old_cat = self.fixture("0.1.8")
+        deb, catalog, rel, cat = self.fixture("0.1.9")
         draft_deb = b"draft"
         draft_catalog = {
             "schema": 1, "repository": bootstrap_mod.REPO, "approved": True,
@@ -77,7 +77,7 @@ class BootstrapTests(unittest.TestCase):
         rel["assets"][0]["id"] = 30
         rel["assets"][1]["id"] = 31
         result = bootstrap_mod.Bootstrap(transport=transport).check()
-        self.assertEqual(result["version"], "0.1.8")
+        self.assertEqual(result["version"], "0.1.9")
         self.assertEqual(result["sha256"], hashlib.sha256(deb).hexdigest())
 
     def test_catalog_asset_checksum_mismatch_fails(self):
@@ -95,18 +95,18 @@ class BootstrapTests(unittest.TestCase):
             calls.append(list(argv))
             if argv[:2] == ["/usr/bin/dpkg-deb", "-f"]:
                 self.assertEqual(Path(argv[2]).read_bytes(), deb)
-                return {"Package": "neiro-nli", "Version": "0.1.8", "Architecture": "all"}[argv[3]]
+                return {"Package": "neiro-nli", "Version": "0.1.9", "Architecture": "all"}[argv[3]]
             if argv[:2] == ["/usr/bin/dpkg", "--install"]:
                 self.assertEqual(Path(argv[2]).read_bytes(), deb)
                 return ""
             if argv[:2] == ["/usr/bin/nli", "--json"]:
-                return '{"version":"0.1.8"}'
+                return '{"version":"0.1.9"}'
             raise AssertionError(argv)
 
         result = bootstrap_mod.Bootstrap(
             transport=transport, runner=runner, euid=lambda: 0
         ).install()
-        self.assertEqual(result["version"], "0.1.8")
+        self.assertEqual(result["version"], "0.1.9")
         self.assertTrue(any(c[:2] == ["/usr/bin/dpkg", "--install"] for c in calls))
 
     def test_non_root_fails_before_network(self):
