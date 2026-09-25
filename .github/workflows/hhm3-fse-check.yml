@@ -28,6 +28,8 @@ jobs:
         run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/run.js
       - name: Verify M1W2 health, startup, recovery, diagnostics and thermal protection
         run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/sensor-health-regressions.js
+      - name: Preserve field startup blocker evidence (not deployment acceptance)
+        run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/field-startup-regressions.js
       - name: Verify 502 partial-ready, output-block and valve-transition regressions
         run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/partial-ready-regressions.js
       - name: Reproduce WB PersistentStorage contract and preserve 18+505 settings

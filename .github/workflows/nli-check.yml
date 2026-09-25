@@ -36,6 +36,7 @@ jobs:
           node NLI/tests/pressure_makeup_runtime.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/run.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/sensor-health-regressions.js
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/field-startup-regressions.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/partial-ready-regressions.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/persistent-storage-regressions.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/manifest.js --check

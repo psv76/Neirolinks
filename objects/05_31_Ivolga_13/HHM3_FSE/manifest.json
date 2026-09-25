@@ -3,11 +3,16 @@
   "object": "05_31_Ivolga_13",
   "issue": 68,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "136ff33b9e079b9af233c09d25454e3f9e87850cf64688c9ceccbdc2c4b468c0",
+  "aggregate_sha256": "b12ab1e02d3e4d85df9c47feff18f5f603db1df88866f5ed9cbc7765d75e6f7c",
   "files": [
     {
+      "file": "FIELD_STARTUP_2026-09-25.md",
+      "sha256": "5b9dcb62bdb4f326826d18a9b7a3e8563603700477e9ca89416257ba03054a9c",
+      "role": "documentation"
+    },
+    {
       "file": "INSTALL.md",
-      "sha256": "ffaabc576d9771533560ad7fbbe1df4ace6622dcaebcfa162107ccfe2698151c",
+      "sha256": "fffa05420745402bf9e8465c0d92169cc8bfa55f76d5992f39631f8bfc018598",
       "role": "documentation"
     },
     {
@@ -27,12 +32,12 @@
     },
     {
       "file": "SENSOR_HEALTH.md",
-      "sha256": "027e059643940c181526da5b8aadd4fcc85f844679e90db29f13cc1d6938ce93",
+      "sha256": "9ce9d1c00b23099b1fe7abeb9387813b5df0bb38f2087b40f40109f937f78892",
       "role": "documentation"
     },
     {
       "file": "TEST_RESULTS.md",
-      "sha256": "f0ea92eaf64b0dba6f759d7d87f88760777b1901e934242434c0ffb5edeb4f92",
+      "sha256": "4aab0edda65ee96bcbd7c1b2a4c358395161fcffa33504bb045b9e2eba6e2f8a",
       "role": "documentation"
     },
     {
@@ -140,8 +145,13 @@
       "role": "module"
     },
     {
+      "file": "tests/field-startup-regressions.js",
+      "sha256": "6bd06fc7558793677263ca686fa00b066a315b59af048f9194a0b55f83c6de1b",
+      "role": "test"
+    },
+    {
       "file": "tests/harness.js",
-      "sha256": "4cbde09840ae9a64507ca43d12513e34a8b252c3aeaa7446056c1744e54c3a62",
+      "sha256": "57e1c1658a065efe926dd2602a92059d7e0d784e0d180c8f77609ee6cf401c38",
       "role": "test"
     },
     {

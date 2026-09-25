@@ -1,5 +1,7 @@
 # HHM 3.1 — программная проверка Issue #68
 
+**Полевой результат 25.09.2026: BLOCKED, не READY_FOR_CONTROLLED_RETRY.** Прежние зелёные suites ниже не доказывают startup readiness. Добавлен `tests/field-startup-regressions.js`: 4 группы расследования; точные времена кадров квалифицируют receiver на неизменённом runtime, но retained/unchanged M1W2 не квалифицируются за 30 секунд. Режим `--acceptance` намеренно даёт FAIL до доказанного исправления. Это открытый release blocker, а не PASS исправления. Подробности и границы воспроизведения: [FIELD_STARTUP_2026-09-25.md](FIELD_STARTUP_2026-09-25.md).
+
 База: `1668c32d7187f0a59ccdea5d5b7da10f14f9660f`. Проверки выполняются локально/CI, без WB, SSH и физических writes. Harness моделирует control cache, MQTT callbacks, два WB, ownership и принятые команды; не подтверждает гидравлику.
 
 ## Выполнено локально
