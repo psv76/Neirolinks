@@ -1,0 +1,21 @@
+name: Remove invalid NLI bootstrap release
+
+on:
+  push:
+    branches:
+      - 'cleanup/nli-bootstrap-0.1.8-r1'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete conflicting bootstrap release and tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release delete nli-approved-bootstrap-0.1.8-r1 \
+            --repo psv76/Neirolinks --cleanup-tag --yes
