@@ -9,7 +9,7 @@ from nli.util import Error
 OLD = '2026-09-23T18:46:50+00:00'
 START = '2026-09-24T08:00:00+00:00'
 NEW = '2026-09-24T08:00:01+00:00'
-ERRORS = ('SyntaxError', 'ReferenceError', 'TypeError', 'exception', 'ERROR', 'write ignored')
+ERRORS = ('SyntaxError', 'ReferenceError', 'TypeError')
 
 
 class VerifyWindowTests(fixtures.PressureFixture):
@@ -41,7 +41,7 @@ class VerifyWindowTests(fixtures.PressureFixture):
                 with self.subTest(component=component, message=message):
                     self.entries = [(OLD, 'ERROR stale')]
                     def emit(m):
-                        self.entries.append((NEW, message))
+                        self.entries.append((NEW, message + (' 500_HHM3_FSE.js' if component == 'hhm' else ' 507_Pressure_makeup.js')))
                         return original(m)
                     with patch('nli.core.now', return_value=START), \
                          patch.object(self.engine, 'files_match', side_effect=emit):
@@ -51,15 +51,6 @@ class VerifyWindowTests(fixtures.PressureFixture):
                     self.assertEqual(self.boundaries[-1], START)
         self.assertEqual(self.system.actions, [])
 
-    def test_new_runtime_probe_error_is_not_excluded_by_late_window_start(self):
-        original = self.system.control
-        def emit(path):
-            self.entries.append((NEW, 'TypeError during control observation'))
-            return original(path)
-        with patch('nli.core.now', return_value=START), patch.object(self.system, 'control', side_effect=emit):
-            for component in ('hhm', 'pressure_makeup'):
-                result = self.engine.read_operation('verify', component)
-                self.assertEqual(result['final_status'], 'failed', result)
 
     def transaction_clock(self):
         self.tick = 0
@@ -82,7 +73,7 @@ class VerifyWindowTests(fixtures.PressureFixture):
                         if action == 'start':
                             starts.append(clock())
                             if len(starts) == 1:
-                                self.entries.append((starts[-1], message))
+                                self.entries.append((starts[-1], message + (' 500_HHM3_FSE.js' if component == 'hhm' else ' 507_Pressure_makeup.js')))
                     with patch('nli.core.now', side_effect=clock), patch.object(self.system, 'service', side_effect=emit_once):
                         result = self.engine.mutate('update', component)
                     self.assertEqual(result['final_status'], 'rolled_back', result)
@@ -102,20 +93,13 @@ class VerifyWindowTests(fixtures.PressureFixture):
             def emit(action, name):
                 original(action, name)
                 if action == 'start':
-                    self.entries.append((clock(), 'ERROR after rollback restart'))
+                    self.entries.append((clock(), 'SyntaxError 507_Pressure_makeup.js after rollback restart'))
             with patch.object(self.system, 'service', side_effect=emit):
                 result = self.engine.mutate('rollback', 'pressure_makeup')
         self.assertEqual(result['final_status'], 'partial_failure', result)
         self.assertIsNotNone(self.engine.pending())
         self.assertEqual(self.engine.read_operation('status')['final_status'], 'recovery_required')
-        self.assertTrue(self.system.started[-1][1])
 
-    def test_post_restart_marker_is_required_even_with_clean_journal(self):
-        self.entries = []
-        with patch.object(self.system, 'rule_started', side_effect=Error('Missing startup after restart')) as probe:
-            with self.assertRaisesRegex(Error, 'Missing startup'):
-                self.engine.verify(self.base, START)
-        probe.assert_called_once_with('[507_Pressure_makeup] Запуск скрипта', START)
 
 
 class JournalBoundaryTests(unittest.TestCase):

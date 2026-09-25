@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
+import os
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -56,7 +58,7 @@ def status_record(pending=None):
 class CliUiTests(unittest.TestCase):
     def capture(self, args, engine=None, tty=False):
         output = TTYBuffer() if tty else io.StringIO()
-        with contextlib.redirect_stdout(output):
+        with patch.dict(os.environ, {"NO_COLOR": ""}), contextlib.redirect_stdout(output):
             code = main(args, engine=engine)
         return code, output.getvalue()
 
@@ -64,12 +66,12 @@ class CliUiTests(unittest.TestCase):
         code, output = self.capture(["--version"])
         self.assertEqual(code, 0)
         self.assertIn(BANNER, output)
-        self.assertIn("NEIROLINKS Installer 0.1.7", output)
+        self.assertIn("NEIROLINKS Installer 0.1.9", output)
 
     def test_version_json_is_machine_clean(self):
         code, output = self.capture(["--json", "--version"], tty=True)
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(output), {"version": "0.1.7"})
+        self.assertEqual(json.loads(output), {"version": "0.1.9"})
         self.assertNotIn("\x1b[", output)
         self.assertNotIn(BANNER, output)
 
@@ -136,7 +138,7 @@ class CliUiTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Проверка HHM", output)
         self.assertIn("Установлено:", output)
-        self.assertIn("Для установки:", output)
+        self.assertIn("Доступно:", output)
         self.assertIn("РЕЗУЛЬТАТ: обновление разрешено", output)
 
 

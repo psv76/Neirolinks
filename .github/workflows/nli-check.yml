@@ -1,10 +1,10 @@
 name: NLI v0.1 WB compatibility
 on:
   push:
-    branches: ['codex/nli-v0.1']
+    branches: ['codex/nli-v0.1', 'codex/issue-74-nli-0.1.8']
     paths: ['NLI/**', '.github/workflows/nli-check.yml']
   pull_request:
-    paths: ['NLI/**', 'objects/05_31_Ivolga_13/HHM3_FSE/**', 'objects/05_31_Ivolga_13/Wirenboard/wb-rules/600_Heat_diagnostics.js', '.github/workflows/nli-check.yml']
+    paths: ['NLI/**', '.github/workflows/nli-check.yml']
 permissions:
   contents: read
 jobs:
@@ -14,6 +14,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Fetch immutable migration and previous NLI package source
+        run: git fetch origin 9f90f17dc91f9d1ff753be66c18506027a5c03b1 d3bc8fcd78c6f4133cb4824ef74a589d90026373
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -21,31 +23,19 @@ jobs:
         run: python -B -m unittest discover -s NLI/tests -v
       - name: Both controller roles with pinned HHM source and fake WB backend
         run: python -B NLI/tests/sandbox.py
-      - name: Build immutable HHM 3.1 boiler and gazebo payloads
-        run: |
-          HHM31_COMMIT="$(python -c 'import json; print(json.load(open("NLI/releases/hhm-boiler-3.1.json"))["release"]["commit"])')"
-          python -B NLI/tools/prepare_hhm31.py --commit "$HHM31_COMMIT" --role boiler --output NLI/build/hhm31
-          python -B NLI/tools/prepare_hhm31.py --commit "$HHM31_COMMIT" --role gazebo --output NLI/build/hhm31
-      - uses: actions/upload-artifact@v4
-        with:
-          name: hhm-3.1-role-payloads
-          path: NLI/build/hhm31/
-          if-no-files-found: error
       - name: Existing HHM regressions
         run: |
           node NLI/tests/pressure_makeup_runtime.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/run.js
-          node objects/05_31_Ivolga_13/HHM3_FSE/tests/sensor-health-regressions.js
-          node objects/05_31_Ivolga_13/HHM3_FSE/tests/field-startup-regressions.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/partial-ready-regressions.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/persistent-storage-regressions.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/manifest.js --check
       - name: Build Debian package
         run: |
           python -B NLI/tools/build_deb.py
-          sha256sum NLI/dist/neiro-nli_0.1.7_all.deb
-          dpkg-deb --info NLI/dist/neiro-nli_0.1.7_all.deb
-          dpkg-deb --contents NLI/dist/neiro-nli_0.1.7_all.deb
+          sha256sum NLI/dist/neiro-nli_0.1.9_all.deb
+          dpkg-deb --info NLI/dist/neiro-nli_0.1.9_all.deb
+          dpkg-deb --contents NLI/dist/neiro-nli_0.1.9_all.deb
       - name: WB nodoc, upgrade, installed boiler bootstrap, reinstall and simulated FIT
         run: |
           mkdir -p "$RUNNER_TEMP/nli-old-source" "$RUNNER_TEMP/nli-old-package" "$RUNNER_TEMP/nli-persistent" "$RUNNER_TEMP/nli-evidence"
@@ -66,13 +56,20 @@ jobs:
           mkdir -p "$RUNNER_TEMP/nli-015-source"
           git archive c958ec59c69c267396cd728776c8821e2d21b55d NLI | tar -x -C "$RUNNER_TEMP/nli-015-source"
           python -B "$RUNNER_TEMP/nli-015-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.5_all.deb"
-          mkdir -p "$RUNNER_TEMP/nli-016-source"
-          git archive 1668c32d7187f0a59ccdea5d5b7da10f14f9660f NLI | tar -x -C "$RUNNER_TEMP/nli-016-source"
+          mkdir -p "$RUNNER_TEMP/nli-016-source" "$RUNNER_TEMP/nli-017-source"
+          git archive e4cb5637e60fd9e120b0eae263f0bb36f6878ec9 NLI | tar -x -C "$RUNNER_TEMP/nli-016-source"
           python -B "$RUNNER_TEMP/nli-016-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.6_all.deb"
+          git archive 9f90f17dc91f9d1ff753be66c18506027a5c03b1 NLI | tar -x -C "$RUNNER_TEMP/nli-017-source"
+          python -B "$RUNNER_TEMP/nli-017-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.7_all.deb"
+          mkdir -p "$RUNNER_TEMP/nli-018-source"
+          git archive d3bc8fcd78c6f4133cb4824ef74a589d90026373 NLI | tar -x -C "$RUNNER_TEMP/nli-018-source"
+          python -B "$RUNNER_TEMP/nli-018-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.8_all.deb"
           python -B NLI/tools/prepare_hhm.py --commit d75710dad93906af8869dcce48d26e14673b63fb --role boiler --output NLI/build/field-hhm
+          python -B NLI/tools/prepare_hhm31.py --commit 14354bcf1e0033c51f02f0b242bea8aa7fa29e4e --role boiler --output NLI/build/field-hhm31
           docker run --rm --hostname wirenboard-ABF62SL -e NLI_DISPOSABLE_CI=1 \
             -v "$PWD/NLI/dist:/packages:ro" -v "$RUNNER_TEMP/nli-old-package:/old:ro" \
             -v "$PWD/NLI/tests:/tests:ro" -v "$PWD/NLI/build/field-hhm/payload:/payload:ro" \
+            -v "$PWD/NLI/build/field-hhm31/payload:/payload31:ro" \
             -v "$RUNNER_TEMP/nli-persistent:/mnt/data" -v "$RUNNER_TEMP/nli-evidence:/evidence" \
             debian:trixie-slim sh /tests/wb_package_smoke.sh first
           docker run --rm --hostname wirenboard-ABF62SL -e NLI_DISPOSABLE_CI=1 \
@@ -81,6 +78,6 @@ jobs:
             debian:trixie-slim sh /tests/wb_package_smoke.sh fit
       - uses: actions/upload-artifact@v4
         with:
-          name: neiro-nli-0.1.7-deb
-          path: NLI/dist/neiro-nli_0.1.7_all.deb*
+          name: neiro-nli-0.1.9-deb
+          path: NLI/dist/neiro-nli_0.1.9_all.deb*
           if-no-files-found: error

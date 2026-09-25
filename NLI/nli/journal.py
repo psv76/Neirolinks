@@ -2,7 +2,9 @@
 import re
 from pathlib import PurePosixPath
 
-ERROR = re.compile(r'SyntaxError|ReferenceError|TypeError|exception|ERROR|write ignored', re.I)
+ERROR = re.compile(r'SyntaxError|ReferenceError|TypeError|exception|ERROR|write ignored|cannot find module|failed to (?:load|compile)', re.I)
+TECHNICAL = re.compile(r'SyntaxError|ReferenceError|TypeError|cannot find module|failed to (?:load|compile)|'
+                       r'(?:load|compil|pars)\w* (?:error|exception)', re.I)
 TOKEN = re.compile(r'//[^\n]*|/\*[\s\S]*?\*/|`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|[A-Za-z_$][\w$]*|[^\s]')
 
 
@@ -93,7 +95,9 @@ def classify(text, sources, owned, device_prefixes, post_restart):
         # Ambiguous owners and shared modules are not evidence of independence.
         foreign = (len(paths) == 1 and not own and not (paths & owned)
                    and all(path.startswith('/etc/wb-rules/') for path in paths))
-        category = 'component_fatal' if own or paths & owned else ('shared_runtime' if foreign else 'unattributed_fatal')
-        result.append(dict(message=block, category=category, sources=sorted(paths),
-                           fatal=not post_restart or not foreign))
+        technical = bool(TECHNICAL.search(block))
+        category = ('component_fatal' if technical else 'component_diagnostic') if own or paths & owned else (
+            'shared_runtime' if foreign else 'unattributed')
+        result.append(dict(message=block, category=category, sources=sorted(paths), technical=technical,
+                           fatal=technical and bool(own or paths & owned)))
     return result
