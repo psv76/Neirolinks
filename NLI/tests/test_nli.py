@@ -467,7 +467,10 @@ class FirmwareTests(Fixture):
         self.source = b"--debug # official fixture commands: update-all recover-all"
         self.put("/usr/bin/wb-mcu-fw-updater", self.source)
         blob = hashlib.sha1(b'blob ' + str(len(self.source)).encode() + b'\0' + self.source).hexdigest()
-        supported = patch('nli.firmware.SUPPORTED', {'1.99-test': blob})
+        supported = patch('nli.firmware.SUPPORTED', {
+            '1.99-test': {'package_sha256': frozenset({digest(self.source)}),
+                          'upstream_git_blob': blob}
+        })
         supported.start()
         self.addCleanup(supported.stop)
         self.calls = []
@@ -531,7 +534,10 @@ class FirmwareTests(Fixture):
                 return 'missing     /usr/share/doc/wb-mcu-fw-updater/changelog.gz'
             return '1.99-test'
 
-        with patch('nli.firmware.SUPPORTED', {'1.99-test': blob}), patch.object(self.system, 'run', side_effect=run):
+        with patch('nli.firmware.SUPPORTED', {
+                '1.99-test': {'package_sha256': frozenset({digest(source)}),
+                              'upstream_git_blob': '0' * 40}
+             }), patch.object(self.system, 'run', side_effect=run):
             result = Firmware(self.engine, self.runner).execute("check")
         self.assertEqual(result["final_status"], "unavailable", result)
         self.assertEqual(result["compatibility"], "supported")

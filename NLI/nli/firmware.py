@@ -10,7 +10,16 @@ from .util import Error, Lock, digest, require
 from .layout import STATE_DIR, LOG_DIR
 
 UPDATER = "/usr/bin/wb-mcu-fw-updater"
-SUPPORTED = {'1.16.0': '91d705e6de165970d5a87669b34c7ed9c282364f'}
+SUPPORTED = {
+    '1.16.0': {
+        # Exact executable from the official WB Debian package observed on a
+        # production controller; package ownership/version and dpkg runtime
+        # verification are checked below as independent constraints.
+        'package_sha256': frozenset({'c4c680a322a2ec6bb93ae3ebfe52d74a8bc0312da96d31af629aa8e9f1a3f067'}),
+        # Reviewed upstream CLI identity retained for source-equivalent builds.
+        'upstream_git_blob': '91d705e6de165970d5a87669b34c7ed9c282364f',
+    },
+}
 BOOTLOADER_NOTICE = ("Штатный updater может обновить bootloader и firmware; временно нарушить связь "
                      "с модулями и приостановить serial clients. Требуется инженер на объекте. "
                      "NLI не добавляет --force/--allow-downgrade и сохраняет вопросы штатной утилиты.")
@@ -51,13 +60,18 @@ class Firmware:
         version = system.run(["/usr/bin/dpkg-query", "-W", "-f=${Version}", "wb-mcu-fw-updater"])
         source = path.read_bytes()
         require(version in SUPPORTED, 'UPDATER_UNSUPPORTED: ' + version + '; обновите NLI: nli self-update')
-        # Debian/dh_python may rewrite only the interpreter line. Accept the
-        # official Debian spellings seen in the field, but normalize to the
-        # reviewed upstream shebang before computing the Git blob identity.
-        canonical = re.sub(br'\A#![ \t]*/usr/bin/python3[ \t]*\r?\n',
-                           b'#!/usr/bin/env python3\n', source, count=1)
-        blob = hashlib.sha1(b'blob ' + str(len(canonical)).encode() + b'\0' + canonical).hexdigest()
-        require(blob == SUPPORTED[version], 'UPDATER_MODIFIED: executable differs from reviewed upstream')
+        policy = SUPPORTED[version]
+        executable_sha256 = digest(source)
+        # Prefer the exact official Debian payload. Some package builds differ
+        # from the upstream Git file beyond the interpreter line, so a
+        # source-only comparison would reject an untouched official package.
+        package_match = executable_sha256 in policy['package_sha256']
+        if not package_match:
+            canonical = re.sub(br'\A#![ \t]*/usr/bin/python3[ \t]*\r?\n',
+                               b'#!/usr/bin/env python3\n', source, count=1)
+            blob = hashlib.sha1(b'blob ' + str(len(canonical)).encode() + b'\0' + canonical).hexdigest()
+            require(blob == policy['upstream_git_blob'],
+                    'UPDATER_MODIFIED: executable differs from reviewed package/upstream')
         require(system.run(['/usr/bin/dpkg-query', '-S', UPDATER]) == 'wb-mcu-fw-updater: ' + UPDATER,
                 'UPDATER_UNOFFICIAL: package ownership mismatch')
         verification = system.run(['/usr/bin/dpkg', '--verify', 'wb-mcu-fw-updater'])
@@ -73,7 +87,7 @@ class Firmware:
             runtime_issues.append(item)
         require(not runtime_issues,
                 'UPDATER_MODIFIED: package verification failed: ' + '; '.join(runtime_issues[:3]))
-        return dict(version=version, executable_sha256=digest(source), compatibility='supported',
+        return dict(version=version, executable_sha256=executable_sha256, compatibility='supported',
                     commands=[x for x in ("update-all", "recover-all") if x.encode() in source],
                     debug_supported=b"--debug" in source,
                     updates="unavailable", reason="No audited side-effect-free inventory API; no device probing performed",

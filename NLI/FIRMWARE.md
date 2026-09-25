@@ -12,11 +12,14 @@
 
 ## Update / recover
 
-NLI 0.1.8 содержит reviewed policy: package version **1.16.0**, executable Git blob
-`91d705e6de165970d5a87669b34c7ed9c282364f` из официального upstream CLI.
-Допускаются штатные Debian shebang rewrite `#!/usr/bin/python3` и
-`#! /usr/bin/python3`; перед проверкой Git blob они нормализуются к upstream
-`#!/usr/bin/env python3`. Проверяются dpkg package ownership и runtime-часть
+NLI 0.1.8 содержит reviewed policy для package version **1.16.0**:
+exact SHA256 штатного Debian executable
+`c4c680a322a2ec6bb93ae3ebfe52d74a8bc0312da96d31af629aa8e9f1a3f067`
+и upstream Git blob `91d705e6de165970d5a87669b34c7ed9c282364f`.
+На live WB официальный Debian executable оказался не byte-equivalent upstream
+после одной только нормализации shebang, поэтому package SHA256 является
+первичной identity для штатной установки, а upstream blob остаётся допустимой
+source-equivalent identity. Проверяются dpkg package ownership и runtime-часть
 `dpkg --verify wb-mcu-fw-updater` (включая package modules). Расхождения только
 в `/usr/share/doc/wb-mcu-fw-updater/` не блокируют firmware policy, потому что
 не участвуют в выполнении updater; любые runtime-расхождения по-прежнему
