@@ -1,4 +1,4 @@
-"""Offline release/attestation verification against the accepted NLI 0.1.6 policy."""
+"""Offline release/attestation verification against the NLI 0.1.7 policy."""
 import copy
 import hashlib
 import json
@@ -28,6 +28,8 @@ class HHM31Release(unittest.TestCase):
         for path, manifest in self.manifests():
             validate(manifest)
             HHM().validate(manifest, {})
+            self.assertEqual(manifest["version"], "3.1")
+            self.assertEqual(manifest["verify"]["runtime_version"], "3.1")
             expected = path.with_suffix(".json.sha256").read_text().split()[0]
             self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), expected)
             for item in manifest["files"]:

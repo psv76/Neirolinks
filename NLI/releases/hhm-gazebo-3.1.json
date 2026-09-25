@@ -1,18 +1,18 @@
 {
   "schema": 1,
   "component": "hhm",
-  "version": "3.1.0+0acdddd4cdb2",
+  "version": "3.1",
   "object": "05_31_Ivolga_13",
   "role": "gazebo",
   "release": {
     "repository": "psv76/Neirolinks",
-    "commit": "0acdddd4cdb2e551aa3c780eeaff2bc0f64b1b08"
+    "commit": "14354bcf1e0033c51f02f0b242bea8aa7fa29e4e"
   },
   "files": [
     {
       "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Config.js",
       "target": "/etc/wb-rules-modules/HHM3Config.js",
-      "sha256": "ecf27c5b2510461095dc00b1fdd06fe0337a257d4dcb147fa02b8ba6b38c0842"
+      "sha256": "978e33d07aa31b19ee214a5e0c768101ca7fa732ad88ad053671ad6996d4fcef"
     },
     {
       "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Runtime.js",
@@ -50,7 +50,7 @@
         "equals": "m1w2-health-v1"
       }
     ],
-    "runtime_version": "3.1.0",
+    "runtime_version": "3.1",
     "health_contract": "m1w2-health-v1"
   },
   "rollback": "previous-managed-release"

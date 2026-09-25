@@ -1,13 +1,13 @@
 {
-  "release": "HHM 3.1.0",
+  "release": "HHM 3.1",
   "object": "05_31_Ivolga_13",
   "issue": 68,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "e8b27be36aaa04df578559756790e7a99b1d1c69796a9146683c84709dfbeb03",
+  "aggregate_sha256": "136ff33b9e079b9af233c09d25454e3f9e87850cf64688c9ceccbdc2c4b468c0",
   "files": [
     {
       "file": "INSTALL.md",
-      "sha256": "9c6bf4ea8f73a1f0d4539b2d09efe509bed4ddfc4c4f5d07240cf4682c4f6504",
+      "sha256": "ffaabc576d9771533560ad7fbbe1df4ace6622dcaebcfa162107ccfe2698151c",
       "role": "documentation"
     },
     {
@@ -22,7 +22,7 @@
     },
     {
       "file": "README.md",
-      "sha256": "4e957473335dd0455fb96826bc4a623b39ecc593e11698879ff8f2441e42c53a",
+      "sha256": "c98d470f188dd2e9186e240e7eb944819685d000e056e2cbbd325c36672f4455",
       "role": "documentation"
     },
     {
@@ -32,7 +32,7 @@
     },
     {
       "file": "TEST_RESULTS.md",
-      "sha256": "af14f771dc53fa6b91dc2d50ec18ac7f390beafb8de8349eb02dd38a0fd7aa1a",
+      "sha256": "f0ea92eaf64b0dba6f759d7d87f88760777b1901e934242434c0ffb5edeb4f92",
       "role": "documentation"
     },
     {
@@ -46,7 +46,7 @@
     },
     {
       "file": "boiler/wb-rules/620_thermostats.js",
-      "sha256": "0d75038ad290ed1219b7b5985a0d9c9f9c37a3ec946f7f8e80840759f89caca7",
+      "sha256": "094b8069a94c8b383bfb6b6406fcfb063fc225b2f448a2452b69e575fdabcdbc",
       "boards": [
         "boiler"
       ],
@@ -93,7 +93,7 @@
     },
     {
       "file": "modules/HHM3Config.js",
-      "sha256": "ecf27c5b2510461095dc00b1fdd06fe0337a257d4dcb147fa02b8ba6b38c0842",
+      "sha256": "978e33d07aa31b19ee214a5e0c768101ca7fa732ad88ad053671ad6996d4fcef",
       "boards": [
         "boiler",
         "gazebo"
@@ -151,7 +151,7 @@
     },
     {
       "file": "tests/manifest.js",
-      "sha256": "5b768f289e5d86ace6152e1af72acd525e96d7eb0d69e43249fa1a8421cecda6",
+      "sha256": "b58fd4596cb996cd0861f4a0b412014da9ef5bd25a04930f0e52e983d9267104",
       "role": "test"
     },
     {

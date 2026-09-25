@@ -32,15 +32,15 @@ def prepare(commit, role, output):
         payload[source] = data
         entries.append(dict(source=source, target=target, sha256=hashlib.sha256(data).hexdigest()))
     config = payload[base + "modules/HHM3Config.js"].decode("utf-8")
-    if not re.search(r"version\s*:\s*['\"]3\.1\.0['\"]", config) or not re.search(
+    if not re.search(r"version\s*:\s*['\"]3\.1['\"]", config) or not re.search(
             r"healthContract\s*:\s*['\"]m1w2-health-v1['\"]", config):
-        raise ValueError("This builder requires reviewed HHM 3.1.0 / m1w2-health-v1 source")
+        raise ValueError("This builder requires reviewed HHM 3.1 / m1w2-health-v1 source")
     control = ("HHM3_FSE" if role == "boiler" else "NL_combo_thermostat_504") + "/sensor_health_contract"
-    manifest = dict(schema=1, component="hhm", version="3.1.0+" + commit[:12], object="05_31_Ivolga_13", role=role,
+    manifest = dict(schema=1, component="hhm", version="3.1", object="05_31_Ivolga_13", role=role,
                     release=dict(repository="psv76/Neirolinks", commit=commit), files=entries,
                     services=dict(stop=["wb-rules"], start=["wb-rules"]), preflight=["identity", "drift", "hhm"],
                     verify=dict(controls=[dict(path=control, equals="m1w2-health-v1")],
-                                runtime_version="3.1.0", health_contract="m1w2-health-v1"),
+                                runtime_version="3.1", health_contract="m1w2-health-v1"),
                     rollback="previous-managed-release")
     validate(manifest)
     HHM().validate(manifest, {})

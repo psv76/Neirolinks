@@ -6,7 +6,7 @@
 
 Поддерживается точный комплект HHM `3.0.0-FSE` Иволги из PR #65, commit `d75710dad93906af8869dcce48d26e14673b63fb`, отдельно для boiler/gazebo. Примеры manifest получены из Git blobs, а не Windows checkout: SHA проверяет **точные байты**, без нормализации скачанного payload.
 
-[#68](https://github.com/psv76/Neirolinks/issues/68) создаёт будущий HHM 3.1; [#69](https://github.com/psv76/Neirolinks/issues/69) меняет observability; NLI не реализует эти отдельные изменения алгоритма. Для 3.1+ обязательно `health_contract=m1w2-health-v1` и read-only runtime control `*/sensor_health_contract` с таким значением в `verify.controls`. Это интеграционный контракт будущего manifest: текущий 3.0 такой контроль не имеет и не объявляется 3.1. Автор #68 должен предоставить проверенный manifest/контроль либо отдельную reviewed адаптацию plugin к фактическому контракту #68.
+[#68](https://github.com/psv76/Neirolinks/issues/68) добавляет HHM 3.1; [#69](https://github.com/psv76/Neirolinks/issues/69) меняет observability; NLI не реализует алгоритмы отопления. NLI 0.1.7 принимает установленный legacy `3.0.0-FSE+<commit>` для отката и новые HHM версии формата `3.1`, `3.2`, … без третьего числа и суффикса commit. Полный commit и SHA каждого файла сохраняются отдельно в manifest `release`/`files`. Для 3.1+ обязательны `health_contract=m1w2-health-v1` и read-only runtime control `*/sensor_health_contract` в `verify.controls`.
 
 Полевые условия и физическая приёмка [#20](https://github.com/psv76/Neirolinks/issues/20) остаются отдельной работой. PASS тестов NLI не доказывает ход штока, проток, тепло или морозозащиту.
 
@@ -18,8 +18,8 @@
 python3 -B -m unittest discover -s NLI/tests -v
 python3 -B NLI/tests/sandbox.py
 python3 -B NLI/tools/build_deb.py
-(cd NLI/dist && sha256sum -c neiro-nli_0.1.6_all.deb.sha256)
-dpkg-deb --info NLI/dist/neiro-nli_0.1.6_all.deb
+(cd NLI/dist && sha256sum -c neiro-nli_0.1.7_all.deb.sha256)
+dpkg-deb --info NLI/dist/neiro-nli_0.1.7_all.deb
 ```
 
 Build использует только stdlib; создаёт воспроизводимый Debian ar с control/data tar.gz, root ownership и `/usr/bin/nli` mode 0755. `SOURCE_DATE_EPOCH` задаёт timestamp (по умолчанию 0). Нет maintainer scripts, service units, restart при установке или зависимости HHM от пакета. CI проверяет `dpkg-deb` и установку в одноразовом Debian Trixie container.
@@ -27,12 +27,12 @@ Build использует только stdlib; создаёт воспроиз�
 В тестовом Debian/WB-окружении после проверки происхождения пакета:
 
 ```sh
-sudo apt install ./neiro-nli_0.1.6_all.deb
+apt install ./neiro-nli_0.1.7_all.deb
 nli --version
 nli status
 ```
 
-Пакет устанавливает Python sources в `/usr/lib/neiro-nli`, примеры в `/usr/share/neiro-nli/examples`, schema и bootstrap runbook в `/usr/share/neiro-nli/`. Они доступны при WB dpkg `path-exclude /usr/share/doc/*`. Config `/mnt/data/etc/neiro/nli/config.json` создаётся инженером и **не принадлежит пакету**; conffiles/maintainer scripts в 0.1.6 отсутствуют. Пока config не создан, CLI читает packaged `default-config.json` без записи на диск. При существующих данных и потерянном config либо настроенных старых данных 0.1.0 CLI требует разбор/миграцию, а не создаёт пустой профиль. HHM payload пакет **не устанавливает**. Библиотеки Python кроме stdlib не требуются. `systemd`/`mosquitto-clients` нужны только для WB probes/service actions. Штатный firmware updater — отдельный suggested пакет.
+Пакет устанавливает Python sources в `/usr/lib/neiro-nli`, примеры в `/usr/share/neiro-nli/examples`, schema и bootstrap runbook в `/usr/share/neiro-nli/`. Они доступны при WB dpkg `path-exclude /usr/share/doc/*`. Config `/mnt/data/etc/neiro/nli/config.json` создаётся инженером и **не принадлежит пакету**; conffiles/maintainer scripts в 0.1.7 отсутствуют. Пока config не создан, CLI читает packaged `default-config.json` без записи на диск. При существующих данных и потерянном config либо настроенных старых данных 0.1.0 CLI требует разбор/миграцию, а не создаёт пустой профиль. HHM payload пакет **не устанавливает**. Библиотеки Python кроме stdlib не требуются. `systemd`/`mosquitto-clients` нужны только для WB probes/service actions. Штатный firmware updater — отдельный suggested пакет.
 
 Полевой bootstrap, upgrade 0.1.0, conffile policy и переустановка после FIT: [WB_SMOKE.md](WB_SMOKE.md). После FIT executable/modules могут исчезнуть; переустановка `.deb` подхватывает persistent config/pins/state/backups/pending/audit. Это проверяется заменой rootfs в CI, не является утверждением о выполненной проверке FIT на реальном WB.
 
@@ -107,7 +107,7 @@ rollback: not_run
 RESULT: ok
 ```
 
-## Human CLI 0.1.6
+## Human CLI 0.1.7
 
 Обычный CLI предназначен для инженера на терминале WB: русские подписи, понятные
 названия компонентов и цветовая индикация состояния. Цвет включается только при

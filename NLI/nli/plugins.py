@@ -46,10 +46,12 @@ class HHM(Files):
         require(m["services"] == {"stop": ["wb-rules"], "start": ["wb-rules"]}, "HHM only controls wb-rules")
         require(m["preflight"] == ["identity", "drift", "hhm"], "HHM preflight cannot be omitted")
         version = m["verify"]["runtime_version"]
-        require(re.fullmatch(r"3\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?", version), "Unknown HHM runtime version")
-        require(m["version"] == version or m["version"].startswith(version + "+"), "Release/runtime version mismatch")
+        legacy = re.fullmatch(r"3\.0\.[0-9]+(?:-[A-Za-z0-9.-]+)?", version)
+        require(legacy or re.fullmatch(r"3\.[1-9][0-9]*", version), "Unknown HHM runtime version")
+        require(m["version"] == version or (legacy and m["version"].startswith(version + "+")),
+                "Release/runtime version mismatch")
         health = m["verify"]["health_contract"]
-        if not version.startswith("3.0."):
+        if not legacy:
             require(health == "m1w2-health-v1", "HHM >= 3.1 requires sensor health contract")
             require(any(c["path"].endswith("/sensor_health_contract") and c.get("equals") == health
                         for c in m["verify"]["controls"]), "Missing health contract runtime attestation")

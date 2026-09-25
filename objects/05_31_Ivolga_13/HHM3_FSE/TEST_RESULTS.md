@@ -1,4 +1,4 @@
-# HHM 3.1.0 — программная проверка Issue #68
+# HHM 3.1 — программная проверка Issue #68
 
 База: `1668c32d7187f0a59ccdea5d5b7da10f14f9660f`. Проверки выполняются локально/CI, без WB, SSH и физических writes. Harness моделирует control cache, MQTT callbacks, два WB, ownership и принятые команды; не подтверждает гидравлику.
 
@@ -15,7 +15,7 @@ Python/NLI локально: 160 tests — 123 PASS, 37 SKIP (Windows symlink pr
 
 ## Release и NLI
 
-`node tests/manifest.js --check` проверяет полный HHM release; NLI role manifests дополнительно содержат exact-byte SHA всех production files, включая внешнюю 600 диагностику. `NLI/tests/test_hhm31.py` проверяет pinned bytes против текущего runtime, reproducible build и обязательную аттестацию обоих roles. `NLI/tests/sandbox.py` проверяет offline migration 3.0→3.1 и rollback к точным исходным bytes на fake WB. NLI policies, transaction engine и 0.1.6 package version не изменены.
+`node tests/manifest.js --check` проверяет полный HHM release; NLI role manifests дополнительно содержат exact-byte SHA всех production files, включая внешнюю 600 диагностику. `NLI/tests/test_hhm31.py` проверяет pinned bytes против текущего runtime, reproducible build и обязательную аттестацию обоих roles. `NLI/tests/sandbox.py` проверяет offline migration 3.0→3.1 и rollback к точным исходным bytes на fake WB. Для принятого имени релиза `3.1` политика версий и пакет NLI обновлены до 0.1.7; transaction engine не менялся.
 
 Итог Python/NLI и ссылки CI фиксируются в draft PR по фактическому результату финального HEAD. Windows может пропускать тесты, требующие прав создания symlink; Linux CI обязан выполнить их без пропусков.
 

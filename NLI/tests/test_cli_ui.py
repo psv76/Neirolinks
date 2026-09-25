@@ -64,12 +64,12 @@ class CliUiTests(unittest.TestCase):
         code, output = self.capture(["--version"])
         self.assertEqual(code, 0)
         self.assertIn(BANNER, output)
-        self.assertIn("NEIROLINKS Installer 0.1.6", output)
+        self.assertIn("NEIROLINKS Installer 0.1.7", output)
 
     def test_version_json_is_machine_clean(self):
         code, output = self.capture(["--json", "--version"], tty=True)
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(output), {"version": "0.1.6"})
+        self.assertEqual(json.loads(output), {"version": "0.1.7"})
         self.assertNotIn("\x1b[", output)
         self.assertNotIn(BANNER, output)
 

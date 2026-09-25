@@ -1,6 +1,6 @@
-# HHM 3.1.0 — 05 31 Иволга 13
+# HHM 3.1 — 05 31 Иволга 13
 
-Выпуск по Issue #68 от базы `fix/ivolga-502-zone-readback-mixer-continuity`, merge PR #71 `1668c32d7187f0a59ccdea5d5b7da10f14f9660f`. Сохранены принятые исправления PR #65: 502 partial-ready/readback и непрерывность mixer, ownership 501–505, compact diagnostics, настройки 620 и отдельный 505. NLI 0.1.6 остаётся установщиком; его engine и component policies не изменены.
+Выпуск по Issue #68 от базы `fix/ivolga-502-zone-readback-mixer-continuity`, merge PR #71 `1668c32d7187f0a59ccdea5d5b7da10f14f9660f`. Сохранены принятые исправления PR #65: 502 partial-ready/readback и непрерывность mixer, ownership 501–505, compact diagnostics, настройки 620 и отдельный 505. NLI 0.1.7 поддерживает имя релиза `3.1`; его политика версий обновлена без изменений алгоритмов отопления.
 
 ## Sensor Health Contract
 

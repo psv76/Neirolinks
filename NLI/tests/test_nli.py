@@ -439,8 +439,8 @@ class HHMTests(Fixture):
         self.assertEqual(self.engine.read_operation("verify", "hhm")["final_status"], "failed")
 
     def test_hhm31_contract_cannot_be_faked_by_version(self):
-        self.new["version"] = "3.1.0"
-        self.new["verify"]["runtime_version"] = "3.1.0"
+        self.new["version"] = "3.1"
+        self.new["verify"]["runtime_version"] = "3.1"
         with self.assertRaisesRegex(Error, "health contract"):
             self.engine.validate(self.new, "hhm")
         self.new["verify"]["health_contract"] = "m1w2-health-v1"
@@ -448,6 +448,14 @@ class HHMTests(Fixture):
             self.engine.validate(self.new, "hhm")
         self.new["verify"]["controls"] = [dict(path="HHM3_FSE/sensor_health_contract", equals="m1w2-health-v1")]
         self.engine.validate(self.new, "hhm")
+        for invalid in ("3.1.0", "3.1+abcdef012345"):
+            self.new["version"] = invalid
+            with self.assertRaises(Error):
+                self.engine.validate(self.new, "hhm")
+        self.new["version"] = "3.1"
+        self.new["verify"]["runtime_version"] = "3.1.0"
+        with self.assertRaises(Error):
+            self.engine.validate(self.new, "hhm")
 
     def test_interlock_rechecked_after_download(self):
         original = self.engine.payload
