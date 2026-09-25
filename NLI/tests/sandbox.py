@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Acceptance CLI with real pinned HHM Git blobs and a fake WB backend, never SSH."""
+import hashlib
+from unittest.mock import patch
 import contextlib
 import io
 import json
@@ -33,7 +35,7 @@ def run(role):
         raw = json.dumps(manifest).encode()
         put("/mnt/data/etc/neiro/nli/release.json", raw)
         ref = dict(path="/mnt/data/etc/neiro/nli/release.json", sha256=digest(raw))
-        config = dict(object=manifest["object"], role=role, hostname="sandbox-wb", components={
+        config = dict(release_source="pinned", object=manifest["object"], role=role, hostname="sandbox-wb", components={
             "hhm": dict(plugin="hhm", baseline=ref, target=ref, payload_dir="/payload", unmanaged_rules={})})
         system = FakeSystem()
         if role == "gazebo":
@@ -44,9 +46,14 @@ def run(role):
                 rc = main(command, engine=engine)
             print(role + " nli " + " ".join(command) + ": " + str(rc))
             assert rc == 0, output.getvalue()
-        source = b"# sandbox only update-all recover-all"
+        source = b"# sandbox only update-all recover-all --debug"
         put("/usr/bin/wb-mcu-fw-updater", source)
-        config["firmware"] = dict(approved_executable_sha256=digest(source), approved_package_version="1.99-test")
+        blob = hashlib.sha1(b'blob ' + str(len(source)).encode() + b'\0' + source).hexdigest()
+        compatibility = patch('nli.firmware.SUPPORTED', {
+            '1.99-test': {'package_sha256': frozenset({digest(source)}),
+                          'upstream_git_blob': blob}
+        })
+        compatibility.start()
         result = Firmware(engine).execute("check")
         assert result["final_status"] == "unavailable", result
         print(role + " nli firmware check: unavailable (honest read-only result)")
@@ -55,6 +62,7 @@ def run(role):
             result = Firmware(engine, lambda *args: (summary, 0)).execute(action)
             assert result["final_status"] == "ok", result
             print(role + " fake firmware " + action + ": ok")
+        compatibility.stop()
 
 
 if __name__ == "__main__":

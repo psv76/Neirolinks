@@ -5,6 +5,7 @@ import sys
 from . import __version__
 from .core import Engine
 from .firmware import Firmware
+from .self_update import SelfUpdate
 from .layout import load_config
 from .util import Error
 
@@ -119,8 +120,13 @@ def render_status(result, color):
             version = state.get("manifest", {}).get("version", "—")
             last = state_name(state.get("last_result"))
             print()
-            print(f"  {status_mark(True, color)} {paint(label, 'cyan', color)}")
-            print(f"    Версия:       {paint(str(version), 'green', color)}")
+            healthy = not state.get('error')
+            print(f"  {status_mark(healthy, color)} {paint(label, 'cyan', color)}")
+            print(f"    Установлено: {paint(str(version), 'green' if healthy else 'red', color)}")
+            if state.get('reconciliation_required'):
+                print('    Состояние NLI будет синхронизировано при следующей операции изменения')
+            if state.get('error'):
+                print('    Ошибка: ' + state['error'])
             print(f"    Состояние:    {paint(last, 'green', color)}")
         else:
             print()
@@ -157,11 +163,19 @@ def render_status(result, color):
         if component:
             print()
             print("  Следующее действие:")
-            print("    " + paint("nli rollback " + component, "yellow", color))
+            command = 'nli firmware recover' if component == 'firmware' else 'nli rollback ' + component
+            print("    " + paint(command, "yellow", color))
+    elif result.get('self_update_pending'):
+        print('  Требуется завершить обновление пакета: nli self-update')
+    elif result.get('final_status') != 'ok':
+        print('  Установка не подтверждена: unknown/drift')
     else:
         print()
         print("  " + paint("✓ Система готова", "green", color))
         print("  " + dim("Незавершённых операций нет.", color))
+    for item in history.values():
+        if item.get('cleanup', {}).get('status') == 'warning':
+            print('  Очистка требует внимания: ' + item['cleanup']['error'])
 
 
 def render_journal(result, color):
@@ -187,14 +201,15 @@ def render_check(result, color):
     if result.get("from_version"):
         print(f"Установлено:    {result['from_version']}")
     if result.get("to_version"):
-        print(f"Для установки:  {result['to_version']}")
+        print(f"Доступно:       {result['to_version']}")
     print()
     if result.get("preflight") == "ok":
         print("  " + status_mark(True, color) + " Предварительная проверка пройдена")
     if result.get("final_status") == "ok":
         print("  " + status_mark(True, color) + " Пакет обновления проверен")
         print()
-        print(paint("РЕЗУЛЬТАТ: обновление разрешено", "green", color))
+        print(paint('РЕЗУЛЬТАТ: обновление не требуется' if result.get('discovery', {}).get('update_available') is False
+                    else 'РЕЗУЛЬТАТ: обновление разрешено', 'green', color))
     else:
         print("  " + status_mark(False, color) + " " + reason_name(result.get("error")))
         print()
@@ -210,7 +225,7 @@ def render_verify(result, color):
     print()
     ok = result.get("final_status") == "ok"
     if ok:
-        print("  " + status_mark(True, color) + " Файлы, службы и runtime прошли проверку")
+        print("  " + status_mark(True, color) + " Файлы, службы и установка release проверены (не ПНР)")
         print()
         print(paint("РЕЗУЛЬТАТ: исправен", "green", color))
     else:
@@ -259,6 +274,8 @@ def render_mutation(result, color):
 
     render_journal(result, color)
     print()
+    if result.get('cleanup', {}).get('status') == 'warning':
+        print('Очистка требует внимания: ' + result['cleanup']['error'])
     final = result.get("final_status")
     if final == "ok":
         print(paint("РЕЗУЛЬТАТ: успешно", "green", color))
@@ -278,6 +295,7 @@ def render_generic(result, color):
         ("object", "Объект"), ("role", "Роль"), ("hostname", "Контроллер"),
         ("component", "Компонент"), ("from_version", "Исходная версия"),
         ("to_version", "Целевая версия"), ("error", "Ошибка"), ("reason", "Причина"),
+        ("compatibility", "Совместимость updater"), ("updates", "Обновления устройств"),
     ):
         if result.get(key) is not None:
             value = result[key]
@@ -287,6 +305,10 @@ def render_generic(result, color):
                 value = human_role(value)
             elif key == "component":
                 value = component_name(value)
+            elif key == 'compatibility' and value == 'supported':
+                value = 'поддерживается'
+            elif key == 'updates' and value == 'unavailable':
+                value = 'определить безопасно невозможно'
             print(f"{label}: {value}")
     print()
     ok = result.get("final_status") == "ok"
@@ -319,6 +341,7 @@ def main(argv=None, engine=None):
     for command in ("check", "update", "verify", "rollback"):
         sub.add_parser(command).add_argument("component")
     sub.add_parser("firmware").add_argument("action", choices=("check", "update", "recover"))
+    sub.add_parser('self-update').add_argument('action', nargs='?', choices=('check',))
     args = parser.parse_args(argv)
 
     color = (not args.no_color and not args.json and not os.environ.get("NO_COLOR")
@@ -334,6 +357,8 @@ def main(argv=None, engine=None):
         e = engine or Engine(load_config(args.config))
         if args.command == "firmware":
             result = Firmware(e).execute(args.action)
+        elif args.command == 'self-update':
+            result = SelfUpdate(e).execute(check=args.action == 'check')
         elif args.command in ("update", "rollback"):
             result = e.mutate(args.command, args.component)
         else:

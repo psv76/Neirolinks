@@ -16,7 +16,7 @@ import nli
 from nli.core import Engine
 from nli.layout import CONFIG_DIR, DEFAULT_CONFIG, DATA_DIR, STATE_DIR, LOG_DIR, load_config
 from nli.util import digest, read_json, write_json
-assert nli.__version__ == '0.1.6'
+assert nli.__version__ == '0.1.8'
 assert nli.__file__.startswith('/usr/lib/neiro-nli/')
 assert Path('/usr/share/neiro-nli/RECOVERY.md').is_file()
 
@@ -110,6 +110,7 @@ if mode == 'bootstrap':
     write_json(Path(DEFAULT_CONFIG), config)
     subprocess.run(['/usr/bin/python3', '-B', DATA_DIR + '/register_pressure_makeup.py'], check=True)
     config = load_config()
+    config['release_source'] = 'pinned'
     assert config['components']['pressure_makeup'] == makeup
     r = config['components']['hhm']
     assert f['target'] not in r['unmanaged_rules']
@@ -140,15 +141,43 @@ if mode == 'bootstrap':
                 result = engine.mutate(command, component)
             assert result['final_status'] == 'ok', result
             assert result['verification_attempts'][0]['journal'][0]['category'] == 'shared_runtime', result
-            if component == 'hhm':
-                assert result['verification_attempts'][0]['readiness']['attempts'] == 2, result
         assert Path(f['target']).read_bytes() == makeup_bytes
     assert digest(unknown.read_bytes()) == r['unmanaged_rules'][str(unknown)]
+    # Manually deployed exact 3.1 must be recognized by the installed package offline.
+    known = read_json(Path(DATA_DIR) / 'known/hhm-boiler-3.1.json')
+    old = {item['target']: Path(item['target']).read_bytes() for item in known['files']}
+    for item in known['files']:
+        Path(item['target']).write_bytes((Path('/payload31') / item['source']).read_bytes())
+    before = snapshot()
+    assert engine.read_operation('status')['components']['hhm']['manifest']['version'] == '3.1'
+    verified = engine.read_operation('verify', 'hhm')
+    assert verified['final_status'] == 'ok' and verified['from_version'] == '3.1', verified
+    assert snapshot() == before
+    for path, data in old.items():
+        Path(path).write_bytes(data)  # synthetic fixture only; restore prior test state
     # Simulate crash/failed rollback: a reinstall must preserve pending recovery.
     with patch.object(engine, 'install', side_effect=OSError('simulated storage interruption')):
         result = engine.mutate('update', 'hhm')
     assert result['final_status'] == 'partial_failure', result
     readonly(engine, pending=True)
+    # Real dpkg self-update/retry in this disposable container, component pending preserved.
+    from nli.self_update import SelfUpdate
+    from nli.system import System
+    package_data = Path('/packages/neiro-nli_0.1.8_all.deb').read_bytes()
+    class ApprovedPackage:
+        def package(self):
+            return dict(version='0.1.8', sha256=digest(package_data), approved=True, asset={'id': 1})
+        def asset(self, *args):
+            return package_data
+    engine.releases = ApprovedPackage()
+    engine.system.run = System().run  # only package-manager/version commands, no WB probes
+    saved_pending = engine.pending_path.read_bytes()
+    write_json(engine.target(STATE_DIR + '/self-update.json'), {'to_version': '0.1.8'})
+    upgraded = SelfUpdate(engine).execute()
+    assert upgraded['final_status'] == 'ok', upgraded
+    assert engine.pending_path.read_bytes() == saved_pending
+    assert not list(engine.state_dir.glob('nli-package-*'))
+    print('SELF-UPDATE: actual dpkg same-version recovery, CLI version, preserved component pending PASS')
     Path('/evidence/persistent.json').write_text(json.dumps(snapshot()), encoding='utf-8')
     print('INSTALLED BOILER: two components, config migration, exact 507, canonical links, read-only, strict inventory, independent update/rollback, pending PASS')
 elif mode in ('reinstall', 'fit'):

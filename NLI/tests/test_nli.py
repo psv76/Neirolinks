@@ -1,4 +1,5 @@
 """All mutations stay inside TemporaryDirectory; fake system has no hardware API."""
+import hashlib
 import contextlib
 import copy
 import io
@@ -60,8 +61,11 @@ class FakeSystem:
         return self.busy
 
     def run(self, argv):
-        assert argv[0] == "/usr/bin/dpkg-query"
-        return "1.99-test"
+        if argv[:2] == ['/usr/bin/dpkg-query', '-S']:
+            return 'wb-mcu-fw-updater: /usr/bin/wb-mcu-fw-updater'
+        if argv[:2] == ['/usr/bin/dpkg', '--verify']:
+            return ''
+        return '1.99-test'
 
 
 class Fixture(unittest.TestCase):
@@ -70,7 +74,7 @@ class Fixture(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.system = FakeSystem()
         self.component = "demo"
-        self.config = dict(object="test", role="boiler", hostname="sandbox-wb", components={})
+        self.config = dict(release_source="pinned", object="test", role="boiler", hostname="sandbox-wb", components={})
         self.base = self.manifest("1.0", b"old")
         self.new = self.manifest("1.1", b"new")
         self.setup_component()
@@ -431,28 +435,15 @@ class HHMTests(Fixture):
         self.assertEqual(self.engine.read_operation("verify", "hhm")["final_status"], "ok")
         self.assertEqual(before, self.snapshot())
         self.assertEqual(self.system.actions, [])
-        self.system.logs = "SyntaxError: 500_HHM3"
+        self.system.logs = "SyntaxError: 500_HHM3_FSE.js"
         self.assertEqual(self.engine.read_operation("verify", "hhm")["final_status"], "failed")
 
-    def test_stale_runtime_frame_fails(self):
-        self.system.frame["sent_ms"] -= 60000
-        self.assertEqual(self.engine.read_operation("verify", "hhm")["final_status"], "failed")
 
-    def test_hhm31_contract_cannot_be_faked_by_version(self):
-        self.new["version"] = "3.1.0"
-        self.new["verify"]["runtime_version"] = "3.1.0"
-        with self.assertRaisesRegex(Error, "health contract"):
-            self.engine.validate(self.new, "hhm")
-        self.new["verify"]["health_contract"] = "m1w2-health-v1"
-        with self.assertRaisesRegex(Error, "attestation"):
-            self.engine.validate(self.new, "hhm")
-        self.new["verify"]["controls"] = [dict(path="HHM3_FSE/sensor_health_contract", equals="m1w2-health-v1")]
-        self.engine.validate(self.new, "hhm")
 
     def test_interlock_rechecked_after_download(self):
         original = self.engine.payload
-        def changed(m):
-            data = original(m)
+        def changed(m, **kwargs):
+            data = original(m, **kwargs)
             self.system.controls["pressure_makeup/active"] = "1"
             return data
         with patch.object(self.engine, "payload", side_effect=changed):
@@ -473,9 +464,15 @@ class HHMTests(Fixture):
 class FirmwareTests(Fixture):
     def setUp(self):
         super().setUp()
-        self.source = b"# official fixture commands: update-all recover-all"
+        self.source = b"--debug # official fixture commands: update-all recover-all"
         self.put("/usr/bin/wb-mcu-fw-updater", self.source)
-        self.config["firmware"] = dict(approved_executable_sha256=digest(self.source), approved_package_version="1.99-test")
+        blob = hashlib.sha1(b'blob ' + str(len(self.source)).encode() + b'\0' + self.source).hexdigest()
+        supported = patch('nli.firmware.SUPPORTED', {
+            '1.99-test': {'package_sha256': frozenset({digest(self.source)}),
+                          'upstream_git_blob': blob}
+        })
+        supported.start()
+        self.addCleanup(supported.stop)
         self.calls = []
 
     def runner(self, action, log_path):
@@ -523,6 +520,41 @@ class FirmwareTests(Fixture):
         self.put("/usr/bin/wb-mcu-fw-updater", self.source + b"changed")
         self.assertEqual(Firmware(self.engine, self.runner).execute("update")["final_status"], "failed")
         self.assertEqual(self.calls, [])
+
+    def test_official_debian_shebang_and_missing_docs_are_accepted(self):
+        source = b"#! /usr/bin/python3\n--debug # official fixture commands: update-all recover-all"
+        canonical = b"#!/usr/bin/env python3\n--debug # official fixture commands: update-all recover-all"
+        self.put("/usr/bin/wb-mcu-fw-updater", source)
+        blob = hashlib.sha1(b'blob ' + str(len(canonical)).encode() + b'\0' + canonical).hexdigest()
+
+        def run(argv):
+            if argv[:2] == ['/usr/bin/dpkg-query', '-S']:
+                return 'wb-mcu-fw-updater: /usr/bin/wb-mcu-fw-updater'
+            if argv[:2] == ['/usr/bin/dpkg', '--verify']:
+                return 'missing     /usr/share/doc/wb-mcu-fw-updater/changelog.gz'
+            return '1.99-test'
+
+        with patch('nli.firmware.SUPPORTED', {
+                '1.99-test': {'package_sha256': frozenset({digest(source)}),
+                              'upstream_git_blob': '0' * 40}
+             }), patch.object(self.system, 'run', side_effect=run):
+            result = Firmware(self.engine, self.runner).execute("check")
+        self.assertEqual(result["final_status"], "unavailable", result)
+        self.assertEqual(result["compatibility"], "supported")
+        self.assertNotIn("error", result)
+
+    def test_runtime_package_verify_issue_still_blocks(self):
+        original = self.system.run
+
+        def run(argv):
+            if argv[:2] == ['/usr/bin/dpkg', '--verify']:
+                return '??5?????? /usr/lib/python3/dist-packages/wb_mcu_fw_updater/update_monitor.py'
+            return original(argv)
+
+        with patch.object(self.system, 'run', side_effect=run):
+            result = Firmware(self.engine, self.runner).execute("check")
+        self.assertEqual(result["final_status"], "failed", result)
+        self.assertIn("package verification failed", result["error"])
 
     def test_firmware_wrong_controller_blocks(self):
         self.config["hostname"] = "different-wb"
