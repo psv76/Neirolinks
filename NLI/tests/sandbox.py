@@ -49,7 +49,10 @@ def run(role):
         source = b"# sandbox only update-all recover-all --debug"
         put("/usr/bin/wb-mcu-fw-updater", source)
         blob = hashlib.sha1(b'blob ' + str(len(source)).encode() + b'\0' + source).hexdigest()
-        compatibility = patch('nli.firmware.SUPPORTED', {'1.99-test': blob})
+        compatibility = patch('nli.firmware.SUPPORTED', {
+            '1.99-test': {'package_sha256': frozenset({digest(source)}),
+                          'upstream_git_blob': blob}
+        })
         compatibility.start()
         result = Firmware(engine).execute("check")
         assert result["final_status"] == "unavailable", result
