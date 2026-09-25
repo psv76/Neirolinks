@@ -101,18 +101,25 @@ exports.sensor = function () {
 
 // m1w2-health-v1. readControl returns the actual local value and #error.
 // Neither retained values, empty error metadata nor repeated reads qualify startup.
-// Both channels need a live value. Once a live value has been seen, a live error
-// clearance can requalify the unchanged control after a polling failure.
+// Both channels need a live value, synchronized with the local model, for admission.
+// Admission belongs to this rules instance; current health is checked on EVERY read.
+// An ordinary local fault must not erase admission and require numeric republish.
 // After qualification validity is state based, not numeric-publication age based.
 exports.localM1w2 = function (readControl) {
     var proof = [false, false], seen = [false, false], faults = ['', ''], runtime = 'UNVERIFIED';
-    var reported = [null, null], qualified = false, measuredAt = null, lastNow = null, reason = 'STARTUP_VALIDATION';
+    var reported = [null, null], admitted = false, measuredAt = null, lastNow = null, reason = 'STARTUP_VALIDATION';
+    var revalidate = [false, false], pendingSample = [false, false], errorObserved = [false, false];
+    var retainedClear = [false, false];
+    var cause = 'NEW_INSTANCE';
     function clock(now) {
-        if (lastNow !== null && now < lastNow) { proof = [false, false]; seen = [false, false]; qualified = false; measuredAt = null; }
+        if (lastNow !== null && now < lastNow) {
+            proof = [false, false]; seen = [false, false]; admitted = false; measuredAt = null;
+            pendingSample = [false, false]; cause = 'CLOCK_ROLLBACK';
+        }
         lastNow = now;
     }
     function metadata(retained) {
-        if (typeof retained !== 'boolean') { runtime = 'RUNTIME_UNSUPPORTED'; proof = [false, false]; }
+        if (typeof retained !== 'boolean') { runtime = 'RUNTIME_UNSUPPORTED'; proof = [false, false]; admitted = false; cause = 'MQTT_METADATA_UNSUPPORTED'; }
         else if (runtime !== 'RUNTIME_UNSUPPORTED') runtime = 'SUPPORTED';
         return runtime !== 'RUNTIME_UNSUPPORTED' && retained === false;
     }
@@ -121,23 +128,37 @@ exports.localM1w2 = function (readControl) {
         sample: function (channel, value, retained, now) {
             clock(now);
             // A late retained delivery must not replace a qualified live reading.
-            if (retained === true) { proof[channel] = false; seen[channel] = false; qualified = false; }
+            if (retained === true) {
+                proof[channel] = false; seen[channel] = false; revalidate[channel] = true;
+                cause = channel === 0 ? 'RETAINED_TEMPERATURE' : 'RETAINED_HEALTH';
+            }
             if (!metadata(retained)) return;
             reported[channel] = channel === 0 ? number(value) : ok(value);
             proof[channel] = channel === 0 ? number(value) !== null : ok(value);
             seen[channel] = proof[channel];
-            if (!proof[channel]) qualified = false;
+            pendingSample[channel] = true;
+            // A retained/reconnect barrier is released by read only after a live
+            // sample matches the local model, even for an already admitted sensor.
             if (channel === 0) measuredAt = now;
         },
         error: function (channel, value, retained, now) {
             clock(now);
             var live = metadata(retained), error = value === undefined || value === null ? '' : String(value);
-            if (error) { faults[channel] = error; proof[channel] = false; qualified = false; }
-            else if (live) { faults[channel] = ''; proof[channel] = seen[channel]; }
+            if (error) {
+                faults[channel] = error; errorObserved[channel] = false; retainedClear[channel] = false;
+                if (!admitted) proof[channel] = false;
+                cause = channel === 0 ? 'MQTT_TEMPERATURE_ERROR' : 'MQTT_HEALTH_ERROR';
+            } else if (live) { faults[channel] = ''; errorObserved[channel] = false; retainedClear[channel] = false; proof[channel] = seen[channel]; }
+            // A retained empty error must not masquerade as local recovery.
+            else if (retained === true && faults[channel]) retainedClear[channel] = true;
         },
         runtimeStatus: function () { return runtime; },
         timestamp: function () { return measuredAt; },
         status: function () { return reason; },
+        diagnostics: function () {
+            return { phase: admitted ? 'RUNTIME' : 'STARTUP', reason: reason, cause: cause,
+                proof: proof.slice(), revalidate: revalidate.slice() };
+        },
         read: function (now, min, max) {
             clock(now);
             if (runtime === 'RUNTIME_UNSUPPORTED') { reason = runtime; return null; }
@@ -145,25 +166,62 @@ exports.localM1w2 = function (readControl) {
             try { t = readControl(0); h = readControl(1); }
             catch (e) { t = null; h = null; }
             if (!t || !h) {
-                if (!t) { proof[0] = false; seen[0] = false; }
-                if (!h) { proof[1] = false; seen[1] = false; }
-                qualified = false; reason = 'CONTROL_MISSING'; return null;
+                if (!admitted) {
+                    if (!t) { proof[0] = false; seen[0] = false; }
+                    if (!h) { proof[1] = false; seen[1] = false; }
+                }
+                cause = !t ? 'LOCAL_TEMPERATURE_MISSING' : 'LOCAL_HEALTH_MISSING';
+                reason = 'CONTROL_MISSING'; return null;
             }
-            if (t.error || h.error || faults[0] || faults[1]) {
-                if (t.error || faults[0]) proof[0] = false;
-                if (h.error || faults[1]) proof[1] = false;
-                qualified = false; reason = 'CONTROL_ERROR'; return null;
-            }
+            // A callback may precede the device-model update. Do not clear its
+            // fault using the old healthy cache. Once observed locally, current
+            // local error clearance is sufficient for an admitted sensor.
+            [t, h].forEach(function (control, channel) {
+                if (control.error && faults[channel]) errorObserved[channel] = true;
+                else if (admitted && !control.error && errorObserved[channel] && !retainedClear[channel]) {
+                    faults[channel] = ''; errorObserved[channel] = false;
+                }
+            });
             value = number(t.value);
-            if (!between(value, min, max)) { proof[0] = false; qualified = false; reason = 'VALUE_INVALID'; return null; }
-            if (!ok(h.value)) { proof[1] = false; qualified = false; reason = 'SENSOR_NOT_OK'; return null; }
-            if (!proof[0] || !proof[1]) { qualified = false; reason = 'STARTUP_VALIDATION'; return null; }
+            // Observe all simultaneous faults, even if an error takes precedence
+            // in the returned reason. Otherwise a bad sample hidden by an error
+            // would remain pending after both local conditions recover.
+            if (!between(value, min, max)) pendingSample[0] = false;
+            if (!ok(h.value)) pendingSample[1] = false;
+            if (t.error || h.error || faults[0] || faults[1]) {
+                if (!admitted) {
+                    if (t.error || faults[0]) proof[0] = false;
+                    if (h.error || faults[1]) proof[1] = false;
+                }
+                cause = t.error || faults[0] ? 'TEMPERATURE_ERROR' : 'HEALTH_ERROR';
+                reason = 'CONTROL_ERROR'; return null;
+            }
+            if (!between(value, min, max)) {
+                if (!admitted) proof[0] = false;
+                pendingSample[0] = false; cause = 'LOCAL_TEMPERATURE_INVALID'; reason = 'VALUE_INVALID'; return null;
+            }
+            if (!ok(h.value)) {
+                if (!admitted) proof[1] = false;
+                pendingSample[1] = false; cause = 'LOCAL_HEALTH_NOT_OK'; reason = 'SENSOR_NOT_OK'; return null;
+            }
+            if (proof[0] && value === reported[0]) revalidate[0] = false;
+            if (proof[1] && ok(h.value) === reported[1]) revalidate[1] = false;
+            if (revalidate[0] || revalidate[1]) { reason = 'RETAINED_REVALIDATION'; return null; }
+            if (!admitted && (!proof[0] || !proof[1])) { reason = 'STARTUP_VALIDATION'; return null; }
+            // Bad live samples block immediately, even before the model catches up.
+            // After the bad state was observed locally, normal current-state recovery
+            // applies. A good sample also removes the pending bad-sample barrier.
+            if ((pendingSample[0] && !between(reported[0], min, max)) ||
+                (pendingSample[1] && reported[1] !== true)) {
+                cause = 'LIVE_INVALID_SAMPLE'; reason = 'CONTROL_SYNC_WAIT'; return null;
+            }
+            pendingSample = [false, false];
             // trackMqtt and the device-model subscriber may run in either order.
-            // Startup/recovery must synchronize before using a cached value.
-            // Once qualified, the current local control remains authoritative:
+            // Startup must synchronize before using a cached value.
+            // Once admitted, the current local control remains authoritative:
             // a harmless callback/cache skew must not create a false sensor fault.
-            if (!qualified && (value !== reported[0] || ok(h.value) !== reported[1])) { reason = 'CONTROL_SYNC_WAIT'; return null; }
-            qualified = true; reason = 'VALID'; return value;
+            if (!admitted && (value !== reported[0] || ok(h.value) !== reported[1])) { reason = 'CONTROL_SYNC_WAIT'; return null; }
+            admitted = true; reason = 'VALID'; return value;
         }
     };
 };

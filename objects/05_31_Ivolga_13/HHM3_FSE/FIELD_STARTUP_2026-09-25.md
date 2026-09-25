@@ -1,5 +1,7 @@
 # Issue #68 / PR #73: исследование startup после live-теста 25.09.2026
 
+Исторический отчёт относится к investigation commit `9f90f17`. Последующее [исправление runtime recovery по #75](ISSUE75_RECOVERY.md) меняет Wire/Runtime, но не решает описанный здесь startup blocker. Поэтому режим `--verify-baseline` из этого отчёта применим к 9f90f17, а не к исправленному HEAD; для воспроизведения старого recovery defect использовать новую suite с `--baseline`.
+
 **Verdict: BLOCKED. Исправленного release нет.** Это воспроизводимые результаты расследования, не отчёт об устранении обоих дефектов. Основание — [live comment](https://github.com/psv76/Neirolinks/pull/73#issuecomment-5829076012). Работа выполнена офлайн; live WB, SSH, deploy, restart, OT и merge не выполнялись. NLI 30 s, readiness и rollback не менялись.
 
 ## A. Receiver: причина наблюдения live пока не установлена

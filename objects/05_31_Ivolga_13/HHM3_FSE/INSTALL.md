@@ -1,5 +1,7 @@
 # HHM 3.1 — migration и rollback через NLI 0.1.7
 
+Issue #75 исправляет recovery уже admitted M1W2; см. [ISSUE75_RECOVERY.md](ISSUE75_RECOVERY.md). Это изменение runtime не является готовым новым deployment payload: NLI и его pins не менялись по прямому ограничению задачи. Старые manifests не содержат fix. Нужны review, отдельная подготовка release и снятие startup blocker ниже; выполнять установку из этого документа сейчас нельзя.
+
 **25.09.2026: BLOCKED. Не повторять update по существующим manifests.** Runtime `14354bcf1e0033c51f02f0b242bea8aa7fa29e4e` трижды не прошёл live readiness; NLI выполнил autorollback. Новый исправленный runtime не выпущен. План ниже остаётся историческим/будущим и не означает готовность к повторной попытке. Результаты расследования, недостающие доказательства и условия будущего smoke: [FIELD_STARTUP_2026-09-25.md](FIELD_STARTUP_2026-09-25.md).
 
 Это план будущих действий оператора, не разрешение и не выполненный deploy. В рамках Issue #68 нет доступа к live WB, restart, OT или физическим командам.

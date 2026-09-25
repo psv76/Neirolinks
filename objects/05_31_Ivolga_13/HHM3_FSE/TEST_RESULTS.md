@@ -1,5 +1,11 @@
 # HHM 3.1 — программная проверка Issue #68
 
+## Issue #75: runtime recovery
+
+`tests/m1w2-recovery-regressions.js`: **16 PASS** на fix. Та же suite с `--baseline` загружает Wire/Runtime из `14354bcf1e0033c51f02f0b242bea8aa7fa29e4e`: **4 PASS / 12 FAIL** (11 behavioral failures и отсутствие новой диагностики). Исходный latch и исправление воспроизводятся без live WB. Все прежние HHM suites: 67 core, 20 sensor-health, 10 partial-ready, PersistentStorage и 4 field-startup investigation groups PASS. Release manifest проверяется отдельно после обновления SHA.
+
+Это runtime recovery, не ослабление startup: retained-only `field-startup-regressions.js --acceptance` по-прежнему FAIL. NLI не менялся; его pinned-payload comparison должен обнаруживать отличие нового Wire/Runtime от старых manifests. Такая ошибка NLI release-consistency не обходится и не считается PASS. Точные CI результаты — в PR #73. Подробнее: [ISSUE75_RECOVERY.md](ISSUE75_RECOVERY.md).
+
 **Полевой результат 25.09.2026: BLOCKED, не READY_FOR_CONTROLLED_RETRY.** Прежние зелёные suites ниже не доказывают startup readiness. Добавлен `tests/field-startup-regressions.js`: 4 группы расследования; точные времена кадров квалифицируют receiver на неизменённом runtime, но retained/unchanged M1W2 не квалифицируются за 30 секунд. Режим `--acceptance` намеренно даёт FAIL до доказанного исправления. Это открытый release blocker, а не PASS исправления. Подробности и границы воспроизведения: [FIELD_STARTUP_2026-09-25.md](FIELD_STARTUP_2026-09-25.md).
 
 База: `1668c32d7187f0a59ccdea5d5b7da10f14f9660f`. Проверки выполняются локально/CI, без WB, SSH и физических writes. Harness моделирует control cache, MQTT callbacks, два WB, ownership и принятые команды; не подтверждает гидравлику.

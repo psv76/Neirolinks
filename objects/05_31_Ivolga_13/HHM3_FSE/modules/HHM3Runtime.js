@@ -40,7 +40,19 @@ exports.io = function (env, owner, allowed) {
             if(C.m1w2Health[path])api.watchM1w2(path,min,max);
             else api.watch(path,min,max);
         },
-        read:function(path) {var s=sensors[path];return s?s.sensor.read(env.now(),s.min,s.max):null;},
+        read:function(path) {
+            var s=sensors[path];if(!s)return null;
+            var value=s.sensor.read(env.now(),s.min,s.max);
+            if(s.local){
+                var d=s.sensor.diagnostics(),signature=d.phase+';'+d.reason+';'+d.cause;
+                if(s.healthSignature!==signature){
+                    s.healthSignature=signature;
+                    var level=value===null?'warning':'info';
+                    env.log[level]('[отопление]['+owner+'][M1W2 '+path+']; '+JSON.stringify(d));
+                }
+            }
+            return value;
+        },
         at:function(path) {var s=sensors[path];return s?s.sensor.timestamp():null;},
         // A health-qualified local observation is not a new numeric measurement.
         // Thermal dwell logic uses this; command/readback age still uses at().
