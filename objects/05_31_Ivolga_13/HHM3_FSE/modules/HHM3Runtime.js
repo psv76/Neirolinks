@@ -69,7 +69,13 @@ exports.houseValid=function(f) {
         var g=f.groups[id];return g && typeof g.demand==='boolean' && typeof g.valid==='boolean' &&
             typeof g.ready==='boolean' && typeof g.enabled==='boolean' && typeof g.degraded==='boolean' &&
             (!g.demand || (g.enabled && g.valid)) && (!g.ready || g.demand) &&
-            typeof g.reason==='string' && (g.floor===null || (typeof g.floor==='number'&&isFinite(g.floor)&&g.floor>=-20&&g.floor<=70));
+            typeof g.reason==='string' &&
+            (g.partial_ready===undefined || typeof g.partial_ready==='boolean') &&
+            (g.output_blocked===undefined || typeof g.output_blocked==='boolean') &&
+            (!g.output_blocked || g.degraded) &&
+            (!g.output_blocked || !g.partial_ready) &&
+            (!g.partial_ready || (g.demand&&g.ready&&g.degraded&&g.valid)) &&
+            (g.floor===null || (typeof g.floor==='number'&&isFinite(g.floor)&&g.floor>=-20&&g.floor<=70));
     });
 };
 exports.select=function(requests,now) {

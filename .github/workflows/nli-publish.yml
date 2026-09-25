@@ -1,0 +1,89 @@
+name: Publish approved NLI release
+
+on:
+  push:
+    branches:
+      - 'publish/nli-approved-*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Validate publication branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          PUBLISH_ID="${GITHUB_REF_NAME#publish/nli-approved-}"
+          test -n "$PUBLISH_ID"
+          PACKAGE_VERSION="$(python - <<'PY'
+          import pathlib, re
+          text = pathlib.Path('NLI/nli/__init__.py').read_text()
+          print(re.search(r"__version__\s*=\s*['\"]([^'\"]+)", text).group(1))
+          PY
+          )"
+          if [[ "$PUBLISH_ID" == bootstrap-* ]]; then
+            [[ "$PUBLISH_ID" == "bootstrap-${PACKAGE_VERSION}-"* ]]
+            MODE=bootstrap
+          else
+            test "$PUBLISH_ID" = "$PACKAGE_VERSION"
+            MODE=package
+          fi
+          echo "VERSION=$PACKAGE_VERSION" >> "$GITHUB_ENV"
+          echo "PUBLISH_ID=$PUBLISH_ID" >> "$GITHUB_ENV"
+          echo "TAG=nli-approved-$PUBLISH_ID" >> "$GITHUB_ENV"
+          echo "MODE=$MODE" >> "$GITHUB_ENV"
+      - name: Full NLI regression
+        run: |
+          python -B -m unittest discover -s NLI/tests -v
+          python -B NLI/tests/sandbox.py
+      - name: Build package and approved catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B NLI/tools/build_deb.py
+          (cd NLI/dist && sha256sum -c "neiro-nli_${VERSION}_all.deb.sha256")
+          if [[ "$MODE" = package ]]; then
+            python -B NLI/tools/release_catalog.py \
+              --commit "$GITHUB_SHA" \
+              --package "NLI/dist/neiro-nli_${VERSION}_all.deb" \
+              --package-version "$VERSION" \
+              --minimum-nli "$VERSION" \
+              --output nli-catalog.json
+          else
+            python -B NLI/tools/release_catalog.py \
+              --commit "$GITHUB_SHA" \
+              --output nli-catalog.json
+          fi
+          cp NLI/install.py install-nli.py
+          sha256sum install-nli.py > install-nli.py.sha256
+      - name: Publish immutable approved release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; refusing to replace approved assets" >&2
+            exit 1
+          fi
+          ASSETS=(nli-catalog.json install-nli.py install-nli.py.sha256)
+          if [[ "$MODE" = package ]]; then
+            ASSETS+=(
+              "NLI/dist/neiro-nli_${VERSION}_all.deb"
+              "NLI/dist/neiro-nli_${VERSION}_all.deb.sha256"
+            )
+          fi
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "NLI approved $PUBLISH_ID" \
+            --notes "Approved NLI publication $PUBLISH_ID. Assets are immutable; publish a new tag instead of replacing them." \
+            "${ASSETS[@]}"

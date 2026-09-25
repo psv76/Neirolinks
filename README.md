@@ -2,6 +2,8 @@
 
 Репозиторий NEIROLINKS для инженерной интеграции систем автоматизации, разработки скриптов Wiren Board и хранения документации по объектам.
 
+[NLI 0.1 — Installer/Updater для Wiren Board](NLI/README.md): Python core, HHM manifests, managed backup/rollback, штатный firmware wrapper и Debian packaging. Статус: sandbox/review, без live deployment.
+
 Комплект отопления Иволги по #59: [HHM 3.0 FSE — код двух WB, тесты, манифест и ПНР](objects/05_31_Ivolga_13/HHM3_FSE/README.md). Для установки используется только его INSTALL, а не прежние снимки контроллеров в репозитории.
 
 ## Структура репозитория

@@ -1,0 +1,19 @@
+{
+  "object": "05_31_Ivolga_13",
+  "role": "gazebo",
+  "hostname": "SET_ACTUAL_GAZEBO_HOSTNAME",
+  "components": {
+    "hhm": {
+      "plugin": "hhm",
+      "baseline": {
+        "path": "/mnt/data/etc/neiro/nli/releases/hhm-gazebo-3.0.json",
+        "sha256": "733a2c31422c8d44fd5101d3586974067e3444ddb012bd4a7249bdca15bcf53b"
+      },
+      "target": {
+        "path": "/mnt/data/etc/neiro/nli/releases/hhm-gazebo-3.0.json",
+        "sha256": "733a2c31422c8d44fd5101d3586974067e3444ddb012bd4a7249bdca15bcf53b"
+      },
+      "unmanaged_rules": {}
+    }
+  }
+}

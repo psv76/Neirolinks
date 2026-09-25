@@ -73,10 +73,24 @@ exports.create=function(options={}){
             if(failure==='after'){w.error=true;throw new Error('simulated failure after application');}
             return true;
         }});
+        const virtualDevices={};
+        function defineVirtualDeviceMock(id,d){
+            definitions[id]=d;
+            Object.entries(d.cells).forEach(([k,c])=>{if(c.forceDefault||values[board][id+'/'+k]===undefined)values[board][id+'/'+k]=c.value;});
+            const obj={
+                isControlExists:k=>Object.prototype.hasOwnProperty.call(d.cells,k),
+                addControl:(k,c)=>{d.cells[k]=c;if(c.forceDefault||values[board][id+'/'+k]===undefined)values[board][id+'/'+k]=c.value;},
+                removeControl:k=>{delete d.cells[k];delete values[board][id+'/'+k];},
+                getId:()=>id
+            };
+            virtualDevices[id]=obj;
+            return obj;
+        }
         const context=vm.createContext({dev,Date:Clock,require:load,log:()=>{},
             PersistentStorage:persistentStorage,
             StorableObject:StorableObject,
-            defineVirtualDevice:(id,d)=>{definitions[id]=d;Object.entries(d.cells).forEach(([k,c])=>{if(c.forceDefault||values[board][id+'/'+k]===undefined)values[board][id+'/'+k]=c.value;});},
+            defineVirtualDevice:defineVirtualDeviceMock,
+            getDevice:id=>virtualDevices[id],
             defineRule:(key,r)=>{rules[board][key]={owner:name,...r};},
             trackMqtt:(t,fn)=>{(handlers[board][t]||(handlers[board][t]=[])).push({owner:name,fn});},
             publish:(...a)=>publish(board,...a),setInterval:()=>1,setTimeout:()=>1});
@@ -111,8 +125,8 @@ exports.create=function(options={}){
         enableAll:()=>Z.forEach(z=>values.boiler['NL_simple_thermostat_'+z.id+'/target_state']=true),
         advance:(ms,feed=true)=>{for(let t=0;t<ms;t+=5000){now+=5000;if(feed)samples();tick('620');tick('624');tick('500');}},
         fail:p=>failPath=p,bridge:v=>bridge=v,
-        report:()=>JSON.parse(values.boiler['HHM3_FSE/circuits_json']),
-        source:()=>JSON.parse(values.boiler['HHM3_FSE/source_json']),
+        report:()=>contexts['500'].lastReports,
+        source:()=>contexts['500'].lastSource,
         physical:()=>writes.filter(w=>own[w.path]),
         request:()=>values.boiler['HHM3_FSE/requested_source_temperature']
     };

@@ -1,1 +1,223 @@
-{"release":"HHM 3.0.0-FSE","object":"05_31_Ivolga_13","issue":59,"encoding":"UTF-8; SHA-256 over LF-normalized text","aggregate_sha256":"52accb72f56cbd3277b999ec8d8cdc906c518f6aaf6cc6623c3850456f9e48a7","files":[{"file":"INSTALL.md","sha256":"8f54d57ec68fab72dae36b51d12222ddbdc683aa46bb0c24d25ff09374d0ba6b","role":"documentation"},{"file":"ISSUE61.md","sha256":"7d248f3c83a4850cb9a125ce55436240102b50331490be77d84df610d9457d30","role":"documentation"},{"file":"README.md","sha256":"350a038827fbeb55ad8f3ac3667616f061afc3acbdfa5669847eff4e9cada4d3","role":"documentation"},{"file":"TEST_RESULTS.md","sha256":"267594c737189e36f1ec69c24b5da77e48c8a0e3791f2556e4207ea54b641bcd","role":"documentation"},{"file":"boiler/wb-rules/500_HHM3_FSE.js","sha256":"fcbda78da50c32cd396d9ca4e6df00623c2fc264e106ddffc459396be3ad2bd2","boards":["boiler"],"destination":"/etc/wb-rules/500_HHM3_FSE.js","role":"rule"},{"file":"boiler/wb-rules/620_thermostats.js","sha256":"81808c1de4334d17cf42de75509dba54ed9cc99c54592e440e9b5713ad914bd6","boards":["boiler"],"destination":"/etc/wb-rules/620_thermostats.js","role":"rule"},{"file":"gazebo/mosquitto/504-acl.example","sha256":"b494238d28ed18ead6e7adb36907814b9c5bc7c70b2a506bcd8a573f371bcdbf","boards":["gazebo","boiler"],"role":"broker-template","installation":"Substitute local TLS/identity parameters; merge ACL, see INSTALL.md"},{"file":"gazebo/mosquitto/504-bridge.conf.example","sha256":"5c33f439b1255feab87a1a69d1741bfcda99be7a44605bf74988850412d12d8b","boards":["gazebo","boiler"],"role":"broker-template","installation":"Substitute local TLS/identity parameters; merge ACL, see INSTALL.md"},{"file":"gazebo/wb-rules/624_combo_besedka.js","sha256":"fd17a68d6b707df00ec752d7d650182c75361647ad099de26591d0acdf636c4a","boards":["gazebo"],"destination":"/etc/wb-rules/624_combo_besedka.js","role":"rule"},{"file":"modules/HHM3Circuit.js","sha256":"327ae9afe3741e6b047f971eb7272f2016374c31f7a09709b8e9958574500e4e","boards":["boiler"],"destination":"/etc/wb-rules-modules/HHM3Circuit.js","role":"module"},{"file":"modules/HHM3Config.js","sha256":"99f7d993c2060015dd2e90f91d755597f0393d049c7904f31baf398b1bed5faf","boards":["boiler","gazebo"],"destination":"/etc/wb-rules-modules/HHM3Config.js","role":"module"},{"file":"modules/HHM3Mixing.js","sha256":"d57b1d86e0621f7def1352c6fb16ab9d2887c5508d0ba05abe052bafbcbe3fcd","boards":["boiler"],"destination":"/etc/wb-rules-modules/HHM3Mixing.js","role":"module"},{"file":"modules/HHM3Outputs.js","sha256":"f7ed7e7f810493b61b292a327e7ebcc62c9054be8dd1463e5c7d618efd18e0d4","boards":["boiler"],"destination":"/etc/wb-rules-modules/HHM3Outputs.js","role":"module"},{"file":"modules/HHM3Runtime.js","sha256":"9c6a71d2db52f37177ab8cd8a899c8ec2ade8987367eeecf80f731973df776d3","boards":["boiler","gazebo"],"destination":"/etc/wb-rules-modules/HHM3Runtime.js","role":"module"},{"file":"modules/HHM3Wire.js","sha256":"b35baa255c4948f8ec926943efeee1ac5a29b594d508112478e8be4ea1360ada","boards":["boiler","gazebo"],"destination":"/etc/wb-rules-modules/HHM3Wire.js","role":"module"},{"file":"tests/harness.js","sha256":"8e21e5e2dad2c84d9b9bf7e21867c7f02e85b57bb15d1fd7d3fc3e58451c5874","role":"test"},{"file":"tests/level-integer-regressions.js","sha256":"44cfd944ba9adfae97ff22054274bf161ba1a071f1ae9d8db334cc9046f4b8c8","role":"test"},{"file":"tests/manifest.js","sha256":"91bb3253d7ddeb3eb23deb0decd644d5ab64a04929631cac28ebed70eeabfa5d","role":"test"},{"file":"tests/persistent-storage-regressions.js","sha256":"62b9135481f56621af893c230ae48141e00b5653cb2ceafcb383ed1e131a977a","role":"test"},{"file":"tests/review-regressions.js","sha256":"d5278a27d19d4289866382ac7c8110ed3f5b1b6508e1de56307cd414f4585dde","role":"test"},{"file":"tests/run.js","sha256":"dc6c67ddd8060f5ac6f31ab4bc40ff9c5c7768ee597e65035eea9e23f54ae9e2","role":"test"},{"file":"tests/wb240-callback.js","sha256":"ba5e28a0d3fdcdb2515b8da946c6628d84757b9e99d9d46ba0548b82a96c1e79","role":"test"},{"file":"tests/wb240-regressions.js","sha256":"49562a5fb9709846b8ca4a1c6d9a8dc1cb87af95e143bcdeac8d368f163ec471","role":"test"},{"file":"tests/zones-reference.json","sha256":"ff96d61792701069435c2fb3da629a22f9afc70d6d6b47c52fb07d28267c9c2a","role":"test"},{"file":"ui/NL_combo_thermostat_504.json","sha256":"6686f5d54fada2493c40badddffdb91bbc54fdf87b7c9cf13f72080b4241b8b2","role":"optional-Sprut-template"}]}
+{
+  "release": "HHM 3.0.0-FSE",
+  "object": "05_31_Ivolga_13",
+  "issue": 59,
+  "encoding": "UTF-8; SHA-256 over LF-normalized text",
+  "aggregate_sha256": "74be3523fce1f2ed4db442c764597c6446f4660716078d52329ed76b1bdc990f",
+  "files": [
+    {
+      "file": "INSTALL.md",
+      "sha256": "97387ff89f05087949c0691e331b1dd6f4c56025033c3c1174363e7190e5d594",
+      "role": "documentation"
+    },
+    {
+      "file": "ISSUE61.md",
+      "sha256": "7d248f3c83a4850cb9a125ce55436240102b50331490be77d84df610d9457d30",
+      "role": "documentation"
+    },
+    {
+      "file": "ISSUE_502_READBACK.md",
+      "sha256": "ae8a85af38619ce2fbadf4ec1817839d8be4ec5d7caf2761c8912def09fd59f8",
+      "role": "documentation"
+    },
+    {
+      "file": "README.md",
+      "sha256": "a3c42b82b52aec007f5c3eab9f917d908a1e7855f966b99cac87953546e74fc6",
+      "role": "documentation"
+    },
+    {
+      "file": "TEST_RESULTS.md",
+      "sha256": "01bbb4dd9ad332c4565d068c2010e8eac2a9fb8a9a96ee2c4288dcf627d67651",
+      "role": "documentation"
+    },
+    {
+      "file": "boiler/wb-rules/500_HHM3_FSE.js",
+      "sha256": "03d4ec69dadcef8872b4ca792236bdb37b62fbed849dac52e201aae08995d501",
+      "boards": [
+        "boiler"
+      ],
+      "destination": "/etc/wb-rules/500_HHM3_FSE.js",
+      "role": "rule"
+    },
+    {
+      "file": "boiler/wb-rules/620_thermostats.js",
+      "sha256": "570874b06a045723feb3fac857f6f36fc007953ddc0b8ec0599a45837a0327fc",
+      "boards": [
+        "boiler"
+      ],
+      "destination": "/etc/wb-rules/620_thermostats.js",
+      "role": "rule"
+    },
+    {
+      "file": "gazebo/mosquitto/504-acl.example",
+      "sha256": "b494238d28ed18ead6e7adb36907814b9c5bc7c70b2a506bcd8a573f371bcdbf",
+      "boards": [
+        "gazebo",
+        "boiler"
+      ],
+      "role": "broker-template",
+      "installation": "Substitute local TLS/identity parameters; merge ACL, see INSTALL.md"
+    },
+    {
+      "file": "gazebo/mosquitto/504-bridge.conf.example",
+      "sha256": "5c33f439b1255feab87a1a69d1741bfcda99be7a44605bf74988850412d12d8b",
+      "boards": [
+        "gazebo",
+        "boiler"
+      ],
+      "role": "broker-template",
+      "installation": "Substitute local TLS/identity parameters; merge ACL, see INSTALL.md"
+    },
+    {
+      "file": "gazebo/wb-rules/624_combo_besedka.js",
+      "sha256": "fd17a68d6b707df00ec752d7d650182c75361647ad099de26591d0acdf636c4a",
+      "boards": [
+        "gazebo"
+      ],
+      "destination": "/etc/wb-rules/624_combo_besedka.js",
+      "role": "rule"
+    },
+    {
+      "file": "modules/HHM3Circuit.js",
+      "sha256": "024aba35631fc4607f35e64dae9490a2c358fb894f7cd7220e531e8f787b6a42",
+      "boards": [
+        "boiler"
+      ],
+      "destination": "/etc/wb-rules-modules/HHM3Circuit.js",
+      "role": "module"
+    },
+    {
+      "file": "modules/HHM3Config.js",
+      "sha256": "99f7d993c2060015dd2e90f91d755597f0393d049c7904f31baf398b1bed5faf",
+      "boards": [
+        "boiler",
+        "gazebo"
+      ],
+      "destination": "/etc/wb-rules-modules/HHM3Config.js",
+      "role": "module"
+    },
+    {
+      "file": "modules/HHM3Mixing.js",
+      "sha256": "d57b1d86e0621f7def1352c6fb16ab9d2887c5508d0ba05abe052bafbcbe3fcd",
+      "boards": [
+        "boiler"
+      ],
+      "destination": "/etc/wb-rules-modules/HHM3Mixing.js",
+      "role": "module"
+    },
+    {
+      "file": "modules/HHM3Outputs.js",
+      "sha256": "f7ed7e7f810493b61b292a327e7ebcc62c9054be8dd1463e5c7d618efd18e0d4",
+      "boards": [
+        "boiler"
+      ],
+      "destination": "/etc/wb-rules-modules/HHM3Outputs.js",
+      "role": "module"
+    },
+    {
+      "file": "modules/HHM3Runtime.js",
+      "sha256": "67469decabfd44b0498c5822524ad734dc8b883bba91f272dfe1a048529ebe43",
+      "boards": [
+        "boiler",
+        "gazebo"
+      ],
+      "destination": "/etc/wb-rules-modules/HHM3Runtime.js",
+      "role": "module"
+    },
+    {
+      "file": "modules/HHM3Wire.js",
+      "sha256": "b35baa255c4948f8ec926943efeee1ac5a29b594d508112478e8be4ea1360ada",
+      "boards": [
+        "boiler",
+        "gazebo"
+      ],
+      "destination": "/etc/wb-rules-modules/HHM3Wire.js",
+      "role": "module"
+    },
+    {
+      "file": "tests/harness.js",
+      "sha256": "f4c120d3748255458a9bf89d79849f2c70b4fd514527e185d069fdc3a91657b2",
+      "role": "test"
+    },
+    {
+      "file": "tests/level-integer-regressions.js",
+      "sha256": "44cfd944ba9adfae97ff22054274bf161ba1a071f1ae9d8db334cc9046f4b8c8",
+      "role": "test"
+    },
+    {
+      "file": "tests/manifest.js",
+      "sha256": "91bb3253d7ddeb3eb23deb0decd644d5ab64a04929631cac28ebed70eeabfa5d",
+      "role": "test"
+    },
+    {
+      "file": "tests/partial-ready-regressions.js",
+      "sha256": "7bb1bc20b1a15900a4a3f8d88cf75c1c88f3db81ab7b5b5d061faa4721674303",
+      "role": "test"
+    },
+    {
+      "file": "tests/persistent-storage-regressions.js",
+      "sha256": "62b9135481f56621af893c230ae48141e00b5653cb2ceafcb383ed1e131a977a",
+      "role": "test"
+    },
+    {
+      "file": "tests/review-regressions.js",
+      "sha256": "147ad3804e67e573d5a016007cb15d2fcf516aaae20fa1925352bdf66dd02e9b",
+      "role": "test"
+    },
+    {
+      "file": "tests/run.js",
+      "sha256": "421fdfe370af97f0be3c94e0256c1e88bbd2c7301f74c5aba9d2e7811f02d3db",
+      "role": "test"
+    },
+    {
+      "file": "tests/wb240-callback.js",
+      "sha256": "ba5e28a0d3fdcdb2515b8da946c6628d84757b9e99d9d46ba0548b82a96c1e79",
+      "role": "test"
+    },
+    {
+      "file": "tests/wb240-regressions.js",
+      "sha256": "49562a5fb9709846b8ca4a1c6d9a8dc1cb87af95e143bcdeac8d368f163ec471",
+      "role": "test"
+    },
+    {
+      "file": "tests/zones-reference.json",
+      "sha256": "ff96d61792701069435c2fb3da629a22f9afc70d6d6b47c52fb07d28267c9c2a",
+      "role": "test"
+    },
+    {
+      "file": "tools/install_502_readback_fix.sh",
+      "sha256": "0e1caf22e07a9091b1ad6b6b2e4797aca28f40640f1a73922d7a249f746c8620",
+      "role": "documentation"
+    },
+    {
+      "file": "tools/install_620_current_state_bool_fix.sh",
+      "sha256": "1b77ae29a311e56118e24aa98cdf17d6e56cdab9edd7979013670aef15e377f7",
+      "role": "documentation"
+    },
+    {
+      "file": "tools/install_diagnostics_feed_fix.sh",
+      "sha256": "882d5965ca794b03929410deebdd3ab1894f6e8e7d38c2fc32120daaf104079c",
+      "role": "documentation"
+    },
+    {
+      "file": "tools/install_hhm3_legacy_json_purge.sh",
+      "sha256": "4705efc71f1aaa45c9afa66535c0e7da13e5574ba93cf518af6e70946511c4d2",
+      "role": "documentation"
+    },
+    {
+      "file": "tools/install_hhm3_ui_cleanup.sh",
+      "sha256": "c8091c0cc4ab071c4ccfe1cab7820901b3a3abb8b252f709b3d34480aebb0700",
+      "role": "documentation"
+    },
+    {
+      "file": "tools/install_hhm3_ui_cleanup_v2.sh",
+      "sha256": "017f374d1723f5f2631835517d904e8223b076ecd5317b4f0972f74486c9298a",
+      "role": "documentation"
+    },
+    {
+      "file": "ui/NL_combo_thermostat_504.json",
+      "sha256": "6686f5d54fada2493c40badddffdb91bbc54fdf87b7c9cf13f72080b4241b8b2",
+      "role": "optional-Sprut-template"
+    }
+  ]
+}
