@@ -1,4 +1,4 @@
-/* HHM 3.1.0 / Иволга: единственный writer зональных A08/A09/A13/A14.
+/* HHM 3.1 / Иволга: единственный writer зональных A08/A09/A13/A14.
  * 505 — только термостат, его насос принадлежит manager, задержки приводов нет.
  */
 var Config=require('HHM3Config'),C=Config.config,W=require('HHM3Wire'),R=require('HHM3Runtime');
