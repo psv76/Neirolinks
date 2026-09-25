@@ -70,18 +70,18 @@ class SelfUpdateTests(fixtures.Fixture):
         self.data = package.read_bytes()
         package.unlink()
         package.with_suffix('.deb.sha256').unlink()
-        self.package = dict(version='0.1.9', approved=True, sha256=digest(self.data), asset={'id': 99})
+        self.package = dict(version='0.1.10', approved=True, sha256=digest(self.data), asset={'id': 99})
         self.engine.releases.package = lambda: self.package
         self.engine.releases.asset = lambda *args: self.data
         self.calls = []
         def run(argv, timeout=None):
             self.calls.append(argv)
             if argv[:2] == ['/usr/bin/dpkg-deb', '-f']:
-                return 'Package: neiro-nli\nVersion: 0.1.9\nArchitecture: all'
+                return 'Package: neiro-nli\nVersion: 0.1.10\nArchitecture: all'
             if argv[:2] == ['/usr/bin/dpkg-query', '-W']:
-                return '0.1.9'
+                return '0.1.10'
             if argv[0] == '/usr/bin/nli':
-                return '{"version": "0.1.9"}'
+                return '{"version": "0.1.10"}'
             self.assertEqual(argv[:2], ['/usr/bin/dpkg', '--install'])
             return ''
         self.system.run = run

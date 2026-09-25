@@ -16,7 +16,7 @@ import nli
 from nli.core import Engine
 from nli.layout import CONFIG_DIR, DEFAULT_CONFIG, DATA_DIR, STATE_DIR, LOG_DIR, load_config
 from nli.util import digest, read_json, write_json
-assert nli.__version__ == '0.1.8'
+assert nli.__version__ == '0.1.9'
 assert nli.__file__.startswith('/usr/lib/neiro-nli/')
 assert Path('/usr/share/neiro-nli/RECOVERY.md').is_file()
 
@@ -163,16 +163,16 @@ if mode == 'bootstrap':
     # Real dpkg self-update/retry in this disposable container, component pending preserved.
     from nli.self_update import SelfUpdate
     from nli.system import System
-    package_data = Path('/packages/neiro-nli_0.1.8_all.deb').read_bytes()
+    package_data = Path('/packages/neiro-nli_0.1.9_all.deb').read_bytes()
     class ApprovedPackage:
         def package(self):
-            return dict(version='0.1.8', sha256=digest(package_data), approved=True, asset={'id': 1})
+            return dict(version='0.1.9', sha256=digest(package_data), approved=True, asset={'id': 1})
         def asset(self, *args):
             return package_data
     engine.releases = ApprovedPackage()
     engine.system.run = System().run  # only package-manager/version commands, no WB probes
     saved_pending = engine.pending_path.read_bytes()
-    write_json(engine.target(STATE_DIR + '/self-update.json'), {'to_version': '0.1.8'})
+    write_json(engine.target(STATE_DIR + '/self-update.json'), {'to_version': '0.1.9'})
     upgraded = SelfUpdate(engine).execute()
     assert upgraded['final_status'] == 'ok', upgraded
     assert engine.pending_path.read_bytes() == saved_pending

@@ -15,7 +15,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Fetch immutable migration and previous NLI package source
-        run: git fetch origin 9f90f17dc91f9d1ff753be66c18506027a5c03b1
+        run: git fetch origin 9f90f17dc91f9d1ff753be66c18506027a5c03b1 d3bc8fcd78c6f4133cb4824ef74a589d90026373
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -33,9 +33,9 @@ jobs:
       - name: Build Debian package
         run: |
           python -B NLI/tools/build_deb.py
-          sha256sum NLI/dist/neiro-nli_0.1.8_all.deb
-          dpkg-deb --info NLI/dist/neiro-nli_0.1.8_all.deb
-          dpkg-deb --contents NLI/dist/neiro-nli_0.1.8_all.deb
+          sha256sum NLI/dist/neiro-nli_0.1.9_all.deb
+          dpkg-deb --info NLI/dist/neiro-nli_0.1.9_all.deb
+          dpkg-deb --contents NLI/dist/neiro-nli_0.1.9_all.deb
       - name: WB nodoc, upgrade, installed boiler bootstrap, reinstall and simulated FIT
         run: |
           mkdir -p "$RUNNER_TEMP/nli-old-source" "$RUNNER_TEMP/nli-old-package" "$RUNNER_TEMP/nli-persistent" "$RUNNER_TEMP/nli-evidence"
@@ -61,6 +61,9 @@ jobs:
           python -B "$RUNNER_TEMP/nli-016-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.6_all.deb"
           git archive 9f90f17dc91f9d1ff753be66c18506027a5c03b1 NLI | tar -x -C "$RUNNER_TEMP/nli-017-source"
           python -B "$RUNNER_TEMP/nli-017-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.7_all.deb"
+          mkdir -p "$RUNNER_TEMP/nli-018-source"
+          git archive d3bc8fcd78c6f4133cb4824ef74a589d90026373 NLI | tar -x -C "$RUNNER_TEMP/nli-018-source"
+          python -B "$RUNNER_TEMP/nli-018-source/NLI/tools/build_deb.py" --output "$RUNNER_TEMP/nli-old-package/neiro-nli_0.1.8_all.deb"
           python -B NLI/tools/prepare_hhm.py --commit d75710dad93906af8869dcce48d26e14673b63fb --role boiler --output NLI/build/field-hhm
           python -B NLI/tools/prepare_hhm31.py --commit 14354bcf1e0033c51f02f0b242bea8aa7fa29e4e --role boiler --output NLI/build/field-hhm31
           docker run --rm --hostname wirenboard-ABF62SL -e NLI_DISPOSABLE_CI=1 \
@@ -75,6 +78,6 @@ jobs:
             debian:trixie-slim sh /tests/wb_package_smoke.sh fit
       - uses: actions/upload-artifact@v4
         with:
-          name: neiro-nli-0.1.8-deb
-          path: NLI/dist/neiro-nli_0.1.8_all.deb*
+          name: neiro-nli-0.1.9-deb
+          path: NLI/dist/neiro-nli_0.1.9_all.deb*
           if-no-files-found: error
