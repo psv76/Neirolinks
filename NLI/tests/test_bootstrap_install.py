@@ -95,7 +95,7 @@ class BootstrapTests(unittest.TestCase):
             calls.append(list(argv))
             if argv[:2] == ["/usr/bin/dpkg-deb", "-f"]:
                 self.assertEqual(Path(argv[2]).read_bytes(), deb)
-                return "neiro-nli\n0.1.8\nall"
+                return {"Package": "neiro-nli", "Version": "0.1.8", "Architecture": "all"}[argv[3]]
             if argv[:2] == ["/usr/bin/dpkg", "--install"]:
                 self.assertEqual(Path(argv[2]).read_bytes(), deb)
                 return ""

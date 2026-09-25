@@ -168,9 +168,10 @@ class Bootstrap:
                 stream.write(data)
                 stream.flush()
                 os.fsync(stream.fileno())
-            metadata = self.run(
-                ["/usr/bin/dpkg-deb", "-f", path, "Package", "Version", "Architecture"], True
-            ).splitlines()
+            metadata = [
+                self.run(["/usr/bin/dpkg-deb", "-f", path, field], True)
+                for field in ("Package", "Version", "Architecture")
+            ]
             require(metadata == ["neiro-nli", package["version"], "all"],
                     "Downloaded .deb identity mismatch")
             self.run(["/usr/bin/dpkg", "--install", path])

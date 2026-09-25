@@ -42,7 +42,8 @@ def fetch(url, limit=MAX_METADATA, binary=False):
 
 
 def version(value):
-    match(value, r'\d+\.\d+(?:\.\d+)?(?:[-+][A-Za-z0-9_.-]+)?', 'release version')
+    match(value, r'\d+\.\d+(?:\.\d+)?(?:-[A-Za-z0-9_.-]+)?(?:\+[A-Za-z0-9_.-]+)?',
+          'release version')
     numbers = re.match(r'\d+\.\d+(?:\.\d+)?', value)[0].split('.')
     return tuple(map(int, numbers)) + (0,) * (3 - len(numbers))
 
