@@ -39,3 +39,17 @@ private/rate-limited endpoint даст явную transport ошибку.
 **Этот PR не публикует approved release и не делает draft #73 deployable.**
 Known 3.1 manifests в package нужны для распознавания уже вручную установленных bytes
 согласно #74, а не для автоматической установки заблокированного runtime.
+
+
+## Автоматическая публикация approved NLI
+
+После merge проверенного PR maintainer создаёт ветку
+`publish/nli-approved-<version>` ровно от принятого commit. Workflow
+`.github/workflows/nli-publish.yml` повторно запускает NLI tests, собирает
+reproducible `.deb`, строит catalog из immutable manifest commit, добавляет
+`install-nli.py` и публикует stable GitHub Release `nli-approved-<version>`.
+Если release с таким tag уже существует, workflow fail closed и не заменяет assets.
+
+Bootstrap asset является способом **первичной установки самого NLI**. Component
+release discovery и `nli self-update` после установки по-прежнему используют
+тот же approved catalog и не доверяют Actions artifact или mutable main.

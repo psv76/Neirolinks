@@ -4,6 +4,24 @@ NLI устанавливает release, а не проверяет алгори�
 автоматического ночного update или runtime dependency HHM. Задача #74 продолжает
 принятый #70 / PR #71; HHM algorithms, 507 и #68 не изменяются.
 
+## Первичная установка NLI
+
+На контроллере, где NLI ещё нет или runtime NLI потерян после FIT, используется
+standalone bootstrap из **фиксированного published approved release**, а не
+Actions artifact и не mutable `main`:
+
+```sh
+python3 -c "import urllib.request; exec(urllib.request.urlopen('https://github.com/psv76/Neirolinks/releases/download/nli-approved-0.1.8/install-nli.py').read(), {'__name__':'__main__'})"
+```
+
+Bootstrap работает без установленного NLI: через GitHub API выбирает последний
+published/non-draft `nli-approved-*`, проверяет SHA256 каталога и `.deb` по
+GitHub asset digest и catalog, проверяет Package/Version/Architecture, ставит
+`neiro-nli` через dpkg и сверяет `nli --version`. Object config он не создаёт
+и сервисы WB не перезапускает. После первой установки дальнейшее обслуживание —
+`nli self-update`. Initial adoption неизвестного объекта остаётся отдельной
+reviewed процедурой.
+
 ## Обычный сценарий принятого объекта
 
 ```sh
