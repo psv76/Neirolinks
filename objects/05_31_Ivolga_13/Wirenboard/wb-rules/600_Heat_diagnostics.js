@@ -21,6 +21,9 @@ var HD_SENSORS = {
     hozR: 'wb-m1w2_166/External Sensor 1'     // 420
 };
 
+var HD_IO = require('HHM3Runtime').io({proofStorage:new PersistentStorage('hhm31_poll_600',{global:true}),dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log},'600',[]);
+Object.keys(HD_SENSORS).forEach(function(k){HD_IO.watchM1w2(HD_SENSORS[k],-40,120);});
+
 var HD_PAIRS = [
     {id:'delta_boiler', title:'ΔT котлового контура', s:HD_SENSORS.boilerS, r:HD_SENSORS.boilerR},
     {id:'delta_501', title:'501 ΔT ТП дом', s:HD_SENSORS.tpS, r:HD_SENSORS.tpR},
@@ -54,8 +57,7 @@ function hdNumber(path) {
     return isFinite(n) ? n : null;
 }
 function hdTemperature(path) {
-    var t = hdNumber(path);
-    return t !== null && t >= -40 && t <= 120 ? t : null;
+    return HD_IO.read(path);
 }
 function hdBool(path) {
     var v = dev[path];
@@ -187,4 +189,4 @@ for (var hdW = 0; hdW < HD_WATCH.length; hdW++) {
 }
 defineRule('heat_diagnostics_evaluate', {whenChanged:HD_UNIQUE_WATCH, then:hdEvaluate});
 setTimeout(hdEvaluate, 3000);
-setInterval(hdEvaluate, 30000);
+setInterval(hdEvaluate, 5000);

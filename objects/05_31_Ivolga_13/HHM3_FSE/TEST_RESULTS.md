@@ -1,17 +1,35 @@
-# HHM3 Иволга — результаты программной проверки исправления PR #63
+# HHM 3.1 — результаты проверки PR #73
 
-## Область проверки
+Область: Issue #68 cold-start и сохранение fix #75 c35ddbd; база df484b8 после NLI #74/#79. Только offline simulation/source review. Версия 3.1, контракт m1w2-health-v1.
 
-Модель двух WB с точной картой 501–505, контрактом обычный Level → явный Switch ON → насос ON / Switch OFF, 18 сохранёнными термостатами дома и отдельным 505 OFF, 60-секундной публикацией неизменных MQTT значений и отсутствующим echo, имитацией исключений до/после применения записи, перезапуском и перегревами. Для 505 live 23.09.2026 отдельно подтверждено: `901.01_MSW_TH` = WB-MSW v.4 slave 202 в хозяйственном помещении, `NL_simple_thermostat_505` читает его температуру и формирует demand manager'у `A03/K5`. Реальный WB и гидравлика модельными тестами не управляются.
+## HHM regression suite
 
-Запуск на точном выпуске: `node tests/run.js`, `node tests/persistent-storage-regressions.js`, `node tests/manifest.js --check`; `node --check` runtime. CI привязывается к коммиту GitHub, его URL и результат указываются в PR #63 только после выполнения. Нельзя переносить результаты старого PR #60 на новые исходники.
+| Suite (tests/) | Результат |
+|---|---:|
+| run.js | 67 groups PASS |
+| sensor-health-regressions.js | 20 PASS |
+| m1w2-recovery-regressions.js | 16 PASS / 0 FAIL |
+| cold-start-proof-regressions.js | 7 PASS / 0 FAIL |
+| field-startup-regressions.js | 4 historical passive-cache/receiver groups PASS |
+| partial-ready-regressions.js | 10 PASS |
+| persistent-storage-regressions.js | PASS |
+| manifest.js --check | Проверка всех release hashes/dependencies в HHM CI |
 
-Адресные тесты должны проверять, что поздний/отсутствующий MQTT readback не отменяет принятую команду, ошибку реальной записи Level, Switch ON и Switch OFF не маскирует `ok`, отказ одного контура не останавливает соседей, температуры перегрева закрывают горячий вход, заявка котлу не выводится при ошибке записи и WebUI не показывает JSON как пульт. Отдельно проверяется известный нулевой спрос: он отличен от неизвестных заявок, но реальное выключение CH ещё не подтверждено.
+FAIL-before/PASS-after:
 
-## Что программная проверка не подтверждает
+- #75: `m1w2-recovery-regressions.js --baseline` загружает Wire/Runtime из 14354bcf1e0033c51f02f0b242bea8aa7fa29e4e: **4 PASS / 12 FAIL**; fixed **16 PASS**.
+- Cold-start: `cold-start-proof-regressions.js --baseline` загружает Wire/Runtime из c35ddbdb99874111699d29116b03381f12daef08: **4 PASS / 3 FAIL**; fixed **7 PASS**. Ранее падавшие группы: healthy retained unchanged admission, штатное округление температуры, свежий proof нового boot/после clock rollback. Старые negative cases остаются PASS.
 
-Ход клапана, работу насоса, расход и безопасную циркуляцию, точность датчиков на объекте, физический CH-only OFF с сохранением ГВС, восстановление 504 floor sensor, качество WebUI на установленной версии и отсутствие конфликта с другими изменениями живого WB. Эти пункты отражены в `INSTALL.md` и должны быть приняты отдельно. Историческая ветка wb-rules 2.40 и её ограничения задокументированы в `ISSUE61.md`.
+Новая suite использует настоящие 500/620/624/600 и отдельную hardware model. Проверяет 20 mapped sensors, оба restart ordering, unchanged retained state без numeric republish, non-retained correlated RPC, dead retained-only, неверные/запаздывающие replies, OK=0, #error, range/sentinel/missing controls, несовпадение local state и unsupported runtime metadata. После admission новые RPC не генерируются. Точные source pins и границы доказательства — FIELD_STARTUP_2026-09-25.md.
 
-## Регрессия по инциденту 22.09
+## NLI 0.1.9 и artifacts
 
-Ранее тестовый mock ошибочно включал Switch при обычной записи Level и скрывал физический дефект. Теперь Level меняет только уровень; проверяются явный Switch ON, порядок Level → Switch ON → насос ON, ошибка Switch ON до/после применения и отсутствие заявки при такой ошибке. Исходные полевые данные: Switch=0 по всем трём каналам, Level 100/100/74–98, подачи ~17–18 °C при источнике ~42 °C. До нового CI и полевых испытаний приёмка не пройдена.
+NLI core и его installation-only policy сохранены из актуальной базы. `STARTUP_VALIDATION`, `NORMAL`, health controls и frames не являются install/rollback gate. Historical 14354bc fixture в package migration CI оставлен для проверки прежней установки, а не как target нового релиза. Recognition manifests вынесены в NLI/known с прежними hashes; builder упаковывает их независимо от новых NLI/releases. Проверка пакета против базы df484b8: **byte-identical**, SHA256 `11646db0e1c4366d1be32e576e087e2334bf93d864effd49485e599ba2e2de7c`. Migration suite 15 PASS; package regression дополнительно проверяет SHA упакованных recognition manifests.
+
+`NLI/tests/test_hhm31_release.py` проверяет воспроизводимость обоих manifests из одного immutable runtime commit, exact Git blobs/SHA, совпадение deployed source с HEAD, version 3.1 и исключение 507. Manifests ссылаются на runtime commit, предшествующий отдельному artifact commit; это исключает циклический self-pin.
+
+Локальный NLI sandbox обеих ролей: PASS (fake WB). Полный unittest на Windows: 168 tests, 35 platform skips, одна Linux-only import error `os.geteuid` в bootstrap; production code ради Windows не менялся. Окончательные full unittest, package build 0.1.9, Debian install/upgrade/reinstall/FIT и HHM выполняются штатным Linux NLI workflow. Точные итоговые CI run links/result привязываются к финальному HEAD в PR #73, а не к предыдущему релизу.
+
+## Граница приёмки
+
+Не выполнялись live SSH/deploy/restart, OT/physical commands или merge PR. Реально установленная serial capability и bus timing требуют controlled retry по INSTALL.md. Никакие offline tests не доказывают физическую циркуляцию, положение клапанов или гидравлическую приёмку #20. Receiver не изменялся: его историческое live наблюдение нельзя объявить исправленным без raw evidence; оба modeled restart ordering корректны.

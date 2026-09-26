@@ -2,10 +2,19 @@
 const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert/strict');
 const root=path.resolve(__dirname,'..'),epoch=1800000000000;
 exports.create=function(options={}){
-    let now=epoch,owner='',failPath='',bridge=true;
+    let now=options.epoch===undefined?epoch:options.epoch,owner='',failPath='',bridge=true;
     const stores=options.stores||{},values={boiler:Object.assign({},options.values&&options.values.boiler),gazebo:Object.assign({},options.values&&options.values.gazebo)};
     const handlers={boiler:{},gazebo:{}},modules={},contexts={},writes=[],messages=[],logs=[],effects=[],modelPosition={},rules={boiler:{},gazebo:{}},definitions={};
     const lastSample={boiler:{},gazebo:{}};
+    // Opt-in field-startup profile. WB 2.46.5 engine.go caches every tracked
+    // nonempty payload, replaying it as retained ONLY to a newly joined tracker.
+    // Existing trackers still receive the original live retained flag.
+    const trackedCache={boiler:{},gazebo:{}},replays=[],callbacks=[];
+    function callback(board,h,m){
+        callbacks.push({board,owner:h.owner,at:now,...m});
+        const saved=owner;owner=h.owner;try{h.fn(m);}finally{owner=saved;}
+    }
+    function flushMqtt(){while(replays.length)replays.shift()();}
     function periodic(board,p,v){const k=topic(p),prev=lastSample[board][k];
         if(!prev||prev.value!==v||now-prev.at>=60000){lastSample[board][k]={value:v,at:now};deliver(board,k,v,false);}
     }
@@ -27,7 +36,9 @@ exports.create=function(options={}){
     function load(n){
         if(modules[n])return modules[n];
         const e={};modules[n]=e;
-        vm.runInNewContext(fs.readFileSync(path.join(root,'modules',n+'.js'),'utf8'),{exports:e,require:load},{filename:n});
+        let source=fs.readFileSync(path.join(root,'modules',n+'.js'),'utf8');
+        if(options.moduleTransform)source=options.moduleTransform(n,source);
+        vm.runInNewContext(source,{exports:e,require:load},{filename:n});
         return e;
     }
     const C=load('HHM3Config').config,Z=load('HHM3Config').zones;
@@ -36,13 +47,24 @@ exports.create=function(options={}){
     Z.forEach(z=>z.outputs.forEach(p=>own[p]='620'));
     Object.values(C.circuits).forEach(c=>{own[c.pump]='500';if(c.level){own[c.level]='500';own[c.enable]='500';}});
     own[C.source.setpoint]=own[C.source.chEnable]='500';
-    function deliver(board,topic,value,retained=false){
+    function deliver(board,topic,value,retained=false,cacheAfter=false){
         if(topic.endsWith('/meta/error'))delete lastSample[board][topic.slice(0,-11)];
+        const control=topic.match(/^\/devices\/(.+?)\/controls\/(.+)$/);
+        function updateControl(){if(control){
+            const p=control[1]+'/'+control[2].replace(/\/meta\/error$/, '#error');
+            if(!own[p])values[board][p]=value;
+        }}
+        if(!cacheAfter)updateControl();
         // v2.40 newTrackHandler exports exactly topic/value. Do not keep the
         // newer metadata on a side channel when this profile is selected.
         const m=options.apiVersion==='2.40.0'?require('./wb240-callback')(topic,String(value)):{topic,value:String(value),qos:0};
         if(options.apiVersion!=='2.40.0'&&retained!==undefined)m.retained=retained;
-        for(const h of handlers[board][topic]||[]){const saved=owner;owner=h.owner;try{h.fn(m);}finally{owner=saved;}}
+        if(options.wb2465Replay&&(handlers[board][topic]||[]).length){
+            if(m.value==='')delete trackedCache[board][topic];
+            else trackedCache[board][topic]={...m,retained:true};
+        }
+        for(const h of handlers[board][topic]||[])callback(board,h,m);
+        if(cacheAfter)updateControl();
     }
     function publish(board,topic,payload,qos,retained){
         messages.push({board,topic,payload,retained,owner,at:now});
@@ -56,7 +78,7 @@ exports.create=function(options={}){
         const dev=new Proxy(values[board],{set(o,k,v){
             const isPhysical=!!own[k]||/^(A\d+\/|wbe2-i-opentherm_11\/)/.test(k);
             if(isPhysical){assert.equal(board,'boiler');assert.equal(own[k],owner,'writer '+owner+' -> '+k);}
-            else assert.ok((owner==='620'&&k.startsWith('NL_simple_thermostat_'))||(owner==='624'&&k.startsWith('NL_combo_thermostat_504/'))||(owner==='500'&&k.startsWith('HHM3_FSE/')),'unknown VD writer '+owner+' '+k);
+            else assert.ok((owner==='620'&&k.startsWith('NL_simple_thermostat_'))||(owner==='624'&&k.startsWith('NL_combo_thermostat_504/'))||(owner==='500'&&k.startsWith('HHM3_FSE/'))||(owner==='600'&&/^(heat_diagnostics|boiler_state)\//.test(k)),'unknown VD writer '+owner+' '+k);
             assert.notEqual(v,null);assert.notEqual(v,undefined);if(typeof v==='number')assert.ok(Number.isFinite(v));
             const w={owner,path:k,value:v,at:now,board};writes.push(w);
             const failure=typeof failPath==='function'?failPath(w):k===failPath;
@@ -92,33 +114,50 @@ exports.create=function(options={}){
             defineVirtualDevice:defineVirtualDeviceMock,
             getDevice:id=>virtualDevices[id],
             defineRule:(key,r)=>{rules[board][key]={owner:name,...r};},
-            trackMqtt:(t,fn)=>{(handlers[board][t]||(handlers[board][t]=[])).push({owner:name,fn});},
+            trackMqtt:(t,fn)=>{
+                const list=handlers[board][t]||(handlers[board][t]=[]),h={owner:name,fn},joined=list.length>0;
+                list.push(h);
+                if(options.wb2465Replay){
+                    if(joined){const m=trackedCache[board][t];if(m)replays.push(()=>callback(board,h,m));}
+                    else if(options.retained&&Object.hasOwn(options.retained[board]||{},t)){
+                        const v=options.retained[board][t];replays.push(()=>deliver(board,t,v,true));
+                    }
+                }
+            },
             publish:(...a)=>publish(board,...a),setInterval:()=>1,setTimeout:()=>1});
         for(const level of ['info','warning','error'])context.log[level]=text=>logs.push({level,text,owner});
-        vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context,{filename:file});
+        vm.runInContext(fs.readFileSync(path.resolve(root,file),'utf8'),context,{filename:file});
         contexts[name]=context;owner=saved;
     }
     const scripts={'500':['boiler','boiler/wb-rules/500_HHM3_FSE.js'],
         '620':['boiler','boiler/wb-rules/620_thermostats.js'],
-        '624':['gazebo','gazebo/wb-rules/624_combo_besedka.js']};
-    for(const name of options.startOrder||['500','620','624'])runtime(scripts[name][0],name,scripts[name][1]);
-    function tick(id){const saved=owner;owner=id;try{contexts[id].evaluate();}finally{owner=saved;}}
+        '624':['gazebo','gazebo/wb-rules/624_combo_besedka.js'],
+        '600':['boiler','../Wirenboard/wb-rules/600_Heat_diagnostics.js']};
+    for(const name of options.startOrder||['500','620','624']){
+        runtime(scripts[name][0],name,scripts[name][1]);
+        if(options.wb2465Replay)flushMqtt();
+    }
+    function tick(id){const saved=owner;owner=id;try{if(id==='600')contexts[id].hdEvaluate();else contexts[id].evaluate();}finally{owner=saved;}}
     function rule(board,name,value){const r=rules[board][name],saved=owner;owner=r.owner;try{r.then(value);}finally{owner=saved;}}
     const temperatures={};
     Object.values(C.circuits).forEach(c=>{temperatures[c.supply]=25;temperatures[c.ret]=23;});
     temperatures[C.source.temperature]=50;temperatures[C.source.connection]=0;temperatures[C.source.fault]=0;
     Z.forEach(z=>temperatures[z.sensor]=z.kind==='floor'?20:18);
     const gazeboTemperatures={'921.09_MSW_TH/Temperature':20,'921.10_TEMP_NONE/External Sensor 1':23};
+    const health={boiler:{},gazebo:{}};
+    for(const [p,h]of Object.entries(C.m1w2Health))health[p.startsWith('921.')?'gazebo':'boiler'][h]=1;
+    temperatures['wb-m1w2_170/External Sensor 2']=40;
     function samples(){
         // Match the real 60-second max_unchanged_interval rather than sending
         // 50+ unchanged values every 5 seconds. Changes publish immediately.
+        for(const board of ['boiler','gazebo'])for(const [p,v]of Object.entries(health[board]))if(v!==undefined)periodic(board,p,v);
         for(const [p,v]of Object.entries(temperatures))if(v!==undefined)periodic('boiler',p,v);
         for(const p of Object.keys(own))if(values.boiler[p]!==undefined&&(!options.dropReadback||!options.dropReadback(p))){
             const v=values.boiler[p];periodic('boiler',p,typeof v==='boolean'?(v?1:0):v);
         }
         for(const [p,v]of Object.entries(gazeboTemperatures))if(v!==undefined)periodic('gazebo',p,v);
     }
-    return {C,Z,stores,values,definitions,writes,messages,logs,effects,modelPosition,contexts,load,temperatures,gazeboTemperatures,topic,
+    return {C,Z,stores,values,definitions,writes,messages,logs,effects,modelPosition,contexts,load,health,temperatures,gazeboTemperatures,topic,callbacks,flushMqtt,
         now:()=>now,time:t=>now=t,tick,rule,deliver,samples,topics:board=>Object.keys(handlers[board]),
         start:()=>rule('boiler','hhm3_first_start',true),
         set:(board,p,v)=>{values[board][p]=v;},

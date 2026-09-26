@@ -5,6 +5,68 @@ exports.number = W.number;
 exports.topic = function (path) { var p=path.indexOf('/'); return '/devices/'+path.slice(0,p)+'/controls/'+path.slice(p+1); };
 exports.io = function (env, owner, allowed) {
     var sensors={}, lastCommands={}, lastEvents={}, attempts=[];
+    // One outstanding serial read per rules instance; only startup/revalidation.
+    // Three bounded attempts per sensor, no permanent polling/heartbeat loop.
+    var proofBoot=env.proofStorage?W.nextSession(env.proofStorage):null, proofSeq=0, pending=null, proofNow=null, proofStart=env.now();
+    var proofTopic='/rpc/v1/wb-mqtt-serial/port/Load/hhm31-'+owner+'-'+proofBoot;
+    function proofClock(now){
+        if(proofNow!==null&&now<proofNow){pending=null;proofStart=now;Object.keys(sensors).forEach(function(p){sensors[p].proofTries=0;sensors[p].proofAfter=0;});}
+        proofNow=now;
+    }
+    function finishProof(why){
+        if(!pending)return;
+        var p=pending.path,s=sensors[p];pending=null;s.proofAfter=env.now()+60000;
+        if(why)env.log.warning('[отопление]['+owner+'][M1W2 '+p+']; POST_START_PROOF='+why);
+    }
+    function requestProof(path,stage,temperature){
+        var s=sensors[path],input=s.input,now=env.now();
+        proofSeq++;
+        pending={path:path,stage:stage,temperature:temperature,id:proofSeq,at:now,revision:s.sensor.revision()};
+        var params={device_id:path.substring(0,path.indexOf('/')),function:stage===0?4:2,
+            address:(stage===0?7:16)+input-1,count:1,format:'HEX',total_timeout:10000};
+        try{env.publish(proofTopic,JSON.stringify({id:proofSeq,params:params}),0,false);}
+        catch(e){finishProof('PUBLISH_FAILED');}
+    }
+    function pumpProof(){
+        if(proofBoot===null)return;
+        var now=env.now();proofClock(now);
+        if(now-proofStart<1000)return; // Let initial tracker replay settle; never trust it as proof.
+        if(pending&&(now-pending.at>=10000||sensors[pending.path].sensor.revision()!==pending.revision))finishProof('TIMEOUT_OR_STATE_CHANGED');
+        if(pending)return;
+        Object.keys(sensors).some(function(path){
+            var s=sensors[path];
+            if(!s.local||!s.sensor.needsProof()||(s.proofTries||0)>=3||now<(s.proofAfter||0))return false;
+            s.proofTries=(s.proofTries||0)+1;requestProof(path,0,null);return true;
+        });
+    }
+    if(proofBoot!==null)env.trackMqtt(proofTopic+'/reply',function(m){
+        var now=env.now();proofClock(now);
+        if(!pending||m.retained!==false||m.topic!==proofTopic+'/reply')return;
+        var r;try{r=JSON.parse(m.value);}catch(e){return;}
+        if(!r||r.id!==pending.id)return;
+        var q=pending,s=sensors[q.path];
+        if(now-q.at>=10000||s.sensor.revision()!==q.revision){finishProof('STALE_OR_STATE_CHANGED');return;}
+        if(r.error!==null||!r.result||r.result.exception||typeof r.result.response!=='string'){
+            finishProof('RPC_ERROR_OR_UNSUPPORTED');return;
+        }
+        var hex=r.result.response;
+        if(q.stage===0){
+            if(!/^[0-9a-fA-F]{4}$/.test(hex)){finishProof('BAD_TEMPERATURE_RESPONSE');return;}
+            var raw=parseInt(hex,16),t=(raw>=32768?raw-65536:raw)*0.0625;
+            if(raw===32767||t<s.min||t>s.max){finishProof('TEMPERATURE_INVALID');return;}
+            // WB template uses s16/16, with optional round_to=0.05. Accept only
+            // exact native or exact template-rounded local values, never epsilon.
+            var local;try{local=W.number(env.dev[q.path]);}catch(e){local=null;}
+            var rounded=Number(((t<0?-1:1)*Math.round(Math.abs(t)/0.05)*0.05).toFixed(2));
+            if(local!==t&&local!==rounded){finishProof('LOCAL_VALUE_MISMATCH');return;}
+            requestProof(q.path,1,local);return;
+        }
+        if(hex!=='01'){finishProof('HEALTH_NOT_OK');return;}
+        var accepted=s.sensor.qualifyFromPoll(q.temperature,1,q.revision,now,s.min,s.max);
+        finishProof(accepted?'':'LOCAL_STATE_NOT_HEALTHY');
+        if(env.onSample)env.onSample();
+        pumpProof();
+    });
     function numeric(v){return typeof v==='boolean'?(v?1:0):v;}
     var api={
         watch:function(path,min,max) {
@@ -13,11 +75,57 @@ exports.io = function (env, owner, allowed) {
             env.trackMqtt(exports.topic(path),function(m){s.sample(m.value,m.retained,env.now());if(m.retained===false&&s.runtimeStatus()==='SUPPORTED')sensors[path].seq++;if(env.onSample)env.onSample();});
             env.trackMqtt(exports.topic(path)+'/meta/error',function(m){s.error(m.value,m.retained);if(env.onSample)env.onSample();});
         },
-        read:function(path) {var s=sensors[path];return s?s.sensor.read(env.now(),s.min,s.max):null;},
+        watchM1w2:function(path,min,max) {
+            var healthPath=C.m1w2Health[path];
+            if(!healthPath)throw new Error('Missing explicit M1W2 health mapping: '+path);
+            if(sensors[path])throw new Error('Duplicate sensor policy: '+path);
+            var paths=[path,healthPath],s=W.localM1w2(function(channel){
+                var p=paths[channel],value=env.dev[p];
+                if(value===undefined||value===null)return null;
+                return {value:value,error:env.dev[p+'#error']};
+            });
+            sensors[path]={sensor:s,min:min,max:max,seq:0,local:true};
+            var channel=path.match(/\/External Sensor ([12])$/);
+            if(!channel||healthPath!==path+' OK')throw new Error('Unsupported explicit M1W2 register mapping: '+path);
+            sensors[path].input=Number(channel[1]);
+            paths.forEach(function(p,channel){
+                env.trackMqtt(exports.topic(p),function(m){
+                    s.sample(channel,m.value,m.retained,env.now());
+                    if(channel===0&&m.retained===false)sensors[path].seq++;
+                    if(env.onSample)env.onSample();
+                });
+                env.trackMqtt(exports.topic(p)+'/meta/error',function(m){
+                    s.error(channel,m.value,m.retained,env.now());
+                    if(env.onSample)env.onSample();
+                });
+            });
+        },
+        watchTemperature:function(path,min,max) {
+            if(sensors[path])return;
+            if(C.m1w2Health[path])api.watchM1w2(path,min,max);
+            else api.watch(path,min,max);
+        },
+        read:function(path) {
+            var s=sensors[path];if(!s)return null;
+            var value=s.sensor.read(env.now(),s.min,s.max);
+            if(s.local){if(value!==null){s.proofTries=0;s.proofAfter=0;}pumpProof();}
+            if(s.local){
+                var d=s.sensor.diagnostics(),signature=d.phase+';'+d.reason+';'+d.cause;
+                if(s.healthSignature!==signature){
+                    s.healthSignature=signature;
+                    var level=value===null?'warning':'info';
+                    env.log[level]('[отопление]['+owner+'][M1W2 '+path+']; '+JSON.stringify(d));
+                }
+            }
+            return value;
+        },
         at:function(path) {var s=sensors[path];return s?s.sensor.timestamp():null;},
+        // A health-qualified local observation is not a new numeric measurement.
+        // Thermal dwell logic uses this; command/readback age still uses at().
+        observedAt:function(path) {var s=sensors[path];return api.read(path)===null?null:(s.local?env.now():api.at(path));},
         seq:function(path) {return sensors[path]?sensors[path].seq:0;},
         matches:function(path,value) {return api.read(path)===numeric(value);},
-        begin:function(){attempts=[];},
+        begin:function(){attempts=[];pumpProof();},
         commands:function(paths){return attempts.filter(function(a){return paths.indexOf(a.path)>=0;});},
         readback:function(path){return {value:api.read(path),at:api.at(path),seq:api.seq(path)};},
         runtime:function() {
@@ -98,15 +206,15 @@ exports.source=function(config,storage,io) {
         if(t!==null&&t>=config.hardMaxC)storage.hot=true;
         if(storage.hot) {
             if(t===null||t>config.recoverC)coolAt=null;
-            else if(coolAt===null){coolAt=now;firstSample=io.at(config.temperature);}
-            if(coolAt!==null&&now-coolAt>=config.coolMs&&io.at(config.temperature)>firstSample)storage.hot=false;
+            else if(coolAt===null){coolAt=now;firstSample=io.observedAt(config.temperature);}
+            if(coolAt!==null&&now-coolAt>=config.coolMs&&io.observedAt(config.temperature)>firstSample)storage.hot=false;
         }
         var state='ACTIVE',warning='',command=null,ok=true,sent=false;
         function write(path,value){var w=io.write(path,value);sent=w.sent||sent;return w.ok;}
         if(!inService)state='FIRST_COMMISSIONING';
         else if(storage.hot){state='SOURCE_OVERHEAT';warning='Аппаратные защиты котла обязательны; насосы соседей не выключаются';}
         else if(connection!==0||fault!==0){state='OT_UNAVAILABLE';warning='Нет свежей исправной связи OT; новые команды удержаны';}
-        else if(t===null){state='SOURCE_SENSOR_UNAVAILABLE';warning='Нет свежего 411; новые команды удержаны';}
+        else if(t===null){state='SOURCE_SENSOR_UNAVAILABLE';warning='Нет достоверного 411; новые команды удержаны';}
         else if(requested===0&&demandKnown===false){state='REQUESTS_UNAVAILABLE';warning='Запрос 0, но отсутствие спроса не подтверждено: команду OFF не выдаём';}
         else if(requested===0){
             state='NO_DEMAND';

@@ -1,4 +1,4 @@
-/* HHM 3.0 FSE — Иволга. Карта дома 09.09.2026 + Issue #59. */
+/* HHM 3.1 — Иволга. Карта дома 09.09.2026 + Issue #59. */
 exports.zones = [
     {
         "id": "601",
@@ -313,7 +313,7 @@ function mixed(id, ch, supply, ret, extra) {
     Object.keys(extra||{}).forEach(function(k){c[k]=extra[k];});return c;
 }
 exports.config={
-    version:'3.0.0-FSE',minWbRules:'2.42.0',periodMs:5000,sensorTtlMs:120000,
+    version:'3.1',healthContract:'m1w2-health-v1',minWbRules:'2.42.0',periodMs:5000,sensorTtlMs:120000,
     houseTopic:'/neiro/ivolga/hhm3/house/frame',houseSource:'ivolga-hhm3-house',
     eventTopic:'/neiro/ivolga/hhm3/events',requestTtlMs:15000,
     // Explicit tie ordering: incumbent house first, then gazebo/outbuilding.
@@ -346,3 +346,27 @@ exports.config={
 };
 
 exports.config.circuits['504'].pump='A03/K4';
+
+// Explicit object inventory: 9 house floors + 10 boiler + 1 gazebo. No name inference.
+exports.config.m1w2Health={
+    "903.09_TEMP_NONE/External Sensor 1": "903.09_TEMP_NONE/External Sensor 1 OK",
+    "902.11_M1W2_TEMP_NONE/External Sensor 1": "902.11_M1W2_TEMP_NONE/External Sensor 1 OK",
+    "902.09_M1W2_TEMP_NONE/External Sensor 1": "902.09_M1W2_TEMP_NONE/External Sensor 1 OK",
+    "902.06_M1W2_TEMP_NONE/External Sensor 1": "902.06_M1W2_TEMP_NONE/External Sensor 1 OK",
+    "902.04_M1W2_LEAK_TEMP/External Sensor 2": "902.04_M1W2_LEAK_TEMP/External Sensor 2 OK",
+    "902.13_M1W2_LEAK_TEMP/External Sensor 2": "902.13_M1W2_LEAK_TEMP/External Sensor 2 OK",
+    "902.02_M1W2_TEMP_NONE/External Sensor 1": "902.02_M1W2_TEMP_NONE/External Sensor 1 OK",
+    "903.02_M1W2_LEAK_TEMP/External Sensor 2": "903.02_M1W2_LEAK_TEMP/External Sensor 2 OK",
+    "903.06_M1W2_LEAK_TEMP/External Sensor 2": "903.06_M1W2_LEAK_TEMP/External Sensor 2 OK",
+    "wb-m1w2_170/External Sensor 1": "wb-m1w2_170/External Sensor 1 OK",
+    "wb-m1w2_170/External Sensor 2": "wb-m1w2_170/External Sensor 2 OK",
+    "wb-m1w2_141/External Sensor 1": "wb-m1w2_141/External Sensor 1 OK",
+    "wb-m1w2_141/External Sensor 2": "wb-m1w2_141/External Sensor 2 OK",
+    "wb-m1w2_167/External Sensor 1": "wb-m1w2_167/External Sensor 1 OK",
+    "wb-m1w2_167/External Sensor 2": "wb-m1w2_167/External Sensor 2 OK",
+    "wb-m1w2_121/External Sensor 1": "wb-m1w2_121/External Sensor 1 OK",
+    "wb-m1w2_173/External Sensor 1": "wb-m1w2_173/External Sensor 1 OK",
+    "wb-m1w2_173/External Sensor 2": "wb-m1w2_173/External Sensor 2 OK",
+    "wb-m1w2_166/External Sensor 1": "wb-m1w2_166/External Sensor 1 OK",
+    "921.10_TEMP_NONE/External Sensor 1": "921.10_TEMP_NONE/External Sensor 1 OK"
+};

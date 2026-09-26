@@ -132,7 +132,7 @@ class MigrationTests(PressureFixture):
     def setUp(self):
         super().setUp()
         root = Path(__file__).resolve().parents[2]
-        raw = (root / 'NLI/releases/hhm-boiler-3.1.json').read_bytes().replace(b'\r\n', b'\n')
+        raw = (root / 'NLI/known/hhm-boiler-3.1.json').read_bytes().replace(b'\r\n', b'\n')
         self.actual = json.loads(raw)
         self.put(DATA_DIR + '/known/hhm-boiler-3.1.json', raw)
         self.assertEqual(digest(raw), '3c17f811f1580306c440143de958d723d26bb3ed7151f81991d4b957d0a2eb09')

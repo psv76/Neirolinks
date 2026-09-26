@@ -46,7 +46,8 @@ def build(output, epoch=0):
     for path in sorted((ROOT / "releases").rglob("*.js")):
         data.append(("usr/share/neiro-nli/payload/NLI/" + path.relative_to(ROOT).as_posix(),
                      path.read_bytes(), 0o644))
-    for path in sorted((ROOT / 'releases').glob('hhm-*.json')):
+    # Recognition baselines stay immutable when deployment manifests advance.
+    for path in sorted((ROOT / 'known').glob('hhm-*.json')):
         data.append(('usr/share/neiro-nli/known/' + path.name,
                      path.read_bytes().replace(b'\r\n', b'\n'), 0o644))
     data.append(("usr/share/neiro-nli/manifest.schema.json", (ROOT / "manifest.schema.json").read_bytes().replace(b"\r\n", b"\n"), 0o644))
