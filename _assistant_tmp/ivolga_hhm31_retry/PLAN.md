@@ -191,3 +191,19 @@ The workflow intentionally spends time only on live facts CI and previous histor
 ### Live correction from the first gazebo preflight
 
 The first preflight observed a fresh valid 504 frame with a healthy floor value while a short direct MQTT snapshot of `921.10` and its `OK` control saw no new publication. That is not a failed sensor. It demonstrates the exact silent-unchanged condition behind #68. Therefore `port/Load` capability probing must not be gated by receiving a new MQTT temperature/OK sample first.
+
+
+## Confirmed live baseline before gazebo deployment
+
+On 26.09.2026 the gazebo preflight reproduced the defect while simultaneously proving healthy hardware:
+
+- 504 frame: `valid=false`, `reason=FLOOR_SENSOR_INVALID`, `floor=null`;
+- air healthy;
+- direct MQTT 921.10/OK silent in the observation window;
+- `port/Load` FC04 returned 22.8125 °C;
+- `port/Load` FC02 returned healthy Sensor OK;
+- both RPC reads completed in about 102 ms.
+
+Interpretation: this is **expected-old-runtime evidence**. The pre-deploy gate must not require old 624 to be valid, because that would block the very fix being validated. It records `old_runtime_false_invalid_reproduced=true` when this exact combination is seen. Hardware proof failure still blocks deployment.
+
+Post-deploy acceptance is intentionally stricter: during the 600 s gazebo smoke, any `FLOOR_SENSOR_INVALID` is a failure.
