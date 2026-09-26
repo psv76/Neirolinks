@@ -1,92 +1,178 @@
 # Temporary assistant workspace — Ivolga HHM 3.1 retry
 
-This directory is temporary field-engineering material and must **not** be merged into PR #73.
+This directory is temporary and exists only for the controlled retry work.
 
 Files:
 
-- `PLAN.md` — history-first controlled retry plan;
-- `field_retry.py` — stdlib-only helper for history, preflight, staging, controlled update and passive smoke;
+- `PLAN.md` — canonical history-first retry plan;
+- `field_retry.py` — stdlib-only field helper;
 - `field_retry.py.sha256` — helper checksum.
 
-The helper is read-only by default. Persistent NLI target staging is also guarded: standalone `stage` requires `--execute`. The only HHM runtime mutation path is:
+## Live topology rule
+
+Gazebo and boiler are intentionally treated differently.
+
+### Gazebo
+
+Current live baseline:
+
+- `624_combo_besedka.js` + shared `HHM3Config / HHM3Wire / HHM3Runtime`;
+- no full HHM controller;
+- no NLI;
+- publishes the non-retained 504 frame over the existing MQTT bridge.
+
+Therefore:
+
+- gazebo `history`, `preflight`, and `smoke` are supported;
+- gazebo `stage` / NLI `retry` are deliberately NOT supported;
+- missing `nli` on gazebo is expected and is not a preflight failure;
+- first-time NLI installation on gazebo is a separate migration decision.
+
+### Boiler
+
+Boiler already has NLI 0.1.9. Boiler `stage`, `retry`, and `unstage` use that existing NLI installation.
+
+## Filesystem rule
+
+Persistent configuration is read from:
+
+`/mnt/data/etc`
+
+The helper uses that path directly for runtime inventory and config summaries.
+
+Important paths:
+
+- `/mnt/data/etc/wb-rules/`
+- `/mnt/data/etc/wb-rules-modules/`
+- `/mnt/data/etc/wb-mqtt-serial.conf`
+- `/mnt/data/etc/wb-mqtt-db.conf`
+- boiler NLI: `/mnt/data/etc/neiro/nli/`
+
+Do not use `/etc` as the source of truth for field inventory.
+
+## Safety model
+
+Read-only by default.
+
+The only direct Modbus operation is one bounded read-only `wb-mqtt-serial/port/Load` pair using FC04 + FC02 on one representative M1W2.
+
+The helper does not:
+
+- restart `wb-mqtt-serial`;
+- update/recover firmware;
+- create artificial numeric republishes;
+- deliberately force sensor failures;
+- modify 507;
+- auto-rollback on HHM business state.
+
+Boiler mutation requires:
 
 ```sh
-python3 field_retry.py retry --role <gazebo|boiler> --execute-update
+python3 field_retry.py retry --role boiler --execute-update
 ```
 
-It still requires a second interactive confirmation (`UPDATE GAZEBO` / `UPDATE BOILER`) immediately before `nli update hhm`.
+and then an interactive confirmation phrase.
 
-It never:
+## Immutable helper bootstrap
 
-- updates firmware;
-- restarts `wb-mqtt-serial` directly;
-- writes Modbus registers directly;
-- writes actuator MQTT topics directly;
-- changes 507;
-- auto-rolls back after a functional smoke failure;
-- merges or publishes PR #73.
+Use helper/checksum commit:
 
-The only direct Modbus operation outside HHM is a bounded **read-only** `wb-mqtt-serial/port/Load` probe using FC04 and FC02 on one representative M1W2 per controller.
-
-## Bootstrap on a WB
-
-Use the immutable helper/checksum commit `3cdf77a41f540946410d5ec86d3f94b2cb6ad416`:
+`491bb450b2795322e6abe110da0440f66471cb91`
 
 ```sh
 install -d -m 0700 /root/hhm31-retry
 cd /root/hhm31-retry
-curl -fL -o field_retry.py https://raw.githubusercontent.com/psv76/Neirolinks/3cdf77a41f540946410d5ec86d3f94b2cb6ad416/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
-curl -fL -o field_retry.py.sha256 https://raw.githubusercontent.com/psv76/Neirolinks/3cdf77a41f540946410d5ec86d3f94b2cb6ad416/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
+
+curl -fsSL -o field_retry.py \
+https://raw.githubusercontent.com/psv76/Neirolinks/491bb450b2795322e6abe110da0440f66471cb91/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
+
+curl -fsSL -o field_retry.py.sha256 \
+https://raw.githubusercontent.com/psv76/Neirolinks/491bb450b2795322e6abe110da0440f66471cb91/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
+
 sha256sum -c field_retry.py.sha256
 python3 field_retry.py selftest
 ```
 
-Expected SHA256: `fc22dfe192359c7e1d6b7d18e6bae66c8608cf031098c9a96f8096a5c9ed8e85`.
+Expected helper SHA256:
 
-## Recommended sequence
+`30a0a62fd6a15ab7b084ceb59d3a8b30108964b92e96d8497370fb98b387bef9`
 
-Before the maintenance window:
+## Current next step — gazebo
 
-```sh
-python3 field_retry.py selftest
-python3 field_retry.py history --role gazebo --hours 24
-python3 field_retry.py preflight --role gazebo
-```
+Gazebo 24 h history has already been collected. Do not repeat it.
 
-For the controlled gazebo retry, only after preflight PASS:
+Run only:
 
 ```sh
-python3 field_retry.py retry --role gazebo --execute-update
+cd /root/hhm31-retry
+
+LOG="/mnt/data/var/log/neiro/hhm31-field-retry/gazebo-preflight-$(date +%Y%m%d-%H%M%S).log"
+
+python3 field_retry.py preflight \
+  --role gazebo \
+  --skip-history \
+  >"$LOG" 2>&1
+
+RC=$?
+
+echo "===== PREFLIGHT EXIT ====="
+echo "$RC"
+echo "===== SAVED ====="
+echo "$LOG"
+echo "===== LAST 80 LINES ====="
+tail -n 80 "$LOG"
 ```
 
-Do not run the boiler retry until gazebo returns PASS. Then:
+Gazebo preflight checks:
+
+- package/service state;
+- current runtime files under `/mnt/data/etc` + hashes;
+- 921.10 temperature/OK/errors;
+- air sensor;
+- live 504 frame;
+- read-only `port/Load` FC04+FC02 proof.
+
+It does not call or require NLI.
+
+After gazebo preflight PASS, stop and explicitly choose the delivery method for the new 624 + shared modules. Do not install NLI automatically.
+
+After that separately approved gazebo deployment, acceptance is:
+
+```sh
+python3 field_retry.py smoke --role gazebo --stability-seconds 600
+```
+
+## Boiler sequence — only after gazebo PASS
 
 ```sh
 python3 field_retry.py history --role boiler --hours 24
-python3 field_retry.py preflight --role boiler
+python3 field_retry.py preflight --role boiler --skip-history
 python3 field_retry.py retry --role boiler --execute-update
 ```
 
-Evidence is written under `/mnt/data/var/log/neiro/hhm31-field-retry/` so it survives service restart/reboot. NLI keeps its own normal audit/backups separately under `/mnt/data`.
+Boiler preflight requires existing NLI 0.1.9 and no pending mutation.
 
-`stage` additionally creates only:
+## Evidence
 
-- `/mnt/data/etc/neiro/nli/config.json.pre-hhm31-retry`;
-- one exact retry manifest in `/mnt/data/etc/neiro/nli/releases/`.
+Persistent evidence:
 
-`stage` is transactional before runtime mutation: failed `nli check hhm`, cancellation, or interruption before `nli update` restores the original target. After `nli update` starts, no automatic target restore or rollback is attempted.
+`/mnt/data/var/log/neiro/hhm31-field-retry/`
 
-`unstage` restores only the helper-created config backup and removes the exact helper-created retry manifest. It refuses to run while NLI has pending mutation state or if the current config no longer matches the exact staged target. It never changes HHM runtime. Do not use it until the desired final NLI target configuration has been decided.
+Boiler-only staging files:
 
-## Removal
+- `/mnt/data/etc/neiro/nli/config.json.pre-hhm31-retry`
+- one helper retry manifest in `/mnt/data/etc/neiro/nli/releases/`
 
-This workspace lives on a separate temporary GitHub branch. After field acceptance and after any required evidence has been copied into permanent issues/PRs, delete the temporary branch; no production cleanup commit is required.
+## Cleanup after the work is complete
 
-On a WB, once evidence is no longer needed and the NLI target config is deliberately being restored:
+Do not clean up until live acceptance and final target state are confirmed.
 
-```sh
-python3 field_retry.py unstage --execute
-rm -rf /mnt/data/var/log/neiro/hhm31-field-retry
-```
+Temporary GitHub directory:
 
-If `nli` is not installed, preflight still completes hardware/history checks and reports NLI as a deployment blocker instead of aborting. Use `--skip-history` when history was already collected separately.
+`_assistant_tmp/ivolga_hhm31_retry/`
+
+Temporary branch:
+
+`assistant/ivolga-hhm31-controlled-retry`
+
+The exact deletion steps will be given after the controlled retry is finished.
