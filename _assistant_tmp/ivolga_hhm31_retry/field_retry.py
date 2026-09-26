@@ -454,11 +454,17 @@ def gazebo_frame_probe(seconds: float = 7.0) -> Dict[str, Any]:
         frame = json.loads(payload)
     except json.JSONDecodeError:
         return {"ok": False, "topic": GAZEBO_FRAME_TOPIC, "error": "frame is not JSON", "payload": payload}
+    now_ms = int(time.time() * 1000)
+    sent_ms = numeric(frame.get("sent_ms"))
+    ttl_ms = numeric(frame.get("ttl_ms"))
+    age_ms = None if sent_ms is None else now_ms - sent_ms
+    fresh = (age_ms is not None and ttl_ms is not None and age_ms >= -2000 and age_ms <= ttl_ms)
     ok = (frame.get("source") == "ivolga-besedka-504" and
           isinstance(frame.get("session_id"), (int, float)) and
           isinstance(frame.get("seq"), (int, float)) and
-          frame.get("ttl_ms") == 30000)
-    return {"ok": bool(ok), "topic": GAZEBO_FRAME_TOPIC, "frame": frame}
+          frame.get("ttl_ms") == 30000 and fresh)
+    return {"ok": bool(ok), "topic": GAZEBO_FRAME_TOPIC, "frame": frame,
+            "age_ms": age_ms, "fresh": fresh}
 
 
 def nli_call(args: List[str], timeout: int = 120) -> Dict[str, Any]:
@@ -485,7 +491,14 @@ def nli_version() -> Optional[str]:
         return m.group(1) if m else None
 
 
-def port_load_probe(sensor_path: str) -> Dict[str, Any]:
+def port_load_probe(sensor_path: str, reference_temp: Optional[float] = None) -> Dict[str, Any]:
+    """Prove serial-read capability without requiring a fresh MQTT publication.
+
+    An unchanged healthy M1W2 may be silent on MQTT; that is the cold-start
+    condition under test. If a current MQTT value is observed, it is used as an
+    extra consistency check. A caller may also pass a fresh application-frame
+    temperature as the local reference.
+    """
     m = re.search(r"/External Sensor ([12])$", sensor_path)
     if not m:
         return {"ok": False, "error": "unsupported sensor path"}
@@ -495,12 +508,12 @@ def port_load_probe(sensor_path: str) -> Dict[str, Any]:
     snap = snapshot_controls([sensor_path, health])
     local_temp = numeric(snap[sensor_path]["value"])
     local_ok = snap[health]["value"]
-    if local_temp is None or not is_ok(local_ok):
-        return {"ok": False, "error": "local controls not healthy", "snapshot": snap}
     for p in (sensor_path, health):
         err = snap[p].get("error")
         if err not in (None, "", 0, False):
             return {"ok": False, "error": f"local control error on {p}: {err}", "snapshot": snap}
+    if snap[health].get("value_seen") and not is_ok(local_ok):
+        return {"ok": False, "error": "observed local OK is not healthy", "snapshot": snap}
 
     client = f"hhm31-preflight-{os.getpid()}-{int(time.time()*1000)%1000000}"
     topic = f"/rpc/v1/wb-mqtt-serial/port/Load/{client}"
@@ -522,9 +535,14 @@ def port_load_probe(sensor_path: str) -> Dict[str, Any]:
     signed = raw - 65536 if raw >= 32768 else raw
     bus_temp = signed * 0.0625
     rounded = round_template_005(bus_temp)
-    if local_temp not in (bus_temp, rounded):
-        return {"ok": False, "error": "bus/local temperature mismatch", "bus_temp": bus_temp,
+    if local_temp is not None and local_temp not in (bus_temp, rounded):
+        return {"ok": False, "error": "bus/current-MQTT temperature mismatch", "bus_temp": bus_temp,
                 "local_temp": local_temp, "reply": r1, "snapshot": snap}
+    if reference_temp is not None:
+        ref = numeric(reference_temp)
+        if ref is None or ref not in (bus_temp, rounded):
+            return {"ok": False, "error": "bus/reference temperature mismatch", "bus_temp": bus_temp,
+                    "reference_temp": reference_temp, "reply": r1, "snapshot": snap}
 
     req_id2 = req_id + 1
     p2 = {"id": req_id2, "params": {"device_id": device, "function": 2,
@@ -539,7 +557,10 @@ def port_load_probe(sensor_path: str) -> Dict[str, Any]:
     if r2["result"].get("response") != "01":
         return {"ok": False, "error": "health register is not OK", "reply": r2, "snapshot": snap}
     return {"ok": True, "sensor": sensor_path, "local_temp": local_temp, "bus_temp": bus_temp,
-            "local_ok": local_ok, "temperature_rtt_ms": round(ms1, 1), "health_rtt_ms": round(ms2, 1),
+            "local_ok": local_ok, "reference_temp": reference_temp,
+            "mqtt_value_seen": snap[sensor_path].get("value_seen"),
+            "mqtt_ok_seen": snap[health].get("value_seen"),
+            "temperature_rtt_ms": round(ms1, 1), "health_rtt_ms": round(ms2, 1),
             "snapshot": snap}
 
 
@@ -600,12 +621,25 @@ def preflight_role(role: str, hours: int = 24, save: bool = True, include_histor
         checks["nli_present"] = shutil.which("nli") is not None
         checks["nli_note"] = "Gazebo live baseline has no NLI; presence is informational only"
 
-    checks["sensor_health"] = current_sensor_health(role)
     if role == "gazebo":
         checks["air_sensor"] = snapshot_controls([GAZEBO_AIR], include_errors=True)[GAZEBO_AIR]
         checks["frame_probe"] = gazebo_frame_probe()
-    representative = GAZEBO_FLOOR if role == "gazebo" else "wb-m1w2_170/External Sensor 1"
-    checks["port_load_probe"] = port_load_probe(representative)
+        frame = (checks["frame_probe"].get("frame") or {}) if checks["frame_probe"].get("ok") else {}
+        floor_ref = numeric(frame.get("floor"))
+        frame_valid = frame.get("valid") is True
+        checks["sensor_health"] = {
+            "ok": bool(frame_valid and floor_ref is not None and -20 <= floor_ref <= 70),
+            "source": "live_504_frame",
+            "floor": floor_ref,
+            "frame_valid": frame_valid,
+            "frame_age_ms": checks["frame_probe"].get("age_ms"),
+            "mqtt_snapshot": snapshot_controls([GAZEBO_FLOOR, GAZEBO_FLOOR + " OK"]),
+            "note": "fresh unchanged MQTT publication is not required; port/Load is tested independently",
+        }
+        checks["port_load_probe"] = port_load_probe(GAZEBO_FLOOR, reference_temp=floor_ref)
+    else:
+        checks["sensor_health"] = current_sensor_health(role)
+        checks["port_load_probe"] = port_load_probe("wb-m1w2_170/External Sensor 1")
     checks["history"] = history_role(role, hours=hours, save=False) if include_history else {
         "skipped": True,
         "reason": "already collected separately",
@@ -635,7 +669,10 @@ def preflight_role(role: str, hours: int = 24, save: bool = True, include_histor
             failures.append("gazebo live frame probe failed: " + str(checks["frame_probe"].get("error")))
 
     if not checks["sensor_health"]["ok"]:
-        failures.extend(checks["sensor_health"]["failures"])
+        if role == "gazebo":
+            failures.append("gazebo live 504 frame does not contain a healthy in-range floor value")
+        else:
+            failures.extend(checks["sensor_health"]["failures"])
     if not checks["port_load_probe"].get("ok"):
         failures.append("port/Load representative proof failed: " + str(checks["port_load_probe"].get("error")))
     report["failures"] = failures
@@ -1077,6 +1114,7 @@ def print_preflight_summary(report: Dict[str, Any]) -> None:
         "runtime_files_ok": inv.get("ok"),
         "runtime_files_missing": inv.get("missing"),
         "sensor_health_ok": (checks.get("sensor_health") or {}).get("ok"),
+        "sensor_health_source": (checks.get("sensor_health") or {}).get("source"),
         "port_load_ok": probe.get("ok"),
         "port_load_temperature_rtt_ms": probe.get("temperature_rtt_ms"),
         "port_load_health_rtt_ms": probe.get("health_rtt_ms"),
@@ -1087,6 +1125,10 @@ def print_preflight_summary(report: Dict[str, Any]) -> None:
     if report.get("role") == "gazebo":
         summary["nli_present_informational"] = checks.get("nli_present")
         summary["frame_probe_ok"] = (checks.get("frame_probe") or {}).get("ok")
+        summary["frame_age_ms"] = (checks.get("frame_probe") or {}).get("age_ms")
+        mqtt_snap = (checks.get("sensor_health") or {}).get("mqtt_snapshot") or {}
+        summary["mqtt_floor_value_seen"] = mqtt_snap.get(GAZEBO_FLOOR, {}).get("value_seen")
+        summary["mqtt_floor_ok_seen"] = mqtt_snap.get(GAZEBO_FLOOR + " OK", {}).get("value_seen")
     else:
         summary["nli_version"] = checks.get("nli_version")
         hist = checks.get("history") or {}
