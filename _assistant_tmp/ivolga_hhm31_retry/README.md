@@ -40,11 +40,11 @@ Current-baseline manifest SHA256:
 
 Immutable helper/checksum commit:
 
-`90f3b4e2840d443dca6a4cce7bccda214e23ec69`
+`3aed78ae7ebbff007e5d68a5dee4e1c0034e83ad`
 
 Helper SHA256:
 
-`ecb96eee502d8f7c1f3e1537a8545d8b85ed4eb1795e69c24881c7cd86114d38`
+`a48ed4a489006d1c0a5f99958a1c45b5c9c8bcb969f6e7937357b31f51f17ada`
 
 Refresh helper on gazebo:
 
@@ -52,10 +52,10 @@ Refresh helper on gazebo:
 cd /root/hhm31-retry
 
 curl -fsSL -o field_retry.py \
-https://raw.githubusercontent.com/psv76/Neirolinks/90f3b4e2840d443dca6a4cce7bccda214e23ec69/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
+https://raw.githubusercontent.com/psv76/Neirolinks/3aed78ae7ebbff007e5d68a5dee4e1c0034e83ad/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
 
 curl -fsSL -o field_retry.py.sha256 \
-https://raw.githubusercontent.com/psv76/Neirolinks/90f3b4e2840d443dca6a4cce7bccda214e23ec69/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
+https://raw.githubusercontent.com/psv76/Neirolinks/3aed78ae7ebbff007e5d68a5dee4e1c0034e83ad/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
 
 sha256sum -c field_retry.py.sha256
 python3 field_retry.py selftest
@@ -72,7 +72,7 @@ python3 field_retry.py bootstrap-nli --execute-install
 python3 field_retry.py adoption-inventory --role gazebo
 ```
 
-`bootstrap-nli` installs only approved NLI 0.1.9. It verifies the fixed bootstrap before execution and checks that wb-rules / wb-mqtt-serial were not restarted.
+`bootstrap-nli` installs only approved NLI 0.1.9. It verifies the fixed bootstrap SHA, runs the bootstrap in `--check` mode first, refuses to install if the approved catalog no longer resolves to exactly 0.1.9 with the expected package SHA, and checks that wb-rules / wb-mqtt-serial were not restarted.
 
 It does not create object config and does not alter HHM.
 
