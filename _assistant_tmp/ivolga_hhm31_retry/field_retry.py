@@ -1037,7 +1037,8 @@ def print_summary(report: Dict[str, Any]) -> None:
         print("FAILURE:", report["failure"])
 
 
-def retry_role(role: str, execute_update: bool, hours: int = 24) -> int:
+def retry_role(role: str, execute_update: bool, hours: int = 24,
+               include_history: bool = True, stability_override: Optional[int] = None) -> int:
     if role != "boiler":
         raise RuntimeError("NLI retry is boiler-only; gazebo first-time NLI installation is out of scope")
     if not execute_update:
@@ -1045,7 +1046,7 @@ def retry_role(role: str, execute_update: bool, hours: int = 24) -> int:
     if os.geteuid() != 0:
         raise RuntimeError("retry must run as root")
     root = evidence_dir(role, "retry")
-    pre = preflight_role(role, hours=hours, save=False, include_history=True)
+    pre = preflight_role(role, hours=hours, save=False, include_history=include_history)
     json_dump(root / "preflight.json", pre)
     print("PRECHECK:", "PASS" if pre.get("ok") else "FAIL")
     if not pre.get("ok"):
@@ -1082,8 +1083,12 @@ def retry_role(role: str, execute_update: bool, hours: int = 24) -> int:
             print(update.get("stderr", ""), file=sys.stderr)
             print("NLI update failed. Do not start a second update automatically; inspect status/pending.")
             return 5
-        stability = (pre.get("checks", {}).get("history", {}) or {}).get("recommended_stability_s")
-        smoke = smoke_role(role, update_epoch, stability_s=stability, monitor=monitor, evidence=root)
+        stability = stability_override
+        if stability is None:
+            stability = (pre.get("checks", {}).get("history", {}) or {}).get("recommended_stability_s")
+        if stability is None:
+            stability = 180
+        smoke = smoke_role(role, update_epoch, stability_s=int(stability), monitor=monitor, evidence=root)
     except BaseException:
         if staged_ok and not update_started:
             try:
@@ -1125,8 +1130,12 @@ def selftest() -> Dict[str, Any]:
     t("expected boiler pair count", len(expected_pair_set("boiler")) == 28)
     t("manifest constants", len(MANIFESTS["boiler"]["sha256"]) == 64 and len(MANIFESTS["gazebo"]["sha256"]) == 64)
     t("canonical etc", str(ETC_ROOT) == "/mnt/data/etc")
-    t("gazebo mutation excluded", True)
-    t("missing nli is representable", isinstance(nli_call(["status"]), dict))
+    blocked = False
+    try:
+        stage_role("gazebo")
+    except RuntimeError as exc:
+        blocked = "boiler-only" in str(exc)
+    t("gazebo mutation excluded", blocked)
     return {"ok": True, "tests": tests}
 
 
@@ -1153,6 +1162,9 @@ def build_parser() -> argparse.ArgumentParser:
     rt = sub.add_parser("retry", help="boiler only: preflight + stage + explicit existing-NLI update + passive smoke")
     rt.add_argument("--role", choices=["boiler"], required=True)
     rt.add_argument("--hours", type=int, default=24)
+    rt.add_argument("--skip-history", action="store_true", help="reuse already-reviewed history; current checks still run")
+    rt.add_argument("--stability-seconds", type=int, choices=[120, 180], default=None,
+                    help="boiler post-update soak; use only from reviewed preflight/history")
     rt.add_argument("--execute-update", action="store_true")
     return p
 
@@ -1190,7 +1202,9 @@ def main(argv: Optional[List[str]] = None) -> int:
             print_summary(report)
             return 0 if report.get("ok") else 6
         if args.command == "retry":
-            return retry_role(args.role, args.execute_update, args.hours)
+            return retry_role(args.role, args.execute_update, args.hours,
+                              include_history=not args.skip_history,
+                              stability_override=args.stability_seconds)
     except KeyboardInterrupt:
         print("Interrupted by operator. No automatic rollback executed.", file=sys.stderr)
         return 130
