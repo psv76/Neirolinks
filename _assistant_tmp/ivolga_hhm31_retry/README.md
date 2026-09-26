@@ -8,7 +8,7 @@ Files:
 - `field_retry.py` — stdlib-only helper for history, preflight, staging, controlled update and passive smoke;
 - `field_retry.py.sha256` — helper checksum.
 
-The helper is read-only by default. The only HHM mutation path is:
+The helper is read-only by default. Persistent NLI target staging is also guarded: standalone `stage` requires `--execute`. The only HHM runtime mutation path is:
 
 ```sh
 python3 field_retry.py retry --role <gazebo|boiler> --execute-update
@@ -52,14 +52,16 @@ python3 field_retry.py preflight --role boiler
 python3 field_retry.py retry --role boiler --execute-update
 ```
 
-Evidence is written under `/tmp/hhm31-field-retry/`. NLI keeps its own normal audit/backups under `/mnt/data`.
+Evidence is written under `/mnt/data/var/log/neiro/hhm31-field-retry/` so it survives service restart/reboot. NLI keeps its own normal audit/backups separately under `/mnt/data`.
 
 `stage` additionally creates only:
 
 - `/mnt/data/etc/neiro/nli/config.json.pre-hhm31-retry`;
 - one exact retry manifest in `/mnt/data/etc/neiro/nli/releases/`.
 
-`unstage` restores only the helper-created config backup and removes the helper-created retry manifest. It never changes NLI state or HHM runtime. Do not use it until the desired final NLI target configuration has been decided.
+`stage` is transactional before runtime mutation: failed `nli check hhm`, cancellation, or interruption before `nli update` restores the original target. After `nli update` starts, no automatic target restore or rollback is attempted.
+
+`unstage` restores only the helper-created config backup and removes the exact helper-created retry manifest. It refuses to run while NLI has pending mutation state or if the current config no longer matches the exact staged target. It never changes HHM runtime. Do not use it until the desired final NLI target configuration has been decided.
 
 ## Removal
 
@@ -69,5 +71,5 @@ On a WB, once evidence is no longer needed and the NLI target config is delibera
 
 ```sh
 python3 field_retry.py unstage --execute
-rm -rf /tmp/hhm31-field-retry
+rm -rf /mnt/data/var/log/neiro/hhm31-field-retry
 ```
