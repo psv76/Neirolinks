@@ -30,18 +30,18 @@ The only direct Modbus operation outside HHM is a bounded **read-only** `wb-mqtt
 
 ## Bootstrap on a WB
 
-Use the immutable helper/checksum commit `b746c59e7d18fafd793f304a087b63e2f669e85e`:
+Use the immutable helper/checksum commit `3cdf77a41f540946410d5ec86d3f94b2cb6ad416`:
 
 ```sh
 install -d -m 0700 /root/hhm31-retry
 cd /root/hhm31-retry
-curl -fL -o field_retry.py https://raw.githubusercontent.com/psv76/Neirolinks/b746c59e7d18fafd793f304a087b63e2f669e85e/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
-curl -fL -o field_retry.py.sha256 https://raw.githubusercontent.com/psv76/Neirolinks/b746c59e7d18fafd793f304a087b63e2f669e85e/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
+curl -fL -o field_retry.py https://raw.githubusercontent.com/psv76/Neirolinks/3cdf77a41f540946410d5ec86d3f94b2cb6ad416/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
+curl -fL -o field_retry.py.sha256 https://raw.githubusercontent.com/psv76/Neirolinks/3cdf77a41f540946410d5ec86d3f94b2cb6ad416/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
 sha256sum -c field_retry.py.sha256
 python3 field_retry.py selftest
 ```
 
-Expected SHA256: `05c9b8702ec0b91d0c0ac47255be1c70f5a69f4b68c7ac00296446fa24d35f6c`.
+Expected SHA256: `fc22dfe192359c7e1d6b7d18e6bae66c8608cf031098c9a96f8096a5c9ed8e85`.
 
 ## Recommended sequence
 
@@ -88,3 +88,5 @@ On a WB, once evidence is no longer needed and the NLI target config is delibera
 python3 field_retry.py unstage --execute
 rm -rf /mnt/data/var/log/neiro/hhm31-field-retry
 ```
+
+If `nli` is not installed, preflight still completes hardware/history checks and reports NLI as a deployment blocker instead of aborting. Use `--skip-history` when history was already collected separately.
