@@ -1,0 +1,25 @@
+//============================================
+// Включение реле при 50%, выключение при 40%
+
+var sensorRelay = "wb-msw-v4_56/Humidity";
+
+var outputRelay = "wb-mr6c_218/K4";
+
+defineRule("relay_by_percent", {
+    whenChanged: sensorRelay,
+
+    then: function () {
+
+        var value = dev[sensorRelay];
+
+      
+        if (value >= 50) {
+            dev[outputRelay] = true;
+        }
+
+        
+        if (value <= 40) {
+            dev[outputRelay] = false;
+        }
+    }
+});
