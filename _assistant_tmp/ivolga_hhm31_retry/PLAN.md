@@ -120,19 +120,27 @@ The inventory report is reviewed before config activation. This is the only rema
 
 ## Phase G3 — activate gazebo NLI baseline
 
-After inventory review, update this helper with an exact reviewed unmanaged allowlist and an atomic adoption command.
+Reviewed unmanaged allowlist:
 
-That adoption command must:
+- `/etc/wb-rules/GazeboPanel.js` — `f8c959f074ed4be5cf36d8790cdb7a4a70666ee86c13b5b94d4968a71d854d72`
+- `/etc/wb-rules/rules.js` — `146c0fcdd728cef04eff74d72fbbfdd27ebab05a15e9e09951b517e24d96a0c0`
 
-1. require NLI 0.1.9;
-2. require hostname `wirenboard-A52LY4MY`;
-3. require the four current live files to match the exact 837b2c6 baseline;
-4. create only persistent NLI config/releases under `/mnt/data/etc/neiro/nli/`;
-5. use `release_source=pinned` during adoption;
-6. set baseline=target to the exact live baseline manifest;
-7. include only reviewed unmanaged JS path/hash entries;
-8. run read-only `nli status`, `nli check hhm`, `nli verify hhm`;
-9. not stop/restart wb-rules and not alter HHM bytes.
+Run:
+
+`python3 field_retry.py adopt-gazebo-nli --execute`
+
+The helper:
+
+1. requires NLI 0.1.9;
+2. requires hostname `wirenboard-A52LY4MY`;
+3. requires the four current live files to match the exact 837b2c6 baseline;
+4. requires unmanaged inventory to match exactly the reviewed pair above;
+5. creates only persistent NLI config/releases under `/mnt/data/etc/neiro/nli/`;
+6. uses `release_source=pinned`;
+7. sets baseline=target to the exact live baseline manifest;
+8. runs read-only `nli status`, `nli check hhm`, `nli verify hhm`;
+9. verifies wb-rules / wb-mqtt-serial start timestamps did not change;
+10. on failed validation of a fresh adoption, removes only the just-created NLI config/baseline and returns to unconfigured state.
 
 No manual editing of managed HHM files is allowed.
 
