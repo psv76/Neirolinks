@@ -35,9 +35,9 @@ curl -fsSL https://raw.githubusercontent.com/psv76/Neirolinks/30c76af611998636ee
 Then run:
 
 ```sh
-python3 field_retry.py selftest
-python3 field_retry.py history --role gazebo --hours 24
-python3 field_retry.py preflight --role gazebo
+python3 /root/field_retry.py selftest
+python3 /root/field_retry.py history --role gazebo --hours 24
+python3 /root/field_retry.py preflight --role gazebo
 ```
 
 `history` is read-only and can be run before the maintenance window. `preflight` is also non-mutating with respect to HHM/NLI configuration; its only bus action is the bounded read-only `port/Load` capability probe.
@@ -51,7 +51,7 @@ This workspace is kept on a separate temporary GitHub branch. When the controlle
 On each WB, after evidence is no longer needed and NLI staging has been deliberately restored:
 
 ```sh
-python3 field_retry.py unstage
+python3 /root/field_retry.py unstage
 rm -rf /tmp/hhm31-field-retry
 ```
 
