@@ -62,16 +62,16 @@ Gazebo is the low-risk first target: the 3.1 gazebo payload is 624 + shared modu
 1. Optionally run `history --role gazebo` first; this is pure evidence collection and can be done before the maintenance window.
 2. Run `preflight --role gazebo`.
 3. STOP if any current sensor is unhealthy, NLI role/version is wrong, wb-rules/wb-mqtt-serial is inactive, or the representative `port/Load` proof fails.
-4. Stage the exact draft manifest in NLI pinned mode. The helper:
+4. Stage the exact draft manifest in NLI pinned mode. Direct `stage` requires `--execute`; the integrated `retry --execute-update` path performs it transactionally. The helper:
    - downloads manifest from exact PR HEAD;
    - verifies the known manifest SHA256;
    - verifies runtime commit/version/role;
    - backs up only NLI config;
    - changes only `release_source` and `components.hhm.target`;
    - does not change baseline/state/services/HHM files.
-5. `nli --json check hhm` must pass.
-6. Operator must explicitly type `UPDATE GAZEBO` before mutation.
-7. NLI performs the update.
+5. `nli --json check hhm` must pass. A failed staged check restores the original NLI target automatically.
+6. Operator must explicitly type `UPDATE GAZEBO` before mutation. Cancelling or interrupting before `nli update` restores the original NLI target automatically.
+7. Once `nli update` has started, the helper never rewrites target config automatically; pending/recovery state is preserved for inspection.
 8. Passive smoke runs for 600 s.
 
 ### Gazebo PASS criteria
@@ -122,7 +122,7 @@ The helper never executes an automatic functional rollback.
 
 1. Add live evidence to PR #73 / #68 / #75.
 2. Only then decide PR merge and normal approved HHM release publication.
-3. Return both controllers from temporary pinned target to normal approved discovery using `field_retry.py unstage` only after the final desired config is confirmed.
+3. Return both controllers from temporary pinned target to normal approved discovery using `field_retry.py unstage --execute` only after the final desired config is confirmed. `unstage` refuses to run with NLI pending state or if the current config no longer matches the helper's exact staged target.
 4. Verify `nli status`, `nli check hhm`, and current HHM after the config restore/publication transition.
 
 ## Time budget
@@ -138,11 +138,11 @@ The plan intentionally avoids repeating CI, avoids per-sensor manual RPC tests, 
 
 ## Temporary live files
 
-The helper writes only temporary evidence under:
+The helper writes field evidence under persistent `/mnt/data` so a service restart or controller reboot does not erase the capture:
 
-`/tmp/hhm31-field-retry/`
+`/mnt/data/var/log/neiro/hhm31-field-retry/`
 
-NLI itself keeps its normal audit/backups under `/mnt/data`.
+NLI itself keeps its normal audit/backups under its own `/mnt/data` paths.
 
 `stage` additionally creates:
 
