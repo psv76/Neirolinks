@@ -126,10 +126,9 @@ If gazebo fails, do not touch boiler.
 
 ## Gate B — boiler only after gazebo PASS
 
-1. Collect compact boiler history once:
-   `python3 field_retry.py history --role boiler --hours 24`
-2. Run boiler preflight:
-   `python3 field_retry.py preflight --role boiler --skip-history`
+1. Run one read-only boiler preflight **with** 24 h history:
+   `python3 field_retry.py preflight --role boiler --hours 24`
+2. Review its `recommended_stability_s` result (120 or 180 s).
 3. Boiler preflight additionally requires:
    - NLI exactly 0.1.9;
    - `pending = null`;
@@ -138,11 +137,11 @@ If gazebo fails, do not touch boiler.
    - all required runtime files present under `/mnt/data/etc`;
    - all required M1W2 current health PASS;
    - representative boiler `port/Load` proof PASS.
-4. Only after explicit operator approval run:
-   `python3 field_retry.py retry --role boiler --execute-update`
-5. NLI stages the exact reviewed boiler manifest, performs the update and keeps normal NLI backup/audit/pending semantics.
-6. Field smoke is separate from installation verification.
-7. Use 120 s post-update observation only when history coverage is strong and there were no recent bad OK records; otherwise use 180 s.
+4. Only after explicit operator approval run retry while **reusing** the already-reviewed history:
+   `python3 field_retry.py retry --role boiler --skip-history --stability-seconds <120|180> --execute-update`
+5. Retry repeats all current sensor/service/NLI checks immediately before staging; only the history query is skipped.
+6. NLI stages the exact reviewed boiler manifest, performs the update and keeps normal NLI backup/audit/pending semantics.
+7. Field smoke is separate from installation verification. Use 120 s only when the reviewed preflight/history recommended 120; otherwise use 180 s.
 
 There is no second 10-minute #75 soak on boiler. The long recurrence test belongs to gazebo; boiler acceptance focuses on all required sensors qualifying together and real serial-bus load/timing.
 
