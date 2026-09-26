@@ -2,8 +2,9 @@
 """Temporary field helper for 05_31 Ivolga HHM 3.1 controlled retry.
 
 Stdlib-only orchestration around existing WB tools. Read-only by default.
-Mutation is limited to explicit NLI target staging and, only with --execute-update
-plus an interactive phrase, `nli --json update hhm`.
+Current live topology is asymmetric: gazebo has no NLI; boiler has NLI 0.1.9.
+Mutation helpers are therefore boiler-only. Gazebo commands in this helper are
+evidence/preflight/smoke only; first-time NLI installation on gazebo is out of scope.
 """
 from __future__ import annotations
 
@@ -32,7 +33,12 @@ NLI_VERSION = "0.1.9"
 REPO = "psv76/Neirolinks"
 RAW = f"https://raw.githubusercontent.com/{REPO}/{PR_HEAD}"
 EVIDENCE_ROOT = Path("/mnt/data/var/log/neiro/hhm31-field-retry")
-NLI_CONFIG = Path("/mnt/data/etc/neiro/nli/config.json")
+ETC_ROOT = Path("/mnt/data/etc")
+WB_RULES_DIR = ETC_ROOT / "wb-rules"
+WB_MODULES_DIR = ETC_ROOT / "wb-rules-modules"
+WB_MQTT_DB_CONFIG = ETC_ROOT / "wb-mqtt-db.conf"
+WB_MQTT_SERIAL_CONFIG = ETC_ROOT / "wb-mqtt-serial.conf"
+NLI_CONFIG = ETC_ROOT / "neiro/nli/config.json"
 NLI_CONFIG_BACKUP = Path("/mnt/data/etc/neiro/nli/config.json.pre-hhm31-retry")
 RELEASE_DIR = Path("/mnt/data/etc/neiro/nli/releases")
 
@@ -49,6 +55,27 @@ MANIFESTS = {
 
 GAZEBO_FLOOR = "921.10_TEMP_NONE/External Sensor 1"
 GAZEBO_AIR = "921.09_MSW_TH/Temperature"
+GAZEBO_FRAME_TOPIC = "/neiro/ivolga/504/v2/frame"
+
+ROLE_RUNTIME_FILES = {
+    "gazebo": [
+        WB_RULES_DIR / "624_combo_besedka.js",
+        WB_MODULES_DIR / "HHM3Config.js",
+        WB_MODULES_DIR / "HHM3Wire.js",
+        WB_MODULES_DIR / "HHM3Runtime.js",
+    ],
+    "boiler": [
+        WB_RULES_DIR / "500_HHM3_FSE.js",
+        WB_RULES_DIR / "600_Heat_diagnostics.js",
+        WB_RULES_DIR / "620_thermostats.js",
+        WB_MODULES_DIR / "HHM3Circuit.js",
+        WB_MODULES_DIR / "HHM3Config.js",
+        WB_MODULES_DIR / "HHM3Mixing.js",
+        WB_MODULES_DIR / "HHM3Outputs.js",
+        WB_MODULES_DIR / "HHM3Runtime.js",
+        WB_MODULES_DIR / "HHM3Wire.js",
+    ],
+}
 
 HOUSE_FLOORS = [
     "903.09_TEMP_NONE/External Sensor 1",
@@ -288,7 +315,7 @@ def db_values(paths: Iterable[str], start: int, end: int, max_records: int = 500
 
 
 def read_db_config_summary() -> Dict[str, Any]:
-    p = Path("/etc/wb-mqtt-db.conf")
+    p = WB_MQTT_DB_CONFIG
     if not p.exists():
         return {"present": False}
     data = p.read_bytes()
@@ -395,6 +422,43 @@ def service_state(name: str) -> Dict[str, Any]:
             k, v = line.split("=", 1)
             result[k] = v
     return result
+
+
+def file_inventory(role: str) -> Dict[str, Any]:
+    files = []
+    missing = []
+    for p in ROLE_RUNTIME_FILES[role]:
+        item: Dict[str, Any] = {"path": str(p), "exists": p.is_file()}
+        if p.is_file():
+            data = p.read_bytes()
+            item.update(size=len(data), sha256=sha256(data))
+        else:
+            missing.append(str(p))
+        files.append(item)
+    configs = {}
+    for name, p in (("wb-mqtt-db", WB_MQTT_DB_CONFIG), ("wb-mqtt-serial", WB_MQTT_SERIAL_CONFIG)):
+        configs[name] = {"path": str(p), "exists": p.is_file()}
+        if p.is_file():
+            data = p.read_bytes()
+            configs[name].update(size=len(data), sha256=sha256(data))
+    return {"ok": not missing, "files": files, "missing": missing, "configs": configs,
+            "canonical_etc_root": str(ETC_ROOT)}
+
+
+def gazebo_frame_probe(seconds: float = 7.0) -> Dict[str, Any]:
+    raw = snapshot_topics([GAZEBO_FRAME_TOPIC], seconds=seconds)
+    payload = raw.get(GAZEBO_FRAME_TOPIC)
+    if payload is None:
+        return {"ok": False, "topic": GAZEBO_FRAME_TOPIC, "error": "no live frame observed"}
+    try:
+        frame = json.loads(payload)
+    except json.JSONDecodeError:
+        return {"ok": False, "topic": GAZEBO_FRAME_TOPIC, "error": "frame is not JSON", "payload": payload}
+    ok = (frame.get("source") == "ivolga-besedka-504" and
+          isinstance(frame.get("session_id"), (int, float)) and
+          isinstance(frame.get("seq"), (int, float)) and
+          frame.get("ttl_ms") == 30000)
+    return {"ok": bool(ok), "topic": GAZEBO_FRAME_TOPIC, "frame": frame}
 
 
 def nli_call(args: List[str], timeout: int = 120) -> Dict[str, Any]:
@@ -523,15 +587,23 @@ def preflight_role(role: str, hours: int = 24, save: bool = True, include_histor
     checks["packages"] = {"wb-rules": package_version("wb-rules"),
                           "wb-mqtt-serial": package_version("wb-mqtt-serial")}
     checks["services"] = {n: service_state(n) for n in ("wb-rules", "wb-mqtt-serial", "wb-mqtt-db")}
-    checks["nli_version"] = nli_version()
-    checks["nli_status"] = nli_call(["status"], timeout=20)
-    checks["nli_verify_hhm"] = nli_call(["verify", "hhm"], timeout=30)
+    checks["runtime_inventory"] = file_inventory(role)
+
     if role == "boiler":
+        checks["nli_expected"] = True
+        checks["nli_version"] = nli_version()
+        checks["nli_status"] = nli_call(["status"], timeout=20)
+        checks["nli_verify_hhm"] = nli_call(["verify", "hhm"], timeout=30)
         checks["nli_verify_pressure_makeup"] = nli_call(["verify", "pressure_makeup"], timeout=30)
+    else:
+        checks["nli_expected"] = False
+        checks["nli_present"] = shutil.which("nli") is not None
+        checks["nli_note"] = "Gazebo live baseline has no NLI; presence is informational only"
+
     checks["sensor_health"] = current_sensor_health(role)
     if role == "gazebo":
-        air = snapshot_controls([GAZEBO_AIR], include_errors=True)[GAZEBO_AIR]
-        checks["air_sensor"] = air
+        checks["air_sensor"] = snapshot_controls([GAZEBO_AIR], include_errors=True)[GAZEBO_AIR]
+        checks["frame_probe"] = gazebo_frame_probe()
     representative = GAZEBO_FLOOR if role == "gazebo" else "wb-m1w2_170/External Sensor 1"
     checks["port_load_probe"] = port_load_probe(representative)
     checks["history"] = history_role(role, hours=hours, save=False) if include_history else {
@@ -541,19 +613,27 @@ def preflight_role(role: str, hours: int = 24, save: bool = True, include_histor
     }
 
     failures = []
-    if checks["nli_version"] != NLI_VERSION:
-        failures.append(f"NLI version is {checks['nli_version']}, expected {NLI_VERSION}")
     for svc in ("wb-rules", "wb-mqtt-serial"):
         if checks["services"][svc].get("ActiveState") != "active":
             failures.append(f"{svc} is not active")
-    if checks["nli_status"]["returncode"] != 0:
-        failures.append("nli status failed")
-    elif isinstance(checks["nli_status"].get("json"), dict) and checks["nli_status"]["json"].get("pending") is not None:
-        failures.append("NLI has a pending mutation; recovery required before retry")
-    if checks["nli_verify_hhm"]["returncode"] != 0:
-        failures.append("nli verify hhm failed")
-    if role == "boiler" and checks["nli_verify_pressure_makeup"]["returncode"] != 0:
-        failures.append("nli verify pressure_makeup failed")
+    if not checks["runtime_inventory"]["ok"]:
+        failures.extend("missing runtime file: " + p for p in checks["runtime_inventory"]["missing"])
+
+    if role == "boiler":
+        if checks["nli_version"] != NLI_VERSION:
+            failures.append(f"NLI version is {checks['nli_version']}, expected {NLI_VERSION}")
+        if checks["nli_status"]["returncode"] != 0:
+            failures.append("nli status failed")
+        elif isinstance(checks["nli_status"].get("json"), dict) and checks["nli_status"]["json"].get("pending") is not None:
+            failures.append("NLI has a pending mutation; recovery required before retry")
+        if checks["nli_verify_hhm"]["returncode"] != 0:
+            failures.append("nli verify hhm failed")
+        if checks["nli_verify_pressure_makeup"]["returncode"] != 0:
+            failures.append("nli verify pressure_makeup failed")
+    else:
+        if not checks["frame_probe"].get("ok"):
+            failures.append("gazebo live frame probe failed: " + str(checks["frame_probe"].get("error")))
+
     if not checks["sensor_health"]["ok"]:
         failures.extend(checks["sensor_health"]["failures"])
     if not checks["port_load_probe"].get("ok"):
@@ -653,6 +733,8 @@ def restore_staging(role: str, require_staged_current: bool = True, check_pendin
 
 
 def stage_role(role: str) -> Dict[str, Any]:
+    if role != "boiler":
+        raise RuntimeError("NLI staging is boiler-only; gazebo has no live NLI baseline and requires a separate migration decision")
     if os.geteuid() != 0:
         raise RuntimeError("stage must run as root")
     if not NLI_CONFIG.is_file():
@@ -949,6 +1031,8 @@ def print_summary(report: Dict[str, Any]) -> None:
 
 
 def retry_role(role: str, execute_update: bool, hours: int = 24) -> int:
+    if role != "boiler":
+        raise RuntimeError("NLI retry is boiler-only; gazebo first-time NLI installation is out of scope")
     if not execute_update:
         raise RuntimeError("retry mutation requires --execute-update")
     if os.geteuid() != 0:
@@ -1033,6 +1117,8 @@ def selftest() -> Dict[str, Any]:
     t("house floors", len(HOUSE_FLOORS) == 9)
     t("expected boiler pair count", len(expected_pair_set("boiler")) == 28)
     t("manifest constants", len(MANIFESTS["boiler"]["sha256"]) == 64 and len(MANIFESTS["gazebo"]["sha256"]) == 64)
+    t("canonical etc", str(ETC_ROOT) == "/mnt/data/etc")
+    t("gazebo mutation excluded", "gazebo" not in ("boiler",))
     t("missing nli is representable", isinstance(nli_call(["status"]), dict))
     return {"ok": True, "tests": tests}
 
@@ -1048,8 +1134,8 @@ def build_parser() -> argparse.ArgumentParser:
     pf.add_argument("--role", choices=["gazebo", "boiler"], required=True)
     pf.add_argument("--hours", type=int, default=24)
     pf.add_argument("--skip-history", action="store_true", help="do not query wb-mqtt-db again")
-    st = sub.add_parser("stage", help="stage exact PR #73 manifest in NLI pinned config; no HHM update")
-    st.add_argument("--role", choices=["gazebo", "boiler"], required=True)
+    st = sub.add_parser("stage", help="boiler only: stage exact PR #73 manifest in existing NLI; no HHM update")
+    st.add_argument("--role", choices=["boiler"], required=True)
     st.add_argument("--execute", action="store_true")
     us = sub.add_parser("unstage", help="restore pre-retry NLI config from the helper backup")
     us.add_argument("--execute", action="store_true")
@@ -1057,8 +1143,8 @@ def build_parser() -> argparse.ArgumentParser:
     sm.add_argument("--role", choices=["gazebo", "boiler"], required=True)
     sm.add_argument("--since-epoch", type=float, default=None)
     sm.add_argument("--stability-seconds", type=int, default=None)
-    rt = sub.add_parser("retry", help="preflight + stage + explicit NLI update + passive smoke")
-    rt.add_argument("--role", choices=["gazebo", "boiler"], required=True)
+    rt = sub.add_parser("retry", help="boiler only: preflight + stage + explicit existing-NLI update + passive smoke")
+    rt.add_argument("--role", choices=["boiler"], required=True)
     rt.add_argument("--hours", type=int, default=24)
     rt.add_argument("--execute-update", action="store_true")
     return p
