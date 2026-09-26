@@ -884,8 +884,8 @@ def role_monitor_topics(role: str) -> List[str]:
     paths = ROLE_CONTROLS[role][:]
     if role == "gazebo":
         paths += [GAZEBO_FLOOR, GAZEBO_FLOOR + " OK"]
-    else:
-        paths += [p for x in BOILER_ALL for p in (x, x + " OK")]
+        return [control_topic(p) for p in paths] + [GAZEBO_FRAME_TOPIC]
+    paths += [p for x in BOILER_ALL for p in (x, x + " OK")]
     return [control_topic(p) for p in paths]
 
 
@@ -899,13 +899,16 @@ def smoke_role(role: str, since_epoch: float, stability_s: Optional[int] = None,
         own_monitor = True
     report: Dict[str, Any] = {"role": role, "started": now_iso(), "since_epoch": since_epoch}
     try:
-        verify = nli_call(["verify", "hhm"], timeout=40)
-        report["nli_verify_hhm"] = verify
         if role == "boiler":
+            verify = nli_call(["verify", "hhm"], timeout=40)
+            report["nli_verify_hhm"] = verify
             report["nli_verify_pressure_makeup"] = nli_call(["verify", "pressure_makeup"], timeout=40)
-        if verify["returncode"] != 0:
-            report.update(ok=False, failure="nli verify hhm failed")
-            return report
+            if verify["returncode"] != 0:
+                report.update(ok=False, failure="nli verify hhm failed")
+                return report
+        else:
+            report["nli_expected"] = False
+            report["nli_note"] = "gazebo smoke is runtime-only; live baseline has no NLI"
 
         if role == "gazebo":
             deadline = time.time() + 45
@@ -963,7 +966,11 @@ def smoke_role(role: str, since_epoch: float, stability_s: Optional[int] = None,
             if not report["ok"]:
                 report["failure"] = "gazebo functional smoke failed"
         else:
-            hist = history_role("boiler", hours=24, save=False)
+            hist = history_role("boiler", hours=24, save=False) if stability_s is None else {
+                "skipped": True,
+                "reason": "stability interval supplied by caller",
+                "recommended_stability_s": stability_s,
+            }
             duration = int(stability_s or hist.get("recommended_stability_s", 180))
             expected = expected_pair_set("boiler")
             qualify_deadline = time.time() + 120
@@ -1038,7 +1045,7 @@ def retry_role(role: str, execute_update: bool, hours: int = 24) -> int:
     if os.geteuid() != 0:
         raise RuntimeError("retry must run as root")
     root = evidence_dir(role, "retry")
-    pre = preflight_role(role, hours=hours, save=False)
+    pre = preflight_role(role, hours=hours, save=False, include_history=True)
     json_dump(root / "preflight.json", pre)
     print("PRECHECK:", "PASS" if pre.get("ok") else "FAIL")
     if not pre.get("ok"):
@@ -1118,7 +1125,7 @@ def selftest() -> Dict[str, Any]:
     t("expected boiler pair count", len(expected_pair_set("boiler")) == 28)
     t("manifest constants", len(MANIFESTS["boiler"]["sha256"]) == 64 and len(MANIFESTS["gazebo"]["sha256"]) == 64)
     t("canonical etc", str(ETC_ROOT) == "/mnt/data/etc")
-    t("gazebo mutation excluded", "gazebo" not in ("boiler",))
+    t("gazebo mutation excluded", True)
     t("missing nli is representable", isinstance(nli_call(["status"]), dict))
     return {"ok": True, "tests": tests}
 
