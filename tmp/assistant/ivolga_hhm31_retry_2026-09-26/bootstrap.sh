@@ -2,9 +2,9 @@
 set -eu
 
 DEST="${1:-/root/field_retry.py}"
-ARCHIVE_URL="https://raw.githubusercontent.com/psv76/Neirolinks/a1e198a658296d1af94b6be1b65c591a9e0da418/tmp/assistant/ivolga_hhm31_retry_2026-09-26/field_retry.py.gz"
-ARCHIVE_SHA256="bf5f873581ca7b7800e9b50580005e1e4a09a0585fabb3a91703c204de0e6827"
-SOURCE_SHA256="23b4a74ab771bd5971736df250ae69ec81f692f9b7de07300ff6e4054270dc2c"
+ARCHIVE_URL="https://raw.githubusercontent.com/psv76/Neirolinks/88de039875331418b22f1a55216c6cf031029385/tmp/assistant/ivolga_hhm31_retry_2026-09-26/field_retry.py.gz"
+ARCHIVE_SHA256="2a8daab5ce0986cbde1cd6babbcccb80a32275f3212adbe541629a11301429f8"
+SOURCE_SHA256="5196db7f63176054f37bedd3421afe7386c9a49ad98555a45033af3ae3a9d2c9"
 
 python3 - "$DEST" "$ARCHIVE_URL" "$ARCHIVE_SHA256" "$SOURCE_SHA256" <<'PY'
 import gzip
