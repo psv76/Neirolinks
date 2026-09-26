@@ -77,17 +77,17 @@ and then an interactive confirmation phrase.
 
 Use helper/checksum commit:
 
-`bf8e51add07d359eecb68e2f1d790116430284aa`
+`f2093e28c3450a83e33734106819f9fd81237b49`
 
 ```sh
 install -d -m 0700 /root/hhm31-retry
 cd /root/hhm31-retry
 
 curl -fsSL -o field_retry.py \
-https://raw.githubusercontent.com/psv76/Neirolinks/bf8e51add07d359eecb68e2f1d790116430284aa/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
+https://raw.githubusercontent.com/psv76/Neirolinks/f2093e28c3450a83e33734106819f9fd81237b49/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
 
 curl -fsSL -o field_retry.py.sha256 \
-https://raw.githubusercontent.com/psv76/Neirolinks/bf8e51add07d359eecb68e2f1d790116430284aa/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
+https://raw.githubusercontent.com/psv76/Neirolinks/f2093e28c3450a83e33734106819f9fd81237b49/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
 
 sha256sum -c field_retry.py.sha256
 python3 field_retry.py selftest
@@ -95,7 +95,7 @@ python3 field_retry.py selftest
 
 Expected helper SHA256:
 
-`756f0bebd9bf9aa3cee25b6ea9f60e213db2d4deb7ccbb012eab3f952b053778`
+`cadffd008f56e856aa0bc3b3e628f9388d89d161d3000b3cfe8eaf8e724d95dd`
 
 ## Current next step — gazebo
 
@@ -105,23 +105,10 @@ Run only:
 
 ```sh
 cd /root/hhm31-retry
-
-LOG="/mnt/data/var/log/neiro/hhm31-field-retry/gazebo-preflight-$(date +%Y%m%d-%H%M%S).log"
-
-python3 field_retry.py preflight \
-  --role gazebo \
-  --skip-history \
-  >"$LOG" 2>&1
-
-RC=$?
-
-echo "===== PREFLIGHT EXIT ====="
-echo "$RC"
-echo "===== SAVED ====="
-echo "$LOG"
-echo "===== LAST 80 LINES ====="
-tail -n 80 "$LOG"
+python3 field_retry.py preflight --role gazebo --skip-history
 ```
+
+The terminal output is intentionally compact. The helper automatically saves the complete JSON report under `/mnt/data/var/log/neiro/hhm31-field-retry/<timestamp>-gazebo-preflight/preflight.json` and prints that exact path as `FULL_REPORT`.
 
 Gazebo preflight checks:
 
@@ -161,6 +148,8 @@ Use `180` instead of `120` when the reviewed history recommends the conservative
 Boiler preflight requires existing NLI 0.1.9 and no pending mutation. The retry still repeats current sensor/service/NLI checks immediately before staging; only the history query is skipped.
 
 ## Evidence
+
+History and preflight print compact summaries to the terminal and automatically save their complete JSON reports. This avoids terminal scrollback loss.
 
 Persistent evidence:
 
