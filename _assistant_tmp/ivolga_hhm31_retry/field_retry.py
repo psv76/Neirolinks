@@ -2,9 +2,9 @@
 """Temporary field helper for 05_31 Ivolga HHM 3.1 controlled retry.
 
 Stdlib-only orchestration around existing WB tools. Read-only by default.
-Current live topology is asymmetric: gazebo has no NLI; boiler has NLI 0.1.9.
-Mutation helpers are therefore boiler-only. Gazebo commands in this helper are
-evidence/preflight/smoke only; first-time NLI installation on gazebo is out of scope.
+Operational policy from 26.09.2026: NLI is the standard installer/updater on every
+managed WB. Boiler already has NLI 0.1.9; gazebo is migrated to NLI before the
+HHM 3.1 update. Manual replacement of managed HHM files is not a normal path.
 """
 from __future__ import annotations
 
@@ -30,6 +30,10 @@ PR_HEAD = "5efce9783886a991d9d1b9008860f9309b1d5559"
 RUNTIME_COMMIT = "20af0c29ed37130a5d4ff051ff1fb5984a5f8193"
 VERSION = "3.1"
 NLI_VERSION = "0.1.9"
+NLI_RELEASE_TAG = "nli-approved-0.1.9"
+NLI_BOOTSTRAP_SHA256 = "fb46edd0071dbe7c1c410f65dce97af66d1e96a23465a9da6895d189fc0e634c"
+NLI_PACKAGE_SHA256 = "5042800dc01507742904b039d6d6539038255067aeec5b88603508bba5e718d5"
+NLI_BOOTSTRAP_URL = f"https://github.com/{REPO}/releases/download/{NLI_RELEASE_TAG}/install-nli.py"
 REPO = "psv76/Neirolinks"
 RAW = f"https://raw.githubusercontent.com/{REPO}/{PR_HEAD}"
 EVIDENCE_ROOT = Path("/mnt/data/var/log/neiro/hhm31-field-retry")
@@ -56,6 +60,14 @@ MANIFESTS = {
 GAZEBO_FLOOR = "921.10_TEMP_NONE/External Sensor 1"
 GAZEBO_AIR = "921.09_MSW_TH/Temperature"
 GAZEBO_FRAME_TOPIC = "/neiro/ivolga/504/v2/frame"
+GAZEBO_LIVE_BASELINE_COMMIT = "837b2c6da31275cdb8964373f73b070fbbd31d6a"
+GAZEBO_LIVE_BASELINE_VERSION = "3.0.0-FSE+837b2c6da312"
+GAZEBO_LIVE_BASELINE_FILES = {
+    "/etc/wb-rules-modules/HHM3Config.js": "99f7d993c2060015dd2e90f91d755597f0393d049c7904f31baf398b1bed5faf",
+    "/etc/wb-rules-modules/HHM3Runtime.js": "9c6a71d2db52f37177ab8cd8a899c8ec2ade8987367eeecf80f731973df776d3",
+    "/etc/wb-rules-modules/HHM3Wire.js": "b35baa255c4948f8ec926943efeee1ac5a29b594d508112478e8be4ea1360ada",
+    "/etc/wb-rules/624_combo_besedka.js": "fd17a68d6b707df00ec752d7d650182c75361647ad099de26591d0acdf636c4a",
+}
 
 ROLE_RUNTIME_FILES = {
     "gazebo": [
@@ -413,6 +425,117 @@ def package_version(name: str) -> Optional[str]:
     return cp.stdout.strip() if cp.returncode == 0 else None
 
 
+def bootstrap_nli(execute: bool) -> Dict[str, Any]:
+    if not execute:
+        raise RuntimeError("NLI bootstrap changes rootfs package state; pass --execute-install")
+    if os.geteuid() != 0:
+        raise RuntimeError("NLI bootstrap must run as root")
+    before = {n: service_state(n) for n in ("wb-rules", "wb-mqtt-serial")}
+    current = nli_version()
+    if current == NLI_VERSION:
+        return {"ok": True, "already_installed": True, "version": current,
+                "package_sha256": NLI_PACKAGE_SHA256, "services_before": before,
+                "services_after": {n: service_state(n) for n in before}}
+    if current is not None:
+        raise RuntimeError(f"NLI {current} already installed; use reviewed self-update path instead of bootstrap")
+    req = urllib.request.Request(NLI_BOOTSTRAP_URL, headers={"User-Agent": "hhm31-field-retry/1"})
+    with urllib.request.urlopen(req, timeout=30) as response:
+        data = response.read(2 * 1024 * 1024)
+    actual = sha256(data)
+    if actual != NLI_BOOTSTRAP_SHA256:
+        raise RuntimeError(f"NLI bootstrap SHA mismatch: {actual}")
+    fd, tmp = tempfile.mkstemp(prefix="install-nli-", suffix=".py", dir="/tmp")
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        cp = run(["python3", tmp], timeout=180)
+    finally:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+    after_version = nli_version()
+    after = {n: service_state(n) for n in before}
+    unchanged = all(
+        before[n].get("ActiveEnterTimestamp") == after[n].get("ActiveEnterTimestamp")
+        for n in before
+    )
+    ok = cp.returncode == 0 and after_version == NLI_VERSION and unchanged
+    return {
+        "ok": ok,
+        "already_installed": False,
+        "version": after_version,
+        "bootstrap_sha256": actual,
+        "package_sha256": NLI_PACKAGE_SHA256,
+        "stdout": cp.stdout,
+        "stderr": cp.stderr,
+        "services_before": before,
+        "services_after": after,
+        "service_start_timestamps_unchanged": unchanged,
+    }
+
+
+def logical_rule_path(path: Path) -> str:
+    rel = path.relative_to(ETC_ROOT).as_posix()
+    return "/etc/" + rel
+
+
+def adoption_inventory(role: str) -> Dict[str, Any]:
+    managed_expected = set()
+    if role == "gazebo":
+        managed_expected = set(GAZEBO_LIVE_BASELINE_FILES)
+    else:
+        managed_expected = {
+            logical_rule_path(p) for p in ROLE_RUNTIME_FILES["boiler"]
+        }
+    entries = []
+    for directory in (WB_RULES_DIR, WB_MODULES_DIR):
+        if not directory.is_dir():
+            continue
+        for p in sorted(directory.rglob("*.js")):
+            if not p.is_file():
+                continue
+            logical = logical_rule_path(p)
+            data = p.read_bytes()
+            entries.append({
+                "logical_path": logical,
+                "persistent_path": str(p),
+                "sha256": sha256(data),
+                "size": len(data),
+                "managed_candidate": logical in managed_expected,
+            })
+    managed = [x for x in entries if x["managed_candidate"]]
+    unmanaged = [x for x in entries if not x["managed_candidate"]]
+    baseline_match = None
+    baseline_mismatches: List[Dict[str, Any]] = []
+    if role == "gazebo":
+        got = {x["logical_path"]: x["sha256"] for x in managed}
+        baseline_mismatches = [
+            {"path": path, "expected": expected, "actual": got.get(path)}
+            for path, expected in GAZEBO_LIVE_BASELINE_FILES.items()
+            if got.get(path) != expected
+        ]
+        baseline_match = not baseline_mismatches
+    return {
+        "ok": bool(entries) and (baseline_match is not False),
+        "time": now_iso(),
+        "role": role,
+        "hostname": run(["hostname"], timeout=3).stdout.strip(),
+        "canonical_etc_root": str(ETC_ROOT),
+        "nli_version": nli_version(),
+        "nli_config_exists": NLI_CONFIG.is_file(),
+        "managed_candidate_count": len(managed),
+        "unmanaged_count": len(unmanaged),
+        "managed_candidates": managed,
+        "unmanaged_rules": unmanaged,
+        "gazebo_live_baseline_commit": GAZEBO_LIVE_BASELINE_COMMIT if role == "gazebo" else None,
+        "gazebo_live_baseline_match": baseline_match,
+        "gazebo_live_baseline_mismatches": baseline_mismatches,
+    }
+
+
 def service_state(name: str) -> Dict[str, Any]:
     cp = run(["systemctl", "show", name, "-p", "ActiveState", "-p", "SubState",
               "-p", "ActiveEnterTimestamp"], timeout=5)
@@ -601,7 +724,8 @@ def evidence_dir(role: str, label: str) -> Path:
     return p
 
 
-def preflight_role(role: str, hours: int = 24, save: bool = True, include_history: bool = True) -> Dict[str, Any]:
+def preflight_role(role: str, hours: int = 24, save: bool = True,
+                   include_history: bool = True, require_nli: bool = False) -> Dict[str, Any]:
     report: Dict[str, Any] = {"time": now_iso(), "role": role, "object": OBJECT, "checks": {}}
     checks = report["checks"]
     checks["hostname"] = run(["hostname"], timeout=3).stdout.strip()
@@ -610,16 +734,17 @@ def preflight_role(role: str, hours: int = 24, save: bool = True, include_histor
     checks["services"] = {n: service_state(n) for n in ("wb-rules", "wb-mqtt-serial", "wb-mqtt-db")}
     checks["runtime_inventory"] = file_inventory(role)
 
-    if role == "boiler":
-        checks["nli_expected"] = True
+    nli_required = role == "boiler" or require_nli
+    checks["nli_expected"] = nli_required
+    checks["nli_present"] = shutil.which("nli") is not None
+    if nli_required:
         checks["nli_version"] = nli_version()
         checks["nli_status"] = nli_call(["status"], timeout=20)
         checks["nli_verify_hhm"] = nli_call(["verify", "hhm"], timeout=30)
-        checks["nli_verify_pressure_makeup"] = nli_call(["verify", "pressure_makeup"], timeout=30)
+        if role == "boiler":
+            checks["nli_verify_pressure_makeup"] = nli_call(["verify", "pressure_makeup"], timeout=30)
     else:
-        checks["nli_expected"] = False
-        checks["nli_present"] = shutil.which("nli") is not None
-        checks["nli_note"] = "Gazebo live baseline has no NLI; presence is informational only"
+        checks["nli_note"] = "NLI not required for this pre-adoption hardware preflight"
 
     if role == "gazebo":
         checks["air_sensor"] = snapshot_controls([GAZEBO_AIR], include_errors=True)[GAZEBO_AIR]
@@ -666,7 +791,7 @@ def preflight_role(role: str, hours: int = 24, save: bool = True, include_histor
     if not checks["runtime_inventory"]["ok"]:
         failures.extend("missing runtime file: " + p for p in checks["runtime_inventory"]["missing"])
 
-    if role == "boiler":
+    if nli_required:
         if checks["nli_version"] != NLI_VERSION:
             failures.append(f"NLI version is {checks['nli_version']}, expected {NLI_VERSION}")
         if checks["nli_status"]["returncode"] != 0:
@@ -675,9 +800,9 @@ def preflight_role(role: str, hours: int = 24, save: bool = True, include_histor
             failures.append("NLI has a pending mutation; recovery required before retry")
         if checks["nli_verify_hhm"]["returncode"] != 0:
             failures.append("nli verify hhm failed")
-        if checks["nli_verify_pressure_makeup"]["returncode"] != 0:
+        if role == "boiler" and checks["nli_verify_pressure_makeup"]["returncode"] != 0:
             failures.append("nli verify pressure_makeup failed")
-    else:
+    if role == "gazebo":
         if not checks["frame_probe"].get("ok"):
             failures.append("gazebo live frame probe failed: " + str(checks["frame_probe"].get("error")))
         if not (checks.get("air_sensor") or {}).get("value_seen"):
@@ -787,8 +912,6 @@ def restore_staging(role: str, require_staged_current: bool = True, check_pendin
 
 
 def stage_role(role: str) -> Dict[str, Any]:
-    if role != "boiler":
-        raise RuntimeError("NLI staging is boiler-only; gazebo has no live NLI baseline and requires a separate migration decision")
     if os.geteuid() != 0:
         raise RuntimeError("stage must run as root")
     if not NLI_CONFIG.is_file():
@@ -1163,14 +1286,12 @@ def print_preflight_summary(report: Dict[str, Any]) -> None:
 
 def retry_role(role: str, execute_update: bool, hours: int = 24,
                include_history: bool = True, stability_override: Optional[int] = None) -> int:
-    if role != "boiler":
-        raise RuntimeError("NLI retry is boiler-only; gazebo first-time NLI installation is out of scope")
     if not execute_update:
         raise RuntimeError("retry mutation requires --execute-update")
     if os.geteuid() != 0:
         raise RuntimeError("retry must run as root")
     root = evidence_dir(role, "retry")
-    pre = preflight_role(role, hours=hours, save=False, include_history=include_history)
+    pre = preflight_role(role, hours=hours, save=False, include_history=include_history, require_nli=True)
     json_dump(root / "preflight.json", pre)
     print("PRECHECK:", "PASS" if pre.get("ok") else "FAIL")
     if not pre.get("ok"):
@@ -1211,7 +1332,7 @@ def retry_role(role: str, execute_update: bool, hours: int = 24,
         if stability is None:
             stability = (pre.get("checks", {}).get("history", {}) or {}).get("recommended_stability_s")
         if stability is None:
-            stability = 180
+            stability = 600 if role == "gazebo" else 180
         smoke = smoke_role(role, update_epoch, stability_s=int(stability), monitor=monitor, evidence=root)
     except BaseException:
         if staged_ok and not update_started:
@@ -1259,7 +1380,7 @@ def selftest() -> Dict[str, Any]:
         stage_role("gazebo")
     except RuntimeError as exc:
         blocked = "boiler-only" in str(exc)
-    t("gazebo mutation excluded", blocked)
+    t("gazebo old baseline identity", GAZEBO_LIVE_BASELINE_COMMIT.startswith("837b2c6"))
     return {"ok": True, "tests": tests}
 
 
@@ -1274,8 +1395,13 @@ def build_parser() -> argparse.ArgumentParser:
     pf.add_argument("--role", choices=["gazebo", "boiler"], required=True)
     pf.add_argument("--hours", type=int, default=24)
     pf.add_argument("--skip-history", action="store_true", help="do not query wb-mqtt-db again")
-    st = sub.add_parser("stage", help="boiler only: stage exact PR #73 manifest in existing NLI; no HHM update")
-    st.add_argument("--role", choices=["boiler"], required=True)
+    pf.add_argument("--require-nli", action="store_true", help="require configured NLI 0.1.9 and verify hhm")
+    bn = sub.add_parser("bootstrap-nli", help="install approved NLI 0.1.9 package; does not create object config or restart WB services")
+    bn.add_argument("--execute-install", action="store_true")
+    ai = sub.add_parser("adoption-inventory", help="read-only inventory for first NLI adoption")
+    ai.add_argument("--role", choices=["gazebo", "boiler"], required=True)
+    st = sub.add_parser("stage", help="stage exact PR #73 manifest in existing configured NLI; no HHM update")
+    st.add_argument("--role", choices=["gazebo", "boiler"], required=True)
     st.add_argument("--execute", action="store_true")
     us = sub.add_parser("unstage", help="restore pre-retry NLI config from the helper backup")
     us.add_argument("--execute", action="store_true")
@@ -1283,8 +1409,8 @@ def build_parser() -> argparse.ArgumentParser:
     sm.add_argument("--role", choices=["gazebo", "boiler"], required=True)
     sm.add_argument("--since-epoch", type=float, default=None)
     sm.add_argument("--stability-seconds", type=int, default=None)
-    rt = sub.add_parser("retry", help="boiler only: preflight + stage + explicit existing-NLI update + passive smoke")
-    rt.add_argument("--role", choices=["boiler"], required=True)
+    rt = sub.add_parser("retry", help="preflight + stage + explicit existing-NLI update + passive smoke")
+    rt.add_argument("--role", choices=["gazebo", "boiler"], required=True)
     rt.add_argument("--hours", type=int, default=24)
     rt.add_argument("--skip-history", action="store_true", help="reuse already-reviewed history; current checks still run")
     rt.add_argument("--stability-seconds", type=int, choices=[120, 180], default=None,
@@ -1307,8 +1433,33 @@ def main(argv: Optional[List[str]] = None) -> int:
             print_history_summary(report)
             return 0 if report.get("db_available") else 1
         if args.command == "preflight":
-            report = preflight_role(args.role, hours=args.hours, save=True, include_history=not args.skip_history)
+            report = preflight_role(args.role, hours=args.hours, save=True,
+                                    include_history=not args.skip_history, require_nli=args.require_nli)
             print_preflight_summary(report)
+            return 0 if report.get("ok") else 2
+        if args.command == "bootstrap-nli":
+            report = bootstrap_nli(args.execute_install)
+            print_summary(report)
+            return 0 if report.get("ok") else 2
+        if args.command == "adoption-inventory":
+            report = adoption_inventory(args.role)
+            p = evidence_dir(args.role, "adoption-inventory")
+            report["evidence_dir"] = str(p)
+            json_dump(p / "adoption-inventory.json", report)
+            compact = {
+                "role": report["role"],
+                "hostname": report["hostname"],
+                "nli_version": report["nli_version"],
+                "nli_config_exists": report["nli_config_exists"],
+                "managed_candidate_count": report["managed_candidate_count"],
+                "unmanaged_count": report["unmanaged_count"],
+                "gazebo_live_baseline_match": report["gazebo_live_baseline_match"],
+                "ok": report["ok"],
+                "full_report": str(p / "adoption-inventory.json"),
+            }
+            print(json.dumps(compact, ensure_ascii=False, indent=2))
+            print()
+            print("RESULT:", "PASS" if report.get("ok") else "FAIL")
             return 0 if report.get("ok") else 2
         if args.command == "stage":
             if not args.execute:
