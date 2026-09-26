@@ -77,17 +77,17 @@ and then an interactive confirmation phrase.
 
 Use helper/checksum commit:
 
-`090dec60280dde9d370dcb580137c61233a384a0`
+`84b6f0319a7276502fa644a056c184390294b869`
 
 ```sh
 install -d -m 0700 /root/hhm31-retry
 cd /root/hhm31-retry
 
 curl -fsSL -o field_retry.py \
-https://raw.githubusercontent.com/psv76/Neirolinks/090dec60280dde9d370dcb580137c61233a384a0/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
+https://raw.githubusercontent.com/psv76/Neirolinks/84b6f0319a7276502fa644a056c184390294b869/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
 
 curl -fsSL -o field_retry.py.sha256 \
-https://raw.githubusercontent.com/psv76/Neirolinks/090dec60280dde9d370dcb580137c61233a384a0/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
+https://raw.githubusercontent.com/psv76/Neirolinks/84b6f0319a7276502fa644a056c184390294b869/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
 
 sha256sum -c field_retry.py.sha256
 python3 field_retry.py selftest
