@@ -89,14 +89,15 @@ The helper checks:
 1. hostname and installed package versions;
 2. `wb-rules`, `wb-mqtt-serial`, `wb-mqtt-db` service state;
 3. current gazebo runtime file inventory from **`/mnt/data/etc`** and SHA256;
-4. current 921.10 temperature + `External Sensor 1 OK` + active errors;
-5. air sensor state;
-6. one bounded read-only `wb-mqtt-serial/port/Load` proof:
+4. a fresh valid 504 frame and its floor value as the application-level local reference;
+5. direct MQTT visibility of 921.10/OK only as informational evidence — absence of a fresh unchanged publication is not a failure;
+6. air sensor state;
+7. one bounded read-only `wb-mqtt-serial/port/Load` proof, executed independently of MQTT sample freshness:
    - FC04 temperature;
    - FC02 Sensor OK;
    - JSON-RPC id correlation;
    - bus/local value agreement;
-7. one live 504 frame observation from `/neiro/ivolga/504/v2/frame`.
+8. consistency between the serial-read temperature and the fresh 504 frame floor value.
 
 Gazebo preflight deliberately does **not** require or verify NLI.
 
@@ -185,3 +186,8 @@ Active operator time is minimized by:
 - one 120–180 s boiler smoke.
 
 The workflow intentionally spends time only on live facts CI and previous history cannot prove.
+
+
+### Live correction from the first gazebo preflight
+
+The first preflight observed a fresh valid 504 frame with a healthy floor value while a short direct MQTT snapshot of `921.10` and its `OK` control saw no new publication. That is not a failed sensor. It demonstrates the exact silent-unchanged condition behind #68. Therefore `port/Load` capability probing must not be gated by receiving a new MQTT temperature/OK sample first.
