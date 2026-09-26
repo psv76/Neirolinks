@@ -158,6 +158,8 @@ There is no second 10-minute #75 soak on boiler. The long recurrence test belong
 
 ## Evidence
 
+History and preflight commands print only compact terminal summaries. Their complete JSON payloads are saved automatically under the persistent evidence root and the command prints the exact `FULL_REPORT` path. Do not depend on terminal scrollback for evidence.
+
 Helper evidence is persistent:
 
 `/mnt/data/var/log/neiro/hhm31-field-retry/`
