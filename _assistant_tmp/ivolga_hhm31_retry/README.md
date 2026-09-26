@@ -28,6 +28,21 @@ It never:
 
 The only direct Modbus operation outside HHM is a bounded **read-only** `wb-mqtt-serial/port/Load` probe using FC04 and FC02 on one representative M1W2 per controller.
 
+## Bootstrap on a WB
+
+Use the immutable helper/checksum commit `b746c59e7d18fafd793f304a087b63e2f669e85e`:
+
+```sh
+install -d -m 0700 /root/hhm31-retry
+cd /root/hhm31-retry
+curl -fL -o field_retry.py https://raw.githubusercontent.com/psv76/Neirolinks/b746c59e7d18fafd793f304a087b63e2f669e85e/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
+curl -fL -o field_retry.py.sha256 https://raw.githubusercontent.com/psv76/Neirolinks/b746c59e7d18fafd793f304a087b63e2f669e85e/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
+sha256sum -c field_retry.py.sha256
+python3 field_retry.py selftest
+```
+
+Expected SHA256: `05c9b8702ec0b91d0c0ac47255be1c70f5a69f4b68c7ac00296446fa24d35f6c`.
+
 ## Recommended sequence
 
 Before the maintenance window:
