@@ -4,6 +4,7 @@ This directory is not production runtime and must not be merged into PR #73.
 
 Files:
 
+- `bootstrap.sh` — immutable downloader/verifier for the compressed helper.
 - `PLAN.md` — complete history-first controlled retry plan.
 - `field_retry.py.gz` — compressed temporary helper used on either WB. It is decompressed by the immutable bootstrap command supplied with the workspace.
 
@@ -25,7 +26,13 @@ It never:
 
 The only direct Modbus action outside HHM is a bounded read-only `wb-mqtt-serial/port/Load` probe using FC04 and FC02 on one representative M1W2 per controller.
 
-Before field use, decompress the helper, then run:
+Before field use, install the helper from the immutable archive and verify its self-test:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/psv76/Neirolinks/32d3007dc65cd7071367057741a7cd8bd63e396d/tmp/assistant/ivolga_hhm31_retry_2026-09-26/bootstrap.sh | sh
+```
+
+Then run:
 
 ```sh
 python3 field_retry.py selftest
