@@ -2,6 +2,23 @@
 
 Это план будущих действий оператора, не разрешение и не выполненный deploy. В рамках Issue #68 нет доступа к live WB, restart, OT или физическим командам.
 
+## Каноническая live-топология перед controlled retry
+
+**Важно: не путать текущую live-архитектуру с будущим NLI deployment plan.**
+
+На текущем объекте перед controlled retry:
+
+- **WB беседки:** отдельный `624_combo_besedka.js` (комбо-термостат 504) + используемые им общие модули `HHM3Config/HHM3Wire/HHM3Runtime`. Это **не полноценный HHM controller**.
+- 624 читает локальные air/floor sensors, рассчитывает demand и публикует **non-retained логический frame**. Физических heating outputs / удалённых `/on` на WB беседки нет.
+- frame беседки передаётся по существующему MQTT bridge на WB котельной, где он используется общей отопительной логикой.
+- **NLI на WB беседки до этого controlled retry не устанавливался.**
+- Следовательно, отсутствие команды `nli` на WB беседки является **ожидаемым текущим состоянием**, а не preflight failure.
+- Файл `NLI/releases/hhm-gazebo-3.1.json` описывает **возможный будущий способ доставки** 624 + shared modules через NLI. Сам факт наличия этого manifest в репозитории **не означает**, что NLI уже установлен на gazebo WB.
+- Gazebo preflight до отдельного решения об установке NLI проверяет только текущие sensors/health, версии `wb-rules` и `wb-mqtt-serial`, поддержку `port/Load`, bridge/frame behavior и существующие файлы runtime.
+- Решение **впервые установить NLI на gazebo WB** является отдельным migration/architecture шагом и требует отдельного разрешения оператора. Не делать это автоматически как часть проверки #68/#75.
+
+Все дальнейшие инструкции ниже, где упоминается NLI role `gazebo`, относятся к **целевой схеме доставки после такого отдельного решения**, а не к исходному live состоянию.
+
 ## Исходное состояние и подготовка
 
 База репозитория после #74/#79: `df484b8bf22835001d69ddb2dd18e3eafd3792b0`. Fix #75 сохранён, cold-start proof описан в SENSOR_HEALTH.md и FIELD_STARTUP_2026-09-25.md. Использовать NLI **0.1.9**, installation-only. STARTUP_VALIDATION / NORMAL / sensor readiness не являются install/rollback gate; прежний NLI 0.1.7 30 s gate не возвращается. Реально установленный baseline каждого WB определяется inventory/drift, а не предположением по Git. Точный новый runtime commit и SHA256 содержатся в `NLI/releases/hhm-{boiler,gazebo}-3.1.json` и соседних `.sha256`.
