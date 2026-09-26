@@ -77,17 +77,17 @@ and then an interactive confirmation phrase.
 
 Use helper/checksum commit:
 
-`f2093e28c3450a83e33734106819f9fd81237b49`
+`090dec60280dde9d370dcb580137c61233a384a0`
 
 ```sh
 install -d -m 0700 /root/hhm31-retry
 cd /root/hhm31-retry
 
 curl -fsSL -o field_retry.py \
-https://raw.githubusercontent.com/psv76/Neirolinks/f2093e28c3450a83e33734106819f9fd81237b49/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
+https://raw.githubusercontent.com/psv76/Neirolinks/090dec60280dde9d370dcb580137c61233a384a0/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
 
 curl -fsSL -o field_retry.py.sha256 \
-https://raw.githubusercontent.com/psv76/Neirolinks/f2093e28c3450a83e33734106819f9fd81237b49/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
+https://raw.githubusercontent.com/psv76/Neirolinks/090dec60280dde9d370dcb580137c61233a384a0/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
 
 sha256sum -c field_retry.py.sha256
 python3 field_retry.py selftest
@@ -95,7 +95,7 @@ python3 field_retry.py selftest
 
 Expected helper SHA256:
 
-`cadffd008f56e856aa0bc3b3e628f9388d89d161d3000b3cfe8eaf8e724d95dd`
+`341b23e10695383292ab6ab3be54c4be78216c57ec503ad4e96d0e55444d07a4`
 
 ## Current next step — gazebo
 
@@ -114,10 +114,10 @@ Gazebo preflight checks:
 
 - package/service state;
 - current runtime files under `/mnt/data/etc` + hashes;
-- 921.10 temperature/OK/errors;
+- live 504 frame (freshness, `valid`, floor value);
 - air sensor;
-- live 504 frame;
-- read-only `port/Load` FC04+FC02 proof.
+- direct MQTT visibility of 921.10/OK as **informational only** — silence is expected for unchanged values and is not a failure;
+- read-only `port/Load` FC04+FC02 proof, performed even when those MQTT controls are silent; the bus temperature is compared with the fresh 504 frame floor value.
 
 It does not call or require NLI.
 
@@ -173,3 +173,6 @@ Temporary branch:
 `assistant/ivolga-hhm31-controlled-retry`
 
 The exact deletion steps will be given after the controlled retry is finished.
+
+
+Observed live on 26.09.2026: a fresh valid 504 frame contained floor=22.95 while a short direct MQTT snapshot of 921.10/OK saw no publication. This is not sensor failure; it is the silent-unchanged condition the new post-start serial proof is designed to handle. The helper must never gate `port/Load` on seeing a fresh MQTT sample first.
