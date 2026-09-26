@@ -31,6 +31,13 @@ RUNTIME_COMMIT = "20af0c29ed37130a5d4ff051ff1fb5984a5f8193"
 VERSION = "3.1"
 NLI_VERSION = "0.1.9"
 REPO = "psv76/Neirolinks"
+GAZEBO_BASELINE_COMMIT = "837b2c6da31275cdb8964373f73b070fbbd31d6a"
+GAZEBO_BASELINE_HASHES = {
+    "/etc/wb-rules-modules/HHM3Config.js": "99f7d993c2060015dd2e90f91d755597f0393d049c7904f31baf398b1bed5faf",
+    "/etc/wb-rules-modules/HHM3Runtime.js": "9c6a71d2db52f37177ab8cd8a899c8ec2ade8987367eeecf80f731973df776d3",
+    "/etc/wb-rules-modules/HHM3Wire.js": "b35baa255c4948f8ec926943efeee1ac5a29b594d508112478e8be4ea1360ada",
+    "/etc/wb-rules/624_combo_besedka.js": "fd17a68d6b707df00ec752d7d650182c75361647ad099de26591d0acdf636c4a",
+}
 NLI_RELEASE_TAG = "nli-approved-0.1.9"
 NLI_BOOTSTRAP_SHA256 = "fb46edd0071dbe7c1c410f65dce97af66d1e96a23465a9da6895d189fc0e634c"
 NLI_PACKAGE_SHA256 = "5042800dc01507742904b039d6d6539038255067aeec5b88603508bba5e718d5"
@@ -554,6 +561,72 @@ def service_state(name: str) -> Dict[str, Any]:
             k, v = line.split("=", 1)
             result[k] = v
     return result
+
+
+def logical_rule_path(path: Path) -> str:
+    if path.is_relative_to(WB_RULES_DIR):
+        return "/etc/wb-rules/" + path.relative_to(WB_RULES_DIR).as_posix()
+    if path.is_relative_to(WB_MODULES_DIR):
+        return "/etc/wb-rules-modules/" + path.relative_to(WB_MODULES_DIR).as_posix()
+    raise RuntimeError("path outside WB rule roots: " + str(path))
+
+
+def gazebo_adoption_audit(save: bool = True) -> Dict[str, Any]:
+    """Read-only inventory for first NLI adoption on gazebo.
+
+    It does not install NLI and does not create a trusted unmanaged allowlist.
+    The returned inventory is the evidence that must be reviewed before config creation.
+    """
+    report: Dict[str, Any] = {
+        "time": now_iso(),
+        "role": "gazebo",
+        "hostname": run(["hostname"], timeout=3).stdout.strip(),
+        "nli_present": shutil.which("nli") is not None,
+        "canonical_etc_root": str(ETC_ROOT),
+        "baseline_commit": GAZEBO_BASELINE_COMMIT,
+        "managed_expected": GAZEBO_BASELINE_HASHES,
+    }
+    files = []
+    current = {}
+    for root in (WB_RULES_DIR, WB_MODULES_DIR):
+        if not root.is_dir():
+            report.update(ok=False, error="missing rule directory: " + str(root))
+            return report
+        for p in sorted(root.rglob("*.js")):
+            if not p.is_file():
+                continue
+            logical = logical_rule_path(p)
+            data = p.read_bytes()
+            digest_now = sha256(data)
+            current[logical] = digest_now
+            files.append({"logical_path": logical, "physical_path": str(p),
+                          "sha256": digest_now, "size": len(data)})
+    managed = []
+    managed_failures = []
+    for logical, expected in GAZEBO_BASELINE_HASHES.items():
+        actual = current.get(logical)
+        item = {"logical_path": logical, "expected_sha256": expected,
+                "actual_sha256": actual, "match": actual == expected}
+        managed.append(item)
+        if actual != expected:
+            managed_failures.append(item)
+    unmanaged = [x for x in files if x["logical_path"] not in GAZEBO_BASELINE_HASHES]
+    report.update(
+        file_count=len(files),
+        managed=managed,
+        managed_baseline_ok=not managed_failures,
+        managed_failures=managed_failures,
+        unmanaged_count=len(unmanaged),
+        unmanaged=unmanaged,
+        services={n: service_state(n) for n in ("wb-rules", "wb-mqtt-serial")},
+    )
+    report["ok"] = (not managed_failures and
+                    all(x.get("ActiveState") == "active" for x in report["services"].values()))
+    if save:
+        p = evidence_dir("gazebo", "nli-adoption-audit")
+        report["evidence_dir"] = str(p)
+        json_dump(p / "adoption-audit.json", report)
+    return report
 
 
 def file_inventory(role: str) -> Dict[str, Any]:
@@ -1249,6 +1322,27 @@ def print_history_summary(report: Dict[str, Any]) -> None:
         print("FULL_REPORT:", str(Path(report["evidence_dir"]) / "history.json"))
 
 
+def print_adoption_summary(report: Dict[str, Any]) -> None:
+    summary = {
+        "role": report.get("role"),
+        "hostname": report.get("hostname"),
+        "nli_present": report.get("nli_present"),
+        "canonical_etc_root": report.get("canonical_etc_root"),
+        "baseline_commit": report.get("baseline_commit"),
+        "managed_baseline_ok": report.get("managed_baseline_ok"),
+        "unmanaged_count": report.get("unmanaged_count"),
+        "unmanaged": [{"path": x.get("logical_path"), "sha256": x.get("sha256"), "size": x.get("size")}
+                      for x in (report.get("unmanaged") or [])],
+        "services": {k: v.get("ActiveState") for k, v in (report.get("services") or {}).items()},
+        "evidence_dir": report.get("evidence_dir"),
+    }
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    print()
+    print("RESULT:", "PASS" if report.get("ok") else "FAIL")
+    if report.get("evidence_dir"):
+        print("FULL_REPORT:", str(Path(report["evidence_dir"]) / "adoption-audit.json"))
+
+
 def print_preflight_summary(report: Dict[str, Any]) -> None:
     checks = report.get("checks") or {}
     services = checks.get("services") or {}
@@ -1396,6 +1490,8 @@ def build_parser() -> argparse.ArgumentParser:
     h = sub.add_parser("history", help="read-only wb-mqtt-db evidence collection")
     h.add_argument("--role", choices=["gazebo", "boiler"], required=True)
     h.add_argument("--hours", type=int, default=24)
+    aa = sub.add_parser("adoption-audit", help="read-only gazebo inventory before first NLI adoption")
+    aa.add_argument("--role", choices=["gazebo"], required=True)
     pf = sub.add_parser("preflight", help="read-only current state + representative port/Load probe")
     pf.add_argument("--role", choices=["gazebo", "boiler"], required=True)
     pf.add_argument("--hours", type=int, default=24)
@@ -1437,6 +1533,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             report["evidence_dir"] = str(p)
             print_history_summary(report)
             return 0 if report.get("db_available") else 1
+        if args.command == "adoption-audit":
+            report = gazebo_adoption_audit(save=True)
+            print_adoption_summary(report)
+            return 0 if report.get("ok") else 2
         if args.command == "preflight":
             report = preflight_role(args.role, hours=args.hours, save=True,
                                     include_history=not args.skip_history, require_nli=args.require_nli)
