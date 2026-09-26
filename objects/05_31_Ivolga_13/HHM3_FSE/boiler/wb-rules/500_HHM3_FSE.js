@@ -9,7 +9,7 @@ var userSettings=new PersistentStorage('hhm3_thermostats',{global:true});
 var VD='HHM3_FSE',initialized=false,engines={},thermal={},directCool={},lastNow=null,openSince={},valveHistory={},lastReports={},lastSource={};
 var allowed=[C.source.setpoint,C.source.chEnable];
 Object.keys(C.circuits).forEach(function(id){var c=C.circuits[id];allowed.push(c.pump);if(c.kind==='mixed')allowed.push(c.level,c.enable);});
-var io=R.io({dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log,
+var io=R.io({proofStorage:new PersistentStorage('hhm31_poll_500',{global:true}),dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log,
     onSample:function(){if(initialized)evaluate();}},'500_HHM3',allowed);
 var house=W.receiver(Date.now(),R.houseValid),gazebo=W.receiver(Date.now());
 trackMqtt(C.houseTopic,function(m){house.accept(m.value,m.retained,Date.now());if(initialized)evaluate();});

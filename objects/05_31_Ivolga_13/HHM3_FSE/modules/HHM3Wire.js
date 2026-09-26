@@ -111,8 +111,10 @@ exports.localM1w2 = function (readControl) {
     var revalidate = [false, false], pendingSample = [false, false], errorObserved = [false, false];
     var retainedClear = [false, false];
     var cause = 'NEW_INSTANCE';
+    var revision = 0;
     function clock(now) {
         if (lastNow !== null && now < lastNow) {
+            revision++;
             proof = [false, false]; seen = [false, false]; admitted = false; measuredAt = null;
             pendingSample = [false, false]; cause = 'CLOCK_ROLLBACK';
         }
@@ -127,6 +129,7 @@ exports.localM1w2 = function (readControl) {
     return {
         sample: function (channel, value, retained, now) {
             clock(now);
+            revision++;
             // A late retained delivery must not replace a qualified live reading.
             if (retained === true) {
                 proof[channel] = false; seen[channel] = false; revalidate[channel] = true;
@@ -143,6 +146,7 @@ exports.localM1w2 = function (readControl) {
         },
         error: function (channel, value, retained, now) {
             clock(now);
+            revision++;
             var live = metadata(retained), error = value === undefined || value === null ? '' : String(value);
             if (error) {
                 faults[channel] = error; errorObserved[channel] = false; retainedClear[channel] = false;
@@ -155,6 +159,23 @@ exports.localM1w2 = function (readControl) {
         runtimeStatus: function () { return runtime; },
         timestamp: function () { return measuredAt; },
         status: function () { return reason; },
+        revision: function () { return revision; },
+        needsProof: function () { return runtime !== 'RUNTIME_UNSUPPORTED' && (!admitted || revalidate[0] || revalidate[1]); },
+        // Called ONLY by the correlated, non-retained serial RPC reader. This is
+        // a new hardware observation, never a synthetic MQTT value publication.
+        qualifyFromPoll: function (temperature, health, expectedRevision, now, min, max) {
+            clock(now);
+            if (revision !== expectedRevision || runtime === 'RUNTIME_UNSUPPORTED' ||
+                !between(temperature, min, max) || health !== 1 || faults[0] || faults[1]) return false;
+            var t, h;
+            try { t = readControl(0); h = readControl(1); } catch (e) { return false; }
+            if (!t || !h || t.error || h.error || !ok(h.value) || number(t.value) !== temperature) return false;
+            proof = [true, true]; seen = [true, true]; revalidate = [false, false];
+            reported = [temperature, true]; pendingSample = [false, false];
+            runtime = 'SUPPORTED'; admitted = true; measuredAt = now;
+            reason = 'VALID'; cause = 'POST_START_SERIAL_READ'; revision++;
+            return true;
+        },
         diagnostics: function () {
             return { phase: admitted ? 'RUNTIME' : 'STARTUP', reason: reason, cause: cause,
                 proof: proof.slice(), revalidate: revalidate.slice() };

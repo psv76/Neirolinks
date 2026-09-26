@@ -1,6 +1,6 @@
 # HHM 3.1 — 05 31 Иволга 13
 
-Выпуск по Issue #68 от базы `fix/ivolga-502-zone-readback-mixer-continuity`, merge PR #71 `1668c32d7187f0a59ccdea5d5b7da10f14f9660f`. Сохранены принятые исправления PR #65: 502 partial-ready/readback и непрерывность mixer, ownership 501–505, compact diagnostics, настройки 620 и отдельный 505. NLI 0.1.7 поддерживает имя релиза `3.1`; его политика версий обновлена без изменений алгоритмов отопления.
+Выпуск по Issue #68 от базы `fix/ivolga-502-zone-readback-mixer-continuity`, актуальная база после #74/#79 `df484b8bf22835001d69ddb2dd18e3eafd3792b0`. Сохранены принятые исправления PR #65: 502 partial-ready/readback и непрерывность mixer, ownership 501–505, compact diagnostics, настройки 620 и отдельный 505. NLI 0.1.9 остаётся installation-only: sensor readiness, STARTUP_VALIDATION и NORMAL не являются install/rollback gate. Fix #75 `c35ddbdb99874111699d29116b03381f12daef08` сохранён. Cold-start дополнен коррелированным post-start чтением M1W2 через документированный serial RPC; см. FIELD_STARTUP_2026-09-25.md.
 
 ## Sensor Health Contract
 

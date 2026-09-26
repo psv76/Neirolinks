@@ -4,7 +4,7 @@
  */
 var H = require('HHM3Wire');
 var C = require('HHM3Config').config.circuits['504'];
-var events = require('HHM3Runtime').io({dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log},'624_combo_besedka',[]);
+var events = require('HHM3Runtime').io({proofStorage:new PersistentStorage('hhm31_poll_624',{global:true}),dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log},'624_combo_besedka',[]);
 var VD = 'NL_combo_thermostat_504';
 var memory = { airHeat: false, floorHeat: false };
 var air = H.sensor(), floorPath = '921.10_TEMP_NONE/External Sensor 1';

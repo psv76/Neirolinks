@@ -72,7 +72,7 @@ test('WB 2.46.5 shared subscription replays only to joining trackers, with retai
     assert.ok(live.some(c=>c.owner==='500'));assert.ok(live.some(c=>c.owner==='600'));
     assert.ok(live.every(c=>c.retained===false));
 });
-test('BLOCKER reproduced: healthy unchanged controls and unavailable retained-only controls are indistinguishable inside 30 s',()=>{
+test('without RPC proof healthy unchanged controls and unavailable retained-only controls remain indistinguishable',()=>{
     for(const order of orders){
         // Healthy: next unchanged publication is at +60 s (outside acceptance).
         // Unavailable: producer unavailable, retained state still in broker.
@@ -106,8 +106,9 @@ test('a numeric update alone cannot prove retained OK; actual live pair qualifie
     h.deliver('boiler',h.topic(z.sensor)+'/meta/error','r',false);h.tick('620');
     assert.equal(h.values.boiler['NL_simple_thermostat_'+z.id+'/valid'],false);
 });
-console.log('RESULT: '+count+' investigation groups PASS; release acceptance remains BLOCKED, not fixed.');
-if(process.argv.includes('--acceptance')){
+console.log('RESULT: '+count+' passive-cache/receiver investigation groups PASS; hardware-proof acceptance is separate.');
+if(process.argv.includes('--acceptance'))require('./cold-start-proof-regressions');
+if(process.argv.includes('--passive-acceptance')){
     const h=startup(orders[0]);runWindow(h);
     // Deliberately red acceptance probe; not inverted or registered as a green
     // deployment check. Same assertion must eventually pass on a proven fix.

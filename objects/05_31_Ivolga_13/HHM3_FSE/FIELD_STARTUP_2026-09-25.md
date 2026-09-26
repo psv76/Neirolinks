@@ -1,8 +1,37 @@
-# Issue #68 / PR #73: исследование startup после live-теста 25.09.2026
+# Issue #68 / PR #73: cold-start proof после live-теста 25.09.2026
 
-Исторический отчёт относится к investigation commit `9f90f17`. Последующее [исправление runtime recovery по #75](ISSUE75_RECOVERY.md) меняет Wire/Runtime, но не решает описанный здесь startup blocker. Поэтому режим `--verify-baseline` из этого отчёта применим к 9f90f17, а не к исправленному HEAD; для воспроизведения старого recovery defect использовать новую suite с `--baseline`.
+## Причина и исправление
 
-**Verdict: BLOCKED. Исправленного release нет.** Это воспроизводимые результаты расследования, не отчёт об устранении обоих дефектов. Основание — [live comment](https://github.com/psv76/Neirolinks/pull/73#issuecomment-5829076012). Работа выполнена офлайн; live WB, SSH, deploy, restart, OT и merge не выполнялись. NLI 30 s, readiness и rollback не менялись.
+Прежний localM1w2 требовал отдельные live numeric temperature и OK. Новый tracker wb-rules воспроизводит retained cache; serial при unchanged temperature/OK может не публиковать ничего. Поэтому здоровое устройство и мёртвый producer с тем же cache неразличимы для пассивного reader. Fix #75 c35ddbd исправил recovery уже admitted датчика, но не мог безопасно выдать initial admission. Прежняя попытка readiness за 30 s в NLI 0.1.7 была дополнительным ограничением; NLI 0.1.9 после #74/#79 installation-only, и runtime gate не возвращается.
+
+Теперь новый instance получает дополнительное доказательство: коррелированный ответ на post-start `wb-mqtt-serial/port/Load` FC04 temperature и FC02 Sensor OK, через configured device_id. Ответы должны быть non-retained, текущего boot/id, своевременными, без RPC/Modbus ошибок и согласованными с доступными healthy local controls. Температура конечна и в диапазоне, аппаратный и локальный OK=1, оба #error пусты. Read подтверждает доступность устройства и содержимое регистров после старта; новую конверсию DS18B20 он не инициирует и не обещает. Никаких numeric republish и подмены cache нет.
+
+Retained-only dead device не сможет ответить на новый read; cached controls не заменяют ответ. Запоздалые/retained/чужие replies не квалифицируют. Изменение local health state между чтениями отменяет proof. Runtime recovery #75 отделён от startup и по-прежнему не требует изменения numeric value. MSW, frame TTL, receiver, 507 и NLI core не изменены.
+
+## Проверяемая семантика WB API
+
+Исследован upstream wb-mqtt-serial commit `832fb9dbfad19a9fd283599ae9ad7e8c163d5f0c`. Это source pin исследования, **не утверждение об установленной live версии**.
+
+- [Документированный RPC Modbus](https://github.com/wirenboard/wb-mqtt-serial/blob/832fb9dbfad19a9fd283599ae9ad7e8c163d5f0c/README.md): device_id берёт port/protocol/slave из конфигурации; HEX response, error=null при успехе, total_timeout; API предназначен для разовых операций.
+- [JSON schema](https://github.com/wirenboard/wb-mqtt-serial/blob/832fb9dbfad19a9fd283599ae9ad7e8c163d5f0c/wb-mqtt-serial-rpc-port-load-request.schema.json) и [handler](https://github.com/wirenboard/wb-mqtt-serial/blob/832fb9dbfad19a9fd283599ae9ad7e8c163d5f0c/src/rpc/rpc_port_handler.cpp): параметры запроса и разрешение configured device_id.
+- [Driver list](https://github.com/wirenboard/wb-mqtt-serial/blob/832fb9dbfad19a9fd283599ae9ad7e8c163d5f0c/src/rpc/rpc_port_driver_list.cpp): поиск configured device, AddTask в serial client. Не угадываются port, baud или slave address.
+- [Modbus task](https://github.com/wirenboard/wb-mqtt-serial/blob/832fb9dbfad19a9fd283599ae9ad7e8c163d5f0c/src/rpc/rpc_port_load_modbus_serial_client_task.cpp): CheckPortOpen, MakePDU, traits->Transaction, ExtractResponseData, OnResult; истечение срока и ошибки идут в failure. Это реальный bus read, не cached register value.
+- [Device access](https://github.com/wirenboard/wb-mqtt-serial/blob/832fb9dbfad19a9fd283599ae9ad7e8c163d5f0c/src/serial_client_device_access_handler.cpp): PrepareToAccess(nullptr) не вызывает device PrepareSession. Альтернативный device/Load не выбран: legacy subdevices ограничены, PrepareSession способен включать continuous read записью регистра. Выбранный HHM route генерирует только FC04/FC02, без payload записи; bus arbitration и дополнительная нагрузка чтений остаются реальными.
+- [Legacy M1W2 template](https://github.com/wirenboard/wb-mqtt-serial/blob/832fb9dbfad19a9fd283599ae9ad7e8c163d5f0c/templates/config-wb-m1w2.json) и [v3 template](https://github.com/wirenboard/wb-mqtt-serial/blob/832fb9dbfad19a9fd283599ae9ad7e8c163d5f0c/templates/config-wb-m1w2_v3-multiple_w1.json.jinja): input 7/8, s16 scale 0.0625, error 0x7fff; discrete 16/17. Поддержаны native и round_to=0.05; произвольные custom scale/offset fail-closed.
+- [Официальный RPC client](https://github.com/wirenboard/python-mqtt-rpc/blob/1b49daa253fb8d0641c877907419d5e6201c49e9/mqttrpc/client.py): `/rpc/v1/{driver}/{service}/{method}/{client_id}`, `/reply`, params/id envelope.
+- [wb-rules v2.46.5 tracker](https://github.com/wirenboard/wb-rules/blob/de67bb2159766a1e1491597e01ed50b82d4c1c73/wbrules/engine.go): cache replay retained=true; публичный cache сам по себе не timestamp успешного hardware poll.
+
+Один outstanding RPC на consumer, максимум три попытки на sensor за эпизод qualification, пауза 60 s после неудачи, deadline 10 s на stage. После qualification опрос прекращается. Это не heartbeat, не TTL workaround, не увеличение NLI timeout. Не гарантируется общий startup срок при занятой/неисправной шине. При отсутствии capability датчик остаётся invalid с диагностикой POST_START_PROOF; установка NLI от этого не откатывается.
+
+## Regression и следующий controlled retry
+
+`cold-start-proof-regressions.js --baseline` использует Wire/Runtime из c35ddbd: 4 PASS / 3 FAIL. Исправленный runtime: 7 PASS. Отдельная аппаратная модель отвечает только на реальные запросы формы документированного RPC, не публикует sensor controls. Проверены новые instances, retained unchanged state, оба restart ordering 500→620/620→500, все 20 mapped sensors, согласованность 500/620/624/600 и house receiver. Negative cases: dead/no response, retained/wrong/late/reboot reply, error/exception/malformed, unavailable controls, OK=0, #error, sentinel/range, mismatch, metadata unsupported и clock rollback. Source-level доказательство API дополняет simulation; C++ driver и физическая шина в тесте не исполняются.
+
+#75 suite: old14354 baseline 4 PASS / 12 FAIL; fixed 16 PASS. Полные результаты: TEST_RESULTS.md. Точные release pins и SHA — NLI/releases. Версия остаётся 3.1.
+
+`field-startup-regressions.js` сохраняет четыре исторические проверки passive cache/receiver. `--acceptance` теперь запускает положительный cold-start suite; старый заведомо красный passive probe доступен как `--passive-acceptance`. `--verify-baseline` относится только к историческому investigation commit 9f90f17, не к текущему fix.
+
+Следующее live окно требует отдельного разрешения. План: INSTALL.md; проверить поддерживаемую serial capability, exact installed manifests, proof для unchanged sensors, отсутствие ложного FLOOR_SENSOR_INVALID при длительном runtime и корректное fault/recovery. Установленная serial версия, реальные timings шины и физическое поведение этой офлайн работой не подтверждены. SSH/deploy/restart/OT/physical commands не выполнялись.
 
 ## A. Receiver: причина наблюдения live пока не установлена
 
@@ -20,43 +49,3 @@ House frame не имеет верхнеуровневых valid/reason: пос�
 Проверены [DefineMqttTracker/newTrackHandler](https://github.com/wirenboard/wb-rules/blob/de67bb2159766a1e1491597e01ed50b82d4c1c73/wbrules/engine.go#L1963): cached replay идёт только вновь присоединившемуся tracker с retained=true; действующим tracker передаётся исходный flag. Кэшируются также live payloads, но это не превращает каждую следующую публикацию в retained. Harness моделирует точные подписки HHM; полную конкурентную Go/MQTT-среду он не исполняет.
 
 **Нельзя заявить FAIL-before/PASS-after для A.** При подтверждённых в комментарии заголовках и предполагаемых valid body / false callback / монотонных clocks старый receiver уже проходит. Для точного диагноза нужны сохранённые полные frames seq1..6, wb-rules log исключений, порядок загрузки, и именно callback 500: topic, retained и его тип, qos, Date.now, return accept, read state. Одного внешнего `mosquitto_sub` недостаточно для доказательства доставки в callback. Если этих данных нет в сохранённом capture, их получение потребует отдельного согласованного диагностического сеанса; в этой работе он не запускался.
-
-## B. M1W2: воспроизведено ограничение существующего startup proof
-
-`localM1w2()` требует live value отдельно для temperature и OK. После общего restart уже сохранённые value=20, OK=1, error='' этого не дают. Число, пришедшее раньше OK, также не квалифицирует пару. При следующей неизменной публикации через 60 s readiness за 30 s не обеспечивается. Это объясняет механизм незавершённой qualification, но точный порядок каждого live floor callback из комментария восстановить нельзя.
-
-Исследован публичный [control API wb-rules 2.46.5](https://github.com/wirenboard/wb-rules/blob/de67bb2159766a1e1491597e01ed50b82d4c1c73/wbrules/esengine.go#L315). `getValue()/getError()` и dev value/#error не предоставляют timestamp успешного Modbus poll. Внутренняя completeness и retained информация не является доступным свежим аппаратным доказательством. Никаких выдуманных getControl().isComplete()/isRetained() в runtime не добавлено.
-
-[wb-mqtt-serial UpdateValueAndError](https://github.com/wirenboard/wb-mqtt-serial/blob/832fb9dbfad19a9fd283599ae9ad7e8c163d5f0c/src/serial_port_driver.cpp#L324) при неизменном числе/ошибке может ничего не публиковать. При PublishOnlyOnChange error-only callback появляется при изменении ошибки, а не при каждом успешном poll. Поэтому пустой старый error или повторное чтение dev не доказывают новый poll. Указанный serial commit — исследованный upstream, **не установленная версия live**. Интервал 60 s — сценарий regression, не измеренное значение live-конфига 25.09.
-
-Тест строит два одинаковых наблюдаемых состояния: здоровый опрашиваемый M1W2 без публикаций до +60 s и недоступный producer со старым retained-кэшем без новых сообщений. За первые 29999 ms публичные observations совпадают. Алгоритм на этих данных не может принять первый и отвергнуть второй. Это архитектурная граница пассивного proof, а не повод признать retained fresh.
-
-Возможный новый источник доказательства исследован: serial RPC [device/Load](https://github.com/wirenboard/wb-mqtt-serial/blob/832fb9dbfad19a9fd283599ae9ad7e8c163d5f0c/src/rpc/rpc_device_load_task.cpp) читает регистры, выполняя PrepareSession и bus access. Это активное чтение, не дополнительное свойство control cache. Его не добавляли скрытно: неизвестна фактическая serial версия/поддержка этого API на объекте, не доказаны bounds полного required set <30 s и отсутствие нежелательных bus effects. Для продолжения нужен подтверждённый поддерживаемый источник успешного post-start poll (свежий ответ, корреляция с текущим запуском, оба канала, errors, timeout и fail-closed). Это отдельное архитектурное решение; пользователь просил вынести такое противоречие, а не менять контракт догадкой.
-
-## Воспроизведение и предел результата
-
-Из корня репозитория:
-
-```text
-node objects/05_31_Ivolga_13/HHM3_FSE/tests/field-startup-regressions.js
-node objects/05_31_Ivolga_13/HHM3_FSE/tests/field-startup-regressions.js --verify-baseline
-node objects/05_31_Ivolga_13/HHM3_FSE/tests/field-startup-regressions.js --acceptance
-```
-
-Обычный режим: 4 группы PASS, включая сохранение blocker и fail-safe. `--verify-baseline`: пятая проверка byte equality исследованных 500/620/Wire/Runtime с 14354bc; не постоянное требование к будущему fix. `--acceptance`: exit 1, `BLOCKED: healthy retained/unchanged M1W2 must qualify before 30 s`. Эта acceptance пока красная; её не объявляем устранённой посредством expected-failure. CI запускает явно названные investigation tests, а не этот release acceptance probe. После исправления потребуется заменить blocker assertions положительной acceptance для обеих ролей и всех требуемых ошибок, сохранив отрицательный retained-only сценарий.
-
-Runtime bytes и NLI role manifests сохранены. Новый runtime commit и новые role SHA отсутствуют: выпускать прежний blocker под новым pin было бы вводящим в заблуждение. Существующие manifests **не deployable**:
-
-| Role | Runtime commit | Manifest SHA256 (без изменений) |
-|---|---|---|
-| boiler | 14354bcf1e0033c51f02f0b242bea8aa7fa29e4e | 3c17f811f1580306c440143de958d723d26bb3ed7151f81991d4b957d0a2eb09 |
-| gazebo | 14354bcf1e0033c51f02f0b242bea8aa7fa29e4e | 7c3f5a0323d5dbc611d9820985ec6681b1940d5fedbbce9f828215ab00c7bd0a |
-
-Изменённые файлы: tests/harness.js, tests/field-startup-regressions.js, этот отчёт, INSTALL.md, TEST_RESULTS.md, SENSOR_HEALTH.md, manifest.json и два CI workflow. HHM aggregate manifest пересчитан для тестов/документации; это не новый deployment payload.
-
-## Будущий controlled smoke — только после снятия blocker
-
-1. Сначала установить причину A и реализовать доказанный proof B; получить FAIL на прежнем runtime и PASS acceptance <30 s на новом, включая оба порядка запуска, 500/620/600 agreement и недоступный retained-only device.
-2. Закрепить новый runtime, regenerate оба role manifests/SHA при версии 3.1, пройти CI обоих roles. Проверить согласованное окно, baseline/backup/rollback и отдельно разрешённый live capture.
-3. При отдельно разрешённой попытке 3.0→3.1 сохранить сырые callbacks/frames/runtime с начала окна. Критерий: дом NORMAL, required M1W2 valid, readiness <30 s без изменения NLI; затем >120 s стабильного состояния и диагностика 411–420. Не вызывать нагрев/первичный пуск для проверки.
-4. Любой timeout/STARTUP_VALIDATION/fault оставляет штатный autorollback; сохранить evidence и не повторять update автоматически. До выполнения первых двух пунктов повторный smoke не рекомендован.

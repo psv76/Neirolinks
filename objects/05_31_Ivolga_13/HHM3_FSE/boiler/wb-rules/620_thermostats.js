@@ -7,7 +7,7 @@ var settings=new PersistentStorage('hhm3_thermostats',{global:true});
 var session=W.nextSession(new PersistentStorage('hhm3_house_sender',{global:true})),seq=0;
 var allowed=[],memory={},opened={},lastNow=null;
 Config.zones.forEach(function(z){allowed=allowed.concat(z.outputs);});
-var io=R.io({dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log},'620',allowed);
+var io=R.io({proofStorage:new PersistentStorage('hhm31_poll_620',{global:true}),dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log},'620',allowed);
 function sc(id,k,v){dev['NL_simple_thermostat_'+id+'/'+k]=v;}
 function thermostatTitle(z){
     var t=z.title,p=t.indexOf(' ');

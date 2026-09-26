@@ -21,7 +21,7 @@ var HD_SENSORS = {
     hozR: 'wb-m1w2_166/External Sensor 1'     // 420
 };
 
-var HD_IO = require('HHM3Runtime').io({dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log},'600',[]);
+var HD_IO = require('HHM3Runtime').io({proofStorage:new PersistentStorage('hhm31_poll_600',{global:true}),dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log},'600',[]);
 Object.keys(HD_SENSORS).forEach(function(k){HD_IO.watchM1w2(HD_SENSORS[k],-40,120);});
 
 var HD_PAIRS = [
