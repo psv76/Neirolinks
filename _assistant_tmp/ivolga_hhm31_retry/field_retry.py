@@ -62,6 +62,13 @@ GAZEBO_AIR = "921.09_MSW_TH/Temperature"
 GAZEBO_FRAME_TOPIC = "/neiro/ivolga/504/v2/frame"
 GAZEBO_LIVE_BASELINE_COMMIT = "837b2c6da31275cdb8964373f73b070fbbd31d6a"
 GAZEBO_LIVE_BASELINE_VERSION = "3.0.0-FSE+837b2c6da312"
+GAZEBO_BASELINE_MANIFEST_BUNDLE_COMMIT = "3aed78ae7ebbff007e5d68a5dee4e1c0034e83ad"
+GAZEBO_BASELINE_MANIFEST_SHA256 = "36aa0f6446043677a726bbd539b3f6664706ffcdf177277f89e95970eb26b932"
+GAZEBO_BASELINE_MANIFEST_NAME = "hhm-gazebo-live-837b2c6.json"
+GAZEBO_APPROVED_UNMANAGED = {
+    "/etc/wb-rules/GazeboPanel.js": "f8c959f074ed4be5cf36d8790cdb7a4a70666ee86c13b5b94d4968a71d854d72",
+    "/etc/wb-rules/rules.js": "146c0fcdd728cef04eff74d72fbbfdd27ebab05a15e9e09951b517e24d96a0c0",
+}
 GAZEBO_LIVE_BASELINE_FILES = {
     "/etc/wb-rules-modules/HHM3Config.js": "99f7d993c2060015dd2e90f91d755597f0393d049c7904f31baf398b1bed5faf",
     "/etc/wb-rules-modules/HHM3Runtime.js": "9c6a71d2db52f37177ab8cd8a899c8ec2ade8987367eeecf80f731973df776d3",
@@ -543,6 +550,142 @@ def adoption_inventory(role: str) -> Dict[str, Any]:
         "gazebo_live_baseline_match": baseline_match,
         "gazebo_live_baseline_mismatches": baseline_mismatches,
     }
+
+
+def gazebo_baseline_manifest_path() -> Path:
+    return RELEASE_DIR / GAZEBO_BASELINE_MANIFEST_NAME
+
+
+def fetch_exact_gazebo_baseline_manifest() -> bytes:
+    url = (
+        f"https://raw.githubusercontent.com/{REPO}/{GAZEBO_BASELINE_MANIFEST_BUNDLE_COMMIT}"
+        f"/_assistant_tmp/ivolga_hhm31_retry/{GAZEBO_BASELINE_MANIFEST_NAME}"
+    )
+    req = urllib.request.Request(url, headers={"User-Agent": "hhm31-field-retry/1"})
+    with urllib.request.urlopen(req, timeout=30) as response:
+        data = response.read(2 * 1024 * 1024)
+    got = sha256(data)
+    if got != GAZEBO_BASELINE_MANIFEST_SHA256:
+        raise RuntimeError(f"gazebo baseline manifest SHA mismatch: {got}")
+    m = json.loads(data)
+    if (m.get("component"), m.get("object"), m.get("role"), m.get("version")) != (
+        "hhm", OBJECT, "gazebo", GAZEBO_LIVE_BASELINE_VERSION
+    ):
+        raise RuntimeError("gazebo baseline manifest identity mismatch")
+    if (m.get("release") or {}).get("commit") != GAZEBO_LIVE_BASELINE_COMMIT:
+        raise RuntimeError("gazebo baseline manifest release commit mismatch")
+    return data
+
+
+def approved_gazebo_inventory_check() -> Dict[str, Any]:
+    inv = adoption_inventory("gazebo")
+    if not inv.get("gazebo_live_baseline_match"):
+        raise RuntimeError("gazebo managed baseline drift; adoption blocked")
+    actual_unmanaged = {x["logical_path"]: x["sha256"] for x in inv["unmanaged_rules"]}
+    if actual_unmanaged != GAZEBO_APPROVED_UNMANAGED:
+        raise RuntimeError(
+            "gazebo unmanaged inventory differs from reviewed allowlist: " +
+            json.dumps(actual_unmanaged, ensure_ascii=False, sort_keys=True)
+        )
+    return inv
+
+
+def expected_gazebo_adoption_config() -> Dict[str, Any]:
+    manifest_path = str(gazebo_baseline_manifest_path())
+    pin = {"path": manifest_path, "sha256": GAZEBO_BASELINE_MANIFEST_SHA256}
+    return {
+        "object": OBJECT,
+        "role": "gazebo",
+        "hostname": "wirenboard-A52LY4MY",
+        "release_source": "pinned",
+        "components": {
+            "hhm": {
+                "plugin": "hhm",
+                "baseline": dict(pin),
+                "target": dict(pin),
+                "unmanaged_rules": dict(GAZEBO_APPROVED_UNMANAGED),
+            }
+        },
+    }
+
+
+def adopt_gazebo_nli(execute: bool) -> Dict[str, Any]:
+    if not execute:
+        raise RuntimeError("gazebo NLI adoption creates persistent config; pass --execute")
+    if os.geteuid() != 0:
+        raise RuntimeError("gazebo NLI adoption must run as root")
+    if run(["hostname"], timeout=3).stdout.strip() != "wirenboard-A52LY4MY":
+        raise RuntimeError("wrong controller hostname for gazebo adoption")
+    if nli_version() != NLI_VERSION:
+        raise RuntimeError(f"NLI {NLI_VERSION} required before gazebo adoption")
+    pending = Path("/mnt/data/var/lib/neiro/nli/pending.json")
+    if pending.exists():
+        raise RuntimeError("NLI pending mutation exists; adoption blocked")
+
+    inv = approved_gazebo_inventory_check()
+    expected_cfg = expected_gazebo_adoption_config()
+    manifest_path = gazebo_baseline_manifest_path()
+    baseline_data = fetch_exact_gazebo_baseline_manifest()
+    before = {n: service_state(n) for n in ("wb-rules", "wb-mqtt-serial")}
+
+    already = False
+    if NLI_CONFIG.exists():
+        current_cfg = json.loads(NLI_CONFIG.read_bytes())
+        if current_cfg != expected_cfg:
+            raise RuntimeError("existing NLI config differs from reviewed gazebo adoption config")
+        if not manifest_path.is_file() or sha256(manifest_path.read_bytes()) != GAZEBO_BASELINE_MANIFEST_SHA256:
+            raise RuntimeError("existing gazebo baseline manifest missing/drifted")
+        already = True
+    else:
+        if manifest_path.exists():
+            raise RuntimeError("baseline manifest exists without config; refusing ambiguous adoption state")
+        atomic_write(manifest_path, baseline_data, 0o644)
+        atomic_write(
+            NLI_CONFIG,
+            (json.dumps(expected_cfg, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode(),
+            0o600,
+        )
+
+    status = nli_call(["status"], timeout=30)
+    check = nli_call(["check", "hhm"], timeout=120)
+    verify = nli_call(["verify", "hhm"], timeout=60)
+    after = {n: service_state(n) for n in before}
+    unchanged = all(
+        before[n].get("ActiveEnterTimestamp") == after[n].get("ActiveEnterTimestamp")
+        for n in before
+    )
+    ok = (
+        status["returncode"] == 0 and check["returncode"] == 0 and verify["returncode"] == 0
+        and unchanged
+    )
+
+    report = {
+        "ok": ok,
+        "already_adopted": already,
+        "nli_version": nli_version(),
+        "config": str(NLI_CONFIG),
+        "manifest": str(manifest_path),
+        "manifest_sha256": GAZEBO_BASELINE_MANIFEST_SHA256,
+        "managed_baseline_match": inv.get("gazebo_live_baseline_match"),
+        "approved_unmanaged": GAZEBO_APPROVED_UNMANAGED,
+        "nli_status": status,
+        "nli_check_hhm": check,
+        "nli_verify_hhm": verify,
+        "services_before": before,
+        "services_after": after,
+        "service_start_timestamps_unchanged": unchanged,
+    }
+
+    if not ok and not already:
+        # Adoption is configuration-only. On failed read-only validation restore
+        # the prior unconfigured state; never touch HHM files/services here.
+        try:
+            NLI_CONFIG.unlink(missing_ok=True)
+            manifest_path.unlink(missing_ok=True)
+        except OSError as exc:
+            report["cleanup_warning"] = str(exc)
+        report["restored_unconfigured"] = True
+    return report
 
 
 def service_state(name: str) -> Dict[str, Any]:
@@ -1386,6 +1529,8 @@ def selftest() -> Dict[str, Any]:
     t("canonical etc", str(ETC_ROOT) == "/mnt/data/etc")
     t("gazebo old baseline identity", GAZEBO_LIVE_BASELINE_COMMIT.startswith("837b2c6"))
     t("nli bootstrap pin", len(NLI_BOOTSTRAP_SHA256) == 64 and NLI_RELEASE_TAG == "nli-approved-0.1.9")
+    t("gazebo approved unmanaged count", len(GAZEBO_APPROVED_UNMANAGED) == 2)
+    t("gazebo baseline manifest pin", len(GAZEBO_BASELINE_MANIFEST_SHA256) == 64)
     return {"ok": True, "tests": tests}
 
 
@@ -1405,6 +1550,8 @@ def build_parser() -> argparse.ArgumentParser:
     bn.add_argument("--execute-install", action="store_true")
     ai = sub.add_parser("adoption-inventory", help="read-only inventory for first NLI adoption")
     ai.add_argument("--role", choices=["gazebo", "boiler"], required=True)
+    ag = sub.add_parser("adopt-gazebo-nli", help="activate reviewed gazebo baseline in NLI; no HHM file changes")
+    ag.add_argument("--execute", action="store_true")
     st = sub.add_parser("stage", help="stage exact PR #73 manifest in existing configured NLI; no HHM update")
     st.add_argument("--role", choices=["gazebo", "boiler"], required=True)
     st.add_argument("--execute", action="store_true")
@@ -1418,8 +1565,8 @@ def build_parser() -> argparse.ArgumentParser:
     rt.add_argument("--role", choices=["gazebo", "boiler"], required=True)
     rt.add_argument("--hours", type=int, default=24)
     rt.add_argument("--skip-history", action="store_true", help="reuse already-reviewed history; current checks still run")
-    rt.add_argument("--stability-seconds", type=int, choices=[120, 180], default=None,
-                    help="boiler post-update soak; use only from reviewed preflight/history")
+    rt.add_argument("--stability-seconds", type=int, choices=[120, 180, 600], default=None,
+                    help="post-update soak: gazebo=600, boiler=120/180")
     rt.add_argument("--execute-update", action="store_true")
     return p
 
@@ -1466,6 +1613,25 @@ def main(argv: Optional[List[str]] = None) -> int:
             print()
             print("RESULT:", "PASS" if report.get("ok") else "FAIL")
             return 0 if report.get("ok") else 2
+        if args.command == "adopt-gazebo-nli":
+            report = adopt_gazebo_nli(args.execute)
+            p = evidence_dir("gazebo", "nli-adoption")
+            report["evidence_dir"] = str(p)
+            json_dump(p / "adoption.json", report)
+            compact = {
+                "ok": report.get("ok"),
+                "already_adopted": report.get("already_adopted"),
+                "nli_version": report.get("nli_version"),
+                "manifest_sha256": report.get("manifest_sha256"),
+                "managed_baseline_match": report.get("managed_baseline_match"),
+                "approved_unmanaged_count": len(report.get("approved_unmanaged") or {}),
+                "service_start_timestamps_unchanged": report.get("service_start_timestamps_unchanged"),
+                "full_report": str(p / "adoption.json"),
+            }
+            print(json.dumps(compact, ensure_ascii=False, indent=2))
+            print()
+            print("RESULT:", "PASS" if report.get("ok") else "FAIL")
+            return 0 if report.get("ok") else 3
         if args.command == "stage":
             if not args.execute:
                 raise RuntimeError("stage changes persistent NLI target config; pass --execute")
