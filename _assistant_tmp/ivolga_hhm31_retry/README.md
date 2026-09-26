@@ -1,197 +1,97 @@
 # Temporary assistant workspace — Ivolga HHM 3.1 retry
 
-This directory is temporary and exists only for the controlled retry work.
+## Canonical decision
 
-Files:
+From 26.09.2026 NLI is the normal installer/updater on every managed NEIROLINKS WB.
 
-- `PLAN.md` — canonical history-first retry plan;
-- `field_retry.py` — stdlib-only field helper;
-- `field_retry.py.sha256` — helper checksum.
+For Ivolga this means:
 
-## Live topology rule
+- boiler: NLI 0.1.9 already configured;
+- gazebo: install/adopt NLI first;
+- HHM 3.1 on both controllers is deployed through NLI;
+- no normal manual replacement of the four gazebo HHM files.
 
-Gazebo and boiler are intentionally treated differently.
+## Workspace files
 
-### Gazebo
+- `PLAN.md` — canonical controlled-retry plan
+- `field_retry.py` — field helper
+- `field_retry.py.sha256` — helper checksum
+- `hhm-gazebo-live-837b2c6.json` — exact reviewed current gazebo baseline
 
-Current live baseline:
+Persistent live `etc` is `/mnt/data/etc`.
 
-- `624_combo_besedka.js` + shared `HHM3Config / HHM3Wire / HHM3Runtime`;
-- no full HHM controller;
-- no NLI;
-- publishes the non-retained 504 frame over the existing MQTT bridge.
+## Current gazebo facts
 
-Therefore:
+Already proved; do not repeat:
 
-- gazebo `history`, `preflight`, and `smoke` are supported;
-- gazebo `stage` / NLI `retry` are deliberately NOT supported;
-- missing `nli` on gazebo is expected and is not a preflight failure;
-- first-time NLI installation on gazebo is a separate migration decision.
+- history collected;
+- old false `FLOOR_SENSOR_INVALID` reproduced;
+- `port/Load` FC04 + FC02 works on installed wb-mqtt-serial 2.268.0;
+- temperature direct read 22.8125 °C;
+- Sensor OK direct read healthy;
+- RTT about 102 ms;
+- current four managed files exactly match commit `837b2c6da31275cdb8964373f73b070fbbd31d6a`.
 
-### Boiler
+Current-baseline manifest SHA256:
 
-Boiler already has NLI 0.1.9. Boiler `stage`, `retry`, and `unstage` use that existing NLI installation.
+`36aa0f6446043677a726bbd539b3f6664706ffcdf177277f89e95970eb26b932`
 
-## Filesystem rule
+## Helper bundle
 
-Persistent configuration is read from:
+Immutable helper/checksum commit:
 
-`/mnt/data/etc`
+`90f3b4e2840d443dca6a4cce7bccda214e23ec69`
 
-The helper uses that path directly for runtime inventory and config summaries.
+Helper SHA256:
 
-Important paths:
+`ecb96eee502d8f7c1f3e1537a8545d8b85ed4eb1795e69c24881c7cd86114d38`
 
-- `/mnt/data/etc/wb-rules/`
-- `/mnt/data/etc/wb-rules-modules/`
-- `/mnt/data/etc/wb-mqtt-serial.conf`
-- `/mnt/data/etc/wb-mqtt-db.conf`
-- boiler NLI: `/mnt/data/etc/neiro/nli/`
-
-Do not use `/etc` as the source of truth for field inventory.
-
-## Safety model
-
-Read-only by default.
-
-The only direct Modbus operation is one bounded read-only `wb-mqtt-serial/port/Load` pair using FC04 + FC02 on one representative M1W2.
-
-The helper does not:
-
-- restart `wb-mqtt-serial`;
-- update/recover firmware;
-- create artificial numeric republishes;
-- deliberately force sensor failures;
-- modify 507;
-- auto-rollback on HHM business state.
-
-Boiler mutation requires:
+Refresh helper on gazebo:
 
 ```sh
-python3 field_retry.py retry --role boiler --execute-update
-```
-
-and then an interactive confirmation phrase.
-
-## Immutable helper bootstrap
-
-Use helper/checksum commit:
-
-`5c41cdacafd13e9d85416993c3f4d3f742b9b0fe`
-
-```sh
-install -d -m 0700 /root/hhm31-retry
 cd /root/hhm31-retry
 
 curl -fsSL -o field_retry.py \
-https://raw.githubusercontent.com/psv76/Neirolinks/5c41cdacafd13e9d85416993c3f4d3f742b9b0fe/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
+https://raw.githubusercontent.com/psv76/Neirolinks/90f3b4e2840d443dca6a4cce7bccda214e23ec69/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
 
 curl -fsSL -o field_retry.py.sha256 \
-https://raw.githubusercontent.com/psv76/Neirolinks/5c41cdacafd13e9d85416993c3f4d3f742b9b0fe/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
+https://raw.githubusercontent.com/psv76/Neirolinks/90f3b4e2840d443dca6a4cce7bccda214e23ec69/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
 
 sha256sum -c field_retry.py.sha256
 python3 field_retry.py selftest
 ```
 
-Expected helper SHA256:
+## Next step: NLI package + adoption inventory
 
-`a06520efe1581468a0bfafbc5e135b767af859122cbc8f98c8939951624e772c`
+The operator decision to install NLI on gazebo is already made.
 
-## Current next step — gazebo
-
-Gazebo 24 h history has already been collected. Do not repeat it.
-
-Run only:
+Run:
 
 ```sh
-cd /root/hhm31-retry
-python3 field_retry.py preflight --role gazebo --skip-history
+python3 field_retry.py bootstrap-nli --execute-install
+python3 field_retry.py adoption-inventory --role gazebo
 ```
 
-The terminal output is intentionally compact. The helper automatically saves the complete JSON report under `/mnt/data/var/log/neiro/hhm31-field-retry/<timestamp>-gazebo-preflight/preflight.json` and prints that exact path as `FULL_REPORT`.
+`bootstrap-nli` installs only approved NLI 0.1.9. It verifies the fixed bootstrap before execution and checks that wb-rules / wb-mqtt-serial were not restarted.
 
-Gazebo preflight checks:
+It does not create object config and does not alter HHM.
 
-- package/service state;
-- current runtime files under `/mnt/data/etc` + hashes;
-- live 504 frame (freshness, `valid`, floor value);
-- air sensor;
-- direct MQTT visibility of 921.10/OK as **informational only** — silence is expected for unchanged values and is not a failure;
-- read-only `port/Load` FC04+FC02 proof, performed even when those MQTT controls are silent; the bus temperature is compared with the fresh 504 frame floor value.
+`adoption-inventory` is read-only. It saves the complete JS inventory and prints a compact summary plus the JSON path.
 
-It does not call or require NLI.
+After that JSON is reviewed, the helper will be updated with the exact unmanaged allowlist and one atomic gazebo adoption command. The operator will not manually edit HHM files or build the allowlist by hand.
 
-After gazebo preflight PASS, stop and explicitly choose the delivery method for the new 624 + shared modules. Do not install NLI automatically.
+## After adoption
 
-After that separately approved gazebo deployment, acceptance is:
+Gazebo update:
 
 ```sh
-python3 field_retry.py smoke --role gazebo --stability-seconds 600
+python3 field_retry.py retry --role gazebo --skip-history --stability-seconds 600 --execute-update
 ```
 
-## Boiler sequence — only after gazebo PASS
-
-First run one read-only boiler preflight with history:
-
-```sh
-python3 field_retry.py preflight --role boiler --hours 24
-```
-
-Review its `recommended_stability_s` value. Then the mutation command reuses that already-reviewed history and repeats only current-state checks:
-
-```sh
-python3 field_retry.py retry --role boiler --skip-history --stability-seconds 120 --execute-update
-```
-
-Use `180` instead of `120` when the reviewed history recommends the conservative interval.
-
-Boiler preflight requires existing NLI 0.1.9 and no pending mutation. The retry still repeats current sensor/service/NLI checks immediately before staging; only the history query is skipped.
+Boiler follows only after gazebo PASS.
 
 ## Evidence
 
-History and preflight print compact summaries to the terminal and automatically save their complete JSON reports. This avoids terminal scrollback loss.
-
-Persistent evidence:
-
 `/mnt/data/var/log/neiro/hhm31-field-retry/`
 
-Boiler-only staging files:
-
-- `/mnt/data/etc/neiro/nli/config.json.pre-hhm31-retry`
-- one helper retry manifest in `/mnt/data/etc/neiro/nli/releases/`
-
-## Cleanup after the work is complete
-
-Do not clean up until live acceptance and final target state are confirmed.
-
-Temporary GitHub directory:
-
-`_assistant_tmp/ivolga_hhm31_retry/`
-
-Temporary branch:
-
-`assistant/ivolga-hhm31-controlled-retry`
-
-The exact deletion steps will be given after the controlled retry is finished.
-
-
-Observed live on 26.09.2026: a fresh valid 504 frame contained floor=22.95 while a short direct MQTT snapshot of 921.10/OK saw no publication. This is not sensor failure; it is the silent-unchanged condition the new post-start serial proof is designed to handle. The helper must never gate `port/Load` on seeing a fresh MQTT sample first.
-
-
-## Live gazebo preflight result 26.09.2026
-
-The pre-deploy field gate now distinguishes hardware health from the known old-runtime defect.
-
-Observed simultaneously on the gazebo WB:
-
-- fresh 504 frame: `valid=false`, `reason=FLOOR_SENSOR_INVALID`, `floor=null`;
-- air remained valid;
-- direct MQTT snapshot of 921.10/OK saw no new publication;
-- read-only `port/Load` succeeded:
-  - FC04 temperature = 22.8125 °C;
-  - FC02 Sensor OK = healthy;
-  - RTT about 102 ms for each read.
-
-This is a live reproduction of the old #75 behavior, not a hardware failure. Therefore gazebo **pre-deploy** PASS is based on hardware proof (`port/Load` + healthy air + fresh frame transport), while the old frame's `FLOOR_SENSOR_INVALID` is recorded as `old_runtime_false_invalid_reproduced=true`.
-
-After installing the fixed 624/shared modules, the 600 s smoke reverses that expectation: any `FLOOR_SENSOR_INVALID` is then a failure.
+Do not delete evidence or NLI persistent state until the controlled retry is closed.
