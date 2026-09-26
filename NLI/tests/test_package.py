@@ -90,6 +90,10 @@ class PackageTests(unittest.TestCase):
                     self.assertIn("./usr/share/neiro-nli/" + name, tar.getnames())
                 self.assertFalse(any(p.startswith(("./etc", "./mnt", "./var")) for p in tar.getnames()))
                 self.assertFalse(any("systemd" in p for p in tar.getnames()))
+                from nli.known import MANIFESTS
+                for name, expected in MANIFESTS.items():
+                    known = tar.extractfile('./usr/share/neiro-nli/known/' + name).read()
+                    self.assertEqual(hashlib.sha256(known).hexdigest(), expected)
                 payload = 'NLI/releases/pressure_makeup/1.0/507_Pressure_makeup.js'
                 self.assertEqual(tar.extractfile('./usr/share/neiro-nli/payload/' + payload).read(),
                                  (ROOT.parent / payload).read_bytes())
