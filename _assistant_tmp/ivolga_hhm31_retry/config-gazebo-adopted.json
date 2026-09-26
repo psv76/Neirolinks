@@ -1,0 +1,23 @@
+{
+  "object": "05_31_Ivolga_13",
+  "role": "gazebo",
+  "hostname": "wirenboard-A52LY4MY",
+  "release_source": "pinned",
+  "components": {
+    "hhm": {
+      "plugin": "hhm",
+      "baseline": {
+        "path": "/mnt/data/etc/neiro/nli/releases/hhm-gazebo-live-837b2c6.json",
+        "sha256": "36aa0f6446043677a726bbd539b3f6664706ffcdf177277f89e95970eb26b932"
+      },
+      "target": {
+        "path": "/mnt/data/etc/neiro/nli/releases/hhm-gazebo-live-837b2c6.json",
+        "sha256": "36aa0f6446043677a726bbd539b3f6664706ffcdf177277f89e95970eb26b932"
+      },
+      "unmanaged_rules": {
+        "/etc/wb-rules/GazeboPanel.js": "f8c959f074ed4be5cf36d8790cdb7a4a70666ee86c13b5b94d4968a71d854d72",
+        "/etc/wb-rules/rules.js": "146c0fcdd728cef04eff74d72fbbfdd27ebab05a15e9e09951b517e24d96a0c0"
+      }
+    }
+  }
+}
