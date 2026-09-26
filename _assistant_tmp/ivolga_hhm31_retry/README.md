@@ -77,17 +77,17 @@ and then an interactive confirmation phrase.
 
 Use helper/checksum commit:
 
-`84b6f0319a7276502fa644a056c184390294b869`
+`5c41cdacafd13e9d85416993c3f4d3f742b9b0fe`
 
 ```sh
 install -d -m 0700 /root/hhm31-retry
 cd /root/hhm31-retry
 
 curl -fsSL -o field_retry.py \
-https://raw.githubusercontent.com/psv76/Neirolinks/84b6f0319a7276502fa644a056c184390294b869/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
+https://raw.githubusercontent.com/psv76/Neirolinks/5c41cdacafd13e9d85416993c3f4d3f742b9b0fe/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
 
 curl -fsSL -o field_retry.py.sha256 \
-https://raw.githubusercontent.com/psv76/Neirolinks/84b6f0319a7276502fa644a056c184390294b869/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
+https://raw.githubusercontent.com/psv76/Neirolinks/5c41cdacafd13e9d85416993c3f4d3f742b9b0fe/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
 
 sha256sum -c field_retry.py.sha256
 python3 field_retry.py selftest
@@ -95,7 +95,7 @@ python3 field_retry.py selftest
 
 Expected helper SHA256:
 
-`341b23e10695383292ab6ab3be54c4be78216c57ec503ad4e96d0e55444d07a4`
+`a06520efe1581468a0bfafbc5e135b767af859122cbc8f98c8939951624e772c`
 
 ## Current next step — gazebo
 
@@ -176,3 +176,22 @@ The exact deletion steps will be given after the controlled retry is finished.
 
 
 Observed live on 26.09.2026: a fresh valid 504 frame contained floor=22.95 while a short direct MQTT snapshot of 921.10/OK saw no publication. This is not sensor failure; it is the silent-unchanged condition the new post-start serial proof is designed to handle. The helper must never gate `port/Load` on seeing a fresh MQTT sample first.
+
+
+## Live gazebo preflight result 26.09.2026
+
+The pre-deploy field gate now distinguishes hardware health from the known old-runtime defect.
+
+Observed simultaneously on the gazebo WB:
+
+- fresh 504 frame: `valid=false`, `reason=FLOOR_SENSOR_INVALID`, `floor=null`;
+- air remained valid;
+- direct MQTT snapshot of 921.10/OK saw no new publication;
+- read-only `port/Load` succeeded:
+  - FC04 temperature = 22.8125 °C;
+  - FC02 Sensor OK = healthy;
+  - RTT about 102 ms for each read.
+
+This is a live reproduction of the old #75 behavior, not a hardware failure. Therefore gazebo **pre-deploy** PASS is based on hardware proof (`port/Load` + healthy air + fresh frame transport), while the old frame's `FLOOR_SENSOR_INVALID` is recorded as `old_runtime_false_invalid_reproduced=true`.
+
+After installing the fixed 624/shared modules, the 600 s smoke reverses that expectation: any `FLOOR_SENSOR_INVALID` is then a failure.
