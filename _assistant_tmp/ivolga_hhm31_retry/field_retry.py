@@ -31,7 +31,7 @@ VERSION = "3.1"
 NLI_VERSION = "0.1.9"
 REPO = "psv76/Neirolinks"
 RAW = f"https://raw.githubusercontent.com/{REPO}/{PR_HEAD}"
-EVIDENCE_ROOT = Path("/tmp/hhm31-field-retry")
+EVIDENCE_ROOT = Path("/mnt/data/var/log/neiro/hhm31-field-retry")
 NLI_CONFIG = Path("/mnt/data/etc/neiro/nli/config.json")
 NLI_CONFIG_BACKUP = Path("/mnt/data/etc/neiro/nli/config.json.pre-hhm31-retry")
 RELEASE_DIR = Path("/mnt/data/etc/neiro/nli/releases")
@@ -164,6 +164,13 @@ def numeric(v: Any) -> Optional[float]:
         return n if math.isfinite(n) else None
     except (TypeError, ValueError):
         return None
+
+
+def round_template_005(value: float) -> float:
+    """Match HHM/WB template rounding: sign * Math.round(abs(value) / 0.05) * 0.05."""
+    sign = -1.0 if value < 0 else 1.0
+    rounded = sign * math.floor(abs(value) / 0.05 + 0.5) * 0.05
+    return float(f"{rounded:.2f}")
 
 
 def snapshot_topics(topics: Iterable[str], seconds: float = 2.0) -> Dict[str, str]:
@@ -446,7 +453,7 @@ def port_load_probe(sensor_path: str) -> Dict[str, Any]:
         return {"ok": False, "error": "temperature sentinel 0x7fff", "reply": r1, "snapshot": snap}
     signed = raw - 65536 if raw >= 32768 else raw
     bus_temp = signed * 0.0625
-    rounded = float(f"{round(bus_temp / 0.05) * 0.05:.2f}")
+    rounded = round_template_005(bus_temp)
     if local_temp not in (bus_temp, rounded):
         return {"ok": False, "error": "bus/local temperature mismatch", "bus_temp": bus_temp,
                 "local_temp": local_temp, "reply": r1, "snapshot": snap}
@@ -533,6 +540,8 @@ def preflight_role(role: str, hours: int = 24, save: bool = True) -> Dict[str, A
             failures.append(f"{svc} is not active")
     if checks["nli_status"]["returncode"] != 0:
         failures.append("nli status failed")
+    elif isinstance(checks["nli_status"].get("json"), dict) and checks["nli_status"]["json"].get("pending") is not None:
+        failures.append("NLI has a pending mutation; recovery required before retry")
     if checks["nli_verify_hhm"]["returncode"] != 0:
         failures.append("nli verify hhm failed")
     if role == "boiler" and checks["nli_verify_pressure_makeup"]["returncode"] != 0:
@@ -584,6 +593,57 @@ def atomic_write(path: Path, data: bytes, mode: int) -> None:
             pass
 
 
+def retry_manifest_path(role: str) -> Path:
+    return RELEASE_DIR / f"hhm-{role}-3.1-retry-{PR_HEAD[:12]}.json"
+
+
+def staged_target_matches(cfg: Dict[str, Any], role: str) -> bool:
+    try:
+        target = cfg["components"]["hhm"]["target"]
+    except (KeyError, TypeError):
+        return False
+    return (cfg.get("object") == OBJECT and cfg.get("role") == role and
+            cfg.get("release_source") == "pinned" and
+            target.get("path") == str(retry_manifest_path(role)) and
+            target.get("sha256") == MANIFESTS[role]["sha256"])
+
+
+def nli_pending() -> Tuple[bool, Dict[str, Any]]:
+    status = nli_call(["status"], timeout=20)
+    if status["returncode"] != 0 or not isinstance(status.get("json"), dict):
+        raise RuntimeError("cannot verify NLI pending state before config restore")
+    return status["json"].get("pending") is not None, status
+
+
+def restore_staging(role: str, require_staged_current: bool = True, check_pending: bool = True) -> Dict[str, Any]:
+    if not NLI_CONFIG_BACKUP.is_file():
+        raise RuntimeError("staging backup not found; refusing to guess original config")
+    backup = NLI_CONFIG_BACKUP.read_bytes()
+    backup_cfg = json.loads(backup)
+    if backup_cfg.get("object") != OBJECT or backup_cfg.get("role") != role:
+        raise RuntimeError("backup config identity mismatch")
+    status: Dict[str, Any] = {}
+    if check_pending:
+        pending, status = nli_pending()
+        if pending:
+            raise RuntimeError("NLI has a pending mutation; refusing to change target config")
+    current_cfg = json.loads(NLI_CONFIG.read_bytes()) if NLI_CONFIG.is_file() else {}
+    if require_staged_current and not staged_target_matches(current_cfg, role):
+        raise RuntimeError("current NLI config no longer matches helper staging; refusing to overwrite it")
+    retry_manifest = retry_manifest_path(role)
+    if retry_manifest.exists():
+        manifest_bytes = retry_manifest.read_bytes()
+        if sha256(manifest_bytes) != MANIFESTS[role]["sha256"]:
+            raise RuntimeError("retry manifest drift detected; refusing cleanup")
+    atomic_write(NLI_CONFIG, backup, 0o600)
+    removed = []
+    if retry_manifest.exists():
+        retry_manifest.unlink()
+        removed.append(str(retry_manifest))
+    NLI_CONFIG_BACKUP.unlink()
+    return {"ok": True, "restored": str(NLI_CONFIG), "removed": removed, "nli_status": status}
+
+
 def stage_role(role: str) -> Dict[str, Any]:
     if os.geteuid() != 0:
         raise RuntimeError("stage must run as root")
@@ -596,17 +656,46 @@ def stage_role(role: str) -> Dict[str, Any]:
         raise RuntimeError(f"NLI config identity mismatch: object={cfg.get('object')} role={cfg.get('role')}")
     if "hhm" not in (cfg.get("components") or {}):
         raise RuntimeError("NLI hhm component not registered")
-    if not NLI_CONFIG_BACKUP.exists():
+    pending, _ = nli_pending()
+    if pending:
+        raise RuntimeError("NLI has a pending mutation; refusing to stage a new target")
+    retry_manifest = retry_manifest_path(role)
+
+    if NLI_CONFIG_BACKUP.exists():
+        if not staged_target_matches(cfg, role):
+            raise RuntimeError("staging backup already exists but current config is not this exact staged target; resolve it before retry")
+        if not retry_manifest.is_file() or sha256(retry_manifest.read_bytes()) != MANIFESTS[role]["sha256"]:
+            raise RuntimeError("existing staged manifest is missing or has drift")
+        check = nli_call(["check", "hhm"], timeout=120)
+        return {"ok": check["returncode"] == 0, "already_staged": True,
+                "manifest": str(retry_manifest), "manifest_sha256": MANIFESTS[role]["sha256"],
+                "nli_check": check, "backup": str(NLI_CONFIG_BACKUP),
+                "runtime_commit": manifest["release"]["commit"]}
+
+    created = False
+    try:
         atomic_write(NLI_CONFIG_BACKUP, cfg_bytes, 0o600)
-    retry_manifest = RELEASE_DIR / f"hhm-{role}-3.1-retry-{PR_HEAD[:12]}.json"
-    atomic_write(retry_manifest, data, 0o644)
-    cfg["release_source"] = "pinned"
-    cfg["components"]["hhm"]["target"] = {"path": str(retry_manifest), "sha256": MANIFESTS[role]["sha256"]}
-    atomic_write(NLI_CONFIG, (json.dumps(cfg, ensure_ascii=False, indent=2) + "\n").encode(), 0o600)
-    check = nli_call(["check", "hhm"], timeout=120)
-    return {"ok": check["returncode"] == 0, "manifest": str(retry_manifest),
-            "manifest_sha256": MANIFESTS[role]["sha256"], "nli_check": check,
-            "backup": str(NLI_CONFIG_BACKUP), "runtime_commit": manifest["release"]["commit"]}
+        created = True
+        atomic_write(retry_manifest, data, 0o644)
+        cfg["release_source"] = "pinned"
+        cfg["components"]["hhm"]["target"] = {"path": str(retry_manifest), "sha256": MANIFESTS[role]["sha256"]}
+        atomic_write(NLI_CONFIG, (json.dumps(cfg, ensure_ascii=False, indent=2) + "\n").encode(), 0o600)
+        check = nli_call(["check", "hhm"], timeout=120)
+        if check["returncode"] != 0:
+            restored = restore_staging(role, check_pending=False)
+            return {"ok": False, "manifest": str(retry_manifest),
+                    "manifest_sha256": MANIFESTS[role]["sha256"], "nli_check": check,
+                    "restored_after_failed_check": restored, "runtime_commit": manifest["release"]["commit"]}
+        return {"ok": True, "manifest": str(retry_manifest),
+                "manifest_sha256": MANIFESTS[role]["sha256"], "nli_check": check,
+                "backup": str(NLI_CONFIG_BACKUP), "runtime_commit": manifest["release"]["commit"]}
+    except BaseException:
+        if created and NLI_CONFIG_BACKUP.exists():
+            try:
+                restore_staging(role, require_staged_current=False, check_pending=False)
+            except Exception as cleanup_exc:
+                print(f"WARNING: staging cleanup failed: {cleanup_exc}", file=sys.stderr)
+        raise
 
 
 def unstage(execute: bool) -> Dict[str, Any]:
@@ -616,17 +705,11 @@ def unstage(execute: bool) -> Dict[str, Any]:
         raise RuntimeError("unstage must run as root")
     if not NLI_CONFIG_BACKUP.is_file():
         raise RuntimeError("staging backup not found; refusing to guess original config")
-    backup = NLI_CONFIG_BACKUP.read_bytes()
-    cfg = json.loads(backup)
-    if cfg.get("object") != OBJECT:
-        raise RuntimeError("backup config object mismatch")
-    atomic_write(NLI_CONFIG, backup, 0o600)
-    removed = []
-    for p in RELEASE_DIR.glob(f"hhm-*-3.1-retry-{PR_HEAD[:12]}.json"):
-        p.unlink()
-        removed.append(str(p))
-    NLI_CONFIG_BACKUP.unlink()
-    return {"ok": True, "restored": str(NLI_CONFIG), "removed": removed}
+    backup_cfg = json.loads(NLI_CONFIG_BACKUP.read_bytes())
+    role = backup_cfg.get("role")
+    if role not in MANIFESTS:
+        raise RuntimeError("backup role is not a supported retry role")
+    return restore_staging(role)
 
 
 class TopicMonitor:
@@ -869,21 +952,30 @@ def retry_role(role: str, execute_update: bool, hours: int = 24) -> int:
     if not pre.get("ok"):
         print_summary(pre)
         return 2
-    staged = stage_role(role)
-    json_dump(root / "stage.json", staged)
-    if not staged.get("ok"):
-        print_summary({"ok": False, "failure": "NLI staged check failed", "stage": staged})
-        return 3
-    phrase = f"UPDATE {role.upper()}"
-    print(f"About to run nli update hhm on {role}. Type exactly: {phrase}")
-    if input("> ").strip() != phrase:
-        print("Cancelled; target remains staged. No HHM update executed.")
-        return 4
 
-    monitor = TopicMonitor(role_monitor_topics(role), root / "mqtt-events.tsv")
-    monitor.start()
-    update_epoch = time.time()
+    staged_ok = False
+    update_started = False
+    monitor: Optional[TopicMonitor] = None
     try:
+        staged = stage_role(role)
+        json_dump(root / "stage.json", staged)
+        if not staged.get("ok"):
+            print_summary({"ok": False, "failure": "NLI staged check failed; original target restored", "stage": staged})
+            return 3
+        staged_ok = True
+        phrase = f"UPDATE {role.upper()}"
+        print(f"About to run nli update hhm on {role}. Type exactly: {phrase}")
+        if input("> ").strip() != phrase:
+            restored = unstage(True)
+            json_dump(root / "cancel-unstage.json", restored)
+            print("Cancelled; original NLI target restored. No HHM update executed.")
+            staged_ok = False
+            return 4
+
+        monitor = TopicMonitor(role_monitor_topics(role), root / "mqtt-events.tsv")
+        monitor.start()
+        update_epoch = time.time()
+        update_started = True
         update = nli_call(["update", "hhm"], timeout=240)
         json_dump(root / "nli-update.json", update)
         print(update.get("stdout", ""), end="")
@@ -893,8 +985,19 @@ def retry_role(role: str, execute_update: bool, hours: int = 24) -> int:
             return 5
         stability = (pre.get("checks", {}).get("history", {}) or {}).get("recommended_stability_s")
         smoke = smoke_role(role, update_epoch, stability_s=stability, monitor=monitor, evidence=root)
+    except BaseException:
+        if staged_ok and not update_started:
+            try:
+                restored = unstage(True)
+                json_dump(root / "preupdate-exception-unstage.json", restored)
+                print("Pre-update interruption: original NLI target restored.", file=sys.stderr)
+            except Exception as cleanup_exc:
+                print(f"WARNING: pre-update target restore failed: {cleanup_exc}", file=sys.stderr)
+        raise
     finally:
-        monitor.stop()
+        if monitor is not None:
+            monitor.stop()
+
     print_summary(smoke)
     if not smoke.get("ok"):
         print("Recommended next command after reviewing evidence:")
@@ -915,6 +1018,8 @@ def selftest() -> Dict[str, Any]:
     t("numeric rejects bool", numeric(True) is None)
     t("ok values", all(is_ok(x) for x in (True, 1, "1")))
     t("bad ok", not is_ok(0))
+    t("template rounding positive half", round_template_005(0.125) == 0.15)
+    t("template rounding negative half", round_template_005(-0.125) == -0.15)
     t("boiler inventory", len(BOILER_ALL) == 19 and len(set(BOILER_ALL)) == 19)
     t("manager inventory", len(BOILER_MANAGER) == 9)
     t("house floors", len(HOUSE_FLOORS) == 9)
@@ -935,6 +1040,7 @@ def build_parser() -> argparse.ArgumentParser:
     pf.add_argument("--hours", type=int, default=24)
     st = sub.add_parser("stage", help="stage exact PR #73 manifest in NLI pinned config; no HHM update")
     st.add_argument("--role", choices=["gazebo", "boiler"], required=True)
+    st.add_argument("--execute", action="store_true")
     us = sub.add_parser("unstage", help="restore pre-retry NLI config from the helper backup")
     us.add_argument("--execute", action="store_true")
     sm = sub.add_parser("smoke", help="passive post-update functional smoke")
@@ -966,6 +1072,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             print_summary(report)
             return 0 if report.get("ok") else 2
         if args.command == "stage":
+            if not args.execute:
+                raise RuntimeError("stage changes persistent NLI target config; pass --execute")
             report = stage_role(args.role)
             print_summary(report)
             return 0 if report.get("ok") else 3
