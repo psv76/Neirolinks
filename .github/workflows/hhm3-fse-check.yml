@@ -1,0 +1,31 @@
+name: HHM3 FSE checks
+
+on:
+  push:
+    branches:
+      - codex/issue-59-hhm3-fse
+  pull_request:
+    paths:
+      - 'objects/05_31_Ivolga_13/HHM3_FSE/**'
+      - '.github/workflows/hhm3-fse-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+      - name: Install Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run complete simulation and regression suite
+        run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/run.js
+      - name: Reproduce WB PersistentStorage contract and preserve 18+505 settings
+        run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/persistent-storage-regressions.js
+      - name: Verify entire release manifest and dependencies
+        run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/manifest.js --check
