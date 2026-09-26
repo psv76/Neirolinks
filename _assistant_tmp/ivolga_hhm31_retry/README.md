@@ -40,11 +40,11 @@ Current-baseline manifest SHA256:
 
 Immutable helper/checksum commit:
 
-`3aed78ae7ebbff007e5d68a5dee4e1c0034e83ad`
+`e0f7426a8f234b9eb5d372d1191d83e91f3f0e3f`
 
 Helper SHA256:
 
-`a48ed4a489006d1c0a5f99958a1c45b5c9c8bcb969f6e7937357b31f51f17ada`
+`3bec0cff17b91a5b9e895c9637557f038f2e08f608c58e40ef5a085012f2b1a5`
 
 Refresh helper on gazebo:
 
@@ -52,10 +52,10 @@ Refresh helper on gazebo:
 cd /root/hhm31-retry
 
 curl -fsSL -o field_retry.py \
-https://raw.githubusercontent.com/psv76/Neirolinks/3aed78ae7ebbff007e5d68a5dee4e1c0034e83ad/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
+https://raw.githubusercontent.com/psv76/Neirolinks/e0f7426a8f234b9eb5d372d1191d83e91f3f0e3f/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
 
 curl -fsSL -o field_retry.py.sha256 \
-https://raw.githubusercontent.com/psv76/Neirolinks/3aed78ae7ebbff007e5d68a5dee4e1c0034e83ad/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
+https://raw.githubusercontent.com/psv76/Neirolinks/e0f7426a8f234b9eb5d372d1191d83e91f3f0e3f/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
 
 sha256sum -c field_retry.py.sha256
 python3 field_retry.py selftest
@@ -95,3 +95,27 @@ Boiler follows only after gazebo PASS.
 `/mnt/data/var/log/neiro/hhm31-field-retry/`
 
 Do not delete evidence or NLI persistent state until the controlled retry is closed.
+
+
+## Reviewed gazebo unmanaged allowlist
+
+Reviewed and approved for NLI adoption:
+
+- `/etc/wb-rules/GazeboPanel.js` — SHA256 `f8c959f074ed4be5cf36d8790cdb7a4a70666ee86c13b5b94d4968a71d854d72`
+- `/etc/wb-rules/rules.js` — SHA256 `146c0fcdd728cef04eff74d72fbbfdd27ebab05a15e9e09951b517e24d96a0c0`
+
+They are not HHM-managed files. The helper requires an exact match to this reviewed pair before adoption.
+
+Gazebo adoption command:
+
+```sh
+python3 field_retry.py adopt-gazebo-nli --execute
+```
+
+This creates only the persistent NLI config + exact baseline manifest, then runs read-only `nli status/check/verify`. It does not alter HHM bytes or restart WB services.
+
+After adoption PASS, the HHM 3.1 update is:
+
+```sh
+python3 field_retry.py retry --role gazebo --skip-history --stability-seconds 600 --execute-update
+```
