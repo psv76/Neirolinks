@@ -450,6 +450,15 @@ def bootstrap_nli(execute: bool) -> Dict[str, Any]:
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
+        check = run(["python3", tmp, "--check"], timeout=90)
+        expected_check = (
+            check.returncode == 0 and
+            ("Последний approved NLI: " + NLI_VERSION) in check.stdout and
+            ("SHA256: " + NLI_PACKAGE_SHA256) in check.stdout
+        )
+        if not expected_check:
+            raise RuntimeError("approved NLI catalog changed or bootstrap check failed: " +
+                               (check.stdout + check.stderr).strip())
         cp = run(["python3", tmp], timeout=180)
     finally:
         try:
