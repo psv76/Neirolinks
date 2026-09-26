@@ -29,7 +29,7 @@ The only direct Modbus action outside HHM is a bounded read-only `wb-mqtt-serial
 Before field use, install the helper from the immutable archive and verify its self-test:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/psv76/Neirolinks/32d3007dc65cd7071367057741a7cd8bd63e396d/tmp/assistant/ivolga_hhm31_retry_2026-09-26/bootstrap.sh | sh
+curl -fsSL https://raw.githubusercontent.com/psv76/Neirolinks/30c76af611998636ee3d99408e5c1da9ae7b79a9/tmp/assistant/ivolga_hhm31_retry_2026-09-26/bootstrap.sh | sh
 ```
 
 Then run:
