@@ -1375,12 +1375,8 @@ def selftest() -> Dict[str, Any]:
     t("expected boiler pair count", len(expected_pair_set("boiler")) == 28)
     t("manifest constants", len(MANIFESTS["boiler"]["sha256"]) == 64 and len(MANIFESTS["gazebo"]["sha256"]) == 64)
     t("canonical etc", str(ETC_ROOT) == "/mnt/data/etc")
-    blocked = False
-    try:
-        stage_role("gazebo")
-    except RuntimeError as exc:
-        blocked = "boiler-only" in str(exc)
     t("gazebo old baseline identity", GAZEBO_LIVE_BASELINE_COMMIT.startswith("837b2c6"))
+    t("nli bootstrap pin", len(NLI_BOOTSTRAP_SHA256) == 64 and NLI_RELEASE_TAG == "nli-approved-0.1.9")
     return {"ok": True, "tests": tests}
 
 
