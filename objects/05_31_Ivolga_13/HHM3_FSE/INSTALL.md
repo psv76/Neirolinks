@@ -19,6 +19,19 @@
 
 Все дальнейшие инструкции ниже, где упоминается NLI role `gazebo`, относятся к **целевой схеме доставки после такого отдельного решения**, а не к исходному live состоянию.
 
+
+### Канонический persistent etc на live WB
+
+Фактическое постоянное хранилище `etc` на этих контроллерах — **`/mnt/data/etc`**. Полевые inventory/check/backup операции должны обращаться к нему напрямую:
+
+- `/mnt/data/etc/wb-rules/`;
+- `/mnt/data/etc/wb-rules-modules/`;
+- `/mnt/data/etc/wb-mqtt-serial.conf`;
+- `/mnt/data/etc/wb-mqtt-db.conf`;
+- NLI на boiler: `/mnt/data/etc/neiro/nli/`.
+
+Не использовать `/etc` как источник истины для live inventory. Пути `/etc/...` в deployment manifests остаются интерфейсом установки/совместимости и сами по себе не описывают физическое persistent расположение файлов.
+
 ## Исходное состояние и подготовка
 
 База репозитория после #74/#79: `df484b8bf22835001d69ddb2dd18e3eafd3792b0`. Fix #75 сохранён, cold-start proof описан в SENSOR_HEALTH.md и FIELD_STARTUP_2026-09-25.md. Использовать NLI **0.1.9**, installation-only. STARTUP_VALIDATION / NORMAL / sensor readiness не являются install/rollback gate; прежний NLI 0.1.7 30 s gate не возвращается. Реально установленный baseline каждого WB определяется inventory/drift, а не предположением по Git. Точный новый runtime commit и SHA256 содержатся в `NLI/releases/hhm-{boiler,gazebo}-3.1.json` и соседних `.sha256`.
