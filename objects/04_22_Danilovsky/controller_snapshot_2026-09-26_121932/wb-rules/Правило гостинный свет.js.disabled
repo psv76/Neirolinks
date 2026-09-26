@@ -1,0 +1,144 @@
+//===========================================================
+// Управление светом в кухня гостинная выключатели 223
+
+// Время сброса цикла после выключения
+var resetTime4 = 30 * 60 * 1000; // 30 минут
+
+var pressCount4 = 0;
+
+var resetTimer4 = null;
+
+function onSwitchChange4() {
+
+  if (resetTimer4 !== null) {
+    clearTimeout(resetTimer4);
+    resetTimer4 = null;
+  }
+
+  pressCount4++;
+
+  switch (pressCount4) {
+
+    case 1:
+      // 1 нажатие
+      dev['wb-led_37/CCT2 Temperature'] = 50;
+      dev['wb-led_37/CCT2 Brightness'] = 50;
+      dev['wb-led_37/CCT2'] = true;
+
+      dev['wb-led_40/CCT2 Temperature'] = 50;
+      dev['wb-led_40/CCT2 Brightness'] = 50;
+      dev['wb-led_40/CCT2'] = true;
+      break;
+
+
+    case 2:
+      // 2 нажатие
+      dev['wb-led_37/CCT2'] = false;
+      dev['wb-led_40/CCT2'] = false;
+
+      // Если свет остается выключенным 5 минут —
+      // начинаем цикл заново
+      resetTimer4 = setTimeout(function () {
+        if (
+          dev['wb-led_37/CCT2'] === false &&
+          dev['wb-led_40/CCT2'] === false
+        ) {
+          pressCount4 = 0;
+        }
+        resetTimer4 = null;
+      }, resetTime4);
+      break;
+
+
+    case 3:
+      // 3 нажатие
+      dev['wb-led_37/CCT2 Temperature'] = 100;
+      dev['wb-led_37/CCT2 Brightness'] = 100;
+      dev['wb-led_37/CCT2'] = true;
+
+      dev['wb-led_40/CCT2 Temperature'] = 100;
+      dev['wb-led_40/CCT2 Brightness'] = 100;
+      dev['wb-led_40/CCT2'] = true;
+      break;
+
+
+    case 4:
+      // 4 нажатие
+      dev['wb-led_37/CCT2'] = false;
+      dev['wb-led_40/CCT2'] = false;
+
+      // Если свет остается выключенным 5 минут —
+      // начинаем цикл заново
+      resetTimer4 = setTimeout(function () {
+        if (
+          dev['wb-led_37/CCT2'] === false &&
+          dev['wb-led_40/CCT2'] === false
+        ) {
+          pressCount4 = 0;
+        }
+        resetTimer4 = null;
+      }, resetTime4);
+      break;
+
+
+    case 5:
+      // 5 нажатие
+      dev['wb-led_37/CCT2 Temperature'] = 0;
+      dev['wb-led_37/CCT2 Brightness'] = 100;
+      dev['wb-led_37/CCT2'] = true;
+
+      dev['wb-led_40/CCT2 Temperature'] = 0;
+      dev['wb-led_40/CCT2 Brightness'] = 100;
+      dev['wb-led_40/CCT2'] = true;
+      break;
+
+
+    case 6:
+      // 6 нажатие
+      dev['wb-led_37/CCT2'] = false;
+      dev['wb-led_40/CCT2'] = false;
+
+      // Если свет остается выключенным 5 минут —
+      // начинаем цикл заново
+      resetTimer4 = setTimeout(function () {
+        if (
+          dev['wb-led_37/CCT2'] === false &&
+          dev['wb-led_40/CCT2'] === false
+        ) {
+          pressCount4 = 0;
+        }
+        resetTimer4 = null;
+      }, resetTime4);
+      break;
+
+
+    case 7:
+      // 7 нажатие
+      dev['wb-led_37/CCT2 Temperature'] = 50;
+      dev['wb-led_37/CCT2 Brightness'] = 100;
+      dev['wb-led_37/CCT2'] = true;
+
+      dev['wb-led_40/CCT2 Temperature'] = 50;
+      dev['wb-led_40/CCT2 Brightness'] = 100;
+      dev['wb-led_40/CCT2'] = true;
+      break;
+
+
+    case 8:
+      // 8 нажатие
+      dev['wb-led_37/CCT2'] = false;
+      dev['wb-led_40/CCT2'] = false;
+
+      // После 8 нажатия цикл сразу начинается заново
+      pressCount4 = 0;
+      break;
+  }
+}
+
+// Подписываемся на изменения состояния выключателя около входа в котельную
+defineRule("switch_control_lamps4", {
+  whenChanged: ["wb-mr6c_206/Input 3 Single Press Counter"],
+  then: function () {
+    onSwitchChange4();
+  }
+});
