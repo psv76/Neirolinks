@@ -1037,6 +1037,68 @@ def print_summary(report: Dict[str, Any]) -> None:
         print("FAILURE:", report["failure"])
 
 
+def print_history_summary(report: Dict[str, Any]) -> None:
+    summary: Dict[str, Any] = {
+        "role": report.get("role"),
+        "db_available": report.get("db_available"),
+        "channel_count": report.get("channel_count"),
+        "coverage": report.get("coverage"),
+        "recommended_stability_s": report.get("recommended_stability_s"),
+        "evidence_dir": report.get("evidence_dir"),
+    }
+    if report.get("role") == "gazebo":
+        ts = report.get("historical_floor_invalid_timestamps") or []
+        iv = report.get("historical_floor_invalid_intervals_s") or []
+        summary["historical_floor_invalid_count"] = len(ts)
+        summary["historical_interval_min_s"] = min(iv) if iv else None
+        summary["historical_interval_max_s"] = max(iv) if iv else None
+    else:
+        bad = report.get("historical_bad_ok_records") or []
+        summary["historical_bad_ok"] = report.get("historical_bad_ok")
+        summary["historical_bad_ok_count"] = len(bad)
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    print()
+    print("RESULT:", "PASS" if report.get("db_available") else "FAIL")
+    if report.get("evidence_dir"):
+        print("FULL_REPORT:", str(Path(report["evidence_dir"]) / "history.json"))
+
+
+def print_preflight_summary(report: Dict[str, Any]) -> None:
+    checks = report.get("checks") or {}
+    services = checks.get("services") or {}
+    inv = checks.get("runtime_inventory") or {}
+    probe = checks.get("port_load_probe") or {}
+    summary: Dict[str, Any] = {
+        "role": report.get("role"),
+        "hostname": checks.get("hostname"),
+        "packages": checks.get("packages"),
+        "services": {k: v.get("ActiveState") for k, v in services.items()},
+        "canonical_etc_root": inv.get("canonical_etc_root"),
+        "runtime_files_ok": inv.get("ok"),
+        "runtime_files_missing": inv.get("missing"),
+        "sensor_health_ok": (checks.get("sensor_health") or {}).get("ok"),
+        "port_load_ok": probe.get("ok"),
+        "port_load_temperature_rtt_ms": probe.get("temperature_rtt_ms"),
+        "port_load_health_rtt_ms": probe.get("health_rtt_ms"),
+        "nli_expected": checks.get("nli_expected"),
+        "failures": report.get("failures") or [],
+        "evidence_dir": report.get("evidence_dir"),
+    }
+    if report.get("role") == "gazebo":
+        summary["nli_present_informational"] = checks.get("nli_present")
+        summary["frame_probe_ok"] = (checks.get("frame_probe") or {}).get("ok")
+    else:
+        summary["nli_version"] = checks.get("nli_version")
+        hist = checks.get("history") or {}
+        summary["recommended_stability_s"] = hist.get("recommended_stability_s")
+        summary["history_skipped"] = hist.get("skipped", False)
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    print()
+    print("RESULT:", "PASS" if report.get("ok") else "FAIL")
+    if report.get("evidence_dir"):
+        print("FULL_REPORT:", str(Path(report["evidence_dir"]) / "preflight.json"))
+
+
 def retry_role(role: str, execute_update: bool, hours: int = 24,
                include_history: bool = True, stability_override: Optional[int] = None) -> int:
     if role != "boiler":
@@ -1050,7 +1112,7 @@ def retry_role(role: str, execute_update: bool, hours: int = 24,
     json_dump(root / "preflight.json", pre)
     print("PRECHECK:", "PASS" if pre.get("ok") else "FAIL")
     if not pre.get("ok"):
-        print_summary(pre)
+        print_preflight_summary(pre)
         return 2
 
     staged_ok = False
@@ -1180,11 +1242,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             p = evidence_dir(args.role, "history")
             json_dump(p / "history.json", report)
             report["evidence_dir"] = str(p)
-            print(json.dumps(report, ensure_ascii=False, indent=2))
+            print_history_summary(report)
             return 0 if report.get("db_available") else 1
         if args.command == "preflight":
             report = preflight_role(args.role, hours=args.hours, save=True, include_history=not args.skip_history)
-            print_summary(report)
+            print_preflight_summary(report)
             return 0 if report.get("ok") else 2
         if args.command == "stage":
             if not args.execute:
