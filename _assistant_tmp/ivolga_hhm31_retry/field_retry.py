@@ -398,8 +398,10 @@ def service_state(name: str) -> Dict[str, Any]:
 
 
 def nli_call(args: List[str], timeout: int = 120) -> Dict[str, Any]:
+    if shutil.which("nli") is None:
+        return {"available": False, "returncode": 127, "stdout": "", "stderr": "nli command not found", "json": None}
     cp = run(["nli", "--json"] + args, timeout=timeout)
-    result: Dict[str, Any] = {"returncode": cp.returncode, "stdout": cp.stdout, "stderr": cp.stderr}
+    result: Dict[str, Any] = {"available": True, "returncode": cp.returncode, "stdout": cp.stdout, "stderr": cp.stderr}
     try:
         result["json"] = json.loads(cp.stdout)
     except json.JSONDecodeError:
@@ -408,6 +410,8 @@ def nli_call(args: List[str], timeout: int = 120) -> Dict[str, Any]:
 
 
 def nli_version() -> Optional[str]:
+    if shutil.which("nli") is None:
+        return None
     cp = run(["nli", "--json", "--version"], timeout=5)
     try:
         return str(json.loads(cp.stdout).get("version"))
@@ -512,7 +516,7 @@ def evidence_dir(role: str, label: str) -> Path:
     return p
 
 
-def preflight_role(role: str, hours: int = 24, save: bool = True) -> Dict[str, Any]:
+def preflight_role(role: str, hours: int = 24, save: bool = True, include_history: bool = True) -> Dict[str, Any]:
     report: Dict[str, Any] = {"time": now_iso(), "role": role, "object": OBJECT, "checks": {}}
     checks = report["checks"]
     checks["hostname"] = run(["hostname"], timeout=3).stdout.strip()
@@ -530,7 +534,11 @@ def preflight_role(role: str, hours: int = 24, save: bool = True) -> Dict[str, A
         checks["air_sensor"] = air
     representative = GAZEBO_FLOOR if role == "gazebo" else "wb-m1w2_170/External Sensor 1"
     checks["port_load_probe"] = port_load_probe(representative)
-    checks["history"] = history_role(role, hours=hours, save=False)
+    checks["history"] = history_role(role, hours=hours, save=False) if include_history else {
+        "skipped": True,
+        "reason": "already collected separately",
+        "recommended_stability_s": 600 if role == "gazebo" else 180,
+    }
 
     failures = []
     if checks["nli_version"] != NLI_VERSION:
@@ -1025,6 +1033,7 @@ def selftest() -> Dict[str, Any]:
     t("house floors", len(HOUSE_FLOORS) == 9)
     t("expected boiler pair count", len(expected_pair_set("boiler")) == 28)
     t("manifest constants", len(MANIFESTS["boiler"]["sha256"]) == 64 and len(MANIFESTS["gazebo"]["sha256"]) == 64)
+    t("missing nli is representable", isinstance(nli_call(["status"]), dict))
     return {"ok": True, "tests": tests}
 
 
@@ -1038,6 +1047,7 @@ def build_parser() -> argparse.ArgumentParser:
     pf = sub.add_parser("preflight", help="read-only current state + representative port/Load probe")
     pf.add_argument("--role", choices=["gazebo", "boiler"], required=True)
     pf.add_argument("--hours", type=int, default=24)
+    pf.add_argument("--skip-history", action="store_true", help="do not query wb-mqtt-db again")
     st = sub.add_parser("stage", help="stage exact PR #73 manifest in NLI pinned config; no HHM update")
     st.add_argument("--role", choices=["gazebo", "boiler"], required=True)
     st.add_argument("--execute", action="store_true")
@@ -1068,7 +1078,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(json.dumps(report, ensure_ascii=False, indent=2))
             return 0 if report.get("db_available") else 1
         if args.command == "preflight":
-            report = preflight_role(args.role, hours=args.hours, save=True)
+            report = preflight_role(args.role, hours=args.hours, save=True, include_history=not args.skip_history)
             print_summary(report)
             return 0 if report.get("ok") else 2
         if args.command == "stage":
