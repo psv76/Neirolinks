@@ -77,17 +77,17 @@ and then an interactive confirmation phrase.
 
 Use helper/checksum commit:
 
-`491bb450b2795322e6abe110da0440f66471cb91`
+`8479647fb3b84a9cd2f3963076e92346ddbb69a8`
 
 ```sh
 install -d -m 0700 /root/hhm31-retry
 cd /root/hhm31-retry
 
 curl -fsSL -o field_retry.py \
-https://raw.githubusercontent.com/psv76/Neirolinks/491bb450b2795322e6abe110da0440f66471cb91/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
+https://raw.githubusercontent.com/psv76/Neirolinks/8479647fb3b84a9cd2f3963076e92346ddbb69a8/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
 
 curl -fsSL -o field_retry.py.sha256 \
-https://raw.githubusercontent.com/psv76/Neirolinks/491bb450b2795322e6abe110da0440f66471cb91/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
+https://raw.githubusercontent.com/psv76/Neirolinks/8479647fb3b84a9cd2f3963076e92346ddbb69a8/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
 
 sha256sum -c field_retry.py.sha256
 python3 field_retry.py selftest
@@ -95,7 +95,7 @@ python3 field_retry.py selftest
 
 Expected helper SHA256:
 
-`30a0a62fd6a15ab7b084ceb59d3a8b30108964b92e96d8497370fb98b387bef9`
+`e4a6ebd830ab65cbf9b711f1f95857b2e73ee505a91ca249529579c818b58a75`
 
 ## Current next step — gazebo
 
