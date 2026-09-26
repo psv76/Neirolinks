@@ -626,17 +626,30 @@ def preflight_role(role: str, hours: int = 24, save: bool = True, include_histor
         checks["frame_probe"] = gazebo_frame_probe()
         frame = (checks["frame_probe"].get("frame") or {}) if checks["frame_probe"].get("ok") else {}
         floor_ref = numeric(frame.get("floor"))
-        frame_valid = frame.get("valid") is True
-        checks["sensor_health"] = {
-            "ok": bool(frame_valid and floor_ref is not None and -20 <= floor_ref <= 70),
-            "source": "live_504_frame",
-            "floor": floor_ref,
-            "frame_valid": frame_valid,
-            "frame_age_ms": checks["frame_probe"].get("age_ms"),
-            "mqtt_snapshot": snapshot_controls([GAZEBO_FLOOR, GAZEBO_FLOOR + " OK"]),
-            "note": "fresh unchanged MQTT publication is not required; port/Load is tested independently",
-        }
         checks["port_load_probe"] = port_load_probe(GAZEBO_FLOOR, reference_temp=floor_ref)
+        air_now = numeric(checks["air_sensor"].get("value"))
+        air_ok = air_now is not None and -20 <= air_now <= 60 and checks["air_sensor"].get("error") in (None, "", 0, False)
+        port_ok = checks["port_load_probe"].get("ok") is True
+        frame_reason = frame.get("reason")
+        frame_valid = frame.get("valid") is True
+        reproduced_old_false_invalid = (
+            checks["frame_probe"].get("ok") is True and
+            frame_valid is False and
+            frame_reason == "FLOOR_SENSOR_INVALID" and
+            floor_ref is None and
+            air_ok and port_ok
+        )
+        checks["sensor_health"] = {
+            "ok": bool(port_ok and air_ok),
+            "source": "port_load_plus_air",
+            "air_ok": air_ok,
+            "frame_valid": frame_valid,
+            "frame_reason": frame_reason,
+            "frame_floor": floor_ref,
+            "old_runtime_false_invalid_reproduced": reproduced_old_false_invalid,
+            "mqtt_snapshot": snapshot_controls([GAZEBO_FLOOR, GAZEBO_FLOOR + " OK"]),
+            "note": "pre-deploy hardware gate is port/Load + healthy air; old 624 false FLOOR_SENSOR_INVALID is evidence, not a hardware failure",
+        }
     else:
         checks["sensor_health"] = current_sensor_health(role)
         checks["port_load_probe"] = port_load_probe("wb-m1w2_170/External Sensor 1")
@@ -667,10 +680,14 @@ def preflight_role(role: str, hours: int = 24, save: bool = True, include_histor
     else:
         if not checks["frame_probe"].get("ok"):
             failures.append("gazebo live frame probe failed: " + str(checks["frame_probe"].get("error")))
+        if not (checks.get("air_sensor") or {}).get("value_seen"):
+            failures.append("gazebo air sensor not observed")
+        elif not checks["sensor_health"].get("air_ok"):
+            failures.append("gazebo air sensor is not healthy/in-range")
 
     if not checks["sensor_health"]["ok"]:
         if role == "gazebo":
-            failures.append("gazebo live 504 frame does not contain a healthy in-range floor value")
+            failures.append("gazebo floor hardware proof failed")
         else:
             failures.extend(checks["sensor_health"]["failures"])
     if not checks["port_load_probe"].get("ok"):
@@ -1126,6 +1143,9 @@ def print_preflight_summary(report: Dict[str, Any]) -> None:
         summary["nli_present_informational"] = checks.get("nli_present")
         summary["frame_probe_ok"] = (checks.get("frame_probe") or {}).get("ok")
         summary["frame_age_ms"] = (checks.get("frame_probe") or {}).get("age_ms")
+        summary["frame_valid"] = (checks.get("sensor_health") or {}).get("frame_valid")
+        summary["frame_reason"] = (checks.get("sensor_health") or {}).get("frame_reason")
+        summary["old_runtime_false_invalid_reproduced"] = (checks.get("sensor_health") or {}).get("old_runtime_false_invalid_reproduced")
         mqtt_snap = (checks.get("sensor_health") or {}).get("mqtt_snapshot") or {}
         summary["mqtt_floor_value_seen"] = mqtt_snap.get(GAZEBO_FLOOR, {}).get("value_seen")
         summary["mqtt_floor_ok_seen"] = mqtt_snap.get(GAZEBO_FLOOR + " OK", {}).get("value_seen")
