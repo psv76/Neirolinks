@@ -1,209 +1,194 @@
 # 05_31 Ivolga — HHM 3.1 controlled retry plan
 
-Temporary operator plan. This workspace is not a product release.
+Temporary operator workspace. Not a product release.
+
+## Deployment policy
+
+Decision 26.09.2026:
+
+**NLI is the standard installer/updater on every managed NEIROLINKS WB.**
+
+Manual replacement of managed HHM files is removed from the normal workflow. A controller that does not yet have NLI must first be adopted into NLI; all later managed updates/rollback go through NLI.
+
+For Ivolga:
+
+- boiler already has NLI 0.1.9;
+- gazebo does not yet have NLI and is the next controller to adopt;
+- gazebo HHM 3.1 will be installed only after NLI adoption.
 
 ## Fixed identities
 
-- PR #73 reviewed head: `5efce9783886a991d9d1b9008860f9309b1d5559`
-- immutable HHM runtime: `20af0c29ed37130a5d4ff051ff1fb5984a5f8193`
-- HHM version: `3.1`
-- boiler manifest SHA256: `b8c45743c4d290949e42f0b459804b1e545087a788383fb0cb816edc0379d444`
-- gazebo manifest SHA256: `c3de99685ba6995ed2b51fcd74d1bc20c3c416e293691c9b42689cc857547261`
-- boiler NLI: `0.1.9`, installation-only
+- reviewed PR #73 source head before field-doc commits: `5efce9783886a991d9d1b9008860f9309b1d5559`
+- HHM 3.1 immutable runtime: `20af0c29ed37130a5d4ff051ff1fb5984a5f8193`
+- gazebo 3.1 manifest SHA256: `c3de99685ba6995ed2b51fcd74d1bc20c3c416e293691c9b42689cc857547261`
+- boiler 3.1 manifest SHA256: `b8c45743c4d290949e42f0b459804b1e545087a788383fb0cb816edc0379d444`
+- approved NLI: `0.1.9`
+- NLI release tag: `nli-approved-0.1.9`
+- approved package SHA256: `5042800dc01507742904b039d6d6539038255067aeec5b88603508bba5e718d5`
+- bootstrap SHA256: `fb46edd0071dbe7c1c410f65dce97af66d1e96a23465a9da6895d189fc0e634c`
 
 Do not merge PR #73 before live acceptance.
 
-## Canonical live topology
+## Canonical filesystem
 
-Current live topology is asymmetric and MUST NOT be inferred from the two NLI manifests.
-
-### Gazebo WB
-
-- Runs `624_combo_besedka.js` plus shared `HHM3Config / HHM3Wire / HHM3Runtime` modules.
-- This is the 504 combo thermostat / frame sender, not a full HHM controller.
-- It reads local air/floor sensors, calculates demand and publishes non-retained `/neiro/ivolga/504/v2/frame`.
-- It has no physical heating outputs / remote `/on` writes.
-- The frame crosses the existing MQTT bridge and is consumed on the boiler WB.
-- **NLI is not installed on the current gazebo WB baseline.**
-- Missing `nli` on gazebo is expected and is NOT a preflight failure.
-- `hhm-gazebo-3.1.json` is only a future delivery option. First-time NLI installation on gazebo requires a separate explicit operator decision.
-
-### Boiler WB
-
-- Runs the full HHM controller/consumers.
-- NLI 0.1.9 is already installed and is the accepted installation/update mechanism.
-- NLI verifies installation correctness only; HHM business/runtime health remains a separate field acceptance step.
-
-## Canonical filesystem rule
-
-Persistent `etc` on these WB controllers is:
+Persistent configuration on live WB is under:
 
 `/mnt/data/etc`
 
-All live inventory, checks, backups and helper-owned config paths use `/mnt/data/etc` directly.
+Use these paths for field inventory and persistent NLI configuration:
 
-Examples:
+- `/mnt/data/etc/wb-rules/`
+- `/mnt/data/etc/wb-rules-modules/`
+- `/mnt/data/etc/wb-mqtt-serial.conf`
+- `/mnt/data/etc/wb-mqtt-db.conf`
+- `/mnt/data/etc/neiro/nli/`
 
-- rules: `/mnt/data/etc/wb-rules/`
-- modules: `/mnt/data/etc/wb-rules-modules/`
-- serial config: `/mnt/data/etc/wb-mqtt-serial.conf`
-- mqtt-db config: `/mnt/data/etc/wb-mqtt-db.conf`
-- NLI config on boiler: `/mnt/data/etc/neiro/nli/config.json`
+NLI manifests intentionally use logical `/etc/...` targets. Do not confuse those logical deployment targets with the persistent field inventory root.
 
-Do not infer persistent state from `/etc`. Repository/NLI manifests may still contain `/etc/...` service targets; that is a deployment interface detail, not the path used by field inventory.
+## Gazebo live baseline already established
 
-## What CI already proved — do not repeat live
+Current gazebo WB:
 
-Do not rerun HHM/NLI regression suites on the controller.
+- hostname: `wirenboard-A52LY4MY`
+- wb-rules: `2.46.5`
+- wb-mqtt-serial: `2.268.0`
+- role: 504 combo thermostat / MQTT frame sender; no physical heating outputs
+- NLI: not installed before adoption
 
-Already accepted offline:
+The four managed live files were hashed from `/mnt/data/etc` and match repository commit exactly:
 
-- #75 regression: old runtime 4 PASS / 12 FAIL, fixed runtime 16 PASS.
-- cold-start regression: 4 PASS / 3 FAIL -> 7 PASS.
-- full HHM CI: SUCCESS.
-- NLI CI: 172 tests + sandbox/package/FIT: SUCCESS.
-- manifests pin exact runtime bytes.
+`837b2c6da31275cdb8964373f73b070fbbd31d6a`
 
-Live work should only prove hardware/driver/environment facts that CI cannot prove.
+Exact reviewed adoption baseline manifest is stored in this workspace:
 
-## Historical evidence first
+`hhm-gazebo-live-837b2c6.json`
 
-Use `wb-mqtt-db` through its MQTT-RPC history API; do not read SQLite directly and do not change database config.
+Manifest SHA256:
 
-Gazebo history is already collected and saved. It gives full channel coverage and confirms repeated historical `FLOOR_SENSOR_INVALID` episodes while the floor sensor was otherwise publishing. Therefore do not collect the same 24 h history again unless the saved evidence is lost.
+`36aa0f6446043677a726bbd539b3f6664706ffcdf177277f89e95970eb26b932`
 
-Historical recurrence supports a 600 s post-fix gazebo soak. This is long enough to cross the old repeating failure cadence with margin.
+This is the real installed baseline. Do not substitute the later example `hhm-gazebo-3.0.json`, whose HHM3Runtime byte hash differs from live.
 
-For boiler, collect one compact 24 h history set before mutation. It is used only to determine required-sensor coverage and whether recent OK/error history justifies the short 120 s soak or the conservative 180 s soak.
+## Live evidence already collected — do not repeat
 
-## Gate A — gazebo read-only preflight
+Gazebo history and hardware preflight are complete.
 
-Gazebo is checked first because it contains the exact 921.10 / 504 path involved in #75 and has no physical heating outputs.
+Observed old-runtime defect:
 
-Run:
+- 504 frame: `valid=false`, `reason=FLOOR_SENSOR_INVALID`, `floor=null`
+- air healthy
+- no new direct MQTT publication for 921.10 / OK in the short observation window
+- direct read-only `port/Load`:
+  - FC04 temperature = 22.8125 °C
+  - FC02 Sensor OK = healthy
+  - RTT ≈ 102 ms for each read
 
-`python3 field_retry.py preflight --role gazebo --skip-history`
+Conclusion: real serial hardware is healthy and installed wb-mqtt-serial supports the post-start read required by the fix. The old runtime false-invalid is reproduced live.
 
-The helper checks:
+Gazebo post-fix soak remains 600 s.
 
-1. hostname and installed package versions;
-2. `wb-rules`, `wb-mqtt-serial`, `wb-mqtt-db` service state;
-3. current gazebo runtime file inventory from **`/mnt/data/etc`** and SHA256;
-4. a fresh valid 504 frame and its floor value as the application-level local reference;
-5. direct MQTT visibility of 921.10/OK only as informational evidence — absence of a fresh unchanged publication is not a failure;
-6. air sensor state;
-7. one bounded read-only `wb-mqtt-serial/port/Load` proof, executed independently of MQTT sample freshness:
-   - FC04 temperature;
-   - FC02 Sensor OK;
-   - JSON-RPC id correlation;
-   - bus/local value agreement;
-8. consistency between the serial-read temperature and the fresh 504 frame floor value.
+## Phase G1 — install NLI package on gazebo
 
-Gazebo preflight deliberately does **not** require or verify NLI.
+Use helper command:
 
-STOP if sensor health, required files, services, frame publication or `port/Load` proof fail.
+`python3 field_retry.py bootstrap-nli --execute-install`
 
-## Gazebo deployment decision — separate stop point
+This step:
 
-After read-only gazebo preflight PASS, stop.
+- downloads the fixed published 0.1.9 bootstrap;
+- verifies bootstrap SHA before executing it;
+- installs the approved NLI package;
+- verifies NLI version;
+- checks that wb-rules and wb-mqtt-serial service start timestamps did not change;
+- does **not** create object config;
+- does **not** restart WB services;
+- does **not** change HHM files.
 
-Do not automatically install NLI and do not run any NLI stage/update command on gazebo.
+Package installation is now an approved architecture step.
 
-Choose the gazebo delivery mechanism separately and explicitly. Until that decision is approved, the helper exposes no gazebo NLI mutation path.
+## Phase G2 — reviewed initial adoption inventory
 
-After the reviewed 4-file gazebo payload has been installed by the separately approved method, run only passive acceptance:
+Immediately after package installation:
 
-`python3 field_retry.py smoke --role gazebo --stability-seconds 600`
+`python3 field_retry.py adoption-inventory --role gazebo`
 
-PASS requires:
+The helper scans all JS under the real persistent directories, records logical `/etc/...` path + SHA256, marks the four known managed HHM files, and saves the full JSON report.
 
-- new 504 instance becomes valid after post-start proof;
-- no artificial numeric republish is required;
-- no false `FLOOR_SENSOR_INVALID` during the 600 s window;
-- 504 frame stays fresh/valid;
-- sensor health contract and runtime diagnostics are coherent.
+No unmanaged rule is trusted automatically.
 
-If gazebo fails, do not touch boiler.
+The inventory report is reviewed before config activation. This is the only remaining discovery step for gazebo adoption.
 
-## Gate B — boiler only after gazebo PASS
+## Phase G3 — activate gazebo NLI baseline
 
-1. Run one read-only boiler preflight **with** 24 h history:
-   `python3 field_retry.py preflight --role boiler --hours 24`
-2. Review its `recommended_stability_s` result (120 or 180 s).
-3. Boiler preflight additionally requires:
-   - NLI exactly 0.1.9;
-   - `pending = null`;
-   - `nli verify hhm` PASS;
-   - `nli verify pressure_makeup` PASS;
-   - all required runtime files present under `/mnt/data/etc`;
-   - all required M1W2 current health PASS;
-   - representative boiler `port/Load` proof PASS.
-4. Only after explicit operator approval run retry while **reusing** the already-reviewed history:
-   `python3 field_retry.py retry --role boiler --skip-history --stability-seconds <120|180> --execute-update`
-5. Retry repeats all current sensor/service/NLI checks immediately before staging; only the history query is skipped.
-6. NLI stages the exact reviewed boiler manifest, performs the update and keeps normal NLI backup/audit/pending semantics.
-7. Field smoke is separate from installation verification. Use 120 s only when the reviewed preflight/history recommended 120; otherwise use 180 s.
+After inventory review, update this helper with an exact reviewed unmanaged allowlist and an atomic adoption command.
 
-There is no second 10-minute #75 soak on boiler. The long recurrence test belongs to gazebo; boiler acceptance focuses on all required sensors qualifying together and real serial-bus load/timing.
+That adoption command must:
 
-## Safety rules
+1. require NLI 0.1.9;
+2. require hostname `wirenboard-A52LY4MY`;
+3. require the four current live files to match the exact 837b2c6 baseline;
+4. create only persistent NLI config/releases under `/mnt/data/etc/neiro/nli/`;
+5. use `release_source=pinned` during adoption;
+6. set baseline=target to the exact live baseline manifest;
+7. include only reviewed unmanaged JS path/hash entries;
+8. run read-only `nli status`, `nli check hhm`, `nli verify hhm`;
+9. not stop/restart wb-rules and not alter HHM bytes.
 
-- No firmware update/recover in this workflow.
-- No direct restart of `wb-mqtt-serial`.
-- No artificial heartbeat or numeric republish.
-- No deliberate OK=0 / sensor disconnection / dangerous heating fault injection.
-- No automatic rollback based on HHM business state.
-- Once an NLI mutation has started, preserve pending/audit on failure and inspect before any second attempt.
-- Do not modify 507.
-- Do not merge PR #73 during the controlled retry.
+No manual editing of managed HHM files is allowed.
+
+## Phase G4 — gazebo 3.1 through NLI
+
+After adoption PASS:
+
+`python3 field_retry.py retry --role gazebo --skip-history --stability-seconds 600 --execute-update`
+
+The helper must require configured NLI 0.1.9, stage the exact reviewed draft 3.1 manifest, then call `nli update hhm`.
+
+NLI owns:
+
+- backup;
+- atomic managed-file install;
+- wb-rules stop/start required by the manifest;
+- installation verification;
+- pending/audit;
+- rollback mechanics.
+
+Functional field smoke remains separate and runs for 600 s.
+
+PASS requires no false `FLOOR_SENSOR_INVALID`, valid/fresh 504 frames and healthy sensor contract.
+
+If gazebo fails, do not update boiler.
+
+## Phase B — boiler after gazebo PASS
+
+Run one boiler preflight with history:
+
+`python3 field_retry.py preflight --role boiler --hours 24 --require-nli`
+
+Review `recommended_stability_s` (120 or 180 s).
+
+Then:
+
+`python3 field_retry.py retry --role boiler --skip-history --stability-seconds <120|180> --execute-update`
+
+Boiler current-state checks still repeat immediately before mutation; only history is reused.
+
+## Safety
+
+- no firmware update/recover in this workflow;
+- no manual HHM file replacement;
+- no direct wb-mqtt-serial restart;
+- no artificial heartbeat/numeric republish;
+- no deliberate sensor fault injection;
+- no modification of 507;
+- no business-state rollback gate inside NLI;
+- preserve pending/audit on NLI failure;
+- rollback through NLI only.
 
 ## Evidence
 
-History and preflight commands print only compact terminal summaries. Their complete JSON payloads are saved automatically under the persistent evidence root and the command prints the exact `FULL_REPORT` path. Do not depend on terminal scrollback for evidence.
-
-Helper evidence is persistent:
+Complete reports are saved under:
 
 `/mnt/data/var/log/neiro/hhm31-field-retry/`
 
-Gazebo and boiler evidence directories are timestamped and independent.
-
-Boiler-only NLI staging files:
-
-- `/mnt/data/etc/neiro/nli/config.json.pre-hhm31-retry`
-- one exact retry manifest under `/mnt/data/etc/neiro/nli/releases/`
-
-`stage`, `retry`, and `unstage` are boiler-only in the helper.
-
-## Time-saving strategy
-
-Active operator time is minimized by:
-
-- reusing saved gazebo history;
-- one combined read-only gazebo preflight;
-- one representative active serial read instead of repeated manual reads;
-- one unattended 600 s gazebo smoke;
-- one compact boiler history/preflight;
-- one 120–180 s boiler smoke.
-
-The workflow intentionally spends time only on live facts CI and previous history cannot prove.
-
-
-### Live correction from the first gazebo preflight
-
-The first preflight observed a fresh valid 504 frame with a healthy floor value while a short direct MQTT snapshot of `921.10` and its `OK` control saw no new publication. That is not a failed sensor. It demonstrates the exact silent-unchanged condition behind #68. Therefore `port/Load` capability probing must not be gated by receiving a new MQTT temperature/OK sample first.
-
-
-## Confirmed live baseline before gazebo deployment
-
-On 26.09.2026 the gazebo preflight reproduced the defect while simultaneously proving healthy hardware:
-
-- 504 frame: `valid=false`, `reason=FLOOR_SENSOR_INVALID`, `floor=null`;
-- air healthy;
-- direct MQTT 921.10/OK silent in the observation window;
-- `port/Load` FC04 returned 22.8125 °C;
-- `port/Load` FC02 returned healthy Sensor OK;
-- both RPC reads completed in about 102 ms.
-
-Interpretation: this is **expected-old-runtime evidence**. The pre-deploy gate must not require old 624 to be valid, because that would block the very fix being validated. It records `old_runtime_false_invalid_reproduced=true` when this exact combination is seen. Hardware proof failure still blocks deployment.
-
-Post-deploy acceptance is intentionally stricter: during the 600 s gazebo smoke, any `FLOOR_SENSOR_INVALID` is a failure.
+Terminal output stays compact and prints the exact full-report path.
