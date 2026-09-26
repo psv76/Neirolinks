@@ -24,7 +24,7 @@ FAIL-before/PASS-after:
 
 ## NLI 0.1.9 и artifacts
 
-NLI core и его installation-only policy сохранены из актуальной базы. `STARTUP_VALIDATION`, `NORMAL`, health controls и frames не являются install/rollback gate. Historical 14354bc fixture в package migration CI оставлен для проверки прежней установки, а не как target нового релиза.
+NLI core и его installation-only policy сохранены из актуальной базы. `STARTUP_VALIDATION`, `NORMAL`, health controls и frames не являются install/rollback gate. Historical 14354bc fixture в package migration CI оставлен для проверки прежней установки, а не как target нового релиза. Recognition manifests вынесены в NLI/known с прежними hashes; builder упаковывает их независимо от новых NLI/releases. Проверка пакета против базы df484b8: **byte-identical**, SHA256 `11646db0e1c4366d1be32e576e087e2334bf93d864effd49485e599ba2e2de7c`. Migration suite 15 PASS; package regression дополнительно проверяет SHA упакованных recognition manifests.
 
 `NLI/tests/test_hhm31_release.py` проверяет воспроизводимость обоих manifests из одного immutable runtime commit, exact Git blobs/SHA, совпадение deployed source с HEAD, version 3.1 и исключение 507. Manifests ссылаются на runtime commit, предшествующий отдельному artifact commit; это исключает циклический self-pin.
 
