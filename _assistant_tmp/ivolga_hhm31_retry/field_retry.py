@@ -766,7 +766,8 @@ def nli_version() -> Optional[str]:
         return m.group(1) if m else None
 
 
-def port_load_probe(sensor_path: str, reference_temp: Optional[float] = None) -> Dict[str, Any]:
+def port_load_probe(sensor_path: str, reference_temp: Optional[float] = None,
+                    prefetched_snapshot: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
     """Prove serial-read capability without requiring a fresh MQTT publication.
 
     An unchanged healthy M1W2 may be silent on MQTT; that is the cold-start
@@ -780,7 +781,14 @@ def port_load_probe(sensor_path: str, reference_temp: Optional[float] = None) ->
     input_no = int(m.group(1))
     device = sensor_path.split("/", 1)[0]
     health = sensor_path + " OK"
-    snap = snapshot_controls([sensor_path, health])
+    if prefetched_snapshot is None:
+        snap = snapshot_controls([sensor_path, health])
+    else:
+        empty = {"value": None, "error": None, "value_seen": False, "error_seen": False}
+        snap = {
+            sensor_path: dict(prefetched_snapshot.get(sensor_path, empty)),
+            health: dict(prefetched_snapshot.get(health, empty)),
+        }
     local_temp = numeric(snap[sensor_path]["value"])
     local_ok = snap[health]["value"]
     for p in (sensor_path, health):
@@ -850,23 +858,32 @@ def current_sensor_health(role: str) -> Dict[str, Any]:
     paths = []
     for p in sensors:
         paths += [p, p + " OK"]
+
+    # One short MQTT snapshot is informational only. A healthy unchanged M1W2
+    # may publish nothing in this window, so current health is proven by a
+    # bounded direct serial read for every required local sensor.
     snap = snapshot_controls(paths)
     failures = []
+    probes: Dict[str, Any] = {}
+
     for p in sensors:
+        probe = port_load_probe(p, prefetched_snapshot=snap)
+        probes[p] = probe
+        if not probe.get("ok"):
+            failures.append(f"{p}: direct serial proof failed: {probe.get('error')}")
+            continue
+        tv = numeric(probe.get("bus_temp"))
         lo, hi = sensor_bounds(p)
-        tv = numeric(snap[p]["value"])
-        hv = snap[p + " OK"]["value"]
-        terr = snap[p].get("error")
-        herr = snap[p + " OK"].get("error")
         if tv is None or not (lo <= tv <= hi):
-            failures.append(f"{p}: invalid temperature {snap[p]['value']!r}")
-        if not is_ok(hv):
-            failures.append(f"{p} OK: {hv!r}")
-        if terr not in (None, "", 0, False):
-            failures.append(f"{p}: error={terr!r}")
-        if herr not in (None, "", 0, False):
-            failures.append(f"{p} OK: error={herr!r}")
-    return {"ok": not failures, "failures": failures, "snapshot": snap}
+            failures.append(f"{p}: direct temperature out of range {tv!r}")
+
+    return {
+        "ok": not failures,
+        "source": "direct_serial_all_required_sensors",
+        "failures": failures,
+        "snapshot": snap,
+        "probes": probes,
+    }
 
 
 def evidence_dir(role: str, label: str) -> Path:
@@ -929,7 +946,10 @@ def preflight_role(role: str, hours: int = 24, save: bool = True,
         }
     else:
         checks["sensor_health"] = current_sensor_health(role)
-        checks["port_load_probe"] = port_load_probe("wb-m1w2_170/External Sensor 1")
+        checks["port_load_probe"] = (
+            checks["sensor_health"].get("probes", {}).get("wb-m1w2_170/External Sensor 1")
+            or {"ok": False, "error": "representative direct serial proof missing"}
+        )
     checks["history"] = history_role(role, hours=hours, save=False) if include_history else {
         "skipped": True,
         "reason": "already collected separately",
