@@ -11,13 +11,13 @@
 - **WB беседки:** отдельный `624_combo_besedka.js` (комбо-термостат 504) + используемые им общие модули `HHM3Config/HHM3Wire/HHM3Runtime`. Это **не полноценный HHM controller**.
 - 624 читает локальные air/floor sensors, рассчитывает demand и публикует **non-retained логический frame**. Физических heating outputs / удалённых `/on` на WB беседки нет.
 - frame беседки передаётся по существующему MQTT bridge на WB котельной, где он используется общей отопительной логикой.
-- **NLI на WB беседки до этого controlled retry не устанавливался.**
-- Следовательно, отсутствие команды `nli` на WB беседки является **ожидаемым текущим состоянием**, а не preflight failure.
-- Файл `NLI/releases/hhm-gazebo-3.1.json` описывает **возможный будущий способ доставки** 624 + shared modules через NLI. Сам факт наличия этого manifest в репозитории **не означает**, что NLI уже установлен на gazebo WB.
-- Gazebo preflight до отдельного решения об установке NLI проверяет только текущие sensors/health, версии `wb-rules` и `wb-mqtt-serial`, поддержку `port/Load`, bridge/frame behavior и существующие файлы runtime.
-- Решение **впервые установить NLI на gazebo WB** является отдельным migration/architecture шагом и требует отдельного разрешения оператора. Не делать это автоматически как часть проверки #68/#75.
-
-Все дальнейшие инструкции ниже, где упоминается NLI role `gazebo`, относятся к **целевой схеме доставки после такого отдельного решения**, а не к исходному live состоянию.
+- **NLI на WB беседки до этого controlled retry не устанавливался.** Поэтому отсутствие команды `nli` в ранних preflight было ожидаемым исходным состоянием, а не fault.
+- 26.09.2026 оператор принял архитектурное решение: **NLI становится штатным installer/updater на всех управляемых WB NEIROLINKS; ручная замена managed HHM files больше не является нормальным deployment path.**
+- Для Иволги это означает: перед HHM 3.1 на gazebo сначала установить NLI 0.1.9, затем выполнить reviewed initial adoption существующих live bytes, и только после этого обновлять gazebo через NLI.
+- Файл `NLI/releases/hhm-gazebo-3.1.json` является целевым update manifest после adoption, а не baseline текущих live bytes.
+- Live gazebo baseline перед adoption точно идентифицирован как commit `837b2c6da31275cdb8964373f73b070fbbd31d6a` по всем четырём managed files. Он регистрируется отдельным reviewed baseline manifest; подменять его более поздним примером 3.0 нельзя.
+- Gazebo initial adoption не должна менять HHM bytes или перезапускать WB services. Сначала bootstrap пакета NLI, затем inventory/allowlist review, регистрация exact baseline и read-only `nli check/verify hhm`.
+- После успешной adoption дальнейший controlled retry gazebo выполняется **только через NLI**. Manual four-file deployment исключён из штатного плана.
 
 
 ### Канонический persistent etc на live WB
@@ -28,7 +28,7 @@
 - `/mnt/data/etc/wb-rules-modules/`;
 - `/mnt/data/etc/wb-mqtt-serial.conf`;
 - `/mnt/data/etc/wb-mqtt-db.conf`;
-- NLI на boiler: `/mnt/data/etc/neiro/nli/`.
+- NLI persistent config на обоих WB после adoption: `/mnt/data/etc/neiro/nli/`.
 
 Не использовать `/etc` как источник истины для live inventory. Пути `/etc/...` в deployment manifests остаются интерфейсом установки/совместимости и сами по себе не описывают физическое persistent расположение файлов.
 
