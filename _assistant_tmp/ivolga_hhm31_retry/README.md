@@ -77,17 +77,17 @@ and then an interactive confirmation phrase.
 
 Use helper/checksum commit:
 
-`8479647fb3b84a9cd2f3963076e92346ddbb69a8`
+`bf8e51add07d359eecb68e2f1d790116430284aa`
 
 ```sh
 install -d -m 0700 /root/hhm31-retry
 cd /root/hhm31-retry
 
 curl -fsSL -o field_retry.py \
-https://raw.githubusercontent.com/psv76/Neirolinks/8479647fb3b84a9cd2f3963076e92346ddbb69a8/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
+https://raw.githubusercontent.com/psv76/Neirolinks/bf8e51add07d359eecb68e2f1d790116430284aa/_assistant_tmp/ivolga_hhm31_retry/field_retry.py
 
 curl -fsSL -o field_retry.py.sha256 \
-https://raw.githubusercontent.com/psv76/Neirolinks/8479647fb3b84a9cd2f3963076e92346ddbb69a8/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
+https://raw.githubusercontent.com/psv76/Neirolinks/bf8e51add07d359eecb68e2f1d790116430284aa/_assistant_tmp/ivolga_hhm31_retry/field_retry.py.sha256
 
 sha256sum -c field_retry.py.sha256
 python3 field_retry.py selftest
@@ -95,7 +95,7 @@ python3 field_retry.py selftest
 
 Expected helper SHA256:
 
-`e4a6ebd830ab65cbf9b711f1f95857b2e73ee505a91ca249529579c818b58a75`
+`756f0bebd9bf9aa3cee25b6ea9f60e213db2d4deb7ccbb012eab3f952b053778`
 
 ## Current next step — gazebo
 
@@ -144,13 +144,21 @@ python3 field_retry.py smoke --role gazebo --stability-seconds 600
 
 ## Boiler sequence — only after gazebo PASS
 
+First run one read-only boiler preflight with history:
+
 ```sh
-python3 field_retry.py history --role boiler --hours 24
-python3 field_retry.py preflight --role boiler --skip-history
-python3 field_retry.py retry --role boiler --execute-update
+python3 field_retry.py preflight --role boiler --hours 24
 ```
 
-Boiler preflight requires existing NLI 0.1.9 and no pending mutation.
+Review its `recommended_stability_s` value. Then the mutation command reuses that already-reviewed history and repeats only current-state checks:
+
+```sh
+python3 field_retry.py retry --role boiler --skip-history --stability-seconds 120 --execute-update
+```
+
+Use `180` instead of `120` when the reviewed history recommends the conservative interval.
+
+Boiler preflight requires existing NLI 0.1.9 and no pending mutation. The retry still repeats current sensor/service/NLI checks immediately before staging; only the history query is skipped.
 
 ## Evidence
 
