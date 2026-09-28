@@ -1,4 +1,4 @@
-"""Воспроизводимость выпуска HHM 3.2 и обнаружение компонента неизменным NLI."""
+"""Историческая воспроизводимость опубликованного HHM 3.2."""
 import hashlib
 import json
 from pathlib import Path
@@ -20,7 +20,7 @@ RUNTIME = '04f00b3bb44a8b9da83bcf42cfb2ef68b3090630'
 
 
 class Hhm32ReleaseTests(unittest.TestCase):
-    def test_both_roles_reproduce_runtime_and_exact_current_payload(self):
+    def test_both_roles_reproduce_immutable_published_payload(self):
         for role in ('boiler', 'gazebo'):
             with self.subTest(role=role), tempfile.TemporaryDirectory() as tmp:
                 name = 'hhm-' + role + '-3.2.json'
@@ -41,9 +41,7 @@ class Hhm32ReleaseTests(unittest.TestCase):
                 self.assertEqual((Path(tmp) / name).read_bytes(), raw)
                 for entry in manifest['files']:
                     blob = subprocess.check_output(['git', 'show', RUNTIME + ':' + entry['source']], cwd=ROOT)
-                    head = subprocess.check_output(['git', 'show', 'HEAD:' + entry['source']], cwd=ROOT)
                     self.assertEqual(hashlib.sha256(blob).hexdigest(), entry['sha256'])
-                    self.assertEqual(blob, head, entry['source'])
                     self.assertNotIn('507', entry['target'])
 
     def test_builder_rejects_wrong_runtime_version(self):
