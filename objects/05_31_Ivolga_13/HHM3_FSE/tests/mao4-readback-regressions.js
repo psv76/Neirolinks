@@ -2,13 +2,13 @@
 const assert=require('node:assert/strict'),Outputs=require('../modules/HHM3Outputs');
 function fixture(autoOn=false){
  const c={periodMs:5000,commandTimeoutMs:10000,commandRetryMs:5000,valveActiveMinLevel:1,valveActiveMaxLevel:100,valveOffCommand:false,level:'level',enable:'switch',pump:'pump'};
- let now=100000,drop=false;const values={},seq={},writes=[];
- function emit(p,v){values[p]=v;seq[p]=(seq[p]||0)+1;}
- const io={read:p=>values[p]===undefined?null:values[p],matches:(p,v)=>values[p]===Number(v),
-  readback:p=>({value:io.read(p),seq:seq[p]||0,at:now}),
+ let now=100000,drop=false;const values={},seq={},writes=[],stale={};
+ function emit(p,v){values[p]=v;seq[p]=(seq[p]||0)+1;stale[p]=false;}
+ const io={read:p=>stale[p]?null:(values[p]===undefined?null:values[p]),matches:(p,v)=>io.read(p)===Number(v),
+  readback:p=>({value:io.read(p),seq:seq[p]||0,at:stale[p]?null:now}),
   write:(p,v)=>{writes.push({p,v});if(!drop){emit(p,Number(v));if(p==='level'&&autoOn)emit('switch',1);}return {ok:true};}};
  const step=Outputs.create(c,io);
- return {values,writes,emit,drop:v=>drop=v,run:(valve=0,pump=false,dt=5000)=>step({valve,pump},now+=dt)};
+ return {values,writes,emit,drop:v=>drop=v,expire:(...p)=>p.forEach(x=>stale[x]=true),run:(valve=0,pump=false,dt=5000)=>step({valve,pump},now+=dt)};
 }
 for(const autoOn of [false,true]){
  const f=fixture(autoOn);f.run();f.run(19.1919191919,true); // отображаемый Level 20
@@ -40,4 +40,20 @@ for(const autoOn of [false,true]){
  f.emit('level',41);r=f.run(40,true);assert.equal(r.ready,false);
  f.emit('switch',1);f.drop(false);r=f.run(40,true);assert.equal(r.ready,true);
  console.log('PASS готовность только после обоих свежих атрибутов');
+}
+{
+ const f=fixture();f.run();let r=f.run(40,true);assert.equal(r.ready,true);const n=f.writes.length;
+ f.expire('level','switch');
+ for(let i=0;i<5;i++){r=f.run(40,true);assert.equal(r.ready,true);assert.equal(r.pump,true);assert.equal(r.state,'HEAT_COMMANDED');}
+ assert.equal(f.writes.slice(n).some(w=>w.p==='pump'&&w.v===false),false);
+ assert.equal(f.writes.slice(n).some(w=>w.p==='switch'&&w.v===false),false);
+ console.log('PASS steady HEAT не теряет READY из-за TTL без нового A05 readback');
+}
+{
+ const f=fixture();f.run();f.run(40,true);let r=f.run(0,true);assert.equal(r.ready,true);const n=f.writes.length;
+ f.expire('switch');
+ for(let i=0;i<4;i++){r=f.run(0,true);assert.equal(r.ready,true);assert.equal(r.pump,true);}
+ assert.equal(f.writes.slice(n).some(w=>w.p==='pump'&&w.v===false),false);
+ assert.equal(f.writes.slice(n).some(w=>w.p==='switch'&&w.v===false),false);
+ console.log('PASS подтверждённый OFF не теряется из-за TTL без нового A05 readback');
 }
