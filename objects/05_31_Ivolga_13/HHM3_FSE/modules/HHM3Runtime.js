@@ -16,7 +16,7 @@ exports.io = function (env, owner, allowed) {
     function finishProof(why){
         if(!pending)return;
         var p=pending.path,s=sensors[p];pending=null;s.proofAfter=env.now()+60000;
-        if(why)env.log.warning('[отопление]['+owner+'][M1W2 '+p+']; POST_START_PROOF='+why);
+        if(why)env.log.warning('[отопление]['+owner+'][M1W2 '+p+']; ДАТЧИК=Не удалось подтвердить датчик после запуска; код=POST_START_PROOF; причина='+proofReason(why)+'; действие=Датчик не считается пригодным до успешного подтверждения');
     }
     function requestProof(path,stage,temperature){
         var s=sensors[path],input=s.input,now=env.now();
@@ -68,6 +68,70 @@ exports.io = function (env, owner, allowed) {
         pumpProof();
     });
     function numeric(v){return typeof v==='boolean'?(v?1:0):v;}
+    function ruOnOff(v){
+        if(v===true||v===1||v==='1')return 'ВКЛ';
+        if(v===false||v===0||v==='0')return 'ВЫКЛ';
+        return 'Нет данных';
+    }
+    function errorText(v){
+        return v===undefined||v===null||v===''||v===0||v===false?'Нет':'Есть: '+safeText(v);
+    }
+    function proofReason(code){
+        var text={
+            PUBLISH_FAILED:'Не удалось отправить запрос проверки датчика',
+            TIMEOUT_OR_STATE_CHANGED:'Проверка не завершилась вовремя или состояние датчика изменилось',
+            STALE_OR_STATE_CHANGED:'Ответ проверки устарел или состояние датчика изменилось',
+            RPC_ERROR_OR_UNSUPPORTED:'Устройство не ответило корректно на проверочный запрос',
+            BAD_TEMPERATURE_RESPONSE:'Получен некорректный ответ температуры',
+            TEMPERATURE_INVALID:'Получена недопустимая температура',
+            LOCAL_VALUE_MISMATCH:'Ответ устройства не совпал с текущим локальным значением',
+            HEALTH_NOT_OK:'Устройство сообщает, что датчик неисправен',
+            LOCAL_STATE_NOT_HEALTHY:'Текущее локальное состояние датчика не позволяет принять данные'
+        };
+        return text[code]||safeText(code);
+    }
+    function sensorReason(code){
+        var text={
+            VALID:'Данные пригодны',
+            STARTUP_VALIDATION:'Ожидается подтверждение после запуска',
+            RETAINED_REVALIDATION:'Ожидается подтверждение сохранённых данных',
+            CONTROL_MISSING:'Нет обязательного значения температуры или Sensor OK',
+            CONTROL_ERROR:'Канал датчика сообщает ошибку',
+            VALUE_INVALID:'Температура вне допустимого диапазона или некорректна',
+            SENSOR_NOT_OK:'Sensor OK сообщает неисправность',
+            CONTROL_SYNC_WAIT:'Ожидается согласование текущих значений',
+            RUNTIME_UNSUPPORTED:'Среда не поддерживает требуемый контракт контроля датчика'
+        };
+        return text[code]||safeText(code);
+    }
+    function sensorCause(code){
+        var text={
+            NEW_INSTANCE:'Новый запуск скрипта',
+            CLOCK_ROLLBACK:'Обнаружен откат системного времени',
+            RETAINED_TEMPERATURE:'Получена сохранённая температура',
+            RETAINED_HEALTH:'Получено сохранённое состояние Sensor OK',
+            MQTT_TEMPERATURE_ERROR:'Получено сообщение об ошибке канала температуры',
+            MQTT_HEALTH_ERROR:'Получено сообщение об ошибке Sensor OK',
+            POST_START_SERIAL_READ:'Датчик подтверждён прямым чтением после запуска',
+            MQTT_METADATA_UNSUPPORTED:'Недостаточно данных MQTT для доказательства актуальности',
+            LOCAL_TEMPERATURE_MISSING:'Нет локального значения температуры',
+            LOCAL_HEALTH_MISSING:'Нет локального значения Sensor OK',
+            TEMPERATURE_ERROR:'Ошибка канала температуры',
+            HEALTH_ERROR:'Ошибка канала Sensor OK',
+            LOCAL_TEMPERATURE_INVALID:'Локальная температура некорректна',
+            LOCAL_HEALTH_NOT_OK:'Локальный Sensor OK не подтверждает исправность',
+            LIVE_INVALID_SAMPLE:'Получено некорректное новое значение'
+        };
+        return text[code]||safeText(code);
+    }
+    function eventKind(code){
+        if(/^TIMER_/.test(code))return 'ТАЙМЕР';
+        if(code==='VALVE_COMMAND_DROP')return 'РЕШЕНИЕ';
+        if(code==='OUTPUT_TRANSITION')return 'ВЫХОД';
+        if(/OVERHEAT|SAFETY/.test(code))return 'ЗАЩИТА';
+        if(/ERROR|UNCERTAIN/.test(code))return 'ОШИБКА';
+        return 'СОСТОЯНИЕ';
+    }
     var api={
         watch:function(path,min,max) {
             if(sensors[path])return;
@@ -113,8 +177,16 @@ exports.io = function (env, owner, allowed) {
                 var d=s.sensor.diagnostics(),signature=d.phase+';'+d.reason+';'+d.cause;
                 if(s.healthSignature!==signature){
                     s.healthSignature=signature;
-                    var level=value===null?'warning':'info';
-                    env.log[level]('[отопление]['+owner+'][M1W2 '+path+']; '+JSON.stringify(d));
+                    var level=value===null?'warning':'info',healthPath=C.m1w2Health[path];
+                    env.log[level]('[отопление]['+owner+'][M1W2 '+path+']; ДАТЧИК='+
+                        (value===null?'Данные датчика не пригодны':'Датчик пригоден')+
+                        '; код='+safeText(d.reason)+'; этап='+(d.phase==='STARTUP'?'Запуск':'Работа')+
+                        '; причина='+sensorReason(d.reason)+'; источник='+sensorCause(d.cause)+
+                        '; температура_С='+(value===null?'Нет достоверного значения':safeText(value))+
+                        '; Sensor_OK='+ruOnOff(env.dev[healthPath])+
+                        '; ошибка_температуры='+errorText(env.dev[path+'#error'])+
+                        '; ошибка_Sensor_OK='+errorText(env.dev[healthPath+'#error'])+
+                        '; действие='+(value===null?'Не использовать датчик в расчёте до восстановления':'Данные пригодны по контракту'));
                 }
             }
             return value;
@@ -157,7 +229,7 @@ exports.io = function (env, owner, allowed) {
             else if(previous && previous.warning && !warning)severity='recovery';
             var e={v:3,owner:owner,circuit:key,at:env.now(),state:state,warning:warning||'',detail:detail||'',severity:severity};
             lastEvents[key]={signature:signature,warning:warning};
-            var text='[отопление]['+owner+']['+key+']; СОСТОЯНИЕ='+exports.stateText(state)+
+            var text='[отопление]['+owner+']['+key+']; '+eventKind(state)+'='+exports.stateText(state)+
                 '; код='+safeText(state)+'; причина='+safeText(warning||'Штатный переход')+
                 (detail?'; '+safeText(detail):'');
             // Отказ диагностического канала не должен блокировать управление.
