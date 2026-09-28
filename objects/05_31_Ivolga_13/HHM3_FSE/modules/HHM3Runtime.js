@@ -231,7 +231,7 @@ exports.io = function (env, owner, allowed) {
             lastEvents[key]={signature:signature,warning:warning};
             var text='[отопление]['+owner+']['+key+']; '+eventKind(state)+'='+exports.stateText(state)+
                 '; код='+safeText(state)+'; причина='+safeText(warning||'Штатный переход')+
-                (detail?'; '+safeText(detail):'');
+                (detail?'; '+safeDetail(detail):'');
             // Отказ диагностического канала не должен блокировать управление.
             try {env.publish(C.eventTopic,JSON.stringify(e),0,false);}catch(ignorePublish){}
             try {
@@ -246,6 +246,7 @@ exports.io = function (env, owner, allowed) {
     return api;
 };
 function safeText(value){return String(value).replace(/[\r\n;\[\]]/g,', ');}
+function safeDetail(value){return String(value).replace(/[\r\n\[\]]/g,', ');}
 exports.stateText=function(code){
     var text={NORMAL:'Нагрев по запросу зон',HEAT:'Нагрев по запросу зон',
         OFF:'Отключено',NO_DEMAND:'Нет запроса тепла',PUMP_POSTRUN:'Выбег насоса',
