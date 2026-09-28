@@ -347,6 +347,37 @@ exports.config={
 
 exports.config.circuits['504'].pump='A03/K4';
 
+// Объектные времена приводов. 180 с — ход НЗ VALTEC VT.TE3043.0.220,
+// а не срок подтверждения электрической команды. Выбег согласован для 502.
+var hydraulicTiming = {
+    '501':{zoneActuatorOpenMs:180000,zoneActuatorCloseMs:180000,pumpPostrunMs:0,collectorHasBypass:false},
+    '502':{zoneActuatorOpenMs:180000,zoneActuatorCloseMs:180000,pumpPostrunMs:120000,collectorHasBypass:false},
+    '503':{zoneActuatorOpenMs:180000,zoneActuatorCloseMs:180000,pumpPostrunMs:0,collectorHasBypass:false}
+};
+// Старые имена остаются совместимыми с потребителями. Для старого зонального
+// конфига без времени закрытия выбег не разрешаем молча: прежний manager его
+// подавлял. Для незонального 504 сохраняется прежний postrunMs.
+exports.timing=function(c){
+    var open=c.zoneActuatorOpenMs===undefined?(c.zoneDelayMs||0):c.zoneActuatorOpenMs;
+    var close=c.zoneActuatorCloseMs===undefined?open:c.zoneActuatorCloseMs;
+    var post=c.pumpPostrunMs===undefined?(open>0?0:(c.postrunMs||0)):c.pumpPostrunMs;
+    var bypass=c.collectorHasBypass===undefined?false:c.collectorHasBypass;
+    [open,close,post].forEach(function(v){
+        if(typeof v!=='number'||!isFinite(v)||v<0)throw new Error('Некорректное время привода/выбега');
+    });
+    if(typeof bypass!=='boolean'||(open>0&&!bypass&&post>=close))
+        throw new Error('Без байпаса выбег должен быть короче закрытия привода');
+    return {zoneActuatorOpenMs:open,zoneActuatorCloseMs:close,pumpPostrunMs:post,collectorHasBypass:bypass};
+};
+Object.keys(exports.config.circuits).forEach(function(id){
+    var c=exports.config.circuits[id],t=hydraulicTiming[id];
+    if(t)Object.keys(t).forEach(function(k){c[k]=t[k];});
+    t=exports.timing(c);
+    Object.keys(t).forEach(function(k){c[k]=t[k];});
+    c.zoneDelayMs=t.zoneActuatorOpenMs;
+    c.postrunMs=t.pumpPostrunMs;
+});
+
 // Explicit object inventory: 9 house floors + 10 boiler + 1 gazebo. No name inference.
 exports.config.m1w2Health={
     "903.09_TEMP_NONE/External Sensor 1": "903.09_TEMP_NONE/External Sensor 1 OK",
