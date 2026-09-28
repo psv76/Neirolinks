@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 68,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "34cc69cfe59d6399b56840e85cb3a5722a38cbbbca37d1fdd6b723c8b6c04139",
+  "aggregate_sha256": "ad9d65c061121ca5fe082e82aafd7877145098646066393aa11a5c5bc998ea35",
   "files": [
     {
       "file": "FIELD_STARTUP_2026-09-25.md",
@@ -52,7 +52,7 @@
     },
     {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
-      "sha256": "1fada3807214fb7c1596a065a76edc1d1ce0b21f5e9087e1f422d1b0b838c002",
+      "sha256": "78f017aaba26601c118aefccb09fb3a6c1620811c19d8ae880f1b2bbd0cac6b3",
       "boards": [
         "boiler"
       ],
@@ -61,7 +61,7 @@
     },
     {
       "file": "boiler/wb-rules/620_thermostats.js",
-      "sha256": "0cf68c87e5aa86bf72fe21aed8d513e65a80edb51bd54e001d0c0ada7a616064",
+      "sha256": "c2b91d3c591d3ab7b22d7f69003b412994f41bb20e6374b427922a3a07978ac4",
       "boards": [
         "boiler"
       ],
@@ -136,7 +136,7 @@
     },
     {
       "file": "modules/HHM3Runtime.js",
-      "sha256": "c86ae1bb595465d11ce1cd9ccb6bb01cc6cef9dc13098d2041fa674dbdf7a0b3",
+      "sha256": "d3dafc48b08c7f5420c787086762d226daa9159a77abc03aa3d0faa47dd0ec59",
       "boards": [
         "boiler",
         "gazebo"
@@ -186,7 +186,7 @@
     },
     {
       "file": "tests/partial-ready-regressions.js",
-      "sha256": "7bb1bc20b1a15900a4a3f8d88cf75c1c88f3db81ab7b5b5d061faa4721674303",
+      "sha256": "9533b021b1af346cac01cefbbedd327a6bd8a8039daf7fef16b65fd8ecd94d59",
       "role": "test"
     },
     {

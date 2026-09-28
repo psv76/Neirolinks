@@ -172,7 +172,8 @@ function evaluateOnce(){
                 engines[id].reset();
             }
             if(id!=='504'&&g.partial_ready===true&&r.reason==='NORMAL')
-                r.warning+='; другая зона ожидает readback, подтверждённый путь сохранён';
+                r.warning+='; '+(g.pending_off?'ждём подтверждение выключения зоны':'ждём подтверждение включения зоны')+
+                    (g.pending_off&&g.pending_on?'; ждём подтверждение включения другой зоны':'')+'; готовый путь сохранён';
             if(id!=='504'&&g.output_blocked!==true&&(!g.ready||!g.demand)){
                 r.pump=false;r.valve=0;r.demand=false;r.target=0;
                 if(r.reason!=='OVERHEAT_STOP'&&r.reason!=='OVERHEAT_CLOSE')r.reason=g.reason;

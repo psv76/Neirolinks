@@ -180,6 +180,8 @@ exports.houseValid=function(f) {
             typeof g.reason==='string' &&
             (g.partial_ready===undefined || typeof g.partial_ready==='boolean') &&
             (g.output_blocked===undefined || typeof g.output_blocked==='boolean') &&
+            (g.pending_on===undefined || typeof g.pending_on==='boolean') &&
+            (g.pending_off===undefined || typeof g.pending_off==='boolean') &&
             (!g.output_blocked || g.degraded) &&
             (!g.output_blocked || !g.partial_ready) &&
             (!g.partial_ready || (g.demand&&g.ready&&g.degraded&&g.valid)) &&

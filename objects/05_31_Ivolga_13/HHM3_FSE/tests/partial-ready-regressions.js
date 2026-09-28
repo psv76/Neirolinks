@@ -15,11 +15,11 @@ module.exports=function(test,create){
   let drop=false;const h=setup(p=>drop&&p==='A13/K2');const before=h.report()['502'].valve_pct;
   drop=true;h.set('boiler','NL_simple_thermostat_607/target_state',true);step(h);
   const g=latest(h),r=h.report()['502'];
-  assert.equal(h.values.boiler['NL_simple_thermostat_607/status'],'Ждём подтверждение');
+  assert.equal(h.values.boiler['NL_simple_thermostat_607/status'],'Ждём подтверждение включения зоны');
   assert.equal(g.partial_ready,true);assert.equal(g.degraded,true);assert.equal(g.ready,true);
   assert.equal(r.reason,'NORMAL');assert.equal(r.demand,true);assert.equal(r.requested_source_temperature,37);
   assert.equal(r.output.pump,true);assert.ok(r.valve_pct>=before,'no fall to zero on pending zone');
-  assert.match(r.warning,/ожидает readback/);
+  assert.match(r.warning,/ждём подтверждение включения зоны/);
   // Even though its ON was commanded, pending 607 must never be used to make
   // a non-ready group ready; the ready grant here belongs to 606 only.
   assert.equal(h.values.boiler['NL_simple_thermostat_607/current_state'],true);
@@ -55,7 +55,7 @@ module.exports=function(test,create){
   h.temperatures[z.sensor]=h.values.boiler['NL_simple_thermostat_607/target_temperature'];
   h.samples();step(h);
   const g=latest(h),r=h.report()['502'];
-  assert.equal(h.values.boiler['NL_simple_thermostat_607/status'],'Ждём подтверждение');
+  assert.equal(h.values.boiler['NL_simple_thermostat_607/status'],'Ждём подтверждение выключения зоны');
   assert.equal(g.partial_ready,true);assert.equal(g.output_blocked,false);
   assert.equal(g.demand,true);assert.equal(g.ready,true);
   assert.equal(r.reason,'NORMAL');assert.equal(r.demand,true);assert.equal(r.pump_command,true);
@@ -69,6 +69,9 @@ module.exports=function(test,create){
   drop=true;h.set('boiler','NL_simple_thermostat_607/target_state',false);
   // Simulate loss of the OFF echo: previous confirmed ON is still visible.
   h.fail('');step(h);
+  assert.equal(latest(h).partial_ready,true);
+  assert.equal(latest(h).pending_off,true);
+  step(h);step(h); // 10 с электрического таймаута, не 180 с хода привода
   const g=latest(h);
   assert.equal(g.partial_ready,false);
   assert.equal(g.degraded,true);
@@ -77,6 +80,12 @@ module.exports=function(test,create){
   assert.equal(h.report()['502'].demand,false);
   assert.equal(h.report()['502'].pump_command,false);
   assert.equal(h.values.boiler['A05/Channel 2 Switch'],false);
+  const count=h.writes.filter(w=>w.path==='A13/K2').length;
+  step(h);step(h);
+  assert.equal(h.writes.filter(w=>w.path==='A13/K2').length,count,'повторы после таймаута прекращены');
+  drop=false;h.deliver('boiler',h.topic('A13/K2'),0,false);step(h);
+  assert.equal(latest(h).output_blocked,false);
+  assert.equal(h.report()['502'].reason,'NORMAL');
  });
  test('502 failed zonal ON write blocks group despite independent verified path',()=>{
   const h=setup(()=>false);
@@ -88,6 +97,16 @@ module.exports=function(test,create){
   h.fail('');step(h);
   assert.equal(latest(h).output_blocked,false);
   assert.equal(h.report()['502'].reason,'NORMAL');
+ });
+ test('502 ошибка записи OFF немедленно блокирует контур и снимается подтверждением',()=>{
+  const h=setup(()=>false);
+  h.set('boiler','NL_simple_thermostat_607/target_state',true);h.advance(190000);
+  h.fail('A13/K2');h.set('boiler','NL_simple_thermostat_607/target_state',false);step(h);
+  assert.equal(latest(h).output_blocked,true);
+  assert.equal(h.report()['502'].pump_command,false);
+  assert.equal(h.values.boiler['NL_simple_thermostat_607/status'],'Ошибка выхода');
+  h.fail('');step(h);step(h);
+  assert.equal(latest(h).output_blocked,false);
  });
  test('503 direct circuit also blocks heat when a zone output write fails',()=>{
   const h=setup(()=>false);
