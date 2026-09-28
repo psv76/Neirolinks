@@ -1,9 +1,9 @@
 {
-  "release": "HHM 3.1",
+  "release": "HHM 3.2",
   "object": "05_31_Ivolga_13",
-  "issue": 68,
+  "issue": 81,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "2cf847432fd6854e1902e69e38461930fb61094e7441b7d338df33af304c2088",
+  "aggregate_sha256": "4d7cfa0b5b2fccfde4161b090a085d615bfe041a897c8f578da84b6e799252fb",
   "files": [
     {
       "file": "FIELD_STARTUP_2026-09-25.md",
@@ -108,7 +108,7 @@
     },
     {
       "file": "modules/HHM3Config.js",
-      "sha256": "bdd8dcf3537644a7699d838fc5bd12cc528365ca425a2992cb3a494720f3e550",
+      "sha256": "7d969ecfc38090612f7201e834ebea355fa9eca4ac7ced55c644da8a848cf1b0",
       "boards": [
         "boiler",
         "gazebo"
@@ -191,7 +191,7 @@
     },
     {
       "file": "tests/manifest.js",
-      "sha256": "b58fd4596cb996cd0861f4a0b412014da9ef5bd25a04930f0e52e983d9267104",
+      "sha256": "035169fccb88a637b7c7e6dfbf51edc0da9b238f3fd223c674f513f9bd6fa67c",
       "role": "test"
     },
     {
