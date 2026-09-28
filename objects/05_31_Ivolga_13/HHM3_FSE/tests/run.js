@@ -41,6 +41,9 @@ test('legacy HHM3 retained-only JSON controls are recreated and removed through 
 });
 test('WebUI omits raw JSON and keeps short operator controls without claiming physical proof',()=>{
     const h=create(),cells=h.definitions.HHM3_FSE.cells;
+    assert.equal(h.C.version,'3.2');assert.equal(h.C.healthContract,'m1w2-health-v1');
+    assert.equal(h.values.boiler['HHM3_FSE/runtime_version'],'3.2');
+    assert.equal(h.values.gazebo['NL_combo_thermostat_504/runtime_version'],'3.2');
     for(const id of ['circuits_json','source_json','last_event_json'])assert.equal(cells[id],undefined,id);
     for(const id of ['501','502','503','504','505'])assert.equal(cells['circuit_'+id].type,'text');
     for(const id of ['501','502','503','504','505'])assert.equal(cells['diag_request_'+id].hidden,true,'diag_request_'+id);

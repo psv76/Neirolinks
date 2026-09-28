@@ -1,9 +1,9 @@
 {
-  "release": "HHM 3.1",
+  "release": "HHM 3.2",
   "object": "05_31_Ivolga_13",
-  "issue": 68,
+  "issue": 81,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "2cf847432fd6854e1902e69e38461930fb61094e7441b7d338df33af304c2088",
+  "aggregate_sha256": "1047056657443d3d66dd5c4c0c888437384cb5cd6e28e25ba1f58dfa31597c3f",
   "files": [
     {
       "file": "FIELD_STARTUP_2026-09-25.md",
@@ -12,7 +12,7 @@
     },
     {
       "file": "INSTALL.md",
-      "sha256": "b43cf90cc0cff41ec4146dd3eaba5c603a4a54fff3f5f6f6cb4155bfd085b3b7",
+      "sha256": "5e99409ba9950c4960417ccdb8b492f69fda728dcaed8e00f39f7971c667f828",
       "role": "documentation"
     },
     {
@@ -37,7 +37,12 @@
     },
     {
       "file": "README.md",
-      "sha256": "636a3d2b4c8e473c0968f561c2903be3ef4c6280a5e4eafa17377d83cdd1f988",
+      "sha256": "a52f7a818dbfd63357442db30030f7c22a3db9ef337c132e58cf23fb632d7ad5",
+      "role": "documentation"
+    },
+    {
+      "file": "RELEASE_3_2.md",
+      "sha256": "58a28ee407b5486dfb4dbfc01431d8e25b492cdc170dd935aae4f0a980f69a35",
       "role": "documentation"
     },
     {
@@ -52,7 +57,7 @@
     },
     {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
-      "sha256": "3961b1c698cd888d224ed3d44c8b530e27301b4f04e6f4be7a2662c3ad28997e",
+      "sha256": "c7c0ae46907ad38e5db3bba89d9d8de44bb223ec6d19d662805eb30d0da9e729",
       "boards": [
         "boiler"
       ],
@@ -90,7 +95,7 @@
     },
     {
       "file": "gazebo/wb-rules/624_combo_besedka.js",
-      "sha256": "a7aedd25ba626a5f33068cdd1480e48c70c7869286504799f3f555fb9d5f5a85",
+      "sha256": "a5d67ed313ea1b11be4512cb06e361e17cc7568de40392212c8c089ea1d2acf3",
       "boards": [
         "gazebo"
       ],
@@ -108,7 +113,7 @@
     },
     {
       "file": "modules/HHM3Config.js",
-      "sha256": "bdd8dcf3537644a7699d838fc5bd12cc528365ca425a2992cb3a494720f3e550",
+      "sha256": "572070c80ccb33da8187ddf0234505162e70b3bc26e5154a0ce273778ae485c2",
       "boards": [
         "boiler",
         "gazebo"
@@ -191,7 +196,7 @@
     },
     {
       "file": "tests/manifest.js",
-      "sha256": "b58fd4596cb996cd0861f4a0b412014da9ef5bd25a04930f0e52e983d9267104",
+      "sha256": "ceff8cefd17b36c553d55d7acb9c058aee2c7f65293d1d0bff1b3c8b7d021d51",
       "role": "test"
     },
     {
@@ -221,7 +226,7 @@
     },
     {
       "file": "tests/run.js",
-      "sha256": "0aedc69e2353d968ba067cda0c27e2ffd1913c5d8ce2ae47d02a3919df334d01",
+      "sha256": "3719f9220f95fa9eda5bf7b7f84a2884f48b2b4b80096e3444b16f449ef63399",
       "role": "test"
     },
     {

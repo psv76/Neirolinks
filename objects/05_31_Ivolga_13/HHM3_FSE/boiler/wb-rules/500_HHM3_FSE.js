@@ -27,6 +27,7 @@ var sourceStep=R.source(C.source,new PersistentStorage('hhm3_source',{global:tru
 // Operator-facing virtual controls only. Detailed per-cycle structures stay in memory
 // for regression tests and are not published as large MQTT/WebUI JSON strings.
 defineVirtualDevice(VD,{title:'HHM3 — Иволга | отопление',cells:{
+    runtime_version:{title:'Версия HHM',type:'text',value:C.version,readonly:true,forceDefault:true,order:3},
     sensor_health_contract:{type:'text',value:C.healthContract,readonly:true,forceDefault:true,hidden:true},
     in_service:{title:'Отопление разрешено',type:'switch',value:false,readonly:true,forceDefault:true,order:1},
     operational_status:{title:'Общий статус',type:'text',value:'Ожидает первого ввода',readonly:true,forceDefault:true,order:2},
