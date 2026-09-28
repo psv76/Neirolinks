@@ -88,6 +88,20 @@ function event(id,r){
     var e=io.event(id,r.reason||r.state,r.warning);
     if(e)sc('last_event',String(id)+': '+R.stateText(e.state)+(e.warning?' · '+String(e.warning).slice(0,80):''));
 }
+function onOff(value){
+    if(value===true||value===1)return 'ВКЛ';
+    if(value===false||value===0)return 'ВЫКЛ';
+    return 'Нет данных';
+}
+function logValue(value){
+    if(value===true||value===false||value===1||value===0)return onOff(value);
+    if(value===null||value===undefined)return 'Нет достоверного подтверждения';
+    return String(value);
+}
+function readbackText(readback){
+    if(!readback||readback.value===null||readback.value===undefined)return 'Нет достоверного подтверждения';
+    return logValue(readback.value)+(typeof readback.seq==='number'?', seq='+readback.seq:'');
+}
 function diagnosticCircuitRequest(id,r){
     var c=C.circuits[id],n,margin;
     if(!r || typeof r.demand!=='boolean' || !c)return -1;
@@ -248,9 +262,10 @@ function evaluateOnce(){
         // Ordinary mixing steps are bounded to 4 points, so >=8 merits a trace.
         if(c.kind==='mixed'){
             if(valveHistory[id]!==undefined&&valveHistory[id]-r.valve>=8)
-                io.event(id+'_valve_transition','VALVE_COMMAND_DROP',
-                    'расчёт '+valveHistory[id]+' -> '+r.valve+'%; причина='+r.reason+
-                    '; выход='+out.state);
+                io.event(id+'_valve_transition','VALVE_COMMAND_DROP','',
+                    'расчёт_было_проц='+valveHistory[id]+'; расчёт_стало_проц='+r.valve+
+                    '; основание='+R.stateText(r.reason)+'; код_основания='+r.reason+
+                    '; состояние_выхода='+R.stateText(out.state));
             valveHistory[id]=r.valve;
         }
         reports[id]={reason:r.reason,warning:r.warning,pump_command:out.pump,requested_pump:r.pump,valve_pct:r.valve,
@@ -262,13 +277,17 @@ function evaluateOnce(){
         if(!prior||prior.state!==out.state||prior.ready!==out.ready||prior.pump!==out.pump||
            prior.closed_readback_match!==out.closed_readback_match){
             io.event(id+'_output','OUTPUT_TRANSITION','',
-                'Состояние '+R.stateText(out.state)+'; решение '+R.stateText(r.reason)+
-                '; расчёт клапана '+r.valve+'%; команда насосу '+String(out.pump)+
-                '; записи '+commands.filter(function(w){return w.attempted;}).map(function(w){
-                    return w.path+'='+String(w.value)+' ('+(w.ok?'попытка без ошибки':'ошибка записи')+')';
+                'состояние='+R.stateText(out.state)+'; решение='+R.stateText(r.reason)+
+                '; расчёт_клапана_проц='+r.valve+'; команда_насосу='+onOff(out.pump)+
+                '; записи='+commands.filter(function(w){return w.attempted;}).map(function(w){
+                    return w.path+'='+logValue(w.value)+' ('+(w.ok?'попытка без обнаруженной ошибки':'ошибка записи')+')';
                 }).join(', ')+
-                '; прочитано '+JSON.stringify(out.readback||{})+'; сохранённый Level '+String(out.saved_level)+
-                '; READY '+String(out.ready)+'; ход штока, вращение и расход не измеряются');
+                '; readback_Level='+readbackText(out.readback&&out.readback.level)+
+                '; readback_Switch='+readbackText(out.readback&&out.readback.enable)+
+                '; readback_насоса='+readbackText(out.readback&&out.readback.pump)+
+                '; сохранённый_Level='+logValue(out.saved_level)+
+                '; готовность='+(out.ready?'Подтверждена':'Не подтверждена')+
+                '; положение_штока=Не измеряется; вращение_насоса=Не измеряется; расход=Не измеряется');
         }
         sc('diag_request_'+id,diagnosticCircuitRequest(id,reports[id]));
         sc('circuit_'+id,operatorCircuit(id,r,out));
