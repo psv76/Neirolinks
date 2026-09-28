@@ -182,6 +182,8 @@ exports.houseValid=function(f) {
             (g.output_blocked===undefined || typeof g.output_blocked==='boolean') &&
             (g.pending_on===undefined || typeof g.pending_on==='boolean') &&
             (g.pending_off===undefined || typeof g.pending_off==='boolean') &&
+            (g.transition_safe===undefined || typeof g.transition_safe==='boolean') &&
+            (!g.transition_safe || !g.output_blocked) &&
             (!g.output_blocked || g.degraded) &&
             (!g.output_blocked || !g.partial_ready) &&
             (!g.partial_ready || (g.demand&&g.ready&&g.degraded&&g.valid)) &&

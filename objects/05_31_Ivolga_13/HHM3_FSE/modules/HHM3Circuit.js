@@ -26,7 +26,7 @@ exports.create=function(c,storage,Mixing){
     var mix,mode='',position=0,lastNow=null;
     var closeAt=null,coolAt=null,coolSupplyAt=null,coolFloorAt=null;
     var closeFloorSession=0,closeFloorSeq=0;
-    var idleAt=null,floorStepAt=null,responseAt=null,baseline=null;
+    var idleAt=null,floorStepAt=null,responseAt=null,baseline=null,zonalRunning=false;
     function newMixer(){
         var t={},k;
         for(k in c.tuning)if(Object.prototype.hasOwnProperty.call(c.tuning,k))t[k]=c.tuning[k];
@@ -41,6 +41,7 @@ exports.create=function(c,storage,Mixing){
     function resetTiming(){
         closeAt=null;coolAt=null;idleAt=null;floorStepAt=null;
         responseAt=null;baseline=null;newMixer();
+        zonalRunning=false;
     }
     function result(reason,pump,demand,target,valve,warning){
         return {reason:reason,pump:pump,demand:demand,target:target,
@@ -88,6 +89,24 @@ exports.create=function(c,storage,Mixing){
                 newMixer();
                 return result('NO_FEEDBACK_UNCOVERED',true,false,0,0,
                     'Нет подачи и пола: подмес закрыт, рециркуляция; защита от замерзания не обеспечена');
+            }
+            // Зональный выбег начинается только после реального рабочего цикла.
+            // Ожидающий новый путь сам по себе не запускает насос из простоя.
+            if(typeof i.zoneReady==='boolean'){
+                if(!i.zoneReady&&i.zoneSafe===false){resetTiming();return result('ZONE_UNSAFE',false,false,0,0);}
+                if(!i.zoneReady){
+                    if(zonalRunning&&idleAt===null)idleAt=now;
+                    if(zonalRunning&&now-idleAt<c.pumpPostrunMs){
+                        var post=result('PUMP_POSTRUN',true,false,0,0);
+                        post.valid=true;post.stopRemainingMs=c.pumpPostrunMs-(now-idleAt);
+                        return post;
+                    }
+                    if(zonalRunning)resetTiming();
+                    return result('NO_DEMAND',false,false,0,0);
+                }
+                // READY в момент или после срока — уже следующий холодный пуск.
+                if(idleAt!==null&&now-idleAt>=c.pumpPostrunMs)resetTiming();
+                idleAt=null;zonalRunning=true;
             }
             var remoteValid=!!(f&&f.valid&&f.enabled===true);
             var demand=remoteValid?f.demand:true;

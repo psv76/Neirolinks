@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 68,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "ad9d65c061121ca5fe082e82aafd7877145098646066393aa11a5c5bc998ea35",
+  "aggregate_sha256": "fd2016445b0b3b5c9e8116e6e1588609f96d68c448a27c5e56f321e51f1664f7",
   "files": [
     {
       "file": "FIELD_STARTUP_2026-09-25.md",
@@ -52,7 +52,7 @@
     },
     {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
-      "sha256": "78f017aaba26601c118aefccb09fb3a6c1620811c19d8ae880f1b2bbd0cac6b3",
+      "sha256": "e75125a10979ed47cab18b407551bbf4d5baa4979e1e06d79807ac9fd370cf19",
       "boards": [
         "boiler"
       ],
@@ -61,7 +61,7 @@
     },
     {
       "file": "boiler/wb-rules/620_thermostats.js",
-      "sha256": "c2b91d3c591d3ab7b22d7f69003b412994f41bb20e6374b427922a3a07978ac4",
+      "sha256": "f2ddf43483a65da5091ac5e19fbfd1459f284b667d379f91d55108b8ca80acaa",
       "boards": [
         "boiler"
       ],
@@ -99,7 +99,7 @@
     },
     {
       "file": "modules/HHM3Circuit.js",
-      "sha256": "024aba35631fc4607f35e64dae9490a2c358fb894f7cd7220e531e8f787b6a42",
+      "sha256": "7f4452df06449c8cee2778962611faeb992d59b9e349633ec5b037e41a8f1aca",
       "boards": [
         "boiler"
       ],
@@ -127,7 +127,7 @@
     },
     {
       "file": "modules/HHM3Outputs.js",
-      "sha256": "f7ed7e7f810493b61b292a327e7ebcc62c9054be8dd1463e5c7d618efd18e0d4",
+      "sha256": "c59c14a7fafcf8c9c359d7358219375d1714de557d6f3865555ef84efab7d525",
       "boards": [
         "boiler"
       ],
@@ -136,7 +136,7 @@
     },
     {
       "file": "modules/HHM3Runtime.js",
-      "sha256": "d3dafc48b08c7f5420c787086762d226daa9159a77abc03aa3d0faa47dd0ec59",
+      "sha256": "dc3cf53367c378fcaaf088a88abd230bea180eae6ecf61a38d3c121b90de9294",
       "boards": [
         "boiler",
         "gazebo"
@@ -192,6 +192,11 @@
     {
       "file": "tests/persistent-storage-regressions.js",
       "sha256": "62b9135481f56621af893c230ae48141e00b5653cb2ceafcb383ed1e131a977a",
+      "role": "test"
+    },
+    {
+      "file": "tests/postrun-regressions.js",
+      "sha256": "a6d8fd8eb5128c8a255f8f0616c84a45fc251448aa0cbc84f4085dd90d3ed2f7",
       "role": "test"
     },
     {

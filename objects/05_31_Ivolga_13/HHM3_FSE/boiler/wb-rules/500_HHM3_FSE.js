@@ -159,7 +159,9 @@ function evaluateOnce(){
                 sent_ms:hl.frame?hl.frame.sent_ms:now,session_id:hl.frame?hl.frame.session_id:0,seq:hl.frame?hl.frame.seq:0};
             if(id!=='504'&&!g.enabled)f.valid=true;
             r=engines[id].step({now:now,supply:io.read(c.supply),supplyAt:io.observedAt(c.supply),
-                ret:io.read(c.ret),source:io.read(C.source.temperature),frame:f,linkReason:gl.reason});
+                ret:io.read(c.ret),source:io.read(C.source.temperature),frame:f,linkReason:gl.reason,
+                zoneReady:id==='504'?undefined:!!(g.ready&&g.demand),
+                zoneSafe:id==='504'?undefined:!g.output_blocked&&(!g.degraded||g.transition_safe===true)});
             // A failed write or an unconfirmed OFF might leave an unsafe
             // zone energized; no shared hot water until its OFF/readback is known.
             if(id!=='504'&&g.output_blocked===true){
@@ -174,11 +176,10 @@ function evaluateOnce(){
             if(id!=='504'&&g.partial_ready===true&&r.reason==='NORMAL')
                 r.warning+='; '+(g.pending_off?'ждём подтверждение выключения зоны':'ждём подтверждение включения зоны')+
                     (g.pending_off&&g.pending_on?'; ждём подтверждение включения другой зоны':'')+'; готовый путь сохранён';
-            if(id!=='504'&&g.output_blocked!==true&&(!g.ready||!g.demand)){
+            if(id!=='504'&&g.output_blocked!==true&&(!g.ready||!g.demand)&&r.reason!=='PUMP_POSTRUN'){
                 r.pump=false;r.valve=0;r.demand=false;r.target=0;
                 if(r.reason!=='OVERHEAT_STOP'&&r.reason!=='OVERHEAT_CLOSE')r.reason=g.reason;
                 if(!g.enabled)r.valid=true;
-                engines[id].reset();
             }
         }
         var out={state:'NOT_SENT',ready:false,pump:false},writeResult;
@@ -210,6 +211,7 @@ function evaluateOnce(){
             valveHistory[id]=r.valve;
         }
         reports[id]={reason:r.reason,warning:r.warning,pump_command:out.pump,requested_pump:r.pump,valve_pct:r.valve,
+            stopRemainingMs:r.stopRemainingMs,
             output:out,commands:commands,command_sent:commands.some(function(w){return w.sent;}),
             demand:requests[id].demand,requested_source_temperature:temperature,
             supply:io.read(c.supply),return_temperature:io.read(c.ret)};

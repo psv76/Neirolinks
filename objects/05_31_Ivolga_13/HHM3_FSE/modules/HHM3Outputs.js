@@ -27,10 +27,11 @@ exports.create = function (c, io) {
         return true;
     }
     function close(keepPump,reason) {
-        var stopped=pump(false);
+        var stopped=keepPump?true:pump(false);
         var off=io.write(c.enable,false,true);
         level=null;lastEnableAt=null;
         if (!off.ok) {
+            pump(false);
             state='OFF_WRITE_ERROR';fault='OFF_WRITE_ERROR';return report(false);
         }
         if (!stopped) {
@@ -75,7 +76,7 @@ exports.create = function (c, io) {
             state==='ENABLE_WRITE_ERROR')return close(false,'');
         var needLevel=level!==target||state==='LEVEL_WRITE_ERROR';
         if (needLevel) {
-            if (level===null&&!pump(false))return abort('PUMP_WRITE_ERROR');
+            if (level===null&&pumpCommand!==true&&!pump(false))return abort('PUMP_WRITE_ERROR');
             if (!io.write(c.level,target,true).ok)return abort('LEVEL_WRITE_ERROR');
             level=target;
         }

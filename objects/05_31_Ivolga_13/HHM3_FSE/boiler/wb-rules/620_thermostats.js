@@ -138,6 +138,7 @@ function evaluate(){
         if(g.demand)g.valid=true; // one confirmed ON is a real path, not proof of all zones
         g.partial_ready=g.demand&&g.ready&&pending[id]&&!unsafe[id];
         g.output_blocked=blocked[id];
+        g.transition_safe=!unsafe[id]&&!blocked[id];
         if(!g.enabled){g.valid=true;g.reason='OFF';}
         else if(g.partial_ready)g.reason='HEAT';
         else if(!g.demand&&!g.degraded)g.reason='NO_DEMAND';
