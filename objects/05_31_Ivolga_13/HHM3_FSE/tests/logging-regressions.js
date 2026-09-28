@@ -17,7 +17,7 @@ assert.doesNotThrow(()=>broken.event('502','NORMAL',''));
 h.samples();h.start();h.set('boiler','NL_simple_thermostat_606/target_state',true);h.advance(210000);
 const outputs=()=>h.messages.filter(m=>m.topic===h.C.eventTopic).map(m=>JSON.parse(m.payload)).filter(e=>e.circuit==='502_output');
 const count=outputs().length;h.advance(20000);assert.equal(outputs().length,count,'стабильные выходы не журналируются каждый цикл');
-assert.match(outputs().at(-1).detail,/расчёт клапана/);
+assert.match(outputs().at(-1).detail,/расчёт_клапана_проц/);
 assert.match(outputs().at(-1).detail,/readback_Level/);assert.match(outputs().at(-1).detail,/readback_Switch/);assert.match(outputs().at(-1).detail,/readback_насоса/);
 assert.match(outputs().at(-1).detail,/сохранённый_Level/);
 assert.match(outputs().at(-1).detail,/положение_штока=Не измеряется/);assert.match(outputs().at(-1).detail,/расход=Не измеряется/);assert.doesNotMatch(outputs().at(-1).detail,/\{.*\"value\"/);
