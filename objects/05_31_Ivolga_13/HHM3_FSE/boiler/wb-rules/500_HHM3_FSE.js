@@ -50,6 +50,24 @@ defineVirtualDevice(VD,{title:'HHM3 — Иволга | отопление',cells
     start_heating:{title:'Первый ввод отопления',type:'pushbutton',value:false,forceDefault:true,order:90,hidden:operation.inService===true}
 }});
 var hhm3Device=getDevice(VD);
+Object.keys(C.circuits).forEach(function(id){
+    ['start','stop'].forEach(function(kind){
+        if(!hhm3Device.isControlExists('pump_'+kind+'_remaining_'+id))hhm3Device.addControl('pump_'+kind+'_remaining_'+id,{title:id+' · До '+(kind==='start'?'запуска':'остановки')+' насоса',
+            type:'text',value:'—',readonly:true,forceDefault:true,order:30+Number(id-501)*2+(kind==='stop'?1:0)});
+    });
+});
+var timerStates={};
+function timer(id,kind,ms,r,out){
+    var key=kind+'_'+id,active=typeof ms==='number'&&isFinite(ms)&&ms>0;
+    sc('pump_'+kind+'_remaining_'+id,active?String(Math.ceil(ms/1000))+' с':'—');
+    if(active&&timerStates[key]!==true)io.event(id+'_'+kind+'_timer','TIMER_STARTED',
+        kind==='start'?'Начато ожидание открытия зоны':'Начат выбег насоса');
+    if(!active&&timerStates[key]===true)io.event(id+'_'+kind+'_timer','TIMER_FINISHED',
+        out.fault||/^OVERHEAT|ZONE_OUTPUT/.test(r.reason)?'Таймер прерван ошибкой или защитой':
+        kind==='start'?(r.pump?'Ожидание открытия зоны завершено':'Ожидание открытия зоны отменено'):
+        r.demand?'Выбег отменён новым готовым запросом':'Выбег завершён');
+    timerStates[key]=active;
+}
 ['circuits_json','source_json','last_event_json'].forEach(function(id){
     if(!hhm3Device)return;
     // These controls existed in earlier releases and may survive only as retained
@@ -90,6 +108,8 @@ function operatorCircuit(id,r,out){
     if(operation.inService!==true)return 'Ожидает первого ввода';
     if(/ERROR|UNCERTAIN/.test(out.state)||out.fault)return 'Ошибка команды: '+out.state;
     if(/^OVERHEAT/.test(r.reason))return 'Защита по температуре · '+r.reason;
+    if(r.reason==='PUMP_POSTRUN')return 'Насос в выбеге · команда ВКЛ';
+    if(r.startRemainingMs>0)return 'Ждём открытия зоны · готовность по времени';
     if(r.reason==='NO_DEMAND'||r.reason==='OFF')return 'Нет запроса · насос '+(out.pump?'ВКЛ':'ВЫКЛ');
     if(r.reason==='CIRCULATION_CHECK')return 'Подготовка · клапан закрыт · насос '+(out.pump?'ВКЛ':'ВЫКЛ');
     if(r.reason==='FLOOR_SENSOR_UNAVAILABLE'||r.reason==='NO_FEEDBACK_UNCOVERED')return 'Нет датчика · '+r.reason;
@@ -97,16 +117,20 @@ function operatorCircuit(id,r,out){
     return 'Насос ВЫКЛ · '+r.reason;
 }
 function fallback(id){
-    var enabled=false,open=false,ready=false,now=Date.now();
+    var enabled=false,open=false,ready=false,now=Date.now(),remaining=null;
     Z.filter(function(z){return z.circuit===id;}).forEach(function(z){
         var s=userSettings[z.id];if(s&&s.state===1)enabled=true;
         if(s&&s.state===1)z.outputs.forEach(function(p){if(io.read(p)===1){
-            open=true;if(openSince[p]!==undefined&&now-openSince[p]>=C.circuits[id].zoneDelayMs)ready=true;
+            open=true;if(openSince[p]!==undefined){
+                var left=Math.max(0,C.circuits[id].zoneActuatorOpenMs-(now-openSince[p]));
+                if(left===0)ready=true;
+                if(remaining===null||left<remaining)remaining=left;
+            }
         }});
     });
     if(id==='505'){open=enabled;ready=enabled;}
     return {enabled:enabled,valid:!enabled||open,demand:enabled&&open,ready:enabled&&ready,
-        degraded:enabled,reason:enabled?'HOUSE_LINK_LOST':'OFF',floor:null};
+        degraded:enabled,reason:enabled?'HOUSE_LINK_LOST':'OFF',floor:null,startRemainingMs:ready?null:remaining};
 }
 function direct(id,c,g,now){
     var t=io.read(c.supply),s=thermal[id],stamp=io.observedAt(c.supply);
@@ -196,6 +220,12 @@ function evaluateOnce(){
         var failed=/ERROR|UNCERTAIN/.test(out.state)||!!out.fault,ok=out.ready&&!failed;
         if(failed)faultCount++;
         if(failed){r.warning+='; '+out.state+'; '+(out.fault||'')+'; повтор автоматически';r.reason=out.state;if(engines[id])engines[id].reset();}
+        r.startRemainingMs=null;
+        if(operation.inService===true&&!failed&&!r.pump&&g&&g.startRemainingMs>0&&!g.output_blocked&&
+           !/^OVERHEAT|RUNTIME_UNSUPPORTED/.test(r.reason))
+            r.startRemainingMs=Math.max(0,g.startRemainingMs-(hl.frame?now-hl.frame.sent_ms:0));
+        if(failed||out.pump!==true)r.stopRemainingMs=null;
+        timer(id,'start',r.startRemainingMs,r,out);timer(id,'stop',r.stopRemainingMs,r,out);
         var temperature=r.demand&&ok?r.target+(c.kind==='mixed'?c.sourceMarginC:0):0;
         // A known idle circuit is valid even when its pump is intentionally OFF.
         // A write error remains invalid; never turn an output fault into known zero.

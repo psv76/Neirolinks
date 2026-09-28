@@ -58,7 +58,7 @@ function evaluate(){
     lastNow=now;
     ['501','502','503','505'].forEach(function(id){
         groups[id]={valid:true,demand:false,ready:false,enabled:false,degraded:false,
-            partial_ready:false,output_blocked:false,pending_on:false,pending_off:false,reason:'OFF',floor:null};
+            partial_ready:false,output_blocked:false,pending_on:false,pending_off:false,startRemainingMs:null,reason:'OFF',floor:null};
         pending[id]=false;unsafe[id]=false;blocked[id]=false;
     });
     Config.zones.forEach(function(z){
@@ -125,7 +125,9 @@ function evaluate(){
         if(on&&sent&&operation.inService===true){
             if(opened[z.id]===undefined||now<opened[z.id])opened[z.id]=now;
             g.demand=true;
-            if(now-opened[z.id]>=C.circuits[z.circuit].zoneDelayMs)g.ready=true;
+            var remaining=Math.max(0,c.zoneActuatorOpenMs-(now-opened[z.id]));
+            if(remaining===0)g.ready=true;
+            if(g.startRemainingMs===null||remaining<g.startRemainingMs)g.startRemainingMs=remaining;
             if(!g.degraded)g.reason='HEAT';
         }else delete opened[z.id];
         if(enabled!==0&&!on&&!valid)g.valid=false;
@@ -139,6 +141,7 @@ function evaluate(){
         g.partial_ready=g.demand&&g.ready&&pending[id]&&!unsafe[id];
         g.output_blocked=blocked[id];
         g.transition_safe=!unsafe[id]&&!blocked[id];
+        if(g.ready||g.output_blocked)g.startRemainingMs=null;
         if(!g.enabled){g.valid=true;g.reason='OFF';}
         else if(g.partial_ready)g.reason='HEAT';
         else if(!g.demand&&!g.degraded)g.reason='NO_DEMAND';

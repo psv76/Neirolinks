@@ -121,7 +121,9 @@ exports.create=function(c,storage,Mixing){
                     if(!modeChanged)newMixer(); // once on demand loss, not every idle tick
                 }
                 responseAt=null;
-                return result('NO_DEMAND',now-idleAt<c.postrunMs,false,0,0);
+                var idle=result('NO_DEMAND',now-idleAt<c.postrunMs,false,0,0);
+                if(idle.pump)idle.stopRemainingMs=c.postrunMs-(now-idleAt);
+                return idle;
             }
             idleAt=null;
             // Do not run a minute-long pump-only phase against a commanded

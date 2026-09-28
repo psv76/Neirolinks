@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 68,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "5a6c169097c78d3c454ba5611c745ea1fbab6d68e9ea870dc9d7643743fdd43d",
+  "aggregate_sha256": "d3a743ab540400016697fd7fa5fa2d306cf294e27b8b4df9d3eb631ea98f50b9",
   "files": [
     {
       "file": "FIELD_STARTUP_2026-09-25.md",
@@ -52,7 +52,7 @@
     },
     {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
-      "sha256": "e75125a10979ed47cab18b407551bbf4d5baa4979e1e06d79807ac9fd370cf19",
+      "sha256": "019317e93c5c3b2345656fc1c3ea238623838268abed7a049ba78cd4bd7f7be1",
       "boards": [
         "boiler"
       ],
@@ -61,7 +61,7 @@
     },
     {
       "file": "boiler/wb-rules/620_thermostats.js",
-      "sha256": "f2ddf43483a65da5091ac5e19fbfd1459f284b667d379f91d55108b8ca80acaa",
+      "sha256": "1f1c4d1087c8687f9e493845ee2c9048b4b0d7c2ae2f8f031da290df20b04f5f",
       "boards": [
         "boiler"
       ],
@@ -99,7 +99,7 @@
     },
     {
       "file": "modules/HHM3Circuit.js",
-      "sha256": "7f4452df06449c8cee2778962611faeb992d59b9e349633ec5b037e41a8f1aca",
+      "sha256": "4cc71488051726139feacf0ec218b8fadb3bbf0b39f3289fd2d4517a0703cb5c",
       "boards": [
         "boiler"
       ],
@@ -136,7 +136,7 @@
     },
     {
       "file": "modules/HHM3Runtime.js",
-      "sha256": "dc3cf53367c378fcaaf088a88abd230bea180eae6ecf61a38d3c121b90de9294",
+      "sha256": "bb51be3678355973e594fc693273378eb48f9073070c6d686691a626f9428322",
       "boards": [
         "boiler",
         "gazebo"
@@ -217,6 +217,11 @@
     {
       "file": "tests/sensor-health-regressions.js",
       "sha256": "f90835c795b9d524be012f0144c9cdde6924bf5f7adc299fd57162b8b7b59531",
+      "role": "test"
+    },
+    {
+      "file": "tests/timer-regressions.js",
+      "sha256": "45bfa3e2963e1ecd16ab28a35d19bb108d2f019530ae285bc98e8e82284bec9b",
       "role": "test"
     },
     {

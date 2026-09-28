@@ -184,6 +184,9 @@ exports.houseValid=function(f) {
             (g.pending_off===undefined || typeof g.pending_off==='boolean') &&
             (g.transition_safe===undefined || typeof g.transition_safe==='boolean') &&
             (!g.transition_safe || !g.output_blocked) &&
+            (g.startRemainingMs===undefined || g.startRemainingMs===null ||
+                (typeof g.startRemainingMs==='number'&&isFinite(g.startRemainingMs)&&g.startRemainingMs>=0&&
+                 g.startRemainingMs<=C.circuits[id].zoneActuatorOpenMs&&!g.ready)) &&
             (!g.output_blocked || g.degraded) &&
             (!g.output_blocked || !g.partial_ready) &&
             (!g.partial_ready || (g.demand&&g.ready&&g.degraded&&g.valid)) &&
