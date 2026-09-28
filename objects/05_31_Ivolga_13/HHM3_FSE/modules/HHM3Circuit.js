@@ -86,6 +86,7 @@ exports.create=function(c,storage,Mixing){
             }
             closeAt=null;
             if(supply===null&&floor===null){
+                if(typeof i.zoneReady==='boolean')resetTiming();
                 newMixer();
                 return result('NO_FEEDBACK_UNCOVERED',true,false,0,0,
                     'Нет подачи и пола: подмес закрыт, рециркуляция; защита от замерзания не обеспечена');
@@ -95,6 +96,7 @@ exports.create=function(c,storage,Mixing){
             if(typeof i.zoneReady==='boolean'){
                 if(!i.zoneReady&&i.zoneSafe===false){resetTiming();return result('ZONE_UNSAFE',false,false,0,0);}
                 if(!i.zoneReady){
+                    if(idleAt===null&&i.pumpWasOn!==true)zonalRunning=false;
                     if(zonalRunning&&idleAt===null)idleAt=now;
                     if(zonalRunning&&now-idleAt<c.pumpPostrunMs){
                         var post=result('PUMP_POSTRUN',true,false,0,0);

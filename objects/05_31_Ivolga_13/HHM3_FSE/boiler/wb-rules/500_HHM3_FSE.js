@@ -56,7 +56,7 @@ Object.keys(C.circuits).forEach(function(id){
             type:'text',value:'—',readonly:true,forceDefault:true,order:30+Number(id-501)*2+(kind==='stop'?1:0)});
     });
 });
-var timerStates={};
+var timerStates={},directPostrun={};
 function timer(id,kind,ms,r,out){
     var key=kind+'_'+id,active=typeof ms==='number'&&isFinite(ms)&&ms>0;
     sc('pump_'+kind+'_remaining_'+id,active?String(Math.ceil(ms/1000))+' с':'—');
@@ -143,10 +143,19 @@ function direct(id,c,g,now){
         var cool=directCool[id];
         if(cool&&now-cool.at>=120000&&stamp>cool.sample)s.hot=false;
     }
-    var pump=!!(g&&g.demand&&g.ready&&!s.hot);
-    return {pump:pump,valve:0,demand:pump,valid:!!g&&g.valid,write:true,
-        target:pump?(g.degraded?c.fallbackC:c.targetC):0,
-        reason:s.hot?'OVERHEAT_STOP':(pump?(g.degraded?'DEGRADED':'NORMAL'):(g?g.reason:'REQUEST_UNAVAILABLE')),
+    var demand=!!(g&&g.demand&&g.ready&&!s.hot),pump=demand,remaining=null;
+    if(demand)delete directPostrun[id];
+    else if(s.hot||!g||g.output_blocked||(g.degraded&&g.transition_safe!==true))delete directPostrun[id];
+    else if(c.zoneActuatorOpenMs>0&&c.pumpPostrunMs>0){
+        if(directPostrun[id]===undefined&&lastReports[id]&&lastReports[id].pump_command===true)
+            directPostrun[id]=now;
+        if(directPostrun[id]!==undefined&&now-directPostrun[id]<c.pumpPostrunMs){
+            pump=true;remaining=c.pumpPostrunMs-(now-directPostrun[id]);
+        }
+    }
+    return {pump:pump,valve:0,demand:demand,valid:!!g&&g.valid,write:true,stopRemainingMs:remaining,
+        target:demand?(g.degraded?c.fallbackC:c.targetC):0,
+        reason:s.hot?'OVERHEAT_STOP':(remaining!==null?'PUMP_POSTRUN':(demand?(g.degraded?'DEGRADED':'NORMAL'):(g?g.reason:'REQUEST_UNAVAILABLE'))),
         warning:s.hot?'Перегрев локальной подачи':(g&&g.degraded?'Нет свежего комнатного спроса; ограниченный резерв':'')};
 }
 function evaluate(){
@@ -157,7 +166,7 @@ function evaluate(){
 function evaluateOnce(){
     io.begin();
     var now=Date.now(),hl=house.read(now),gl=gazebo.read(now),requests={},reports={},faultCount=0;
-    if(lastNow!==null&&(now<lastNow||now-lastNow>C.periodMs*3)){directCool={};openSince={};}
+    if(lastNow!==null&&(now<lastNow||now-lastNow>C.periodMs*3)){directCool={};openSince={};directPostrun={};lastReports={};}
     lastNow=now;
     Z.forEach(function(z){z.outputs.forEach(function(p){
         if(io.read(p)===1){if(openSince[p]===undefined)openSince[p]=now;}else delete openSince[p];
@@ -187,6 +196,7 @@ function evaluateOnce(){
             r=engines[id].step({now:now,supply:io.read(c.supply),supplyAt:io.observedAt(c.supply),
                 ret:io.read(c.ret),source:io.read(C.source.temperature),frame:f,linkReason:gl.reason,
                 zoneReady:id==='504'?undefined:!!(g.ready&&g.demand),
+                pumpWasOn:!!(lastReports[id]&&lastReports[id].pump_command===true),
                 zoneSafe:id==='504'?undefined:!g.output_blocked&&(!g.degraded||g.transition_safe===true)});
             // A failed write or an unconfirmed OFF might leave an unsafe
             // zone energized; no shared hot water until its OFF/readback is known.
@@ -221,7 +231,7 @@ function evaluateOnce(){
         if(commands.some(function(w){return !w.ok;})&&!/ERROR|UNCERTAIN/.test(out.state))out.state='OUTPUT_WRITE_ERROR';
         var failed=/ERROR|UNCERTAIN/.test(out.state)||!!out.fault,ok=out.ready&&!failed;
         if(failed)faultCount++;
-        if(failed){r.warning+='; '+R.stateText(out.state)+'; восстановление по подтверждению выхода';r.reason=out.state;if(engines[id])engines[id].reset();}
+        if(failed){r.warning+='; '+R.stateText(out.state)+'; восстановление по подтверждению выхода';r.reason=out.state;if(engines[id])engines[id].reset();delete directPostrun[id];}
         r.startRemainingMs=null;
         if(operation.inService===true&&!failed&&!r.pump&&g&&g.startRemainingMs>0&&!g.output_blocked&&
            !/^OVERHEAT|RUNTIME_UNSUPPORTED/.test(r.reason))

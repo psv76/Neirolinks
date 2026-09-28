@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 68,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "0acc798a9e31b264ee1a32a142c3dd05497e5abcbd7ca276cbabe325e17c3ab4",
+  "aggregate_sha256": "2cf847432fd6854e1902e69e38461930fb61094e7441b7d338df33af304c2088",
   "files": [
     {
       "file": "FIELD_STARTUP_2026-09-25.md",
@@ -27,7 +27,7 @@
     },
     {
       "file": "ISSUE81.md",
-      "sha256": "25dd669dab63b793a6ad5763922d094b558e61a3a8855dc5031ebe657d260ca2",
+      "sha256": "3bed5164291c84be80fb332457d53a002a380ea1eef87d00b7d1a38abad587e1",
       "role": "documentation"
     },
     {
@@ -52,7 +52,7 @@
     },
     {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
-      "sha256": "e2f23202688f854d898158bea6deaad6d832bdabe4cd04aaf1b135656d4dc9de",
+      "sha256": "3961b1c698cd888d224ed3d44c8b530e27301b4f04e6f4be7a2662c3ad28997e",
       "boards": [
         "boiler"
       ],
@@ -99,7 +99,7 @@
     },
     {
       "file": "modules/HHM3Circuit.js",
-      "sha256": "9d63b8d4d059dea37e6f9461350e01bcac2c7ff5a25ff99cb1eeb9f01d595abf",
+      "sha256": "fb89d11916e95483dd0db18e6d69104e0b097ee59c3f2df16830c65e50986e7d",
       "boards": [
         "boiler"
       ],
@@ -108,7 +108,7 @@
     },
     {
       "file": "modules/HHM3Config.js",
-      "sha256": "920bf1baa3a86abf111f327529b3210dce91cf8b829b3d4737de6139ac9649a3",
+      "sha256": "bdd8dcf3537644a7699d838fc5bd12cc528365ca425a2992cb3a494720f3e550",
       "boards": [
         "boiler",
         "gazebo"
@@ -167,6 +167,11 @@
     {
       "file": "tests/harness.js",
       "sha256": "57e1c1658a065efe926dd2602a92059d7e0d784e0d180c8f77609ee6cf401c38",
+      "role": "test"
+    },
+    {
+      "file": "tests/issue81-boundary-regressions.js",
+      "sha256": "6e52a25466b327ba354b5b7a76dde641cea6e94c8ffba4c327c3309499364097",
       "role": "test"
     },
     {

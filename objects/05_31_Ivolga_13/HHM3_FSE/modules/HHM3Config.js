@@ -365,7 +365,7 @@ exports.timing=function(c){
     [open,close,post].forEach(function(v){
         if(typeof v!=='number'||!isFinite(v)||v<0)throw new Error('Некорректное время привода/выбега');
     });
-    if(typeof bypass!=='boolean'||(open>0&&!bypass&&post>=close))
+    if(typeof bypass!=='boolean'||((open>0||close>0)&&!bypass&&post>=close))
         throw new Error('Без байпаса выбег должен быть короче закрытия привода');
     return {zoneActuatorOpenMs:open,zoneActuatorCloseMs:close,pumpPostrunMs:post,collectorHasBypass:bypass};
 };

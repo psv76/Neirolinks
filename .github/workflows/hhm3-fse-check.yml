@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - codex/issue-68-hhm-3-1-sensor-health
+      - codex/issue-81-hhm31-postrun
   pull_request:
     paths:
       - 'objects/05_31_Ivolga_13/HHM3_FSE/**'
@@ -40,6 +41,16 @@ jobs:
         run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/persistent-storage-regressions.js
       - name: Verify entire release manifest and dependencies
         run: node objects/05_31_Ivolga_13/HHM3_FSE/tests/manifest.js --check
+      - name: Проверить времена, выбег, MAO4, операторские таймеры и журнал Issue 81
+        run: |
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/timing-config-regressions.js
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/postrun-regressions.js
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/mao4-readback-regressions.js
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/timer-regressions.js
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/logging-regressions.js
+          node objects/05_31_Ivolga_13/HHM3_FSE/tests/issue81-boundary-regressions.js
+      - name: Проверить синтаксис всех исходников HHM3
+        run: find objects/05_31_Ivolga_13/HHM3_FSE -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Verify pinned installers shell syntax
         run: |
           bash -n objects/05_31_Ivolga_13/HHM3_FSE/tools/install_502_readback_fix.sh
