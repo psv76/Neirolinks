@@ -5,16 +5,17 @@ module.exports=function(test){
  function fixture(){
   const c={periodMs:5000,valveActiveMinLevel:1,valveActiveMaxLevel:100,valveOffCommand:false,
    pump:'A03/K4',level:'A05/Channel 3 Dimming Level',enable:'A05/Channel 3 Switch'};
-  let now=100000;const values={},writes=[];let noEcho=false,fail='';
+  let now=100000;const values={},writes=[],seqs={};let noEcho=false,fail='';
   const io={read:p=>noEcho?null:(values[p]===undefined?null:values[p]),
    matches:(p,v)=>io.read(p)===(typeof v==='boolean'?(v?1:0):v),
-   readback:p=>({value:io.read(p)}),
+   readback:p=>({value:io.read(p),seq:seqs[p]||0,at:now}),
    write:(p,v)=>{writes.push({p,v});if(p===fail)return {ok:false,sent:false};
     values[p]=typeof v==='boolean'?(v?1:0):v;
+    if(!noEcho)seqs[p]=(seqs[p]||0)+1;
     if(p===c.level)assert.equal(v%1,0);
     return {ok:true,sent:true};}};
   const step=createOutputs(c,io);
-  return {c,values,writes,noEcho:v=>noEcho=v,fail:v=>fail=v,
+  return {c,values,writes,confirmOff:()=>{values[c.enable]=0;seqs[c.enable]=(seqs[c.enable]||0)+1;},noEcho:v=>noEcho=v,fail:v=>fail=v,
    run:(valve,pump=true,dt=5000)=>step({valve,pump},now+=dt)};
  }
  test('integer MAO4 command 20% becomes 21 with explicit Switch ON',()=>{
@@ -23,11 +24,11 @@ module.exports=function(test){
   assert.equal(r.requested_level,21);assert.equal(f.values[f.c.enable],1);
   assert.equal(f.values[f.c.pump],1);assert.ok(f.writes.some(w=>w.p===f.c.enable&&w.v===true));
  });
- test('missing readback never cancels an accepted Level and pump command',()=>{
+ test('без readback нет READY, по таймауту насос OFF и безопасное закрытие',()=>{
   const f=fixture();f.run(0,false);f.noEcho(true);
-  for(let i=0;i<8;i++){const r=f.run(20);assert.equal(r.ready,true);assert.equal(r.state,'HEAT_COMMANDED');}
-  assert.equal(f.values[f.c.pump],1);assert.equal(f.values[f.c.enable],1);
-  assert.equal(f.writes.filter(w=>w.p===f.c.level).length,1);
+  for(let i=0;i<8;i++){const r=f.run(20);assert.equal(r.ready,false);}
+  assert.equal(f.values[f.c.pump],0);assert.equal(f.values[f.c.enable],0);
+  assert.ok(f.writes.filter(w=>w.p===f.c.level).length<=1);
  });
  test('retarget preserves pump and sends Level before Switch ON',()=>{
   const f=fixture();f.run(0,false);f.run(20);const n=f.writes.length;
@@ -50,7 +51,7 @@ module.exports=function(test){
  test('OFF write error prevents new heating until OFF command accepted',()=>{
   const f=fixture();f.fail(f.c.enable);let r=f.run(0,false);
   assert.equal(r.state,'OFF_WRITE_ERROR');f.run(40);const count=f.writes.filter(w=>w.p===f.c.level).length;
-  assert.equal(count,0);f.fail('');r=f.run(40);assert.equal(r.state,'OFF_COMMANDED');
+  assert.equal(count,0);f.fail('');f.confirmOff();r=f.run(40);assert.equal(r.state,'OFF_COMMANDED');
   r=f.run(40);assert.equal(r.state,'HEAT_COMMANDED');
  });
 };

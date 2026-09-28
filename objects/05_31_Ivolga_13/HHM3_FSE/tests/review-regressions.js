@@ -55,20 +55,16 @@ module.exports=function(test,create,epoch){
    assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));assert.equal(f.values[c.level],73);
   }
  });
- test('missing MQTT echo 120 seconds does not cancel accepted heat for 501/502/504',()=>{
+ test('нет свежего подтверждения открытия: READY отсутствует, затем безопасный OFF',()=>{
   for(const id of ids){const f=fixture(id),c=f.c;f.run(0,false);f.drop(()=>true);
-   const n=f.writes.length;
-   for(let i=0;i<24;i++){const r=f.run(40,true);assert.equal(r.state,'HEAT_COMMANDED');assert.equal(r.ready,true);}
-   assert.equal(f.values[c.pump],true);assert.equal(f.position(),41);
-   assert.ok(f.writes.slice(n).some(w=>w.path===c.level));
-   assert.ok(f.writes.slice(n).some(w=>w.path===c.enable&&w.value===true));
+   for(let i=0;i<24;i++)assert.equal(f.run(40,true).ready,false);
+   assert.equal(f.values[c.pump],false);assert.equal(f.values[c.enable],false);
   }
  });
- test('old retained MQTT OFF cannot veto explicit Switch ON command',()=>{
+ test('retained OFF не подтверждает новую команду открытия',()=>{
   for(const id of ids){const f=fixture(id),c=f.c;f.run(0,false);f.emit(c.enable,0,true);f.drop(()=>true);
-   for(let i=0;i<4;i++){const r=f.run(30,true);assert.equal(r.ready,true);}
-   assert.equal(f.values[c.pump],true);assert.ok(f.writes.some(w=>w.path===c.level));
-   assert.ok(f.writes.some(w=>w.path===c.enable&&w.value===true));
+   for(let i=0;i<4;i++)assert.equal(f.run(30,true).ready,false);
+   assert.equal(f.values[c.pump],false);
   }
  });
  test('A05 retarget writes integer Level without stopping operating pump',()=>{
@@ -86,7 +82,7 @@ module.exports=function(test,create,epoch){
    const n=f.writes.length;
    for(let i=0;i<3;i++){r=f.run(40,true);assert.equal(r.ready,false);}
    assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));
-   f.fail(()=>false);r=f.run(40,true);assert.equal(r.state,'OFF_COMMANDED');
+   f.fail(()=>false);f.emit(c.enable,0);r=f.run(40,true);assert.equal(r.state,'OFF_COMMANDED');
    r=f.run(40,true);assert.equal(r.state,'HEAT_COMMANDED');
   }
  });
@@ -131,7 +127,7 @@ module.exports=function(test,create,epoch){
    const n=f.writes.length;
    for(let i=0;i<4;i++){r=f.run(40,true);assert.equal(r.ready,false);}
    assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));
-   f.fail(()=>false);assert.equal(f.run(40,true).state,'OFF_COMMANDED');
+   f.fail(()=>false);f.emit(c.enable,0);assert.equal(f.run(40,true).state,'OFF_COMMANDED');
    assert.equal(f.run(40,true).ready,true);
   }
  });
@@ -142,7 +138,7 @@ module.exports=function(test,create,epoch){
    assert.equal(r.ready,false);assert.equal(r.state,'PUMP_WRITE_ERROR');
    assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));
    assert.ok(f.writes.slice(n).some(w=>w.path===c.enable&&w.value===false));
-   f.fail(()=>false);assert.equal(f.run(40,true).state,'OFF_COMMANDED');
+   f.fail(()=>false);f.emit(c.enable,0);assert.equal(f.run(40,true).state,'OFF_COMMANDED');
    assert.equal(f.run(40,true).ready,true);
   }
  });
@@ -151,7 +147,7 @@ module.exports=function(test,create,epoch){
    f.fail(w=>w.path===c.pump&&w.value===true);const r=f.run(40,true);
    assert.equal(r.ready,false);assert.equal(r.state,'PUMP_WRITE_ERROR');
    assert.equal(f.values[c.enable],false);
-   f.fail(()=>false);assert.equal(f.run(40,true).state,'OFF_COMMANDED');
+   f.fail(()=>false);f.emit(c.enable,0);assert.equal(f.run(40,true).state,'OFF_COMMANDED');
    assert.equal(f.run(40,true).ready,true);
   }
  });
@@ -163,12 +159,12 @@ module.exports=function(test,create,epoch){
    assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));
   }
  });
- test('restart and clock rollback issue OFF; next tick may resume without MQTT echo',()=>{
+ test('restart и откат часов: без свежего подтверждения нагрев запрещён',()=>{
   for(const id of ids){const f=fixture(id),c=f.c;f.run(0,false);f.run(40,true);
    f.restart();f.drop(()=>true);const n=f.writes.length;
    let r=f.run(40,true);assert.equal(r.state,'OFF_COMMANDED');assert.equal(r.ready,false);
    assert.ok(!f.writes.slice(n).some(w=>w.path===c.level));
-   assert.equal(f.run(40,true).state,'HEAT_COMMANDED');
+   assert.equal(f.run(40,true).ready,false);
    r=f.run(40,true,-20000);assert.equal(r.state,'OFF_COMMANDED');assert.equal(r.ready,false);
   }
  });
@@ -211,10 +207,10 @@ module.exports=function(test,create,epoch){
   for(const id of ids){const h=create();h.enableAll();h.samples();h.start();h.advance(300000);const c=h.C.circuits[id];
    const n=h.writes.length;h.fail(w=>w.path===c.enable&&w.value===false);
    h.temperatures[c.supply]=c.supplyImmediateStopC;h.deliver('boiler',h.topic(c.supply),c.supplyImmediateStopC,false);h.advance(15000);
-   assert.equal(h.report()[id].demand,false);assert.equal(h.report()[id].output.state,'OFF_WRITE_ERROR');
+   assert.equal(h.report()[id].demand,false);assert.equal(h.report()[id].output.state,'CLOSURE_UNCERTAIN');
    assert.ok(!h.writes.slice(n).some(w=>w.path===c.level));
    for(const other of ['501','502','503','504','505'].filter(x=>x!==id))assert.equal(h.report()[other].demand,true,other);
-   h.fail('');h.temperatures[c.supply]=25;h.advance(230000);assert.equal(h.report()[id].demand,true);
+   h.fail('');h.values.boiler[c.enable]=false;h.deliver('boiler',h.topic(c.enable),0,false);h.temperatures[c.supply]=25;h.advance(230000);assert.equal(h.report()[id].demand,true);
   }
  });
  test('integration: per-circuit Level failure excludes failing transactions; neighbours continue',()=>{

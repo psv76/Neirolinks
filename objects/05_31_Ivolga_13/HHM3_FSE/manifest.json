@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 68,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "fd2016445b0b3b5c9e8116e6e1588609f96d68c448a27c5e56f321e51f1664f7",
+  "aggregate_sha256": "5a6c169097c78d3c454ba5611c745ea1fbab6d68e9ea870dc9d7643743fdd43d",
   "files": [
     {
       "file": "FIELD_STARTUP_2026-09-25.md",
@@ -127,7 +127,7 @@
     },
     {
       "file": "modules/HHM3Outputs.js",
-      "sha256": "c59c14a7fafcf8c9c359d7358219375d1714de557d6f3865555ef84efab7d525",
+      "sha256": "537e51b899db3e1f864e60818850632d825a7c0d28978b42c0c036311c34bf60",
       "boards": [
         "boiler"
       ],
@@ -171,7 +171,7 @@
     },
     {
       "file": "tests/level-integer-regressions.js",
-      "sha256": "44cfd944ba9adfae97ff22054274bf161ba1a071f1ae9d8db334cc9046f4b8c8",
+      "sha256": "447d88bc109e1a88adde49a8dd030b4ec3ca160c8bdd98df441bf948f6241685",
       "role": "test"
     },
     {
@@ -182,6 +182,11 @@
     {
       "file": "tests/manifest.js",
       "sha256": "b58fd4596cb996cd0861f4a0b412014da9ef5bd25a04930f0e52e983d9267104",
+      "role": "test"
+    },
+    {
+      "file": "tests/mao4-readback-regressions.js",
+      "sha256": "55769802f4d3f0b890d1501c53e3904ca458f075f4db9b662d4a9f8eca404748",
       "role": "test"
     },
     {
@@ -201,7 +206,7 @@
     },
     {
       "file": "tests/review-regressions.js",
-      "sha256": "147ad3804e67e573d5a016007cb15d2fcf516aaae20fa1925352bdf66dd02e9b",
+      "sha256": "66f5cf63c152e2da258660dcf3420f383da06bc72c5287d4684c11229ed11335",
       "role": "test"
     },
     {
