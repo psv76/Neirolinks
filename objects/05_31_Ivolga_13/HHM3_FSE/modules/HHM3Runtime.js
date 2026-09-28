@@ -149,24 +149,51 @@ exports.io = function (env, owner, allowed) {
             catch(e){delete lastCommands[path];result.status='ERROR';result.ok=false;result.delivery_unknown=true;}
             result.readback=api.readback(path);attempts.push(result);return result;
         },
-        event:function(key,state,warning) {
-            var signature=state+';'+warning, previous=lastEvents[key];
+        event:function(key,state,warning,detail) {
+            var signature=state+';'+warning+';'+(detail||''), previous=lastEvents[key];
             if(previous && previous.signature===signature)return;
             var severity=warning?'warning':'state';
             if(/OVERHEAT|CLOSURE_UNCERTAIN/.test(state))severity='alarm';
             else if(previous && previous.warning && !warning)severity='recovery';
-            var e={v:3,owner:owner,circuit:key,at:env.now(),state:state,warning:warning||'',severity:severity};
+            var e={v:3,owner:owner,circuit:key,at:env.now(),state:state,warning:warning||'',detail:detail||'',severity:severity};
             lastEvents[key]={signature:signature,warning:warning};
-            env.publish(C.eventTopic,JSON.stringify(e),0,false);
-            var text='[отопление]['+owner+']['+key+']; STATE='+state+'; '+(warning||'');
-            if(severity==='alarm')env.log.error(text);
-            else if(severity==='warning')env.log.warning(text);
-            else env.log.info(text);
+            var text='[отопление]['+owner+']['+key+']; СОСТОЯНИЕ='+exports.stateText(state)+
+                '; код='+safeText(state)+'; причина='+safeText(warning||'Штатный переход')+
+                (detail?'; '+safeText(detail):'');
+            // Отказ диагностического канала не должен блокировать управление.
+            try {env.publish(C.eventTopic,JSON.stringify(e),0,false);}catch(ignorePublish){}
+            try {
+                if(severity==='alarm')env.log.error(text);
+                else if(severity==='warning')env.log.warning(text);
+                else env.log.info(text);
+            }catch(ignoreLog){}
             return e;
         }
     };
     allowed.forEach(function(path){api.watch(path,-100000,100000);});
     return api;
+};
+function safeText(value){return String(value).replace(/[\r\n;\[\]]/g,', ');}
+exports.stateText=function(code){
+    var text={NORMAL:'Нагрев по запросу зон',HEAT:'Нагрев по запросу зон',
+        OFF:'Отключено',NO_DEMAND:'Нет запроса тепла',PUMP_POSTRUN:'Выбег насоса',
+        AUTONOMOUS:'Местное управление без достоверного внешнего запроса',DEGRADED:'Работа в резервном режиме',
+        PENDING_ON_READBACK:'Ждём подтверждение включения зоны',PENDING_OFF_READBACK:'Ждём подтверждение выключения зоны',
+        OFF_READBACK_TIMEOUT:'Выключение зоны не подтверждено',ZONE_OUTPUT_UNCONFIRMED:'Ошибка выхода зоны',
+        OFF_COMMANDED:'Отправлена команда закрытия смесителя',HEAT_COMMANDED:'Команда нагрева подтверждена выходом',
+        WAIT_OUTPUT_READBACK:'Ждём подтверждение команды выхода',CLOSURE_UNCERTAIN:'Закрытие смесителя не подтверждено',
+        ENABLE_UNCERTAIN:'Включение смесителя не подтверждено',OFF_WRITE_ERROR:'Ошибка записи закрытия смесителя',
+        LEVEL_WRITE_ERROR:'Ошибка записи уровня смесителя',ENABLE_WRITE_ERROR:'Ошибка включения смесителя',
+        PUMP_WRITE_ERROR:'Ошибка записи команды насосу',OUTPUT_WRITE_ERROR:'Ошибка записи выхода',
+        OVERHEAT_CLOSE:'Перегрев: команда закрыть горячий порт',OVERHEAT_STOP:'Перегрев: защитная остановка',
+        FLOOR_SENSOR_UNAVAILABLE:'Датчик пола недоступен',NO_FEEDBACK_UNCOVERED:'Нет достоверной подачи и пола',
+        FLOOR_ONLY:'Ограниченное регулирование по полу',FLOOR_CAP_UNMEASURED:'Не задан проверенный предел по полу',
+        HOUSE_LINK_LOST:'Нет достоверного запроса дома',FIRST_COMMISSIONING:'Ожидает первого ввода',
+        RUNTIME_UNSUPPORTED:'Несовместимая среда управления',TIMER_STARTED:'Начало ожидания',TIMER_FINISHED:'Окончание ожидания',
+        VALVE_COMMAND_DROP:'Расчётное открытие уменьшено',OUTPUT_TRANSITION:'Изменилось состояние выхода',
+        COMMAND_ACCEPTED:'Попытка записи без обнаруженной ошибки',NOT_SENT:'Команда не отправлялась',
+        SETTINGS_INVALID:'Ошибка настроек',SENSOR_FALLBACK:'Резерв при недоступном датчике',FLOOR_HARD_MAX:'Перегрев пола'};
+    return text[code]||'Состояние управления изменено';
 };
 exports.houseValid=function(f) {
     if(!f || f.v!==3 || f.source!==C.houseSource || f.ttl_ms!==W.TTL_MS ||

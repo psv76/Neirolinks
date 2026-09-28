@@ -81,7 +81,7 @@ exports.create=function(c,storage,Mixing){
                     newMixer();
                     return result(storage.thermalStop?'OVERHEAT_STOP':'OVERHEAT_CLOSE',
                         !storage.thermalStop,false,0,0,'Перегрев: горячий подмес закрыт'+
-                        (storage.thermalStop?', насос остановлен':', насос циркулирует'));
+                        (storage.thermalStop?', команда насосу ВЫКЛ':', команда насосу ВКЛ; расход не измеряется'));
                 }
             }
             closeAt=null;
@@ -112,7 +112,7 @@ exports.create=function(c,storage,Mixing){
             var demand=remoteValid?f.demand:true;
             var target=Math.min(c.maxSupplyC,remoteValid?c.normalSupplyC:c.autonomousSupplyC);
             var nextMode=supply===null?'FLOOR_ONLY':(remoteValid?'NORMAL':'AUTONOMOUS');
-            var warning=remoteValid?'':('Автономия: '+(f?f.reason:i.linkReason));
+            var warning=remoteValid?'':('Местное управление: внешний запрос недостоверен; код причины '+(f?f.reason:i.linkReason));
             var modeChanged=nextMode!==mode;
             if(modeChanged){newMixer();floorStepAt=null;mode=nextMode;}
             if(!demand){

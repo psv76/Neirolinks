@@ -46,7 +46,7 @@ test('WebUI omits raw JSON and keeps short operator controls without claiming ph
     for(const id of ['501','502','503','504','505'])assert.equal(cells['diag_request_'+id].hidden,true,'diag_request_'+id);
     assert.equal(cells.diag_request_boiler.hidden,true,'diag_request_boiler');
     h.enableAll();h.samples();h.start();h.advance(300000);
-    assert.match(h.values.boiler['HHM3_FSE/circuit_501'],/Команда насосу/);
+    assert.match(h.values.boiler['HHM3_FSE/circuit_501'],/команда насосу/i);
     assert.match(h.values.boiler['HHM3_FSE/operational_status'],/без подтверждения работы оборудования/);
     assert.doesNotMatch(h.values.boiler['HHM3_FSE/circuit_501'],/[{}\[\]]/);
     assert.equal(h.values.boiler['HHM3_FSE/circuits_json'],undefined);

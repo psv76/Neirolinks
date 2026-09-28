@@ -18,7 +18,7 @@ h.advance(115000);assert.equal(v('stop_remaining_502'),'5 с');
 h.advance(5000);assert.equal(v('stop_remaining_502'),'—');
 const events=h.messages.filter(m=>m.topic===h.C.eventTopic).map(m=>JSON.parse(m.payload)).filter(e=>/^502_(start|stop)_timer$/.test(e.circuit));
 assert.equal(events.length,6,'только начало и конец трёх ожиданий, без секунд в журнале');
-assert.ok(events.some(e=>e.warning==='Выбег отменён новым готовым запросом'));
+assert.ok(events.some(e=>e.detail==='Выбег отменён новым готовым запросом'));
 h.set('boiler','NL_simple_thermostat_606/target_state',true);h.advance(5000);
 h.set('boiler','NL_simple_thermostat_606/target_state',false);h.advance(5000);
 assert.equal(v('start_remaining_502'),'—');

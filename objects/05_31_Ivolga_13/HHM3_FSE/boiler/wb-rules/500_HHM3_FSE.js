@@ -60,9 +60,9 @@ var timerStates={};
 function timer(id,kind,ms,r,out){
     var key=kind+'_'+id,active=typeof ms==='number'&&isFinite(ms)&&ms>0;
     sc('pump_'+kind+'_remaining_'+id,active?String(Math.ceil(ms/1000))+' с':'—');
-    if(active&&timerStates[key]!==true)io.event(id+'_'+kind+'_timer','TIMER_STARTED',
+    if(active&&timerStates[key]!==true)io.event(id+'_'+kind+'_timer','TIMER_STARTED','',
         kind==='start'?'Начато ожидание открытия зоны':'Начат выбег насоса');
-    if(!active&&timerStates[key]===true)io.event(id+'_'+kind+'_timer','TIMER_FINISHED',
+    if(!active&&timerStates[key]===true)io.event(id+'_'+kind+'_timer','TIMER_FINISHED','',
         out.fault||/^OVERHEAT|ZONE_OUTPUT/.test(r.reason)?'Таймер прерван ошибкой или защитой':
         kind==='start'?(r.pump?'Ожидание открытия зоны завершено':'Ожидание открытия зоны отменено'):
         r.demand?'Выбег отменён новым готовым запросом':'Выбег завершён');
@@ -85,7 +85,7 @@ function sc(k,v){
 function linkState(r){return r&&r.reason?r.reason:'NORMAL';}
 function event(id,r){
     var e=io.event(id,r.reason||r.state,r.warning);
-    if(e)sc('last_event',String(id)+': '+String(e.state)+(e.warning?' · '+String(e.warning).slice(0,80):''));
+    if(e)sc('last_event',String(id)+': '+R.stateText(e.state)+(e.warning?' · '+String(e.warning).slice(0,80):''));
 }
 function diagnosticCircuitRequest(id,r){
     var c=C.circuits[id],n,margin;
@@ -106,15 +106,17 @@ function diagnosticBoilerRequest(source){
 }
 function operatorCircuit(id,r,out){
     if(operation.inService!==true)return 'Ожидает первого ввода';
-    if(/ERROR|UNCERTAIN/.test(out.state)||out.fault)return 'Ошибка команды: '+out.state;
-    if(/^OVERHEAT/.test(r.reason))return 'Защита по температуре · '+r.reason;
+    if(/ERROR|UNCERTAIN/.test(out.state)||out.fault)return R.stateText(out.state);
+    if(/^OVERHEAT/.test(r.reason))return R.stateText(r.reason);
     if(r.reason==='PUMP_POSTRUN')return 'Насос в выбеге · команда ВКЛ';
     if(r.startRemainingMs>0)return 'Ждём открытия зоны · готовность по времени';
-    if(r.reason==='NO_DEMAND'||r.reason==='OFF')return 'Нет запроса · насос '+(out.pump?'ВКЛ':'ВЫКЛ');
+    if(r.reason==='NO_DEMAND'||r.reason==='OFF')return 'Нет запроса · команда насосу '+(out.pump?'ВКЛ':'ВЫКЛ');
     if(r.reason==='CIRCULATION_CHECK')return 'Подготовка · клапан закрыт · насос '+(out.pump?'ВКЛ':'ВЫКЛ');
-    if(r.reason==='FLOOR_SENSOR_UNAVAILABLE'||r.reason==='NO_FEEDBACK_UNCOVERED')return 'Нет датчика · '+r.reason;
-    if(r.pump)return 'Команда насосу ВКЛ · клапан '+(r.valve>0?String(Math.round(r.valve))+'%':'ЗАКРЫТ')+' · '+r.reason;
-    return 'Насос ВЫКЛ · '+r.reason;
+    if(r.reason==='FLOOR_SENSOR_UNAVAILABLE'||r.reason==='NO_FEEDBACK_UNCOVERED')return R.stateText(r.reason);
+    if(out.state==='WAIT_OUTPUT_READBACK')return R.stateText(out.state);
+    if(r.pump)return R.stateText(r.reason)+' · команда насосу '+(out.pump?'ВКЛ':'ВЫКЛ')+
+        ' · расчёт клапана '+(r.valve>0?String(Math.round(r.valve))+'%':'0%');
+    return 'Команда насосу ВЫКЛ · '+R.stateText(r.reason);
 }
 function fallback(id){
     var enabled=false,open=false,ready=false,now=Date.now(),remaining=null;
@@ -219,7 +221,7 @@ function evaluateOnce(){
         if(commands.some(function(w){return !w.ok;})&&!/ERROR|UNCERTAIN/.test(out.state))out.state='OUTPUT_WRITE_ERROR';
         var failed=/ERROR|UNCERTAIN/.test(out.state)||!!out.fault,ok=out.ready&&!failed;
         if(failed)faultCount++;
-        if(failed){r.warning+='; '+out.state+'; '+(out.fault||'')+'; повтор автоматически';r.reason=out.state;if(engines[id])engines[id].reset();}
+        if(failed){r.warning+='; '+R.stateText(out.state)+'; восстановление по подтверждению выхода';r.reason=out.state;if(engines[id])engines[id].reset();}
         r.startRemainingMs=null;
         if(operation.inService===true&&!failed&&!r.pump&&g&&g.startRemainingMs>0&&!g.output_blocked&&
            !/^OVERHEAT|RUNTIME_UNSUPPORTED/.test(r.reason))
@@ -245,6 +247,18 @@ function evaluateOnce(){
             output:out,commands:commands,command_sent:commands.some(function(w){return w.sent;}),
             demand:requests[id].demand,requested_source_temperature:temperature,
             supply:io.read(c.supply),return_temperature:io.read(c.ret)};
+        var previous=lastReports[id],prior=previous?previous.output:null;
+        if(!prior||prior.state!==out.state||prior.ready!==out.ready||prior.pump!==out.pump||
+           prior.closed_readback_match!==out.closed_readback_match){
+            io.event(id+'_output','OUTPUT_TRANSITION','',
+                'Состояние '+R.stateText(out.state)+'; решение '+R.stateText(r.reason)+
+                '; расчёт клапана '+r.valve+'%; команда насосу '+String(out.pump)+
+                '; записи '+commands.filter(function(w){return w.attempted;}).map(function(w){
+                    return w.path+'='+String(w.value)+' ('+(w.ok?'попытка без ошибки':'ошибка записи')+')';
+                }).join(', ')+
+                '; прочитано '+JSON.stringify(out.readback||{})+'; сохранённый Level '+String(out.saved_level)+
+                '; READY '+String(out.ready)+'; ход штока, вращение и расход не измеряются');
+        }
         sc('diag_request_'+id,diagnosticCircuitRequest(id,reports[id]));
         sc('circuit_'+id,operatorCircuit(id,r,out));
         event(id,r);

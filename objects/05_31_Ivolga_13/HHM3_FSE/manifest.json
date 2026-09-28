@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 68,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "d3a743ab540400016697fd7fa5fa2d306cf294e27b8b4df9d3eb631ea98f50b9",
+  "aggregate_sha256": "0acc798a9e31b264ee1a32a142c3dd05497e5abcbd7ca276cbabe325e17c3ab4",
   "files": [
     {
       "file": "FIELD_STARTUP_2026-09-25.md",
@@ -52,7 +52,7 @@
     },
     {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
-      "sha256": "019317e93c5c3b2345656fc1c3ea238623838268abed7a049ba78cd4bd7f7be1",
+      "sha256": "e2f23202688f854d898158bea6deaad6d832bdabe4cd04aaf1b135656d4dc9de",
       "boards": [
         "boiler"
       ],
@@ -99,7 +99,7 @@
     },
     {
       "file": "modules/HHM3Circuit.js",
-      "sha256": "4cc71488051726139feacf0ec218b8fadb3bbf0b39f3289fd2d4517a0703cb5c",
+      "sha256": "9d63b8d4d059dea37e6f9461350e01bcac2c7ff5a25ff99cb1eeb9f01d595abf",
       "boards": [
         "boiler"
       ],
@@ -136,7 +136,7 @@
     },
     {
       "file": "modules/HHM3Runtime.js",
-      "sha256": "bb51be3678355973e594fc693273378eb48f9073070c6d686691a626f9428322",
+      "sha256": "3652d3a0a3c326cf2e391b2631ba009bf60feab837321e803873e178b085391c",
       "boards": [
         "boiler",
         "gazebo"
@@ -172,6 +172,11 @@
     {
       "file": "tests/level-integer-regressions.js",
       "sha256": "447d88bc109e1a88adde49a8dd030b4ec3ca160c8bdd98df441bf948f6241685",
+      "role": "test"
+    },
+    {
+      "file": "tests/logging-regressions.js",
+      "sha256": "c0e00b44acec09de2bc59c9dc4b850a89a24dccec92714d9b8335be259f7df44",
       "role": "test"
     },
     {
@@ -211,7 +216,7 @@
     },
     {
       "file": "tests/run.js",
-      "sha256": "421fdfe370af97f0be3c94e0256c1e88bbd2c7301f74c5aba9d2e7811f02d3db",
+      "sha256": "0aedc69e2353d968ba067cda0c27e2ffd1913c5d8ce2ae47d02a3919df334d01",
       "role": "test"
     },
     {
@@ -221,7 +226,7 @@
     },
     {
       "file": "tests/timer-regressions.js",
-      "sha256": "45bfa3e2963e1ecd16ab28a35d19bb108d2f019530ae285bc98e8e82284bec9b",
+      "sha256": "668ab352880f2cd60ff5c249f2e260c757c6e58cebf7e4beb22d269ca52d04fb",
       "role": "test"
     },
     {
