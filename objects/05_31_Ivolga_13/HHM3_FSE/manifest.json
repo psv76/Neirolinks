@@ -1,9 +1,9 @@
 {
-  "release": "HHM 3.2",
+  "release": "HHM 3.2.1",
   "object": "05_31_Ivolga_13",
   "issue": 81,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "1047056657443d3d66dd5c4c0c888437384cb5cd6e28e25ba1f58dfa31597c3f",
+  "aggregate_sha256": "0f27788e84b706c7744f3ff30bb8852decbf90ff2fdcc3a9652f61fd13f8200a",
   "files": [
     {
       "file": "FIELD_STARTUP_2026-09-25.md",
@@ -12,7 +12,7 @@
     },
     {
       "file": "INSTALL.md",
-      "sha256": "5e99409ba9950c4960417ccdb8b492f69fda728dcaed8e00f39f7971c667f828",
+      "sha256": "9c9fbb1c51aa42d3031dec78d1b307441dae1443e95c2a5eabb6eeb52e0a6446",
       "role": "documentation"
     },
     {
@@ -37,12 +37,17 @@
     },
     {
       "file": "README.md",
-      "sha256": "a52f7a818dbfd63357442db30030f7c22a3db9ef337c132e58cf23fb632d7ad5",
+      "sha256": "eb7529270f809f17db07467048ef85d990451006cac4b53ee9dbcd6fd161b1c0",
       "role": "documentation"
     },
     {
       "file": "RELEASE_3_2.md",
       "sha256": "58a28ee407b5486dfb4dbfc01431d8e25b492cdc170dd935aae4f0a980f69a35",
+      "role": "documentation"
+    },
+    {
+      "file": "RELEASE_3_2_1.md",
+      "sha256": "5cf5ab9648dd424694e6f175a566fee0113e8ae7dad5d4550254643f8ed8acde",
       "role": "documentation"
     },
     {
@@ -113,7 +118,7 @@
     },
     {
       "file": "modules/HHM3Config.js",
-      "sha256": "572070c80ccb33da8187ddf0234505162e70b3bc26e5154a0ce273778ae485c2",
+      "sha256": "b4ac87f46e863767371314573f7f338985c9e526e29dd6b8f30527f26f258d8b",
       "boards": [
         "boiler",
         "gazebo"
@@ -132,7 +137,7 @@
     },
     {
       "file": "modules/HHM3Outputs.js",
-      "sha256": "537e51b899db3e1f864e60818850632d825a7c0d28978b42c0c036311c34bf60",
+      "sha256": "dffebac6b2d565ddd3ec8c004cf4f8db6ab9802f57beeb06af978fd1ee4c675e",
       "boards": [
         "boiler"
       ],
@@ -201,7 +206,7 @@
     },
     {
       "file": "tests/mao4-readback-regressions.js",
-      "sha256": "55769802f4d3f0b890d1501c53e3904ca458f075f4db9b662d4a9f8eca404748",
+      "sha256": "9478527e30b3d4deaf47b33a6784008f993d9f31c5b9a1e3058bb1353001bc2f",
       "role": "test"
     },
     {
@@ -226,7 +231,7 @@
     },
     {
       "file": "tests/run.js",
-      "sha256": "3719f9220f95fa9eda5bf7b7f84a2884f48b2b4b80096e3444b16f449ef63399",
+      "sha256": "1be6b3474928ce97780f188282789ec5c0d24984df9ca18dcbb44a2c2fe06a1d",
       "role": "test"
     },
     {
