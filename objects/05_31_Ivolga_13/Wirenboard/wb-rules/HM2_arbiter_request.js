@@ -1,6 +1,8 @@
 // HM2_arbiter_request.js
 // HM2 Ivolga / issue #29: calculation only; writes only its own virtual device.
 var VD = 'hm2_request_arbiter';
+// 504 is integrated with source whitelist. Initial commissioning belongs to 504 only.
+var BES = { id: 'hm2_504_gp_besedka', number: '504', title: '504 ГП беседка' };
 // Stable tie-break: 503 > 502 > 501. Never replace an equal-temperature winner.
 var CONSUMERS = [
     { id: 'hm2_503_rad_dom', number: '503', title: '503 Радиаторы дом' },
@@ -19,9 +21,11 @@ cell('selected_requested_temperature', 'value', 0);
 cell('selected_reason', 'text', 'STARTUP');
 cell('no_demand_contract', 'switch', true);
 cell('active_candidate_count', 'value', 0);
-cell('rejected_candidate_count', 'value', 3);
+cell('rejected_candidate_count', 'value', 4);
 cell('candidates_json', 'text', '[]');
 cell('last_update_ts', 'text', '');
+cell('grant_504_state', 'text', 'REJECTED');
+cell('grant_504_reason', 'text', 'STARTUP');
 CONSUMERS.forEach(function (consumer) {
     cell('grant_' + consumer.number + '_state', 'text', 'REJECTED');
     cell('grant_' + consumer.number + '_reason', 'text', 'STARTUP');
@@ -74,23 +78,55 @@ function candidate(consumer, now) {
     }
     return result;
 }
+function candidate504(now) {
+    var result = { consumer: BES.id, number: BES.number, title: BES.title,
+        state: 'UNKNOWN', eligible: false, reason: 'INVALID_ATOMIC_REQUEST',
+        temperature: 0, age_s: null, ttl_s: null };
+    try {
+        var raw = dev[BES.id + '/request_json'];
+        var r = typeof raw === 'string' && raw.length <= 2048 ? JSON.parse(raw) : null;
+        if (!r || typeof r !== 'object' || Array.isArray(r)) return result;
+        var age = (now - Date.parse(r.request_timestamp)) / 1000;
+        result.state = typeof r.state === 'string' ? r.state : 'UNKNOWN';
+        result.age_s = isFinite(age) ? age : null;
+        result.ttl_s = r.request_ttl_s;
+        result.temperature = typeof r.requested_source_temperature === 'number' ? r.requested_source_temperature : 0;
+        if (r.fault_latched !== false) result.reason = 'FAULT_OR_UNKNOWN';
+        else if (r.state !== 'ACTIVE') result.reason = 'NOT_ACTIVE';
+        else if (r.valid !== true) result.reason = 'INVALID';
+        else if (r.heat_demand !== true) result.reason = 'NO_DEMAND';
+        else if (r.path_ready !== true) result.reason = 'PATH_NOT_READY';
+        else if (typeof r.requested_source_temperature !== 'number' ||
+            !isFinite(r.requested_source_temperature) || r.requested_source_temperature <= 0) result.reason = 'INVALID_TEMPERATURE';
+        else if (typeof r.request_timestamp !== 'string' || !isFinite(age) || age < 0 ||
+            typeof r.request_ttl_s !== 'number' || !isFinite(r.request_ttl_s) ||
+            r.request_ttl_s <= 0 || r.request_ttl_s > 15) result.reason = 'INVALID_TIME';
+        else if (age >= r.request_ttl_s) result.reason = 'STALE';
+        else { result.eligible = true; result.reason = 'ELIGIBLE'; }
+    } catch (e) { result.reason = 'INVALID_ATOMIC_REQUEST'; }
+    return result;
+}
 function evaluate() {
     var now = Date.now();
+    var selectionReason = 'MAX_TEMPERATURE; TIE_503_502_501';
     var winner = null;
     var active = 0;
     var candidates = CONSUMERS.map(function (consumer) { return candidate(consumer, now); });
+    var bes = candidate504(now);
+    candidates.push(bes); // Append only: incumbents win equal-temperature ties.
     candidates.forEach(function (item) {
         if (!item.eligible) return;
         active += 1;
         if (winner === null || item.temperature > winner.temperature) winner = item;
     });
+    if (winner !== null && winner.consumer === BES.id) selectionReason = 'MAX_TEMPERATURE; TIE_503_502_501_504';
     // Invalidate during publication; last_update_ts is written last.
     sc('valid', false);
     sc('state', winner === null ? 'INACTIVE' : 'ACTIVE');
     sc('selected_consumer', winner === null ? '' : winner.consumer);
     sc('selected_consumer_title', winner === null ? '' : winner.title);
     sc('selected_requested_temperature', winner === null ? 0 : winner.temperature);
-    sc('selected_reason', winner === null ? 'NO_ELIGIBLE_REQUEST' : 'MAX_TEMPERATURE; TIE_503_502_501');
+    sc('selected_reason', winner === null ? 'NO_ELIGIBLE_REQUEST' : selectionReason);
     sc('no_demand_contract', winner === null);
     sc('active_candidate_count', active);
     sc('rejected_candidate_count', candidates.length - active);
@@ -100,7 +136,7 @@ function evaluate() {
         sc('grant_' + item.number + '_state', !item.eligible ? 'REJECTED' :
             (selected ? 'SHADOW_SELECTED' : 'SHADOW_NOT_SELECTED'));
         sc('grant_' + item.number + '_reason', !item.eligible ? item.reason :
-            (selected ? 'MAX_TEMPERATURE; TIE_503_502_501' : 'LOWER_TEMPERATURE_OR_TIE_PRIORITY'));
+            (selected ? selectionReason : 'LOWER_TEMPERATURE_OR_TIE_PRIORITY'));
     });
     sc('valid', true);
     sc('last_update_ts', new Date(now).toISOString());

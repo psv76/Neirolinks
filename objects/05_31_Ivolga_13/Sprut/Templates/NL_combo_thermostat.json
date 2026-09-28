@@ -1,9 +1,9 @@
 {
   "name": "Термостат",
   "manufacturer": "NEIROLINKS",
-  "model": "NL_combo_thermostat",
+  "model": "NL_combo_thermostat_504",
   "modelIds": [
-    "/devices/(NL_combo_thermostat_[0-9]{3})/controls/air_temperature/meta/type"
+    "/devices/(NL_combo_thermostat_504)/controls/air_temperature/meta/type"
   ],
   "services": [
     {
@@ -38,14 +38,12 @@
             {
               "type": "Integer",
               "topicGet": "/devices/(1)/controls/target_state",
-              "topicSet": "/devices/(1)/controls/target_state/on",
               "map": {
-                "OFF": "0",
                 "HEAT": "1"
               }
             }
           ],
-          "validValues": "OFF,HEAT"
+          "validValues": "HEAT"
         },
         {
           "type": "CurrentHeatingCoolingState",
@@ -90,7 +88,7 @@
       ],
       "type": "Double",
       "name": "Пол при поддержании",
-      "init": true,
+      "init": false,
       "value": 25,
       "minValue": 18,
       "maxValue": 30,
@@ -106,10 +104,10 @@
       ],
       "type": "Double",
       "name": "Пол при нагреве",
-      "init": true,
+      "init": false,
       "value": 29,
       "minValue": 20,
-      "maxValue": 35,
+      "maxValue": 30,
       "minStep": 0.5
     }
   ]

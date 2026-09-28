@@ -1,0 +1,8 @@
+# REVIEW FRAGMENT, not a replacement for existing broker ACL.
+# Boiler: dedicate this identity exclusively to this one publication.
+user REPLACE_WITH_DEDICATED_BRIDGE_USER
+topic write /neiro/ivolga/504/v2/frame
+# No read permission; no /devices or /on permissions.
+# Separately grant the EXISTING boiler wb-rules identity read of that exact topic.
+# Besedka: restrict local frame publishing to wb-rules and bridge read to this
+# exact topic. Discover existing identities first; do not replace their ACLs.

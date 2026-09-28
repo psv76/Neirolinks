@@ -120,7 +120,8 @@ function clamp(value, minValue, maxValue) {
 function knownConsumer(consumer) {
     return consumer === 'hm2_501_tp_dom' ||
         consumer === 'hm2_502_gp_dom' ||
-        consumer === 'hm2_503_rad_dom';
+        consumer === 'hm2_503_rad_dom' ||
+        consumer === 'hm2_504_gp_besedka';
 }
 
 function boolTopic(path) {
