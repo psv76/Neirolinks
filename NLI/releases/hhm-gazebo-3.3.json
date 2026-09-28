@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "component": "hhm",
+  "version": "3.3",
+  "object": "05_31_Ivolga_13",
+  "role": "gazebo",
+  "release": {
+    "repository": "psv76/Neirolinks",
+    "commit": "e74625238634ca7c6c42c4f0015ae89c216d66ec"
+  },
+  "files": [
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Config.js",
+      "target": "/etc/wb-rules-modules/HHM3Config.js",
+      "sha256": "ef17fb2db19698f9d36d457a9fc84308fc2224994d1d06e6ccbf634119102f67"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Runtime.js",
+      "target": "/etc/wb-rules-modules/HHM3Runtime.js",
+      "sha256": "c97449d41b8eb946f01bf2f85185d2e89eddabbbfc370d301f332b3aad9c6b04"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Wire.js",
+      "target": "/etc/wb-rules-modules/HHM3Wire.js",
+      "sha256": "6691f89231eda26db1b18d46ca4111ce1eaf3a085145144f78be2da14e3f6172"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/gazebo/wb-rules/624_combo_besedka.js",
+      "target": "/etc/wb-rules/624_combo_besedka.js",
+      "sha256": "a5d67ed313ea1b11be4512cb06e361e17cc7568de40392212c8c089ea1d2acf3"
+    }
+  ],
+  "services": {
+    "stop": [
+      "wb-rules"
+    ],
+    "start": [
+      "wb-rules"
+    ]
+  },
+  "preflight": [
+    "identity",
+    "drift",
+    "hhm"
+  ],
+  "verify": {
+    "controls": [
+      {
+        "path": "NL_combo_thermostat_504/sensor_health_contract",
+        "equals": "m1w2-health-v1"
+      }
+    ],
+    "runtime_version": "3.3",
+    "health_contract": "m1w2-health-v1"
+  },
+  "rollback": "previous-managed-release"
+}
