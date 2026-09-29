@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "component": "hhm",
+  "version": "3.4",
+  "object": "05_31_Ivolga_13",
+  "role": "boiler",
+  "release": {
+    "repository": "psv76/Neirolinks",
+    "commit": "404e410313c99336788cbd19a94696ecb524da3c"
+  },
+  "files": [
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Circuit.js",
+      "target": "/etc/wb-rules-modules/HHM3Circuit.js",
+      "sha256": "fb89d11916e95483dd0db18e6d69104e0b097ee59c3f2df16830c65e50986e7d"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Config.js",
+      "target": "/etc/wb-rules-modules/HHM3Config.js",
+      "sha256": "98bf06003afeb6e8c27ba4c8800860ae8533c2583b7cfedad3f4e13bf1a07a4c"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Mixing.js",
+      "target": "/etc/wb-rules-modules/HHM3Mixing.js",
+      "sha256": "d57b1d86e0621f7def1352c6fb16ab9d2887c5508d0ba05abe052bafbcbe3fcd"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Outputs.js",
+      "target": "/etc/wb-rules-modules/HHM3Outputs.js",
+      "sha256": "dffebac6b2d565ddd3ec8c004cf4f8db6ab9802f57beeb06af978fd1ee4c675e"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Runtime.js",
+      "target": "/etc/wb-rules-modules/HHM3Runtime.js",
+      "sha256": "e2be722b90fbb2e36c96b178b2b8a8a6f3681512e4ca343687922856a56b4163"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Wire.js",
+      "target": "/etc/wb-rules-modules/HHM3Wire.js",
+      "sha256": "6691f89231eda26db1b18d46ca4111ce1eaf3a085145144f78be2da14e3f6172"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/boiler/wb-rules/500_HHM3_FSE.js",
+      "target": "/etc/wb-rules/500_HHM3_FSE.js",
+      "sha256": "1153a851ab8858fe52c529408bab1310711ac0bc506c9ab1e8837c035dfcd60c"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules/600_Heat_diagnostics.js",
+      "target": "/etc/wb-rules/600_Heat_diagnostics.js",
+      "sha256": "72f6c546e807d5bd46978dd7a5ae1e602bfe0c182279e92cbf766ebf1124a7db"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/boiler/wb-rules/620_thermostats.js",
+      "target": "/etc/wb-rules/620_thermostats.js",
+      "sha256": "1f1c4d1087c8687f9e493845ee2c9048b4b0d7c2ae2f8f031da290df20b04f5f"
+    }
+  ],
+  "services": {
+    "stop": [
+      "wb-rules"
+    ],
+    "start": [
+      "wb-rules"
+    ]
+  },
+  "preflight": [
+    "identity",
+    "drift",
+    "hhm"
+  ],
+  "verify": {
+    "controls": [
+      {
+        "path": "HHM3_FSE/sensor_health_contract",
+        "equals": "m1w2-health-v1"
+      }
+    ],
+    "runtime_version": "3.4",
+    "health_contract": "m1w2-health-v1"
+  },
+  "rollback": "previous-managed-release"
+}
