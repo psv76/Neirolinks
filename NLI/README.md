@@ -1,4 +1,10 @@
-# NLI 0.1.8 — NEIROLINKS Installer / Updater
+# NST 1.0 — NEIROLINKS Service Tool
+
+NST 1.0 is the package/CLI migration of the accepted NLI 0.1.9 transaction engine.
+The exact storage and compatibility contract is documented in [NST_MIGRATION](NST_MIGRATION.md).
+Until an approved NST package is published by #92, builds from #88 are review/CI artifacts, not a live installation source.
+
+## Historical NLI design notes
 
 NLI устанавливает release, а не проверяет алгоритмы отопления. Нет daemon/cron,
 автоматического ночного update или runtime dependency HHM. Задача #74 продолжает
@@ -17,9 +23,9 @@ python3 -c "import urllib.request; exec(urllib.request.urlopen('https://github.c
 Bootstrap работает без установленного NLI: через GitHub API выбирает последний
 published/non-draft `nli-approved-*`, проверяет SHA256 каталога и `.deb` по
 GitHub asset digest и catalog, проверяет Package/Version/Architecture, ставит
-`neiro-nli` через dpkg и сверяет `nli --version`. Object config он не создаёт
+`neiro-nli` через dpkg и сверяет `nst --version`. Object config он не создаёт
 и сервисы WB не перезапускает. После первой установки дальнейшее обслуживание —
-`nli self-update`. Initial adoption неизвестного объекта остаётся отдельной
+`nst self-update`. Initial adoption неизвестного объекта остаётся отдельной
 reviewed процедурой.
 
 ## Обычный сценарий принятого объекта
@@ -57,7 +63,7 @@ commit, тот же repository и exact per-file SHA. Payload не берётс�
 не задают порядок. Новая публикация должна повышать числовую version. Конфликтующие
 entries одной latest version блокируются. Draft #73 не становится auto target.
 Нет approved новее установленного — no-op без restart. Обновление не понижает версию.
-Required NLI из metadata выше установленного → понятная команда `nli self-update`.
+Required NLI из metadata выше установленного → понятная команда `nst self-update`.
 Check не резервирует релиз и не пишет cache: update снова читает approved metadata,
 показывает выбранную identity в audit и использует один зафиксированный manifest
 на всю транзакцию. Если maintainer опубликовал новый release между check/update,
@@ -115,13 +121,13 @@ active serial сохранены. NLI не публикует команды out
 
 ## Self-update и storage
 
-`nli self-update check` читает metadata, не скачивает deb и ничего не пишет.
-`nli self-update` получает approved deb, сверяет SHA/Package/Version/Architecture,
+`nst self-update check` читает metadata, не скачивает deb и ничего не пишет.
+`nst self-update` получает approved deb, сверяет SHA/Package/Version/Architecture,
 запрещает maintainer hooks/triggers/conffiles/links и writes за пределы NLI runtime,
 вызывает dpkg и сверяет installed package и новую CLI version. Сервисы объекта
 не перезапускаются. Component config/state/pending/backups не перезаписываются.
 Незавершённая установка пакета имеет отдельный `self-update.json`; повторная
-`nli self-update` восстанавливает установку approved same/newer package.
+`nst self-update` восстанавливает установку approved same/newer package.
 
 После committed success cleanup сохраняет 20 успешных audit/transcripts и 3 recent
 backup references на компонент, всегда защищает current rollback point. Ошибки,
@@ -139,10 +145,10 @@ Cleanup failure не отменяет verified installation и не запуск
 python3 -B -m unittest discover -s NLI/tests -v
 python3 -B NLI/tests/sandbox.py
 python3 -B NLI/tools/build_deb.py
-sha256sum NLI/dist/neiro-nli_0.1.8_all.deb
+sha256sum NLI/dist/neiro-nst_1.0.0_all.deb
 ```
 
-Runtime в /usr/bin/nli, /usr/lib/neiro-nli и /usr/share/neiro-nli (WB nodoc compatible).
+Runtime в /usr/bin/nst (compatibility /usr/bin/nli), /usr/lib/neiro-nst и /usr/share/neiro-nst (WB nodoc compatible).
 Config/pins /mnt/data/etc/neiro/nli; state/backups /mnt/data/var/lib/neiro/nli;
 audit/transcripts /mnt/data/var/log/neiro/nli. После FIT runtime может исчезнуть:
 установить проверенный deb заново и использовать прежние persistent данные.
