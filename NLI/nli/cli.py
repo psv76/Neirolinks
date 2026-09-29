@@ -4,6 +4,7 @@ import os
 import sys
 from . import __version__
 from .core import Engine
+from .controller import load_controller_context
 from .firmware import Firmware
 from .self_update import SelfUpdate
 from .layout import load_config
@@ -105,8 +106,25 @@ def show_version(json_mode=False, color=False):
 def render_status(result, color):
     print("NLI " + paint(__version__, "green", color) + " · NEIROLINKS Installer")
     print()
+    controller = result.get("controller") or {}
+    identity = controller.get("identity") or {}
+    if controller:
+        print(f"WB serial:     {identity.get('serial') or '—'}")
+        state = controller.get("state")
+        if state == "unknown":
+            print("Регистрация:   " + paint("контроллер не зарегистрирован", "yellow", color))
+        elif state == "planned":
+            print("Регистрация:   " + paint("planned · production mutation запрещена", "yellow", color))
+        elif state == "retired":
+            print("Регистрация:   " + paint("retired · контроллер выведен из эксплуатации", "red", color))
+        elif state == "active":
+            print("Регистрация:   " + paint("active", "green", color))
+        else:
+            print("Регистрация:   " + paint(controller.get("reason") or str(state or "недоступна"), "yellow", color))
+        if controller.get("fingerprint_status") in ("mismatch", "unavailable"):
+            print("Fingerprint:   " + paint(controller["fingerprint_status"], "red", color))
     print(f"Объект:       {human_object(result.get('object'))}")
-    print(f"Контроллер:   {result.get('hostname') or '—'}")
+    print(f"Hostname:     {result.get('hostname') or '—'}")
     print(f"Роль:         {human_role(result.get('role'))}")
 
     print()
@@ -354,7 +372,10 @@ def main(argv=None, engine=None):
         parser.error("the following arguments are required: command")
 
     try:
-        e = engine or Engine(load_config(args.config))
+        if engine is None:
+            e = Engine(load_config(args.config), controller=load_controller_context())
+        else:
+            e = engine
         if args.command == "firmware":
             result = Firmware(e).execute(args.action)
         elif args.command == 'self-update':
