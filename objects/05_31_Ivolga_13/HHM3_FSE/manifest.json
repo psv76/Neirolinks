@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 81,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "d6b1d8d01e1f0eb32847fa14ac88b04ea31451053361cfc72c67a418370229a4",
+  "aggregate_sha256": "cfa49a8db7264f5d69619201faf7f38d4370341c8a31e3a4d1825f41d675361c",
   "files": [
     {
       "file": "FIELD_STARTUP_2026-09-25.md",
@@ -62,7 +62,7 @@
     },
     {
       "file": "RELEASE_3_6.md",
-      "sha256": "5828b4831f11320725abd736b662d0463499f9ea6502640dfc4bde33f4522389",
+      "sha256": "fa363e7c9cee94af43828a328605c598f65d8668856ae4caccae7c3e2a421f14",
       "role": "documentation"
     },
     {
