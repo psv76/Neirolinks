@@ -100,11 +100,11 @@ def show_version(json_mode=False, color=False):
         return
     print(paint(BANNER, "green", color))
     print()
-    print("NEIROLINKS Installer " + paint(__version__, "green", color))
+    print("NEIROLINKS Service Tool " + paint(__version__, "green", color))
 
 
 def render_status(result, color):
-    print("NLI " + paint(__version__, "green", color) + " · NEIROLINKS Installer")
+    print("NST " + paint(__version__, "green", color) + " · NEIROLINKS Service Tool")
     print()
     controller = result.get("controller") or {}
     identity = controller.get("identity") or {}
@@ -181,10 +181,10 @@ def render_status(result, color):
         if component:
             print()
             print("  Следующее действие:")
-            command = 'nli firmware recover' if component == 'firmware' else 'nli rollback ' + component
+            command = 'nst firmware recover' if component == 'firmware' else 'nst rollback ' + component
             print("    " + paint(command, "yellow", color))
     elif result.get('self_update_pending'):
-        print('  Требуется завершить обновление пакета: nli self-update')
+        print('  Требуется завершить обновление пакета: nst self-update')
     elif result.get('final_status') != 'ok':
         print('  Установка не подтверждена: unknown/drift')
     else:
@@ -308,7 +308,7 @@ def render_mutation(result, color):
 
 
 def render_generic(result, color):
-    print("NLI " + paint(__version__, "green", color))
+    print("NST " + paint(__version__, "green", color))
     for key, label in (
         ("object", "Объект"), ("role", "Роль"), ("hostname", "Контроллер"),
         ("component", "Компонент"), ("from_version", "Исходная версия"),
@@ -349,7 +349,7 @@ def render_human(result, color):
 
 
 def main(argv=None, engine=None):
-    parser = argparse.ArgumentParser(prog="nli", description="NEIROLINKS Installer / Updater")
+    parser = argparse.ArgumentParser(prog="nli", description="NEIROLINKS Service Tool / Updater")
     parser.add_argument("--version", action="store_true", help="Показать версию и выйти")
     parser.add_argument("--config", help="Persistent config under /mnt/data/etc/neiro/nli/")
     parser.add_argument("--json", action="store_true", help="Emit complete audit record, including read-only operations")
