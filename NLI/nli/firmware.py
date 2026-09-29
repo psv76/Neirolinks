@@ -59,7 +59,7 @@ class Firmware:
         # Do not import or execute updater for check/help: imports may create cache/database.
         version = system.run(["/usr/bin/dpkg-query", "-W", "-f=${Version}", "wb-mcu-fw-updater"])
         source = path.read_bytes()
-        require(version in SUPPORTED, 'UPDATER_UNSUPPORTED: ' + version + '; обновите NLI: nli self-update')
+        require(version in SUPPORTED, 'UPDATER_UNSUPPORTED: ' + version + '; обновите NST: nst self-update')
         policy = SUPPORTED[version]
         executable_sha256 = digest(source)
         # Prefer the exact official Debian payload. Some package builds differ
@@ -103,7 +103,7 @@ class Firmware:
         require(not self.engine.system.firmware_busy(), "UPDATER_BUSY")
         command = [str(UPDATER), "update-all" if action == "update" else "recover-all"]
         # Keep stdin attached for upstream prompts. Do not kill a flasher on timeout.
-        # SIGINT goes to upstream too; keep NLI lock until child exits and report partial state.
+        # SIGINT goes to upstream too; keep NST lock until child exits and report partial state.
         # A caught handler is reset to default on exec, unlike SIG_IGN; upstream
         # receives Ctrl-C while the parent keeps the lock and waits for its exit.
         old = signal.signal(signal.SIGINT, lambda *args: None)
@@ -155,7 +155,7 @@ class Firmware:
                 if e.controller is None:
                     require(e.config["hostname"] == e.system.hostname(), "Wrong controller hostname")
                 previous = e.pending()
-                require(not e.target(STATE_DIR + '/self-update.json').exists(), 'Interrupted package update: nli self-update')
+                require(not e.target(STATE_DIR + '/self-update.json').exists(), 'Interrupted package update: nst self-update')
                 require(not previous or (action == "recover" and previous["component"] == "firmware"),
                         "Unresolved previous mutation; inspect status")
                 if previous:
