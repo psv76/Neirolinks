@@ -108,6 +108,9 @@ class System:
         device, control = path.split("/", 1)
         return self.mqtt("/devices/" + device + "/controls/" + control, timeout=timeout)
 
+    def journal_disk_usage(self):
+        return {"status": "ok", "summary": self.run(["/usr/bin/journalctl", "--disk-usage"], timeout=15)}
+
     def journal_unit(self, unit, since, until):
         require(unit in ("wb-rules", "wb-mqtt-db", "wb-mqtt-serial"), "Unsafe journal unit")
         require(isinstance(since, str) and since and isinstance(until, str) and until,
