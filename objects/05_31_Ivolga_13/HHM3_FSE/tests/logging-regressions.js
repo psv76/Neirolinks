@@ -57,15 +57,19 @@ assert.doesNotMatch(operatorText,/Автономия: HEAT/);
 
 // Один краткий штатный провал готовности выхода не должен давать пару
 // REQUESTS_UNAVAILABLE -> ACTIVE в операторском журнале.
-let dropped=false;
+let armed=false,dropped=false;
 const h2=create({dropReadback:p=>{
-    if(!dropped&&p==='A05/Channel 2 Dimming Level'){dropped=true;return true;}
+    if(armed&&!dropped&&p==='A05/Channel 2 Dimming Level'){dropped=true;return true;}
     return false;
 }});
 h2.gazeboTemperatures['921.09_MSW_TH/Temperature']=30;
 h2.gazeboTemperatures['921.10_TEMP_NONE/External Sensor 1']=35;
-h2.samples();h2.start();h2.set('boiler','NL_simple_thermostat_606/target_state',true);h2.advance(220000);
-const sourceNoise=h2.logs.filter(x=>/\[source\]/.test(x.text)&&/REQUESTS_UNAVAILABLE/.test(x.text));
+h2.samples();h2.start();h2.set('boiler','NL_simple_thermostat_606/target_state',true);h2.advance(240000);
+const beforeSourceNoise=h2.logs.length;
+armed=true;h2.temperatures[h2.C.circuits['502'].supply]=20;h2.advance(70000);
+assert.equal(dropped,true,'смоделирован краткий пропуск нового Level readback');
+const sourceNoise=h2.logs.slice(beforeSourceNoise)
+    .filter(x=>/\[source\]/.test(x.text)&&/REQUESTS_UNAVAILABLE/.test(x.text));
 assert.equal(sourceNoise.length,0,'краткий output handshake не шумит source warning');
 
 console.log('PASS operator journal отделён от technical trace; output/readback детали и transient source noise подавлены');
