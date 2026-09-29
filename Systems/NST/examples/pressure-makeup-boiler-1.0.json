@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "component": "pressure_makeup",
+  "version": "1.0",
+  "object": "05_31_Ivolga_13",
+  "role": "boiler",
+  "release": {
+    "repository": "psv76/Neirolinks",
+    "commit": "728f5c4aa708c5040da2dce39b01adf68a1bfdc1"
+  },
+  "files": [
+    {
+      "source": "NLI/releases/pressure_makeup/1.0/507_Pressure_makeup.js",
+      "target": "/etc/wb-rules/507_Pressure_makeup.js",
+      "sha256": "767739a1358381297605fb598c38dfd6925e976121dfcfef2d9a77ea9ec4dafd"
+    }
+  ],
+  "services": {
+    "stop": [
+      "wb-rules"
+    ],
+    "start": [
+      "wb-rules"
+    ]
+  },
+  "preflight": [
+    "identity",
+    "drift",
+    "pressure_makeup"
+  ],
+  "verify": {
+    "controls": [],
+    "runtime_version": "1.0",
+    "health_contract": "none"
+  },
+  "rollback": "previous-managed-release"
+}

@@ -11,9 +11,9 @@ NST — общая сервисная система NEIROLINKS для конт�
 - immutable commit baseline: `df484b8bf22835001d69ddb2dd18e3eafd3792b0`;
 - NST 1.0 развивается как эволюция NLI 0.1.9;
 - общая задача: GitHub Issue #85;
-- текущая cumulative development-ветка: `issue-93-nst-ivolga-pilot`;
-- текущий cumulative PR: #105;
-- #105 остаётся Draft и не является approved Release;
+- текущая development-ветка: `system/nst/85-consolidation`;
+- текущий development PR: #113 → `main`;
+- исторический stack #98–#105 закрыт как superseded и больше не используется для разработки;
 - live-пилот NST 1.0 на Иволге пока не выполнен.
 
 Наличие более нового кода в development-ветке не делает его production baseline.
@@ -79,23 +79,17 @@ Object payload changes require reviewed object-file transaction support
 
 ### 2. Deployment ABF62SL
 
-Текущий generated deployment для Иволги:
+Generated deployment ABF62SL пересобран от нового immutable source commit после relocation:
 
-- содержит HHM 3.3;
-- имеет пустой `object_files`;
-- использует default diagnostics profile.
+- HHM 3.5;
+- четыре object files из controller profile;
+- специализированный `Systems/NST/diagnostics/ivolga-boiler-hhm-v1.json`.
 
-При этом controller profile ABF62SL уже содержит четыре object files и специализированный Ivolga diagnostics profile.
-
-Следовательно generated deployment и controller profile сейчас не синхронизированы.
+CI проверяет deterministic rebuild и offline verification.
 
 ### 3. Approved components
 
-Текущий development catalog знает approved HHM 3.2 и 3.3.
-
-При этом в репозитории уже существуют более новые approved Releases HHM 3.4 и 3.5.
-
-Это должно быть нормализовано до публикации NST platform Release.
+Approved component snapshot синхронизирован с опубликованными HHM Releases 3.2–3.5. Для ABF62SL stable resolver выбирает HHM 3.5.
 
 ### 4. Pressure makeup
 
@@ -110,6 +104,24 @@ NST 1.0 platform Release для ABF62SL не опубликован.
 Read-only pilot на live-контроллере ещё не выполнен.
 
 До этого NST 1.0 не считается принятой production-системой.
+
+## Consolidation #85
+
+Stacked PR #98–#105 свёрнут в единственную development-ветку:
+
+`system/nst/85-consolidation`
+
+Ветка создана от актуального `main`. В неё перенесён cumulative snapshot head #105 без подтягивания всей старой `fix/...`-базы:
+
+- полный каталог `NLI/` из head #105 как технический migration baseline;
+- `.github/workflows/nli-check.yml` из head #105;
+- `objects/05_31_Ivolga_13/controllers/ABF62SL.json` из head #105.
+
+Первый consolidation commit сохраняет эти bytes без смысловой переработки. Это контрольная точка против потери накопленного результата.
+
+Исторический корневой каталог `NLI/` удалён из development-ветки. Реализация перенесена в `Systems/NST/`; repo-relative paths и CI переведены на каноническую структуру. Исторический implementation README NLI сохранён отдельно в `docs/NLI_IMPLEMENTATION_README.md`.
+
+Старые stacked PR после создания единого PR считаются superseded и не являются местом дальнейшей разработки.
 
 ## Источники истины
 
