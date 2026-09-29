@@ -10,15 +10,20 @@ import time
 from unittest.mock import patch
 
 assert os.environ.get('NLI_DISPOSABLE_CI') == '1' and Path('/.dockerenv').exists()
+mode = sys.argv[1]
+legacy_runtime = mode == 'prepare_nli'
+RUNTIME_ROOT = '/usr/lib/neiro-nli' if legacy_runtime else '/usr/lib/neiro-nst'
+PRIMARY_CLI = '/usr/bin/nli' if legacy_runtime else '/usr/bin/nst'
+EXPECTED_VERSION = '0.1.9' if legacy_runtime else '1.0.0'
 sys.dont_write_bytecode = True
-sys.path.insert(0, '/usr/lib/neiro-nli')
+sys.path.insert(0, RUNTIME_ROOT)
 import nli
 from nli.core import Engine
 from nli.layout import CONFIG_DIR, DEFAULT_CONFIG, DATA_DIR, STATE_DIR, LOG_DIR, load_config
 from nli.util import digest, read_json, write_json
-assert nli.__version__ == '0.1.9'
-assert nli.__file__.startswith('/usr/lib/neiro-nli/')
-assert Path('/usr/share/neiro-nli/RECOVERY.md').is_file()
+assert nli.__version__ == EXPECTED_VERSION
+assert nli.__file__.startswith(RUNTIME_ROOT + '/')
+assert Path(DATA_DIR, 'RECOVERY.md').is_file()
 
 
 class FakeWB:
@@ -66,14 +71,16 @@ def readonly(engine, pending=False):
         for command in ('check', 'verify'):
             r = engine.read_operation(command, component)
             assert r['final_status'] == ('failed' if pending else 'ok'), r
-    cli = subprocess.run(['/usr/bin/nli', '--json', 'status'], capture_output=True, text=True)
+    cli = subprocess.run([PRIMARY_CLI, '--json', 'status'], capture_output=True, text=True)
     assert cli.returncode == (1 if pending else 0), cli.stdout + cli.stderr
     assert json.loads(cli.stdout)['object'] == '05_31_Ivolga_13'
+    if not legacy_runtime:
+        alias = subprocess.run(['/usr/bin/nli', '--json', 'status'], capture_output=True, text=True)
+        assert alias.returncode == cli.returncode and json.loads(alias.stdout)['object'] == '05_31_Ivolga_13'
     assert before == snapshot(), 'Read-only command changed persistent bytes/metadata'
 
 
-mode = sys.argv[1]
-if mode == 'bootstrap':
+if mode == 'prepare_nli':
     for name in ('manifest.schema.json', 'WB_SMOKE.md', 'PRESSURE_MAKEUP.md', 'register_pressure_makeup.py',
                  'examples/config-boiler.json', 'examples/pressure-makeup-boiler-1.0.json', 'examples/hhm-boiler-3.0.json'):
         assert (Path(DATA_DIR) / name).is_file(), name
@@ -163,7 +170,7 @@ if mode == 'bootstrap':
     # Real dpkg self-update/retry in this disposable container, component pending preserved.
     from nli.self_update import SelfUpdate
     from nli.system import System
-    package_data = Path('/packages/neiro-nli_0.1.9_all.deb').read_bytes()
+    package_data = Path('/old/neiro-nli_0.1.9_all.deb').read_bytes()
     class ApprovedPackage:
         def package(self):
             return dict(version='0.1.9', sha256=digest(package_data), approved=True, asset={'id': 1})
@@ -180,13 +187,19 @@ if mode == 'bootstrap':
     print('SELF-UPDATE: actual dpkg same-version recovery, CLI version, preserved component pending PASS')
     Path('/evidence/persistent.json').write_text(json.dumps(snapshot()), encoding='utf-8')
     print('INSTALLED BOILER: two components, config migration, exact 507, canonical links, read-only, strict inventory, independent update/rollback, pending PASS')
-elif mode in ('reinstall', 'fit'):
-    assert snapshot() == read_json('/evidence/persistent.json'), 'Package changed durable data'
+elif mode in ('migrated', 'reinstall', 'fit'):
+    assert snapshot() == read_json('/evidence/persistent.json'), 'Package migration/reinstall changed durable data'
     if mode == 'fit':
         for folder in ('wb-rules', 'wb-rules-modules'):
             Path('/etc', folder).symlink_to('/mnt/data/etc/' + folder, target_is_directory=True)
     engine = Engine(load_config(), system=FakeWB())
     readonly(engine, pending=True)
+    if mode == 'migrated':
+        assert not engine.target(STATE_DIR + '/platform.json').exists()
+        platform = engine.read_operation('status')['platform']
+        assert platform == {'schema': 1, 'controller': None, 'registry': None,
+                            'deployment': None, 'desired_state': None}
+        assert snapshot() == read_json('/evidence/persistent.json')
     status = engine.read_operation('status')
     assert status['components']['hhm']['manifest']['version'].startswith('3.0.0-FSE')
     assert status['last_operations']['hhm']['final_status'] == 'partial_failure'
