@@ -4,6 +4,7 @@ import math
 from pathlib import Path
 import socket
 import subprocess
+import shutil
 import time
 from .util import Error, require
 
@@ -22,6 +23,34 @@ class System:
 
     def active(self, service):
         self.run(["/usr/bin/systemctl", "is-active", "--quiet", service])
+
+    def service_state(self, service):
+        require(service in ("wb-rules", "wb-mqtt-serial"), "Unsafe service probe")
+        try:
+            value = self.run(["/usr/bin/systemctl", "is-active", service])
+            return value or "unknown"
+        except Error:
+            return "inactive"
+
+    def resources(self):
+        usage = shutil.disk_usage("/mnt/data" if Path("/mnt/data").exists() else "/")
+        mem = {}
+        try:
+            for line in Path("/proc/meminfo").read_text(encoding="ascii").splitlines():
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    if key in ("MemTotal", "MemAvailable"):
+                        mem[key] = int(value.strip().split()[0]) * 1024
+        except (OSError, ValueError):
+            pass
+        return {
+            "status": "ok",
+            "disk": {"total": usage.total, "used": usage.used, "free": usage.free},
+            "memory": {
+                "total": mem.get("MemTotal"),
+                "available": mem.get("MemAvailable"),
+            },
+        }
 
     def service(self, action, service):
         require(action in ("start", "stop") and service in ("wb-rules", "wb-mqtt-serial"), "Unsafe service action")
