@@ -15,19 +15,19 @@
   },
   "object_files": [
     {
-      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules-modules/system.js",
+      "source": "Objects/05_31_Ivolga_13/Wirenboard/wb-rules-modules/system.js",
       "target": "/etc/wb-rules-modules/system.js"
     },
     {
-      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules/090_notification_service.js",
+      "source": "Objects/05_31_Ivolga_13/Wirenboard/wb-rules/090_notification_service.js",
       "target": "/etc/wb-rules/090_notification_service.js"
     },
     {
-      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules/100_power_monitor.js",
+      "source": "Objects/05_31_Ivolga_13/Wirenboard/wb-rules/100_power_monitor.js",
       "target": "/etc/wb-rules/100_power_monitor.js"
     },
     {
-      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules/610_Boiler_state.js",
+      "source": "Objects/05_31_Ivolga_13/Wirenboard/wb-rules/610_Boiler_state.js",
       "target": "/etc/wb-rules/610_Boiler_state.js"
     }
   ],
