@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-REPO = ROOT.parent
+REPO = ROOT.parents[1]
 sys.path.insert(0, str(ROOT))
 
 from nli.controller import SERIAL_RE, validate_profile
