@@ -1,4 +1,4 @@
-# HHM 3.1 — migration и rollback через NLI 0.1.9
+# HHM 3.1.1 — migration и rollback через NLI 0.1.9
 
 Это план будущих действий оператора, не разрешение и не выполненный deploy. В рамках Issue #68 нет доступа к live WB, restart, OT или физическим командам.
 
@@ -54,7 +54,8 @@
 
 ## Приёмка после согласованной установки
 
-- Проверить version 3.1 в HHM3Config и `sensor_health_contract=m1w2-health-v1` на HHM3_FSE (boiler) / NL_combo_thermostat_504 (gazebo); поля attestation в manifests являются metadata и не возвращают runtime gate в NLI 0.1.9.
+- Проверить version 3.1.1 в HHM3Config и `sensor_health_contract=m1w2-health-v1` на HHM3_FSE (boiler) / NL_combo_thermostat_504 (gazebo); поля attestation в manifests являются metadata и не возвращают runtime gate в NLI 0.1.9.
+- Отдельно проверить source: при подтверждённом отсутствии demand `Current Boiler Mode=0` («Ожидание»); при новом запросе сначала `Current Boiler Mode=1` («Зима ЦО+ГВС»), затем Heating Setpoint. Не изменять Master DHW enable и другие DHW controls. MQTT command/readback capture 29.09.2026 зафиксирован в Issue #40.
 - Проверить 18 пользовательских настроек дома и отдельный 505, compact diagnostics, отсутствие нового первичного ввода. `start_heating` повторно не нажимать.
 - Проверить новые rules instances в порядках 500→620 и 620→500; recorded POST_START_SERIAL_READ должен сопровождаться квалификацией required sensors без numeric republish. House receiver должен принимать новые session/seq и оставаться fresh. Затем наблюдать >120 с при стабильных температурах: локальные M1W2 valid, 504 не переключается в автономию из-за numeric silence. Проверить диагностику 411–420, включая 412. Отказ датчика не моделировать опасным нагревом.
 - Действующие MSW, межконтроллерная связь, реальные ошибки датчиков и локальные защиты должны сохранять свои реакции. UI/гидравлическая приёмка остаётся отдельной #20, не выводить её из CI или software command accepted.
