@@ -61,14 +61,25 @@ Object.keys(C.circuits).forEach(function(id){
 });
 var timerStates={},directPostrun={};
 function timer(id,kind,ms,r,out){
-    var key=kind+'_'+id,active=typeof ms==='number'&&isFinite(ms)&&ms>0;
+    var key=kind+'_'+id,active=typeof ms==='number'&&isFinite(ms)&&ms>0,code,reason;
     sc('pump_'+kind+'_remaining_'+id,active?String(Math.ceil(ms/1000))+' с':'—');
-    if(active&&timerStates[key]!==true)io.event(id+'_'+kind+'_timer','TIMER_STARTED','',
-        kind==='start'?'Начато ожидание открытия зоны':'Начат выбег насоса');
-    if(!active&&timerStates[key]===true)io.event(id+'_'+kind+'_timer','TIMER_FINISHED','',
-        out.fault||/^OVERHEAT|ZONE_OUTPUT/.test(r.reason)?'Таймер прерван ошибкой или защитой':
-        kind==='start'?(r.pump?'Ожидание открытия зоны завершено':'Ожидание открытия зоны отменено'):
-        r.demand?'Выбег отменён новым готовым запросом':'Выбег завершён');
+    if(active&&timerStates[key]!==true){
+        code=kind==='start'?'TIMER_ZONE_OPEN_STARTED':'TIMER_PUMP_POSTRUN_STARTED';
+        reason=kind==='start'?'Есть запрос тепла, ждём открытия зоны':'Нет запроса тепла';
+        io.event(id+'_'+kind+'_timer',code,'','',reason);
+    }
+    if(!active&&timerStates[key]===true){
+        if(out.fault||/^OVERHEAT|ZONE_OUTPUT/.test(r.reason)){
+            code='TIMER_INTERRUPTED';reason='Ошибка или защита';
+        }else if(kind==='start'){
+            code=r.pump?'TIMER_ZONE_OPEN_FINISHED':'TIMER_ZONE_OPEN_CANCELLED';
+            reason=r.pump?'Зона готова':'Запрос снят до готовности зоны';
+        }else{
+            code=r.demand?'TIMER_PUMP_POSTRUN_CANCELLED':'TIMER_PUMP_POSTRUN_FINISHED';
+            reason=r.demand?'Появился новый готовый запрос':'Время выбега истекло';
+        }
+        io.event(id+'_'+kind+'_timer',code,'','',reason);
+    }
     timerStates[key]=active;
 }
 ['circuits_json','source_json','last_event_json'].forEach(function(id){
@@ -86,15 +97,25 @@ function sc(k,v){
     if(dev[p]!==v)dev[p]=v;
 }
 function linkState(r){return r&&r.reason?r.reason:'NORMAL';}
+function cleanWarning(value){
+    return String(value||'').replace(/^\s*;\s*/,'').replace(/\s*;\s*$/,'').trim();
+}
 function event(id,r,out){
-    var state=r.reason||r.state;
+    var state=r.reason||r.state,warning=cleanWarning(r.warning);
     // Normal zone ON/OFF confirmation while an already-ready path keeps the pump commanded ON
     // is technical handshake, not an operator event.
     if((state==='PENDING_ON_READBACK'||state==='PENDING_OFF_READBACK')&&out&&out.pump===true){
-        io.trace(id,state,r.warning||'','готовый путь сохранён; команда_насосу=ВКЛ');
+        io.trace(id,state,warning,'готовый путь сохранён; команда_насосу=ВКЛ');
         return;
     }
-    var e=io.event(id,state,r.warning);
+    // A source below requested temperature immediately after demand is a normal warm-up phase,
+    // not a fault. Keep it visible to the operator without WARNING/NORMAL contradiction.
+    if(state==='NORMAL'&&warning==='источник ещё холодный'){
+        var warm=io.event(id,'SOURCE_WARMING','','','Температура источника ниже требуемой');
+        if(warm)sc('last_event',String(id)+': '+R.stateText(warm.state));
+        return;
+    }
+    var e=io.event(id,state,warning);
     if(e)sc('last_event',String(id)+': '+R.stateText(e.state)+(e.warning?' · '+String(e.warning).slice(0,80):''));
 }
 function boilerModeName(value){
@@ -106,13 +127,16 @@ function sourceModeEvents(r){
     var rb=r.readback&&r.readback.boilerMode?r.readback.boilerMode.value:null;
     var modeCode,reason,confirmed=false,i,w;
     if(r.mode_command_sent){
-        pendingBoilerMode=r.boiler_mode_command;
-        modeCode=pendingBoilerMode===C.source.standbyMode?'BOILER_MODE_COMMAND_STANDBY':'BOILER_MODE_COMMAND_HEATING';
-        reason=pendingBoilerMode===C.source.standbyMode?'Нет запроса тепла':
-            (lastSource&&lastSource.requested_heating_setpoint===0?'Появился запрос тепла':'Есть запрос тепла');
-        io.event('source_mode_command',modeCode,'',
-            'канал='+C.source.boilerMode+'; значение='+String(pendingBoilerMode)+'; режим='+boilerModeName(pendingBoilerMode),
-            reason);
+        var commanded=r.boiler_mode_command;
+        if(pendingBoilerMode!==commanded){
+            pendingBoilerMode=commanded;
+            modeCode=commanded===C.source.standbyMode?'BOILER_MODE_COMMAND_STANDBY':'BOILER_MODE_COMMAND_HEATING';
+            reason=commanded===C.source.standbyMode?'Нет запроса тепла':
+                (lastSource&&lastSource.requested_heating_setpoint===0?'Появился запрос тепла':'Есть запрос тепла');
+            io.event('source_mode_command',modeCode,'',
+                'канал='+C.source.boilerMode+'; значение='+String(commanded)+'; режим='+boilerModeName(commanded),
+                reason);
+        }
     }
     if(rb!==null&&rb!==undefined){
         if(pendingBoilerMode!==null&&rb===pendingBoilerMode){
@@ -362,13 +386,13 @@ function evaluateOnce(){
         }
         if(!prior||prior.pump!==out.pump){
             io.event(id+'_pump_command',out.pump?'PUMP_COMMAND_ON':'PUMP_COMMAND_OFF','',
-                'канал='+c.pump+'; значение='+onOff(out.pump)+'; причина='+R.stateText(r.reason));
+                'канал='+c.pump+'; значение='+onOff(out.pump),R.stateText(r.reason));
         }
         if(c.kind==='mixed'){
             var enableWrite=commands.filter(function(w){return w.attempted&&w.path===c.enable;}).slice(-1)[0];
             if(enableWrite){
                 io.event(id+'_hot_port_command',enableWrite.value?'HOT_PORT_COMMAND_ON':'HOT_PORT_COMMAND_OFF','',
-                    'канал='+c.enable+'; значение='+onOff(enableWrite.value)+'; причина='+R.stateText(r.reason));
+                    'канал='+c.enable+'; значение='+onOff(enableWrite.value),R.stateText(r.reason));
             }
         }
         sc('diag_request_'+id,diagnosticCircuitRequest(id,reports[id]));
