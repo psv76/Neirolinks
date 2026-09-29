@@ -1,6 +1,14 @@
-# HHM 3.5 — результаты проверки PR #83
 
-Область: сохранённые regression HHM3 + изменения #81/#69/#94 и интеграция source contract из #40 / draft PR #97. Offline simulation/source review; live deploy этой редакцией не выполнялся. Версия 3.5, контракт m1w2-health-v1.
+## Live 3.5 → regressions 3.6
+
+- 501 и 503: новый regression на полный 120-секундный выбег после последнего зонального запроса.
+- 502: существующий полный postrun/handoff suite сохранён.
+- 504: 120 с закреплены явно в объектном hydraulicTiming.
+- 505: regression фиксирует отсутствие выбега до отдельного решения.
+- Heating Setpoint: regression запрещает duplicate operator event при 30-секундном reassert и после restart; подтверждённый Standby→Winter заново разрешает одно setpoint event.
+# HHM 3.6 — результаты проверки PR #83
+
+Область: сохранённые regression HHM3 + изменения #81/#69/#94 и интеграция source contract из #40 / draft PR #97. Offline simulation/source review; live deploy этой редакцией не выполнялся. Версия 3.6, контракт m1w2-health-v1.
 
 ## Operator journal — live 3.4 → regression 3.5
 
