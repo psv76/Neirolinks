@@ -17,7 +17,9 @@ def build_registry(repo_root=REPO):
     repo_root = Path(repo_root)
     controllers = {}
     active_assignments = {}
-    for path in sorted(repo_root.glob("objects/*/controllers/*.json")):
+    profile_paths = list(repo_root.glob("Objects/*/controllers/*.json"))
+    profile_paths += list(repo_root.glob("objects/*/controllers/*.json"))
+    for path in sorted(profile_paths):
         object_name = path.parents[1].name
         serial = path.stem.upper()
         require(SERIAL_RE.fullmatch(serial) is not None, "Invalid WB serial filename: " + path.as_posix())
@@ -51,7 +53,7 @@ def build_registry(repo_root=REPO):
                     "Conflicting active controller assignment: " + "/".join(assignment))
             active_assignments[assignment] = serial
         controllers[serial] = entry
-    return {"schema": 1, "source": "objects/*/controllers/*.json", "controllers": controllers}
+    return {"schema": 1, "source": "Objects/*/controllers/*.json + legacy objects/*/controllers/*.json", "controllers": controllers}
 
 
 def encode_registry(data):
