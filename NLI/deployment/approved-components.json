@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "repository": "psv76/Neirolinks",
+  "components": [
+    {
+      "component": "hhm",
+      "object": "05_31_Ivolga_13",
+      "role": "boiler",
+      "track": "stable",
+      "version": "3.2",
+      "approved": true,
+      "release_state": "stable",
+      "draft": false,
+      "prerelease": false,
+      "minimum_nst": "1.0.0",
+      "approval": {
+        "kind": "github_release",
+        "tag": "nli-approved-hhm-3.2",
+        "published_at": "2026-09-28T16:05:33Z",
+        "catalog_sha256": "99354364db644120867b64aaf120eae7924378341c284601e6ed5e5b9da29aa4",
+        "release_commit": "0a08062ddcb6d0c8cee7e0c04817fefc32f8f598"
+      },
+      "manifest": {
+        "commit": "0a08062ddcb6d0c8cee7e0c04817fefc32f8f598",
+        "path": "NLI/releases/hhm-boiler-3.2.json",
+        "sha256": "a13de1196f41bc7ae4eacc6bdc696ba9a9cb60d566b00e82526dfc8bec4125ee"
+      }
+    },
+    {
+      "component": "hhm",
+      "object": "05_31_Ivolga_13",
+      "role": "boiler",
+      "track": "stable",
+      "version": "3.3",
+      "approved": true,
+      "release_state": "stable",
+      "draft": false,
+      "prerelease": false,
+      "minimum_nst": "1.0.0",
+      "approval": {
+        "kind": "github_release",
+        "tag": "nli-approved-hhm-3.3",
+        "published_at": "2026-09-28T20:23:07Z",
+        "catalog_sha256": "9073abcf719126f725a8dfb986539d5e09afad64a7ab4f7ad746e1bd30b2f80a",
+        "release_commit": "9a1cf2ea3ac6b2b5d667dd09530dee97f1dcae1d"
+      },
+      "manifest": {
+        "commit": "9a1cf2ea3ac6b2b5d667dd09530dee97f1dcae1d",
+        "path": "NLI/releases/hhm-boiler-3.3.json",
+        "sha256": "8ffb11739fdc1a828ef913245bb0b4cd04d519e4cc416c5066e01aa8adcf5039"
+      }
+    }
+  ]
+}
