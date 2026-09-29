@@ -2,11 +2,11 @@
   "components": [
     {
       "approval": {
-        "catalog_sha256": "9073abcf719126f725a8dfb986539d5e09afad64a7ab4f7ad746e1bd30b2f80a",
+        "catalog_sha256": "512611dac72450a9333517af5f1cada2032ec429606d3dd2accf36b57f8353f5",
         "kind": "github_release",
-        "published_at": "2026-09-28T20:23:07Z",
-        "release_commit": "9a1cf2ea3ac6b2b5d667dd09530dee97f1dcae1d",
-        "tag": "nli-approved-hhm-3.3"
+        "published_at": "2026-09-29T16:18:18Z",
+        "release_commit": "05bdaec7d0bd82615b7c0247df0d0737c59df71e",
+        "tag": "nli-approved-hhm-3.5"
       },
       "component": "hhm",
       "files": [
@@ -16,7 +16,7 @@
           "target": "/etc/wb-rules-modules/HHM3Circuit.js"
         },
         {
-          "sha256": "ef17fb2db19698f9d36d457a9fc84308fc2224994d1d06e6ccbf634119102f67",
+          "sha256": "0ae548cef5985594898224625fe3596b553783205f6c87a86f726f9106b94377",
           "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Config.js",
           "target": "/etc/wb-rules-modules/HHM3Config.js"
         },
@@ -31,7 +31,7 @@
           "target": "/etc/wb-rules-modules/HHM3Outputs.js"
         },
         {
-          "sha256": "c97449d41b8eb946f01bf2f85185d2e89eddabbbfc370d301f332b3aad9c6b04",
+          "sha256": "1f3742aa8fc733c8e9a850c72e0b5700056cf29295731d62a8ff515aad4dce71",
           "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Runtime.js",
           "target": "/etc/wb-rules-modules/HHM3Runtime.js"
         },
@@ -41,7 +41,7 @@
           "target": "/etc/wb-rules-modules/HHM3Wire.js"
         },
         {
-          "sha256": "9aa1b9e3508f6ce08a19597087a83bb73cdbacafcc0a7d254015a054e3e88472",
+          "sha256": "b2f6450eae2c1edb7fc225b04a3693ea3283818be86423d8e06f89b791a38ffd",
           "source": "objects/05_31_Ivolga_13/HHM3_FSE/boiler/wb-rules/500_HHM3_FSE.js",
           "target": "/etc/wb-rules/500_HHM3_FSE.js"
         },
@@ -57,13 +57,13 @@
         }
       ],
       "manifest": {
-        "commit": "9a1cf2ea3ac6b2b5d667dd09530dee97f1dcae1d",
-        "path": "NLI/releases/hhm-boiler-3.3.json",
-        "sha256": "8ffb11739fdc1a828ef913245bb0b4cd04d519e4cc416c5066e01aa8adcf5039"
+        "commit": "05bdaec7d0bd82615b7c0247df0d0737c59df71e",
+        "path": "NLI/releases/hhm-boiler-3.5.json",
+        "sha256": "12d7946643ca2307bf0cf92fd582d33de19e83fa60c9a3c0c6b79c1f7e1f4be9"
       },
       "minimum_nst": "1.0.0",
       "release": {
-        "commit": "e74625238634ca7c6c42c4f0015ae89c216d66ec",
+        "commit": "48408e6f1649ad17d0b3253f1b7cade258cd4fb3",
         "repository": "psv76/Neirolinks"
       },
       "services": {
@@ -75,21 +75,42 @@
         ]
       },
       "track": "stable",
-      "version": "3.3"
+      "version": "3.5"
     }
   ],
   "controller_serial": "ABF62SL",
   "diagnostics_profile": {
-    "path": "NLI/diagnostics/controller-default-v1.json",
-    "sha256": "e08912be2a776f7a6a9f579e0fbce2c4e0fa0b722397273a8e5fee5a40ac99dc"
+    "path": "Systems/NST/diagnostics/ivolga-boiler-hhm-v1.json",
+    "sha256": "c2d0a81c57242f5e24fb062ca73043a76d565bed0d82266e66da2fbc8950b8b6"
   },
   "minimum_nst": "1.0.0",
   "node": "boiler",
   "object": "05_31_Ivolga_13",
-  "object_files": [],
+  "object_files": [
+    {
+      "sha256": "dad4c1d6949c515c1c73ed7ad45fda455fe6ba58ef03e351eb9436fff098b11b",
+      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules-modules/system.js",
+      "target": "/etc/wb-rules-modules/system.js"
+    },
+    {
+      "sha256": "4d7f290fd00347c916751d2cd19a2fa932c95a74e34e3420e8375993395614c8",
+      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules/090_notification_service.js",
+      "target": "/etc/wb-rules/090_notification_service.js"
+    },
+    {
+      "sha256": "8e8034e8543bf9af4b8e532379aad213eb036fc3c5ee3bf46d522ef5d4800c1e",
+      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules/100_power_monitor.js",
+      "target": "/etc/wb-rules/100_power_monitor.js"
+    },
+    {
+      "sha256": "cc0e261a1fb1747c4e42c142ead8013015a38d7ddb055af0437303a6bfc496af",
+      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules/610_Boiler_state.js",
+      "target": "/etc/wb-rules/610_Boiler_state.js"
+    }
+  ],
   "profile": {
     "path": "objects/05_31_Ivolga_13/controllers/ABF62SL.json",
-    "sha256": "5cd7ea194b0a9ff6dcec39ec5da396ea782f1ba2dacdae9685809bbb8df75395"
+    "sha256": "78124b806420681803dfb4c3b3165dcb9396644c81cc00c322cc6958cd8bff62"
   },
   "role": "boiler",
   "schema": 1,
@@ -103,7 +124,7 @@
   },
   "signatures": [],
   "source": {
-    "commit": "ad8ea8ccf190021241e849735b532ee8af9142ab",
+    "commit": "d2acd6a5e3f623899854e01b47b2f44cc3488014",
     "repository": "psv76/Neirolinks"
   },
   "state": "active"
