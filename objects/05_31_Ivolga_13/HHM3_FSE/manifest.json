@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 81,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "44ba00eb6c42eb43123829ba5e3f94c5132c7f1cdfd0d05706c15f1e656424b5",
+  "aggregate_sha256": "448fde43794eb8952ffe1da93747022e70abd81afb34abc1db903edef76794ce",
   "files": [
     {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
@@ -236,7 +236,7 @@
     },
     {
       "file": "tests/run.js",
-      "sha256": "c92764709bcac914169f5d68f5e52aab1a47521fd2899226282dc50381743585",
+      "sha256": "c9fbc858dff74404cafa7a64c4c9c1d5c1995efd1cf624c703adf486721fa9bf",
       "role": "test"
     },
     {
