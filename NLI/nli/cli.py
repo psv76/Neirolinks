@@ -5,6 +5,7 @@ import sys
 from . import __version__
 from .core import Engine
 from .controller import load_controller_context
+from .desired import DesiredState
 from .firmware import Firmware
 from .self_update import SelfUpdate
 from .layout import load_config
@@ -334,10 +335,35 @@ def render_generic(result, color):
                 "green" if ok else "red", color))
 
 
+def render_desired(result, color):
+    print(heading("Desired state", color))
+    print()
+    approved = result.get("approved_platform") or {}
+    if approved.get("tag"):
+        print("Approved:      " + approved["tag"])
+    plan = result.get("plan") or result.get("deployment_state") or {}
+    if plan.get("status"):
+        print("Состояние:     " + str(plan["status"]))
+    for item in plan.get("components", []):
+        print("  {}: {} → {} [{}]".format(
+            component_name(item.get("component")), item.get("installed") or "—",
+            item.get("desired") or "—", item.get("action") or "—"))
+    if result.get("error"):
+        print("Ошибка:        " + reason_name(result["error"]))
+    print()
+    ok = result.get("final_status") == "ok"
+    print(paint("РЕЗУЛЬТАТ: " + ("успешно" if ok else state_name(result.get("final_status"))),
+                "green" if ok else "red", color))
+
+
 def render_human(result, color):
     command = result.get("command")
     if command == "status":
         render_status(result, color)
+    elif command == "check" and result.get("component") is None:
+        render_desired(result, color)
+    elif command == "sync":
+        render_desired(result, color)
     elif command == "check":
         render_check(result, color)
     elif command == "verify":
@@ -349,14 +375,16 @@ def render_human(result, color):
 
 
 def main(argv=None, engine=None):
-    parser = argparse.ArgumentParser(prog="nli", description="NEIROLINKS Service Tool / Updater")
+    parser = argparse.ArgumentParser(prog="nst", description="NEIROLINKS Service Tool / Updater")
     parser.add_argument("--version", action="store_true", help="Показать версию и выйти")
     parser.add_argument("--config", help="Persistent config under /mnt/data/etc/neiro/nli/")
     parser.add_argument("--json", action="store_true", help="Emit complete audit record, including read-only operations")
     parser.add_argument("--no-color", action="store_true", help="Отключить ANSI-цвета")
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("status")
-    for command in ("check", "update", "verify", "rollback"):
+    sub.add_parser("check").add_argument("component", nargs="?")
+    sub.add_parser("sync")
+    for command in ("update", "verify", "rollback"):
         sub.add_parser(command).add_argument("component")
     sub.add_parser("firmware").add_argument("action", choices=("check", "update", "recover"))
     sub.add_parser('self-update').add_argument('action', nargs='?', choices=('check',))
@@ -372,7 +400,8 @@ def main(argv=None, engine=None):
         parser.error("the following arguments are required: command")
 
     try:
-        if engine is None:
+        production = engine is None
+        if production:
             e = Engine(load_config(args.config), controller=load_controller_context())
         else:
             e = engine
@@ -380,6 +409,12 @@ def main(argv=None, engine=None):
             result = Firmware(e).execute(args.action)
         elif args.command == 'self-update':
             result = SelfUpdate(e).execute(check=args.action == 'check')
+        elif args.command == "sync":
+            result = DesiredState(e).sync()
+        elif args.command == "check" and args.component is None:
+            result = DesiredState(e).check()
+        elif args.command == "status" and production:
+            result = DesiredState(e).status()
         elif args.command in ("update", "rollback"):
             result = e.mutate(args.command, args.component)
         else:
