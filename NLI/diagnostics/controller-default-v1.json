@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "name": "NST controller default v1",
+  "collect": [
+    "identity",
+    "controller_registry",
+    "installed_state",
+    "services",
+    "system",
+    "audit"
+  ]
+}
