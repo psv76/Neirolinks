@@ -126,7 +126,7 @@ exports.io = function (env, owner, allowed) {
     }
     function eventKind(code){
         if(/^TIMER_/.test(code))return 'ТАЙМЕР';
-        if(/^PUMP_COMMAND_|^HOT_PORT_COMMAND_/.test(code))return 'КОМАНДА';
+        if(/^PUMP_COMMAND_|^HOT_PORT_COMMAND_|^BOILER_MODE_COMMAND_|^BOILER_SETPOINT_COMMAND/.test(code))return 'КОМАНДА';
         if(code==='VALVE_COMMAND_DROP')return 'РЕШЕНИЕ';
         if(code==='OUTPUT_TRANSITION')return 'ВЫХОД';
         if(/OVERHEAT|SAFETY/.test(code))return 'ЗАЩИТА';
@@ -222,8 +222,8 @@ exports.io = function (env, owner, allowed) {
             catch(e){delete lastCommands[path];result.status='ERROR';result.ok=false;result.delivery_unknown=true;}
             result.readback=api.readback(path);attempts.push(result);return result;
         },
-        event:function(key,state,warning,detail) {
-            var signature=state+';'+warning+';'+(detail||''), previous=lastEvents[key];
+        event:function(key,state,warning,detail,reason) {
+            var signature=state+';'+warning+';'+(detail||'')+';'+(reason||''), previous=lastEvents[key];
             if(previous && previous.signature===signature)return;
             var severity=warning?'warning':'state';
             if(/OVERHEAT|CLOSURE_UNCERTAIN/.test(state))severity='alarm';
@@ -231,7 +231,7 @@ exports.io = function (env, owner, allowed) {
             var e={v:3,owner:owner,circuit:key,at:env.now(),state:state,warning:warning||'',detail:detail||'',severity:severity};
             lastEvents[key]={signature:signature,warning:warning};
             var text='[отопление]['+owner+']['+key+']; '+eventKind(state)+'='+exports.stateText(state)+
-                '; код='+safeText(state)+'; причина='+safeText(warning||'Штатный переход')+
+                '; код='+safeText(state)+'; причина='+safeText(reason||warning||'Штатный переход')+
                 (detail?'; '+safeDetail(detail):'');
             // Отказ диагностического канала не должен блокировать управление.
             try {env.publish(C.eventTopic,JSON.stringify(e),0,false);}catch(ignorePublish){}
@@ -273,6 +273,12 @@ exports.stateText=function(code){
         VALVE_COMMAND_DROP:'Расчётное открытие уменьшено',OUTPUT_TRANSITION:'Изменилось состояние выхода',
         PUMP_COMMAND_ON:'Команда насосу ВКЛ',PUMP_COMMAND_OFF:'Команда насосу ВЫКЛ',
         HOT_PORT_COMMAND_ON:'Команда разрешить горячий порт',HOT_PORT_COMMAND_OFF:'Команда закрыть горячий порт',
+        NO_DEMAND_SWITCHING:'Перевод котла в режим «Ожидание»',SOURCE_MODE_STARTING:'Перевод котла в режим «Зима ЦО + ГВС»',
+        BOILER_MODE_COMMAND_STANDBY:'Перевести котёл в режим «Ожидание»',
+        BOILER_MODE_COMMAND_HEATING:'Перевести котёл в режим «Зима ЦО + ГВС»',
+        BOILER_MODE_CONFIRMED_STANDBY:'Котёл переведён в режим «Ожидание»',
+        BOILER_MODE_CONFIRMED_HEATING:'Котёл переведён в режим «Зима ЦО + ГВС»',
+        BOILER_MODE_EXTERNAL_CHANGE:'Изменился режим котла',BOILER_SETPOINT_COMMAND:'Установить уставку котла',
         COMMAND_ACCEPTED:'Попытка записи без обнаруженной ошибки',NOT_SENT:'Команда не отправлялась',
         SETTINGS_INVALID:'Ошибка настроек',SENSOR_FALLBACK:'Резерв при недоступном датчике',FLOOR_HARD_MAX:'Перегрев пола'};
     return text[code]||'Состояние управления изменено';
@@ -317,6 +323,7 @@ exports.source=function(config,storage,io) {
     var coolAt=null,firstSample=null,lastNow=null,lastWritten=null,responseAt=null,baseline=null;
     return function(requested,inService,now,demandKnown) {
         var t=io.read(config.temperature),connection=io.read(config.connection),fault=io.read(config.fault);
+        var mode=io.read(config.boilerMode);
         if(lastNow!==null&&(now<lastNow||now-lastNow>15000)){coolAt=null;responseAt=null;}
         lastNow=now;
         if(t!==null&&t>=config.hardMaxC)storage.hot=true;
@@ -325,34 +332,46 @@ exports.source=function(config,storage,io) {
             else if(coolAt===null){coolAt=now;firstSample=io.observedAt(config.temperature);}
             if(coolAt!==null&&now-coolAt>=config.coolMs&&io.observedAt(config.temperature)>firstSample)storage.hot=false;
         }
-        var state='ACTIVE',warning='',command=null,ok=true,sent=false;
-        function write(path,value){var w=io.write(path,value);sent=w.sent||sent;return w.ok;}
+        var state='ACTIVE',warning='',command=null,modeCommand=null,ok=true,sent=false,setpointSent=false,modeSent=false;
+        function write(path,value){
+            var w=io.write(path,value);
+            sent=w.sent||sent;
+            if(path===config.setpoint)setpointSent=w.sent||setpointSent;
+            if(path===config.boilerMode)modeSent=w.sent||modeSent;
+            return w.ok;
+        }
         if(!inService)state='FIRST_COMMISSIONING';
         else if(storage.hot){state='SOURCE_OVERHEAT';warning='Аппаратные защиты котла обязательны; насосы соседей не выключаются';}
         else if(connection!==0||fault!==0){state='OT_UNAVAILABLE';warning='Нет свежей исправной связи OT; новые команды удержаны';}
         else if(t===null){state='SOURCE_SENSOR_UNAVAILABLE';warning='Нет достоверного 411; новые команды удержаны';}
         else if(requested===0&&demandKnown===false){state='REQUESTS_UNAVAILABLE';warning='Запрос 0, но отсутствие спроса не подтверждено: команду OFF не выдаём';}
         else if(requested===0){
-            state='NO_DEMAND';
-            if(config.noDemandMode==='setpoint_zero') {ok=write(config.setpoint,0);command=0;}
-            else if(config.noDemandMode==='ch_enable') {ok=write(config.chEnable,false);command=false;}
-            else {state='NO_DEMAND_ACTION_UNCONFIRMED';warning='Запрос 0; физический способ выключения CH с сохранением ГВС не подтверждён';}
+            modeCommand=config.standbyMode;
+            if(mode===config.standbyMode)state='NO_DEMAND';
+            else {
+                state='NO_DEMAND_SWITCHING';
+                ok=write(config.boilerMode,modeCommand);
+            }
         } else {
             command=Math.max(config.minC,Math.min(config.maxC,requested));
-            ok=write(config.setpoint,command);
-            if(config.noDemandMode==='ch_enable'&&ok)ok=write(config.chEnable,true);
+            if(mode!==config.heatingMode){
+                state='SOURCE_MODE_STARTING';
+                modeCommand=config.heatingMode;
+                ok=write(config.boilerMode,modeCommand);
+            } else ok=write(config.setpoint,command);
         }
         if(!ok){state='OUTPUT_WRITE_ERROR';warning='Повтор записи автоматически';}
-        if(command!==null&&ok&&sent)lastWritten=command;
+        if(command!==null&&ok&&setpointSent)lastWritten=command;
         if(requested>0&&t!==null){
             if(responseAt===null){responseAt=now;baseline=t;}
             if(t>=requested-1||t>=baseline+1){responseAt=now;baseline=t;}
             else if(now-responseAt>=config.responseMs)warning+='; NO_RESPONSE — недостаточный отклик, не защёлка';
         }else{responseAt=null;baseline=null;}
         return {requested_heating_setpoint:requested,state:state,warning:warning,
-            command:command,last_written:lastWritten,command_sent:sent,
-            commands:io.commands([config.setpoint,config.chEnable]),
-            readback:{setpoint:io.readback(config.setpoint),chEnable:io.readback(config.chEnable)},
-            off_command_sent:requested===0&&command!==null&&ok&&sent};
+            command:command,boiler_mode_command:modeCommand,last_written:lastWritten,command_sent:sent,
+            setpoint_command_sent:setpointSent,mode_command_sent:modeSent,
+            commands:io.commands([config.setpoint,config.boilerMode]),
+            readback:{setpoint:io.readback(config.setpoint),boilerMode:io.readback(config.boilerMode)},
+            off_command_sent:requested===0&&modeCommand===config.standbyMode&&ok&&modeSent};
     };
 };
