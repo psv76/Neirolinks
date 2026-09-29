@@ -46,6 +46,22 @@ sourceText=src.logs.map(x=>x.text).join('\n');
 assert.match(sourceText,/КОМАНДА=Перевести котёл в режим «Зима ЦО \+ ГВС».*причина=Появился запрос тепла/);
 assert.match(sourceText,/СОСТОЯНИЕ=Котёл переведён в режим «Зима ЦО \+ ГВС».*readback=1/);
 for(const x of src.logs.filter(x=>/BOILER_MODE_COMMAND|BOILER_MODE_CONFIRMED/.test(x.text)))assert.equal(x.level,'info');
+assert.equal(src.logs.filter(x=>/BOILER_MODE_COMMAND_HEATING/.test(x.text)).length,1,
+    'operator journal содержит одну команду перехода в Зима ЦО + ГВС до readback');
+assert.equal(src.logs.filter(x=>/BOILER_MODE_COMMAND_STANDBY/.test(x.text)).length,1,
+    'operator journal содержит одну команду перехода в Ожидание до readback');
 assert.doesNotMatch(sourceText,/Master CH enable|DHW|Domestic/);
 
-console.log('PASS operator journal отделён от technical trace; source mode OFF/ON логируется коротко и штатно');
+for(const x of src.logs.filter(x=>/PUMP_COMMAND_|HOT_PORT_COMMAND_/.test(x.text))){
+    assert.equal((x.text.match(/причина=/g)||[]).length,1,'в строке команды должна быть одна причина: '+x.text);
+}
+
+const cold=create();cold.enableAll();cold.temperatures[cold.C.source.temperature]=20;
+cold.samples();cold.start();cold.advance(300000);
+const coldLogs=cold.logs.filter(x=>/SOURCE_WARMING|источник ещё холодный|код=NORMAL/.test(x.text));
+assert.ok(coldLogs.some(x=>/SOURCE_WARMING/.test(x.text)&&x.level==='info'),'ожидание прогрева источника должно быть INFO');
+assert.ok(coldLogs.every(x=>!(x.level==='warning'&&/код=NORMAL/.test(x.text))),
+    'не должно быть WARNING с кодом NORMAL для штатного прогрева');
+assert.doesNotMatch(coldLogs.map(x=>x.text).join('\n'),/причина=,\s*/);
+
+console.log('PASS HHM 3.5 operator journal: без duplicate mode command/cause, точные timers, source warming INFO');
