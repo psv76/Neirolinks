@@ -18,7 +18,7 @@ HHM не владеет ни выходом, ни файлом. Газебо э�
 
 Версия **1.0** задаётся внешним manifest, без вставки заголовка в legacy JS.
 Автор PR подтвердил: live 507 совпадает с Git PR #65, кроме отсутствующего
-последнего LF. В `NLI/releases/pressure_makeup/1.0/` сохранены эти точные bytes,
+последнего LF. В `Systems/NST/releases/pressure_makeup/1.0/` сохранены эти точные bytes,
 восстановленные из immutable blob `d75710dad93906af8869dcce48d26e14673b63fb`
 удалением ровно одного terminal LF. Исходный файл объекта/логика не менялись;
 live WB для этой работы не читался. Provenance указан рядом с artifact.
