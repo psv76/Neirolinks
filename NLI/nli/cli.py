@@ -11,11 +11,11 @@ from .layout import load_config
 from .util import Error
 
 
-BANNER = r""" _   _ _     ___
-| \ | | |   |_ _|
-|  \| | |    | |
-| |\  | |___ | |
-|_| \_|_____|___|"""
+BANNER = r""" _   _ ____ _____
+| \ | / ___|_   _|
+|  \| \___ \ | |
+| |\  |___) || |
+|_| \_|____/ |_|"""
 
 ANSI = {
     "reset": "\x1b[0m",
