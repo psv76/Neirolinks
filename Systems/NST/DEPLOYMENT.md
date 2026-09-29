@@ -22,7 +22,7 @@ The deployment manifest is generated **from an immutable source commit S** and i
 
 ## Component resolution
 
-A controller profile requests a track, currently only `stable`. CI resolves the newest compatible entry from `NLI/deployment/approved-components.json`.
+A controller profile requests a track, currently only `stable`. CI resolves the newest compatible entry from `Systems/NST/deployment/approved-components.json`.
 
 The committed snapshot is not trusted merely because it is in Git. CI also verifies each entry against the published stable GitHub Release:
 
