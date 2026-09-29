@@ -60,8 +60,9 @@ Object.keys(C.circuits).forEach(function(id){
     });
 });
 var timerStates={},directPostrun={};
-function timer(id,kind,ms,r,out){
+function timer(id,kind,ms,r,out,group){
     var key=kind+'_'+id,active=typeof ms==='number'&&isFinite(ms)&&ms>0,code,reason;
+    var startStillRequested=group?!!group.demand:!!r.demand;
     sc('pump_'+kind+'_remaining_'+id,active?String(Math.ceil(ms/1000))+' с':'—');
     if(active&&timerStates[key]!==true){
         code=kind==='start'?'TIMER_ZONE_OPEN_STARTED':'TIMER_PUMP_POSTRUN_STARTED';
@@ -74,8 +75,8 @@ function timer(id,kind,ms,r,out){
         }else if(kind==='start'){
             // The actuator wait is complete when the demand still exists; pump output
             // may legitimately still be waiting for its own electrical confirmation.
-            code=r.demand?'TIMER_ZONE_OPEN_FINISHED':'TIMER_ZONE_OPEN_CANCELLED';
-            reason=r.demand?'Время открытия зоны истекло':'Запрос снят до готовности зоны';
+            code=startStillRequested?'TIMER_ZONE_OPEN_FINISHED':'TIMER_ZONE_OPEN_CANCELLED';
+            reason=startStillRequested?'Время открытия зоны истекло':'Запрос снят до готовности зоны';
         }else{
             code=r.demand?'TIMER_PUMP_POSTRUN_CANCELLED':'TIMER_PUMP_POSTRUN_FINISHED';
             reason=r.demand?'Появился новый готовый запрос':'Время выбега истекло';
@@ -349,7 +350,7 @@ function evaluateOnce(){
            !/^OVERHEAT|RUNTIME_UNSUPPORTED/.test(r.reason))
             r.startRemainingMs=Math.max(0,g.startRemainingMs-(hl.frame?now-hl.frame.sent_ms:0));
         if(failed||out.pump!==true)r.stopRemainingMs=null;
-        timer(id,'start',r.startRemainingMs,r,out);timer(id,'stop',r.stopRemainingMs,r,out);
+        timer(id,'start',r.startRemainingMs,r,out,g);timer(id,'stop',r.stopRemainingMs,r,out,g);
         var temperature=r.demand&&ok?r.target+(c.kind==='mixed'?c.sourceMarginC:0):0;
         // A known idle circuit is valid even when its pump is intentionally OFF.
         // A write error remains invalid; never turn an output fault into known zero.
