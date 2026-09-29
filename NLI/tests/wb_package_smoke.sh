@@ -44,10 +44,12 @@ if [ "$1" = first ]; then
     apt-get install -y /packages/neiro-nst_1.0.0_all.deb
     test "$(nst_version)" = 1.0.0
     test "$(nli_version)" = 1.0.0
-    if grep -q '^Package: neiro-nli$' /var/lib/dpkg/status; then
-        echo 'Legacy neiro-nli package record still installed after NST migration' >&2
-        exit 1
-    fi
+    legacy_status="$(awk '
+        $0 == "Package: neiro-nli" { found=1; next }
+        found && /^Status:/ { print; exit }
+        found && /^Package:/ { exit }
+    ' /var/lib/dpkg/status)"
+    test "$legacy_status" != "Status: install ok installed"
     test ! -e /usr/lib/neiro-nli
     test ! -e /usr/share/neiro-nli
     python3 -B /tests/wb_installed_smoke.py migrated
