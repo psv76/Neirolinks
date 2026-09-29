@@ -15,8 +15,9 @@ assert.deepEqual(C.timing({zoneDelayMs:180000,postrunMs:120000}),
 assert.equal(C.timing({zoneDelayMs:0,postrunMs:120000}).pumpPostrunMs,120000);
 assert.equal(c.zoneDelayMs,c.zoneActuatorOpenMs);
 assert.equal(c.postrunMs,c.pumpPostrunMs);
-assert.equal(C.config.circuits['501'].pumpPostrunMs,0);
-assert.equal(C.config.circuits['503'].pumpPostrunMs,0);
+for(const id of ['501','502','503','504'])
+ assert.equal(C.config.circuits[id].pumpPostrunMs,120000,id+' должен иметь выбег 120 с');
 assert.equal(C.config.circuits['504'].postrunMs,120000);
 assert.equal(C.config.circuits['505'].zoneActuatorOpenMs,0);
+assert.equal(C.config.circuits['505'].pumpPostrunMs,0,'505 остаётся без выбега до отдельного решения');
 console.log('PASS объектные времена, недопустимые значения, миграция и соседние контуры');
