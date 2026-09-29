@@ -270,8 +270,14 @@ class DesiredState:
 
     def sync(self):
         record = self.engine.record("sync")
+        # Lifecycle/identity refusal is intentionally before any persistent
+        # mutation or audit, matching the controller guard contract.
         try:
             self.engine.require_controller_mutation("sync")
+        except (Error, OSError, ValueError, KeyError, TypeError) as exc:
+            record.update(final_status="failed", error=str(exc))
+            return record
+        try:
             require(not self.engine.pending(), "Recovery required before desired-state sync")
             approved = self._approved()
             deployment = approved["deployment"]
