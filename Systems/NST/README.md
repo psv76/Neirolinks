@@ -111,6 +111,24 @@ Read-only pilot на live-контроллере ещё не выполнен.
 
 До этого NST 1.0 не считается принятой production-системой.
 
+## Consolidation #85
+
+Stacked PR #98–#105 свёрнут в единственную development-ветку:
+
+`system/nst/85-consolidation`
+
+Ветка создана от актуального `main`. В неё перенесён cumulative snapshot head #105 без подтягивания всей старой `fix/...`-базы:
+
+- полный каталог `NLI/` из head #105 как технический migration baseline;
+- `.github/workflows/nli-check.yml` из head #105;
+- `objects/05_31_Ivolga_13/controllers/ABF62SL.json` из head #105.
+
+Первый consolidation commit сохраняет эти bytes без смысловой переработки. Это контрольная точка против потери накопленного результата.
+
+Каталог `NLI/` в этой development-ветке пока сохранён под историческим именем намеренно. До merge в `main` implementation должен быть приведён к каноническому месту `Systems/NST/` с корректировкой repo-relative путей и CI. Наличие `NLI/` в development-ветке не изменяет каноническую структуру `main`.
+
+Старые stacked PR после создания единого PR считаются superseded и не являются местом дальнейшей разработки.
+
 ## Источники истины
 
 Для принятой версии NST:
