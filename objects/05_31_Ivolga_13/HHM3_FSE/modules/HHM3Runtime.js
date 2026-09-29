@@ -184,16 +184,21 @@ exports.io = function (env, owner, allowed) {
                 var d=s.sensor.diagnostics(),signature=d.phase+';'+d.reason+';'+d.cause;
                 if(s.healthSignature!==signature){
                     s.healthSignature=signature;
-                    var level=value===null?'warning':'info',healthPath=C.m1w2Health[path];
-                    env.log[level]('[отопление]['+owner+'][M1W2 '+path+']; ДАТЧИК='+
-                        (value===null?'Данные датчика не пригодны':'Датчик пригоден')+
-                        '; код='+safeText(d.reason)+'; этап='+(d.phase==='STARTUP'?'Запуск':'Работа')+
+                    var healthPath=C.m1w2Health[path],operatorState=value===null?'bad':'good';
+                    trace('sensor_'+path,'SENSOR_HEALTH',value===null?d.reason:'',
+                        'этап='+(d.phase==='STARTUP'?'Запуск':'Работа')+
                         '; причина='+sensorReason(d.reason)+'; источник='+sensorCause(d.cause)+
                         '; температура_С='+(value===null?'Нет достоверного значения':safeText(value))+
                         '; Sensor_OK='+ruOnOff(env.dev[healthPath])+
                         '; ошибка_температуры='+errorText(env.dev[path+'#error'])+
-                        '; ошибка_Sensor_OK='+errorText(env.dev[healthPath+'#error'])+
-                        '; действие='+(value===null?'Не использовать датчик в расчёте до восстановления':'Данные пригодны по контракту'));
+                        '; ошибка_Sensor_OK='+errorText(env.dev[healthPath+'#error']));
+                    if(operatorState==='bad'&&(s.operatorHealth!=='bad'||s.operatorReason!==d.reason))
+                        env.log.warning('[отопление]['+owner+'][M1W2 '+path+']; ОШИБКА=Датчик температуры непригоден'+
+                            '; код='+safeText(d.reason)+'; причина='+sensorReason(d.reason)+
+                            '; действие=Не использовать датчик в расчёте до восстановления');
+                    else if(operatorState==='good'&&s.operatorHealth==='bad')
+                        env.log.info('[отопление]['+owner+'][M1W2 '+path+']; СОСТОЯНИЕ=Датчик температуры восстановлен');
+                    s.operatorHealth=operatorState;s.operatorReason=d.reason;
                 }
             }
             return value;
