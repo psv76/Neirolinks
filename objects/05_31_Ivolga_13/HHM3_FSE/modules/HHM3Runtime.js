@@ -4,7 +4,7 @@ var C = require('HHM3Config').config;
 exports.number = W.number;
 exports.topic = function (path) { var p=path.indexOf('/'); return '/devices/'+path.slice(0,p)+'/controls/'+path.slice(p+1); };
 exports.io = function (env, owner, allowed) {
-    var sensors={}, lastCommands={}, lastEvents={}, attempts=[];
+    var sensors={}, lastCommands={}, lastEvents={}, lastTraces={}, attempts=[];
     // One outstanding serial read per rules instance; only startup/revalidation.
     // Three bounded attempts per sensor, no permanent polling/heartbeat loop.
     var proofBoot=env.proofStorage?W.nextSession(env.proofStorage):null, proofSeq=0, pending=null, proofNow=null, proofStart=env.now();
