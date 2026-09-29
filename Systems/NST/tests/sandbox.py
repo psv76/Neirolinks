@@ -17,7 +17,7 @@ from nli.firmware import Firmware
 from nli.util import digest
 from test_nli import FakeSystem
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 
 
 def run(role):
@@ -27,7 +27,7 @@ def run(role):
             p = root / path.lstrip("/")
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_bytes(data)
-        manifest = json.loads((REPO / "NLI/examples" / ("hhm-" + role + "-3.0.json")).read_bytes())
+        manifest = json.loads((REPO / "Systems/NST/examples" / ("hhm-" + role + "-3.0.json")).read_bytes())
         for f in manifest["files"]:
             data = subprocess.check_output(["git", "-C", str(REPO), "show", manifest["release"]["commit"] + ":" + f["source"]])
             put(f["target"], data)
