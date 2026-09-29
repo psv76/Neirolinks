@@ -97,7 +97,7 @@ class AttributionTests(PressureFixture):
 
 class ParserTests(unittest.TestCase):
     def test_field_declaration_is_understood_without_named_exception(self):
-        path = Path(__file__).resolve().parents[2] / 'objects/05_31_Ivolga_13/Wirenboard/wb-rules/upd-wbe2-i-opentherm.js'
+        path = Path(__file__).resolve().parents[3] / 'objects/05_31_Ivolga_13/Wirenboard/wb-rules/upd-wbe2-i-opentherm.js'
         source = path.read_text(encoding='utf-8')
         self.assertIn('nevoton-updater', devices(source))
         renamed = source.replace('nevoton-updater', 'any-other-vendor')
