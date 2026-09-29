@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://neirolinks.local/schemas/nst-controller-profile-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "name",
+    "node",
+    "role",
+    "state",
+    "capabilities",
+    "diagnostics_profile"
+  ],
+  "properties": {
+    "schema": {"const": 1},
+    "name": {"type": "string", "minLength": 1},
+    "node": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,31}$"},
+    "role": {
+      "enum": ["boiler", "gazebo", "house", "service", "infrastructure"]
+    },
+    "state": {"enum": ["planned", "active", "retired"]},
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,31}$"}
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["track"],
+        "properties": {
+          "track": {"const": "stable"}
+        }
+      }
+    },
+    "object_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "target"],
+        "properties": {
+          "source": {"type": "string", "minLength": 1},
+          "target": {"type": "string", "pattern": "^/"}
+        }
+      }
+    },
+    "diagnostics_profile": {"type": "string", "pattern": "^[^/].*\\.json$"},
+    "fingerprint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

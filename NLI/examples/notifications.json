@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "component": "notifications",
+  "version": "0.1.0-example",
+  "object": "EXAMPLE",
+  "role": "boiler",
+  "release": {
+    "commit": "0000000000000000000000000000000000000000",
+    "repository": "example/reviewed-release"
+  },
+  "files": [
+    {
+      "source": "notifications/config.json",
+      "target": "/etc/neiro/components/notifications/config.json",
+      "sha256": "7187d1e8e2a4d61b1dc5dfedb22d703a462df21470e0c145365b20fb3ed467c3"
+    }
+  ],
+  "services": {
+    "stop": [],
+    "start": []
+  },
+  "preflight": [
+    "identity",
+    "drift"
+  ],
+  "verify": {
+    "controls": [],
+    "runtime_version": "0.1.0-example",
+    "health_contract": "none"
+  },
+  "rollback": "previous-managed-release"
+}

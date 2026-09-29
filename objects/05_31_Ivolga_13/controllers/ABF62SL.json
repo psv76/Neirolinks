@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "name": "Котельная",
+  "node": "boiler",
+  "role": "boiler",
+  "state": "active",
+  "capabilities": [
+    "hhm",
+    "pressure_makeup"
+  ],
+  "components": {
+    "hhm": {
+      "track": "stable"
+    }
+  },
+  "object_files": [
+    {
+      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules-modules/system.js",
+      "target": "/etc/wb-rules-modules/system.js"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules/090_notification_service.js",
+      "target": "/etc/wb-rules/090_notification_service.js"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules/100_power_monitor.js",
+      "target": "/etc/wb-rules/100_power_monitor.js"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules/610_Boiler_state.js",
+      "target": "/etc/wb-rules/610_Boiler_state.js"
+    }
+  ],
+  "diagnostics_profile": "NLI/diagnostics/ivolga-boiler-hhm-v1.json"
+}

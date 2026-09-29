@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "component": "hhm",
+  "version": "3.0.0-FSE+d75710dad939",
+  "object": "05_31_Ivolga_13",
+  "role": "gazebo",
+  "release": {
+    "repository": "psv76/Neirolinks",
+    "commit": "d75710dad93906af8869dcce48d26e14673b63fb"
+  },
+  "files": [
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Config.js",
+      "target": "/etc/wb-rules-modules/HHM3Config.js",
+      "sha256": "99f7d993c2060015dd2e90f91d755597f0393d049c7904f31baf398b1bed5faf"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Runtime.js",
+      "target": "/etc/wb-rules-modules/HHM3Runtime.js",
+      "sha256": "67469decabfd44b0498c5822524ad734dc8b883bba91f272dfe1a048529ebe43"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Wire.js",
+      "target": "/etc/wb-rules-modules/HHM3Wire.js",
+      "sha256": "b35baa255c4948f8ec926943efeee1ac5a29b594d508112478e8be4ea1360ada"
+    },
+    {
+      "source": "objects/05_31_Ivolga_13/HHM3_FSE/gazebo/wb-rules/624_combo_besedka.js",
+      "target": "/etc/wb-rules/624_combo_besedka.js",
+      "sha256": "fd17a68d6b707df00ec752d7d650182c75361647ad099de26591d0acdf636c4a"
+    }
+  ],
+  "services": {
+    "stop": [
+      "wb-rules"
+    ],
+    "start": [
+      "wb-rules"
+    ]
+  },
+  "preflight": [
+    "identity",
+    "drift",
+    "hhm"
+  ],
+  "verify": {
+    "controls": [],
+    "runtime_version": "3.0.0-FSE",
+    "health_contract": "legacy-3.0"
+  },
+  "rollback": "previous-managed-release"
+}

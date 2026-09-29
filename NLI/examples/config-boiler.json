@@ -1,0 +1,31 @@
+{
+  "object": "05_31_Ivolga_13",
+  "role": "boiler",
+  "hostname": "wirenboard-ABF62SL",
+  "components": {
+    "hhm": {
+      "plugin": "hhm",
+      "baseline": {
+        "path": "/mnt/data/etc/neiro/nli/releases/hhm-boiler-3.0.json",
+        "sha256": "1fb788c6c848cb12f23d81d5bcb93982587fe953e719d3dc2b00ba3a8d202630"
+      },
+      "target": {
+        "path": "/mnt/data/etc/neiro/nli/releases/hhm-boiler-3.0.json",
+        "sha256": "1fb788c6c848cb12f23d81d5bcb93982587fe953e719d3dc2b00ba3a8d202630"
+      },
+      "unmanaged_rules": {}
+    },
+    "pressure_makeup": {
+      "plugin": "pressure_makeup",
+      "baseline": {
+        "path": "/mnt/data/etc/neiro/nli/releases/pressure-makeup-boiler-1.0.json",
+        "sha256": "4a606a8b4e52f76576e08c54266e240b18144ca2cc4bce7a2ef3b10c169aae6e"
+      },
+      "target": {
+        "path": "/mnt/data/etc/neiro/nli/releases/pressure-makeup-boiler-1.0.json",
+        "sha256": "4a606a8b4e52f76576e08c54266e240b18144ca2cc4bce7a2ef3b10c169aae6e"
+      },
+      "payload_dir": "/usr/share/neiro-nli/payload"
+    }
+  }
+}

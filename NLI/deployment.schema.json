@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://neirolinks.local/schemas/nst-deployment-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "controller_serial",
+    "object",
+    "node",
+    "role",
+    "state",
+    "source",
+    "profile",
+    "minimum_nst",
+    "diagnostics_profile",
+    "object_files",
+    "components",
+    "services",
+    "signatures"
+  ],
+  "properties": {
+    "schema": {"const": 1},
+    "controller_serial": {"type": "string", "pattern": "^[A-Z0-9]{5,32}$"},
+    "object": {"type": "string", "minLength": 1},
+    "node": {"type": "string", "minLength": 1},
+    "role": {"type": "string", "minLength": 1},
+    "state": {"const": "active"},
+    "source": {"$ref": "#/$defs/source"},
+    "profile": {"$ref": "#/$defs/localRef"},
+    "minimum_nst": {"type": "string", "minLength": 1},
+    "diagnostics_profile": {"$ref": "#/$defs/localRef"},
+    "object_files": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/file"}
+    },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/component"}
+    },
+    "services": {"$ref": "#/$defs/services"},
+    "signatures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key_id", "algorithm", "value"],
+        "properties": {
+          "key_id": {"type": "string"},
+          "algorithm": {"type": "string"},
+          "value": {"type": "string"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit"],
+      "properties": {
+        "repository": {"const": "psv76/Neirolinks"},
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "localRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "target", "sha256"],
+      "properties": {
+        "source": {"type": "string", "minLength": 1},
+        "target": {"type": "string", "pattern": "^/"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "services": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stop", "start"],
+      "properties": {
+        "stop": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "start": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component", "track", "version", "minimum_nst", "approval",
+        "manifest", "release", "files", "services"
+      ],
+      "properties": {
+        "component": {"type": "string", "minLength": 1},
+        "track": {"const": "stable"},
+        "version": {"type": "string", "minLength": 1},
+        "minimum_nst": {"type": "string", "minLength": 1},
+        "approval": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "tag", "published_at", "catalog_sha256", "release_commit"],
+          "properties": {
+            "kind": {"const": "github_release"},
+            "tag": {"type": "string", "pattern": "^nli-approved-"},
+            "published_at": {"type": "string", "minLength": 1},
+            "catalog_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "release_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+          }
+        },
+        "manifest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["commit", "path", "sha256"],
+          "properties": {
+            "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+            "path": {"type": "string", "minLength": 1},
+            "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          }
+        },
+        "release": {"$ref": "#/$defs/source"},
+        "files": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/file"}},
+        "services": {"$ref": "#/$defs/services"}
+      }
+    }
+  }
+}
