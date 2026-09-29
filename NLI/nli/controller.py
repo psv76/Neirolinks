@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 
 from .layout import DATA_DIR
-from .util import Error, decode, require
+from .util import Error, decode, require, safe_relative
 
 SERIAL_PATHS = (
     "/var/lib/wirenboard/short_sn",
@@ -79,7 +79,7 @@ def validate_profile(profile, serial=None):
     require(type(profile) is dict, "Controller profile must be an object")
     allowed = {
         "schema", "name", "node", "role", "state", "capabilities",
-        "diagnostics_profile", "fingerprint_sha256",
+        "components", "object_files", "diagnostics_profile", "fingerprint_sha256",
     }
     required = {
         "schema", "name", "node", "role", "state", "capabilities",
@@ -96,6 +96,18 @@ def validate_profile(profile, serial=None):
     for capability in capabilities:
         require(isinstance(capability, str) and NAME_RE.fullmatch(capability) is not None,
                 "Invalid controller capability: " + str(capability))
+    components = profile.get("components", {})
+    require(type(components) is dict, "Invalid desired components")
+    for component, request in components.items():
+        require(NAME_RE.fullmatch(component) is not None, "Invalid desired component: " + str(component))
+        require(type(request) is dict and set(request) == {"track"} and request["track"] == "stable",
+                "Invalid desired component request: " + component)
+    object_files = profile.get("object_files", [])
+    require(type(object_files) is list, "Invalid object_files")
+    for item in object_files:
+        require(type(item) is dict and set(item) == {"source", "target"}, "Invalid object file request")
+        safe_relative(item["source"])
+        require(isinstance(item["target"], str) and item["target"].startswith("/"), "Invalid object file target")
     diagnostic = profile["diagnostics_profile"]
     require(isinstance(diagnostic, str) and diagnostic.endswith(".json")
             and not diagnostic.startswith("/") and ".." not in diagnostic.split("/"),
