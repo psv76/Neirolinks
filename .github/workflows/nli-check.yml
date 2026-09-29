@@ -1,10 +1,10 @@
 name: NLI v0.1 WB compatibility
 on:
   push:
-    branches: ['codex/nli-v0.1', 'codex/issue-74-nli-0.1.8']
-    paths: ['NLI/**', '.github/workflows/nli-check.yml']
+    branches: ['codex/nli-v0.1', 'codex/issue-74-nli-0.1.8', 'issue-86-nst-controller-identity']
+    paths: ['NLI/**', 'objects/**/controllers/**', '.github/workflows/nli-check.yml']
   pull_request:
-    paths: ['NLI/**', '.github/workflows/nli-check.yml']
+    paths: ['NLI/**', 'objects/**/controllers/**', '.github/workflows/nli-check.yml']
 permissions:
   contents: read
 jobs:
@@ -19,7 +19,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Core, HHM, firmware, package and security regressions
+      - name: Generate and verify NST controller registry
+        run: python -B NLI/tools/build_controller_registry.py --check
+      - name: Core, identity, registry, HHM, firmware, package and security regressions
         run: python -B -m unittest discover -s NLI/tests -v
       - name: Both controller roles with pinned HHM source and fake WB backend
         run: python -B NLI/tests/sandbox.py
