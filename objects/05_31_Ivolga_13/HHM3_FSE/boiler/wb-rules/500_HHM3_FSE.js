@@ -72,8 +72,10 @@ function timer(id,kind,ms,r,out){
         if(out.fault||/^OVERHEAT|ZONE_OUTPUT/.test(r.reason)){
             code='TIMER_INTERRUPTED';reason='Ошибка или защита';
         }else if(kind==='start'){
-            code=r.pump?'TIMER_ZONE_OPEN_FINISHED':'TIMER_ZONE_OPEN_CANCELLED';
-            reason=r.pump?'Зона готова':'Запрос снят до готовности зоны';
+            // The actuator wait is complete when the demand still exists; pump output
+            // may legitimately still be waiting for its own electrical confirmation.
+            code=r.demand?'TIMER_ZONE_OPEN_FINISHED':'TIMER_ZONE_OPEN_CANCELLED';
+            reason=r.demand?'Время открытия зоны истекло':'Запрос снят до готовности зоны';
         }else{
             code=r.demand?'TIMER_PUMP_POSTRUN_CANCELLED':'TIMER_PUMP_POSTRUN_FINISHED';
             reason=r.demand?'Появился новый готовый запрос':'Время выбега истекло';
