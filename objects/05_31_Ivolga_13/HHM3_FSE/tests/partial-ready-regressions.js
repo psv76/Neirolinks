@@ -19,7 +19,11 @@ module.exports=function(test,create){
   assert.equal(g.partial_ready,true);assert.equal(g.degraded,true);assert.equal(g.ready,true);
   assert.equal(r.reason,'NORMAL');assert.equal(r.demand,true);assert.equal(r.requested_source_temperature,37);
   assert.equal(r.output.pump,true);assert.ok(r.valve_pct>=before,'no fall to zero on pending zone');
-  assert.match(r.warning,/ждём подтверждение включения зоны/);
+  assert.equal(r.warning,'','штатный partial-ready не становится operator warning');
+  const transitionTrace=h.messages.filter(m=>m.topic===h.C.traceTopic).map(m=>JSON.parse(m.payload))
+      .filter(e=>e.circuit==='502_zone_transition').at(-1);
+  assert.equal(transitionTrace.state,'PENDING_ON_READBACK');
+  assert.match(transitionTrace.detail,/готовый_путь=сохранён/);
   // Even though its ON was commanded, pending 607 must never be used to make
   // a non-ready group ready; the ready grant here belongs to 606 only.
   assert.equal(h.values.boiler['NL_simple_thermostat_607/current_state'],true);
