@@ -422,6 +422,8 @@ class Engine:
         try:
             pending = self.pending()
             if command == "status":
+                from .platform import load_platform_state
+                record['platform'] = load_platform_state(self)
                 marker = self.target(STATE_DIR + '/self-update.json')
                 record['self_update_pending'] = read_json(marker) if marker.exists() else None
                 record['components'] = {}
