@@ -12,7 +12,7 @@ Scope: GitHub Issue #86.
 
 ## Object-local profile
 
-Profiles live at `objects/<object>/controllers/<SERIAL>.json`. CI builds `NLI/generated/controller-registry.json` with `NLI/tools/build_controller_registry.py`.
+Profiles live at `objects/<object>/controllers/<SERIAL>.json`. CI builds `Systems/NST/generated/controller-registry.json` with `Systems/NST/tools/build_controller_registry.py`.
 
 `planned` and `retired` controllers cannot mutate production state. Unknown serials and unavailable identity/registry also fail closed. Only an `active` assignment with matching object/role can pass the NST mutation guard.
 
