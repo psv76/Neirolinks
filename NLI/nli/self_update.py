@@ -75,7 +75,7 @@ class SelfUpdate:
 
     @staticmethod
     def validate_deb(data):
-        """Reject executable package hooks and writes outside NLI runtime namespaces."""
+        """Reject executable package hooks and writes outside reviewed service-tool runtime namespaces."""
         import io
         import tarfile
         require(data[:8] == b'!<arch>\n', 'Invalid deb archive')
@@ -114,4 +114,4 @@ class SelfUpdate:
                         roots = ('usr/bin', 'usr/lib/neiro-nst', 'usr/share/neiro-nst', 'usr/share/doc/neiro-nst',
                                  'usr/lib/neiro-nli', 'usr/share/neiro-nli', 'usr/share/doc/neiro-nli')
                         require(any(root == name or root.startswith(name + '/') or name.startswith(root + '/') for root in roots),
-                                'Package directory outside NLI namespaces')
+                                'Package directory outside reviewed service-tool namespaces')
