@@ -43,10 +43,11 @@ exports.create=function(options={}){
     }
     const C=load('HHM3Config').config,Z=load('HHM3Config').zones;
     if(options.configure)options.configure(C);
+    if(values.boiler[C.source.boilerMode]===undefined)values.boiler[C.source.boilerMode]=C.source.heatingMode;
     const own={};
     Z.forEach(z=>z.outputs.forEach(p=>own[p]='620'));
     Object.values(C.circuits).forEach(c=>{own[c.pump]='500';if(c.level){own[c.level]='500';own[c.enable]='500';}});
-    own[C.source.setpoint]=own[C.source.chEnable]='500';
+    own[C.source.setpoint]=own[C.source.boilerMode]='500';
     function deliver(board,topic,value,retained=false,cacheAfter=false){
         if(topic.endsWith('/meta/error'))delete lastSample[board][topic.slice(0,-11)];
         const control=topic.match(/^\/devices\/(.+?)\/controls\/(.+)$/);
