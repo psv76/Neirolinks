@@ -313,7 +313,7 @@ function mixed(id, ch, supply, ret, extra) {
     Object.keys(extra||{}).forEach(function(k){c[k]=extra[k];});return c;
 }
 exports.config={
-    version:'3.1',healthContract:'m1w2-health-v1',minWbRules:'2.42.0',periodMs:5000,sensorTtlMs:120000,
+    version:'3.1.1',healthContract:'m1w2-health-v1',minWbRules:'2.42.0',periodMs:5000,sensorTtlMs:120000,
     houseTopic:'/neiro/ivolga/hhm3/house/frame',houseSource:'ivolga-hhm3-house',
     eventTopic:'/neiro/ivolga/hhm3/events',requestTtlMs:15000,
     // Explicit tie ordering: incumbent house first, then gazebo/outbuilding.
@@ -321,9 +321,9 @@ exports.config={
     source:{temperature:'wb-m1w2_170/External Sensor 1',setpoint:'wbe2-i-opentherm_11/Heating Setpoint',
         connection:'wbe2-i-opentherm_11/Invalid Connection',fault:'wbe2-i-opentherm_11/Boiler fault indication',
         minC:30,maxC:60,hardMaxC:75,recoverC:70,coolMs:120000,responseMs:900000,
-        // unconfirmed: request remains 0, NO physical substitute setpoint.
-        // After supervised PNR: setpoint_zero OR ch_enable (heating only, never DHW).
-        noDemandMode:'unconfirmed',chEnable:'wbe2-i-opentherm_11/Master CH enable'},
+        // Field capture 29.09.2026: 0 = Ожидание, 1 = Зима ЦО+ГВС.
+        // This is the source ON/OFF contract; DHW controls are not written by HHM.
+        boilerMode:'wbe2-i-opentherm_11/Current Boiler Mode',standbyMode:0,heatingMode:1},
     circuits:{
         '501':mixed('501',1,'wb-m1w2_141/External Sensor 1','wb-m1w2_141/External Sensor 2',
             {normalSupplyC:30,maxSupplyC:38,autonomousSupplyC:28,supplyCloseC:42,supplyStopC:45,supplyImmediateStopC:48,
