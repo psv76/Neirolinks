@@ -3,9 +3,13 @@ const assert=require('node:assert/strict'),{create}=require('./harness');
 const h=create(),R=h.load('HHM3Runtime'),logs=[],messages=[];
 const io=R.io({dev:{},now:()=>123456,trackMqtt:()=>{},publish:(...a)=>messages.push(a),
  log:{info:s=>logs.push(s),warning:s=>logs.push(s),error:s=>logs.push(s)}},'test',[]);
+io.trace('502_output','OUTPUT_TRANSITION','','расчёт_клапана_проц=42; readback_Switch=ВКЛ');
+assert.equal(logs.length,0,'technical trace не попадает в operator journal');
+assert.equal(messages.length,1);
+assert.equal(JSON.parse(messages[0][1]).severity,'trace');
 io.event('502','PENDING_ON_READBACK','');
 for(let i=0;i<20;i++)io.event('502','PENDING_ON_READBACK','');
-assert.equal(logs.length,1);assert.equal(messages.length,1);
+assert.equal(logs.length,1);assert.equal(messages.length,2);
 assert.match(logs[0],/СОСТОЯНИЕ=Ждём подтверждение включения зоны/);
 io.event('502','PENDING_OFF_READBACK','');assert.equal(logs.length,2);
 assert.match(logs[1],/СОСТОЯНИЕ=Ждём подтверждение выключения зоны/);
@@ -20,6 +24,10 @@ const count=outputs().length;h.advance(20000);assert.equal(outputs().length,coun
 assert.match(outputs().at(-1).detail,/расчёт_клапана_проц/);
 assert.match(outputs().at(-1).detail,/readback_Level/);assert.match(outputs().at(-1).detail,/readback_Switch/);assert.match(outputs().at(-1).detail,/readback_насоса/);
 assert.match(outputs().at(-1).detail,/сохранённый_Level/);
-assert.match(outputs().at(-1).detail,/положение_штока=Не измеряется/);assert.match(outputs().at(-1).detail,/расход=Не измеряется/);assert.doesNotMatch(outputs().at(-1).detail,/\{.*\"value\"/);
-assert.doesNotMatch(JSON.stringify(h.logs),/Автономия: HEAT/);
-console.log('PASS русские переходы, тип события, читаемый readback без JSON-мусора, подавление повторов, одна строка');
+assert.doesNotMatch(outputs().at(-1).detail,/положение_штока=Не измеряется|вращение_насоса=Не измеряется|расход=Не измеряется/);
+assert.doesNotMatch(outputs().at(-1).detail,/\{.*\"value\"/);
+const operatorText=JSON.stringify(h.logs);
+assert.doesNotMatch(operatorText,/OUTPUT_TRANSITION|положение_штока=Не измеряется|вращение_насоса=Не измеряется|расход=Не измеряется/);
+assert.match(operatorText,/PUMP_COMMAND_ON|Команда насосу ВКЛ/);
+assert.doesNotMatch(operatorText,/Автономия: HEAT/);
+console.log('PASS operator journal отделён от technical trace; значимые команды сохранены, cyclic output handshake скрыт');
