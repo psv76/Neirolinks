@@ -233,6 +233,7 @@ exports.io = function (env, owner, allowed) {
             catch(e){delete lastCommands[path];result.status='ERROR';result.ok=false;result.delivery_unknown=true;}
             result.readback=api.readback(path);attempts.push(result);return result;
         },
+        trace:trace,
         event:function(key,state,warning,detail) {
             var signature=state+';'+warning+';'+(detail||''), previous=lastEvents[key];
             if(previous && previous.signature===signature)return;
