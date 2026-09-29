@@ -73,14 +73,30 @@ for(const id of ['501','502','503']){
     assert.match(timerLogs,/TIMER_ZONE_OPEN_FINISHED/,id+' start timer finish event');
 }
 
-// Operator log dedup must survive a wb-rules/script restart. The physical source
-// writer may reassert the same setpoint after its 30 s write cache expires, but
-// that is not a new operator event.
-const beforeRestart=src.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text)).map(x=>x.text);
-assert.ok(beforeRestart.length>0,'setpoint command must exist before restart');
-const restarted=create({stores:src.stores,values:src.values});
+// Operator log dedup must survive both the 30 s physical reassert interval and
+// a wb-rules/script restart. Use only immediate-ready 505 so no legitimate
+// intermediate setpoint changes can be confused with a duplicate.
+const stable=create();stable.samples();stable.start();
+stable.Z.forEach(z=>stable.set('boiler','NL_simple_thermostat_'+z.id+'/target_state',false));
+stable.gazeboTemperatures['921.09_MSW_TH/Temperature']=25;
+stable.gazeboTemperatures['921.10_TEMP_NONE/External Sensor 1']=30;
+stable.advance(150000);
+stable.set('boiler','NL_simple_thermostat_505/target_state',true);
+stable.advance(15000);
+const setpointPath=stable.C.source.setpoint;
+const log45=()=>stable.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text)&&/значение_С=45/.test(x.text));
+assert.equal(log45().length,1,'первое фактическое назначение 45 C должно попасть в operator journal');
+const writes45Before=stable.physical().filter(w=>w.path===setpointPath&&w.value===45).length;
+stable.advance(70000);
+assert.ok(stable.physical().filter(w=>w.path===setpointPath&&w.value===45).length>writes45Before,
+    'физическая reassert-запись 45 C должна существовать для проверки dedup');
+assert.equal(log45().length,1,'30-секундные reassert-записи 45 C не должны создавать новые operator events');
+
+const restarted=create({stores:stable.stores,values:stable.values});
+restarted.gazeboTemperatures['921.09_MSW_TH/Temperature']=25;
+restarted.gazeboTemperatures['921.10_TEMP_NONE/External Sensor 1']=30;
 restarted.samples();restarted.advance(40000);
-assert.equal(restarted.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text)).length,0,
-    'unchanged setpoint reassertion after restart must not enter operator journal');
+assert.equal(restarted.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text)&&/значение_С=45/.test(x.text)).length,0,
+    'неизменная уставка 45 C после restart не должна повторяться в operator journal');
 
 console.log('PASS HHM 3.6 operator journal: persistent setpoint dedup, mode dedup, exact timers, source warming INFO');
