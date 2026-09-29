@@ -91,12 +91,16 @@ stable.advance(70000);
 assert.ok(stable.physical().filter(w=>w.path===setpointPath&&w.value===45).length>writes45Before,
     'физическая reassert-запись 45 C должна существовать для проверки dedup');
 assert.equal(log45().length,1,'30-секундные reassert-записи 45 C не должны создавать новые operator events');
+assert.equal(stable.stores.hhm3_operator_log.lastSetpoint,45,'persistent operator setpoint before restart');
 
 const restarted=create({stores:stable.stores,values:stable.values});
+assert.equal(restarted.stores.hhm3_operator_log.lastSetpoint,45,'persistent operator setpoint after constructor');
 restarted.gazeboTemperatures['921.09_MSW_TH/Temperature']=25;
 restarted.gazeboTemperatures['921.10_TEMP_NONE/External Sensor 1']=30;
 restarted.samples();restarted.advance(40000);
-assert.equal(restarted.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text)&&/значение_С=45/.test(x.text)).length,0,
-    'неизменная уставка 45 C после restart не должна повторяться в operator journal');
+const restartSetpointLogs=restarted.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text));
+assert.equal(restartSetpointLogs.filter(x=>/значение_С=45/.test(x.text)).length,0,
+    'неизменная уставка 45 C после restart не должна повторяться; logs='+JSON.stringify(restartSetpointLogs.map(x=>x.text))+
+    '; store='+JSON.stringify(restarted.stores.hhm3_operator_log));
 
 console.log('PASS HHM 3.6 operator journal: persistent setpoint dedup, mode dedup, exact timers, source warming INFO');
