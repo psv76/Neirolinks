@@ -109,7 +109,7 @@ class Releases:
         if rank <= version(installed['version']):
             return installed, {'source': 'approved-releases', 'update_available': False}
         required = entry['minimum_nli']
-        require(version(__version__) >= version(required), 'Требуется NLI ' + required + ': nli self-update')
+        require(version(__version__) >= version(required), 'Требуется NST ' + required + ': nst self-update')
         ref = entry['manifest']
         match(ref['commit'], r'[0-9a-f]{40}', 'immutable manifest commit')
         safe_relative(ref['path'])
