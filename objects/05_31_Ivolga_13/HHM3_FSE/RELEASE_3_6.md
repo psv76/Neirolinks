@@ -32,7 +32,7 @@ Live 3.5 показал повтор `BOILER_SETPOINT_COMMAND=40` примерн
 3.6:
 - сохраняет последнее operator-значение setpoint в `PersistentStorage hhm3_operator_log`;
 - повторная запись того же значения в том же heating session не журналируется;
-- restart скрипта не превращает неизменную уставку в новое operator event;
+- restart сам по себе не превращает неизменную уставку в новое operator event; если после restart подтверждён новый переход в Winter, одна запись setpoint допустима как начало новой heating session;
 - подтверждённый переход `Ожидание → Зима ЦО + ГВС` заново разрешает ровно одно setpoint event, даже если значение совпадает с предыдущей сессией;
 - дальнейшие неизменные reassert снова подавляются.
 
@@ -59,6 +59,6 @@ Mode command и mode readback остаются отдельными operator eve
 - 505: `pumpPostrunMs=0`;
 - 501 и 503 model regression подтверждает 120 с от снятия последнего зонального запроса до pump OFF;
 - периодический 30-секундный reassert неизменной Heating Setpoint не создаёт новое operator event;
-- restart не создаёт duplicate setpoint event;
+- после restart прежний setpoint допускается только после нового подтверждённого Winter session;
 - Standby→Winter создаёт одну mode command, один mode readback и затем одно setpoint event;
 - полный HHM3 CI и NLI CI зелёные.
