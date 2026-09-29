@@ -11,9 +11,9 @@
       "approved": true,
       "minimum_nli": "0.1.9",
       "manifest": {
-        "commit": "bc361b629ee04e796877c672c0f814a2dbf8074d",
+        "commit": "6b82051919a9de17d16f70ac5ec9f76c9096e3c3",
         "path": "NLI/releases/hhm-boiler-3.4.json",
-        "sha256": "0ce90b0d2d9cf6fe5f06423697736a0480ffa059042fc7bebc17981abbaadbc1"
+        "sha256": "34d995fb98c4bd7d3f921bd6b232d63b04966a5d4b6bc3a2f2dba383c93eb821"
       }
     },
     {
@@ -24,9 +24,9 @@
       "approved": true,
       "minimum_nli": "0.1.9",
       "manifest": {
-        "commit": "bc361b629ee04e796877c672c0f814a2dbf8074d",
+        "commit": "6b82051919a9de17d16f70ac5ec9f76c9096e3c3",
         "path": "NLI/releases/hhm-gazebo-3.4.json",
-        "sha256": "6b54f6fbd3d3bda8b535700a2661cadbb5e64f5b10fd3fac52efdd1e40db4616"
+        "sha256": "3583c1d34fbb3f554dfa1de7e5c091873d8936fdb12f397e8acd42225a2170bb"
       }
     }
   ]
