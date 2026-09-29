@@ -25,6 +25,11 @@ class SelfUpdate:
             except (Error, OSError, ValueError, KeyError) as exc:
                 record.update(final_status='unavailable' if isinstance(exc, TransportError) else 'failed', error=str(exc))
             return record
+        try:
+            e.require_controller_mutation("self-update")
+        except (Error, OSError, ValueError, KeyError, TypeError) as exc:
+            record.update(final_status='failed', error=str(exc))
+            return record
         with Lock(e.target(STATE_DIR + '/mutation.lock')):
             marker = e.target(STATE_DIR + '/self-update.json')
             try:
