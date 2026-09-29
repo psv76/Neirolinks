@@ -94,9 +94,11 @@ test('505 no actuator delay, hysteresis 1 C, explicit OFF gives 120 s postrun an
     h.temperatures['901.01_MSW_TH/Temperature']=20;h.advance(130000);assert.equal(h.values.boiler['A03/K5'],false);
     h.temperatures['901.01_MSW_TH/Temperature']=19.5;h.advance(10000);assert.equal(h.values.boiler['A03/K5'],false);
     h.temperatures['901.01_MSW_TH/Temperature']=19;h.advance(10000);assert.equal(h.values.boiler['A03/K5'],true);
-    h.set('boiler',p+'target_state',false);h.advance(10000);
+    h.set('boiler',p+'target_state',false);h.advance(5000);
     assert.equal(h.values.boiler['A03/K5'],true);assert.equal(h.report()['505'].reason,'PUMP_POSTRUN');
-    h.advance(110000);assert.equal(h.values.boiler['A03/K5'],false);
+    assert.equal(h.report()['505'].stopRemainingMs,120000);
+    h.advance(115000);assert.equal(h.values.boiler['A03/K5'],true);
+    h.advance(5000);assert.equal(h.values.boiler['A03/K5'],false);
     assert.equal(h.report()['503'].demand,true);assert.equal(h.request(),45);
     const b=create({stores:h.stores,values:h.values});b.samples();b.advance(240000);
     assert.equal(b.values.boiler[p+'target_state'],false);assert.equal(b.values.boiler['A03/K5'],false);
