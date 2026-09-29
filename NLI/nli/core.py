@@ -467,7 +467,9 @@ class Engine:
                 self.preflight(current, target)
                 record["preflight"] = "ok"
                 if target != current or self.config.get('release_source') == 'pinned':
-                    self.payload(target, remote=record['discovery']['source'] == 'approved-releases')
+                    remote_payload = (record['discovery']['source'] == 'approved-releases'
+                                      or self.registration(component).get('remote_payload') is True)
+                    self.payload(target, remote=remote_payload)
             else:
                 self.verify(current, None, record)
                 record["verify"] = "ok"
@@ -502,7 +504,9 @@ class Engine:
                     record["preflight"] = "running"
                     self.preflight(current, target)
                     record["preflight"] = "ok"
-                    payload = self.payload(target, remote=record['discovery']['source'] == 'approved-releases') \
+                    remote_payload = (record['discovery']['source'] == 'approved-releases'
+                                      or self.registration(component).get('remote_payload') is True)
+                    payload = self.payload(target, remote=remote_payload) \
                         if target != current or self.config.get('release_source') == 'pinned' else {}
                     # Reserve enough for managed backup + atomic staging before any service action.
                     required = sum(len(data) for data in payload.values()) * 3 + 1024 * 1024
