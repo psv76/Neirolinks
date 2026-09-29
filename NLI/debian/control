@@ -1,11 +1,14 @@
-Package: neiro-nli
-Version: 0.1.9
+Package: neiro-nst
+Version: 1.0.0
 Section: admin
 Priority: optional
 Architecture: all
 Maintainer: NEIROLINKS <engineering@neirolinks.local>
 Depends: python3 (>= 3.9), systemd, mosquitto-clients, ca-certificates
+Conflicts: neiro-nli (<= 0.1.9)
+Replaces: neiro-nli (<= 0.1.9)
+Provides: neiro-nli
 Suggests: wb-mcu-fw-updater
-Description: NEIROLINKS maintenance installer and updater for Wiren Board
- Validated component releases, bounded backups, rollback and audit records.
- No daemon, scheduled updates or runtime heating dependency.
+Description: NEIROLINKS Service Tool for Wiren Board
+ Approved deployment, validated components, bounded backups, rollback and audit records.
+ No daemon, scheduled updates or runtime engineering dependency.
