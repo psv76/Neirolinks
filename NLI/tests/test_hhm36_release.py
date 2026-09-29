@@ -21,7 +21,7 @@ RUNTIME = 'f4673abbe52f1a89db5c84dd4c8cd391bc9ee0ef'
 
 class Hhm36ReleaseTests(unittest.TestCase):
     def test_version_order_is_36_newer_than_35(self):
-        self.assertGreater(version('3.6'), version('3.6'))
+        self.assertGreater(version('3.6'), version('3.5'))
 
     def test_both_roles_reproduce_runtime_and_exact_payload(self):
         for role in ('boiler', 'gazebo'):
@@ -49,7 +49,7 @@ class Hhm36ReleaseTests(unittest.TestCase):
         manifest_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT).decode().strip()
         documents = {}
         releases = []
-        for rel_version, asset_id in (('3.4', 1), ('3.6', 2)):
+        for rel_version, asset_id in (('3.5', 1), ('3.6', 2)):
             catalog = {'schema': 1, 'repository': 'psv76/Neirolinks', 'approved': True, 'components': []}
             for role in ('boiler', 'gazebo'):
                 path = 'NLI/releases/hhm-' + role + '-' + rel_version + '.json'
