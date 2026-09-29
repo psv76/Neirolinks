@@ -29,13 +29,13 @@ class PackageTests(unittest.TestCase):
         m = validate(json.loads(raw))
         PressureMakeup().validate(m, {})
         f = m['files'][0]
-        payload = (ROOT.parent / f['source']).read_bytes()
-        canonical = subprocess.check_output(['git', '-C', str(ROOT.parent), 'show',
+        payload = (ROOT.parents[1] / f['source']).read_bytes()
+        canonical = subprocess.check_output(['git', '-C', str(ROOT.parents[1]), 'show',
             'd75710dad93906af8869dcce48d26e14673b63fb:objects/05_31_Ivolga_13/Wirenboard/wb-rules/507_Pressure_makeup.js'])
         self.assertEqual(payload + b'\n', canonical)
         self.assertFalse(payload.endswith(b'\n'))
         self.assertEqual(hashlib.sha256(payload).hexdigest(), f['sha256'])
-        self.assertEqual(subprocess.check_output(['git','-C',str(ROOT.parent),'show',
+        self.assertEqual(subprocess.check_output(['git','-C',str(ROOT.parents[1]),'show',
                          m['release']['commit'] + ':' + f['source']]), payload)
         config = json.loads((ROOT / 'examples/config-boiler.json').read_bytes())
         self.assertEqual(set(config['components']), {'hhm','pressure_makeup'})
@@ -53,7 +53,7 @@ class PackageTests(unittest.TestCase):
             config = json.loads((ROOT / "examples" / ("config-" + role + ".json")).read_bytes())
             self.assertEqual(config["components"]["hhm"]["target"]["sha256"], hashlib.sha256(data).hexdigest())
             for entry in m["files"]:
-                blob = subprocess.check_output(["git", "-C", str(ROOT.parent), "show",
+                blob = subprocess.check_output(["git", "-C", str(ROOT.parents[1]), "show",
                                                 m["release"]["commit"] + ":" + entry["source"]])
                 self.assertEqual(hashlib.sha256(blob).hexdigest(), entry["sha256"])
         validate(json.loads((ROOT / "examples/notifications.json").read_bytes()))
@@ -101,7 +101,7 @@ class PackageTests(unittest.TestCase):
                 self.assertFalse(any("systemd" in p for p in tar.getnames()))
                 payload = 'NLI/releases/pressure_makeup/1.0/507_Pressure_makeup.js'
                 self.assertEqual(tar.extractfile('./usr/share/neiro-nst/payload/' + payload).read(),
-                                 (ROOT.parent / payload).read_bytes())
+                                 (ROOT.parents[1] / payload).read_bytes())
                 self.assertIn('./usr/share/neiro-nst/register_pressure_makeup.py', tar.getnames())
                 self.assertIn('./usr/share/neiro-nst/PRESSURE_MAKEUP.md', tar.getnames())
 
