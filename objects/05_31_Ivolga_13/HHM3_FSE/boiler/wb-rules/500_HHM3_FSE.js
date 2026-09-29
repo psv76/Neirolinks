@@ -331,9 +331,9 @@ function evaluateOnce(){
     sc('selected_consumer',selected.consumer||'Нет');sc('requested_source_temperature',selected.temperature);
     sc('requested_heating_setpoint',source.requested_heating_setpoint);
     sc('diag_request_boiler',diagnosticBoilerRequest(source));
-    sc('source_status',source.state+(source.warning?' · '+source.warning.slice(0,80):''));
+    sc('source_status',R.stateText(source.state)+(source.warning?' · '+source.warning.slice(0,80):''));
     sc('runtime_status',io.runtime()+' · дом '+linkState(hl)+' · беседка '+linkState(gl));
-    event('source',source);
+    sourceEvent(source,now);
 }
 defineRule('hhm3_first_start',{whenChanged:VD+'/start_heating',then:function(value){
     if(value!==true&&value!==1&&value!=='1')return;
