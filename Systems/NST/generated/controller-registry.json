@@ -9,11 +9,11 @@
       "name": "Котельная",
       "node": "boiler",
       "object": "05_31_Ivolga_13",
-      "profile": "objects/05_31_Ivolga_13/controllers/ABF62SL.json",
+      "profile": "Objects/05_31_Ivolga_13/controllers/ABF62SL.json",
       "role": "boiler",
       "state": "active"
     }
   },
   "schema": 1,
-  "source": "objects/*/controllers/*.json"
+  "source": "Objects/*/controllers/*.json + legacy objects/*/controllers/*.json"
 }
