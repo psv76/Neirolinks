@@ -172,9 +172,9 @@ HHM coverage: 507 byte-preservation and exclusion from backup, pressure not gate
 Команды:
 
 ```sh
-python3 -B -m unittest discover -s NLI/tests -v
-python3 -B NLI/tests/sandbox.py
-python3 -B NLI/tools/build_deb.py
+python3 -B -m unittest discover -s Systems/NST/tests -v
+python3 -B Systems/NST/tests/sandbox.py
+python3 -B Systems/NST/tools/build_deb.py
 node objects/05_31_Ivolga_13/HHM3_FSE/tests/run.js
 node objects/05_31_Ivolga_13/HHM3_FSE/tests/partial-ready-regressions.js
 node objects/05_31_Ivolga_13/HHM3_FSE/tests/persistent-storage-regressions.js
