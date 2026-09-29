@@ -163,7 +163,7 @@ def encode(data):
 
 
 def build(repo_root, serial, source_commit):
-    profile_path = "objects/05_31_Ivolga_13/controllers/" + serial + ".json"
+    profile_path = "Objects/05_31_Ivolga_13/controllers/" + serial + ".json"
     profile_raw = git_blob(repo_root, source_commit, profile_path)
     approvals_raw = git_blob(repo_root, source_commit, APPROVALS_PATH)
     return resolve(serial, source_commit, profile_path, profile_raw, approvals_raw,
