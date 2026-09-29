@@ -243,7 +243,7 @@ exports.io = function (env, owner, allowed) {
             var e={v:3,owner:owner,circuit:key,at:env.now(),state:state,warning:warning||'',detail:detail||'',severity:severity};
             lastEvents[key]={signature:signature,warning:warning};
             var text='[отопление]['+owner+']['+key+']; '+eventKind(state)+'='+exports.stateText(state)+
-                '; код='+safeText(state)+'; причина='+safeText(warning||'Штатный переход')+
+                '; код='+safeText(state)+(warning?'; причина='+safeText(warning):'')+
                 (detail?'; '+safeDetail(detail):'');
             // Отказ диагностического канала не должен блокировать управление.
             try {env.publish(C.eventTopic,JSON.stringify(e),0,false);}catch(ignorePublish){}
