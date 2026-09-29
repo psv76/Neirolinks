@@ -30,4 +30,22 @@ const operatorText=JSON.stringify(h.logs);
 assert.doesNotMatch(operatorText,/OUTPUT_TRANSITION|положение_штока=Не измеряется|вращение_насоса=Не измеряется|расход=Не измеряется/);
 assert.match(operatorText,/PUMP_COMMAND_ON|Команда насосу ВКЛ/);
 assert.doesNotMatch(operatorText,/Автономия: HEAT/);
-console.log('PASS operator journal отделён от technical trace; значимые команды сохранены, cyclic output handshake скрыт');
+
+const src=create();src.enableAll();src.samples();src.start();src.advance(300000);
+let sourceText=src.logs.map(x=>x.text).join('\n');
+assert.match(sourceText,/КОМАНДА=Установить уставку котла/);
+src.Z.forEach(z=>src.set('boiler','NL_simple_thermostat_'+z.id+'/target_state',false));
+src.gazeboTemperatures['921.09_MSW_TH/Temperature']=25;
+src.gazeboTemperatures['921.10_TEMP_NONE/External Sensor 1']=30;
+src.advance(150000);
+sourceText=src.logs.map(x=>x.text).join('\n');
+assert.match(sourceText,/КОМАНДА=Перевести котёл в режим «Ожидание».*причина=Нет запроса тепла/);
+assert.match(sourceText,/СОСТОЯНИЕ=Котёл переведён в режим «Ожидание».*readback=0/);
+src.set('boiler','NL_simple_thermostat_505/target_state',true);src.advance(15000);
+sourceText=src.logs.map(x=>x.text).join('\n');
+assert.match(sourceText,/КОМАНДА=Перевести котёл в режим «Зима ЦО \+ ГВС».*причина=Появился запрос тепла/);
+assert.match(sourceText,/СОСТОЯНИЕ=Котёл переведён в режим «Зима ЦО \+ ГВС».*readback=1/);
+for(const x of src.logs.filter(x=>/BOILER_MODE_COMMAND|BOILER_MODE_CONFIRMED/.test(x.text)))assert.equal(x.level,'info');
+assert.doesNotMatch(sourceText,/Master CH enable|DHW|Domestic/);
+
+console.log('PASS operator journal отделён от technical trace; source mode OFF/ON логируется коротко и штатно');
