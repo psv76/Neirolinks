@@ -83,7 +83,9 @@ class DiscoveryTests(PressureFixture):
         self.refresh()
         asset = dict(id=12, name='neiro-nli_0.1.9_all.deb', digest='sha256:'+'a'*64)
         self.release['assets'].append(asset)
-        self.assertEqual(self.engine.releases.package()['version'], '0.1.9')
+        legacy = self.engine.releases.package()
+        self.assertEqual(legacy['version'], '0.1.9')
+        self.assertEqual((legacy['package_name'], legacy['executable']), ('neiro-nli', '/usr/bin/nli'))
         self.assertNotIn(API + '/releases/assets/12', self.requests)
         asset['digest'] = 'sha256:'+'b'*64
         with self.assertRaises(Error):
@@ -117,7 +119,7 @@ class DiscoveryTests(PressureFixture):
         self.entry['minimum_nli'] = '9.0.0'
         self.refresh()
         r = self.engine.read_operation('check', self.component)
-        self.assertIn('nli self-update', r['error'])
+        self.assertIn('nst self-update', r['error'])
 
     def test_no_update_has_no_restart_or_payload_fetch(self):
         self.catalog['components'] = []
