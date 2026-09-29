@@ -1,7 +1,7 @@
 name: NLI v0.1 WB compatibility
 on:
   push:
-    branches: ['codex/nli-v0.1', 'codex/issue-74-nli-0.1.8', 'issue-86-nst-controller-identity']
+    branches: ['codex/nli-v0.1', 'codex/issue-74-nli-0.1.8', 'issue-86-nst-controller-identity', 'issue-87-nst-deployment-manifest']
     paths: ['NLI/**', 'objects/**/controllers/**', '.github/workflows/nli-check.yml']
   pull_request:
     paths: ['NLI/**', 'objects/**/controllers/**', '.github/workflows/nli-check.yml']
@@ -21,7 +21,12 @@ jobs:
           python-version: '3.13'
       - name: Generate and verify NST controller registry
         run: python -B NLI/tools/build_controller_registry.py --check
-      - name: Core, identity, registry, HHM, firmware, package and security regressions
+      - name: Verify approved deployment metadata and deterministic pilot
+        run: |
+          python -B NLI/tools/verify_approved_components.py
+          python -B NLI/tools/build_deployment.py --serial ABF62SL --output NLI/deployments/ABF62SL.json --check
+          python -B NLI/tools/verify_deployment.py NLI/deployments/ABF62SL.json
+      - name: Core, identity, registry, deployment, HHM, firmware, package and security regressions
         run: python -B -m unittest discover -s NLI/tests -v
       - name: Both controller roles with pinned HHM source and fake WB backend
         run: python -B NLI/tests/sandbox.py
