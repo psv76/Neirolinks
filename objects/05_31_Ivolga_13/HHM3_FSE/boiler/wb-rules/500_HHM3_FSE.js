@@ -7,7 +7,7 @@ var Outputs=require('HHM3Outputs'),outputSteps={},evaluating=false;
 var operation=new PersistentStorage('hhm3_operation',{global:true});
 var userSettings=new PersistentStorage('hhm3_thermostats',{global:true});
 var VD='HHM3_FSE',initialized=false,engines={},thermal={},directCool={},lastNow=null,openSince={},valveHistory={},lastReports={},lastSource={};
-var allowed=[C.source.setpoint,C.source.chEnable];
+var allowed=[C.source.setpoint,C.source.boilerMode];
 Object.keys(C.circuits).forEach(function(id){var c=C.circuits[id];allowed.push(c.pump);if(c.kind==='mixed')allowed.push(c.level,c.enable);});
 var io=R.io({proofStorage:new PersistentStorage('hhm31_poll_500',{global:true}),dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log,
     onSample:function(){if(initialized)evaluate();}},'500_HHM3',allowed);
