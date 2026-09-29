@@ -24,6 +24,7 @@
 Текущие разделы:
 
 - [HHM — Heating Manager](Systems/HHM/README.md) — общая система управления отоплением; в main находится подтверждённый общий core, объектовые адаптации хранятся отдельно.
+- [NST — NEIROLINKS Service Tool](Systems/NST/README.md) — сервисная система для identity, desired state, deployment, diagnostics, rollback, firmware и обслуживания контроллеров.
 - [Sprut Configurator](Systems/Sprut%20Configurator/README.md) — архитектура, MQTT/identity contracts, YAML contract, baseline standalone v0.2.2 и reference implementation.
 
 ### `Templates/`
