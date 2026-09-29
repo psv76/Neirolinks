@@ -125,12 +125,19 @@ exports.io = function (env, owner, allowed) {
         return text[code]||safeText(code);
     }
     function eventKind(code){
-        if(/^TIMER_/.test(code))return 'ТАЙМЕР';
-        if(code==='VALVE_COMMAND_DROP')return 'РЕШЕНИЕ';
-        if(code==='OUTPUT_TRANSITION')return 'ВЫХОД';
-        if(/OVERHEAT|SAFETY/.test(code))return 'ЗАЩИТА';
+        if(code==='PUMP_COMMAND_CHANGED'||code==='MIXER_CLOSE_COMMAND')return 'КОМАНДА';
+        if(/OVERHEAT|SAFETY/.test(code))return 'АВАРИЯ';
         if(/ERROR|UNCERTAIN/.test(code))return 'ОШИБКА';
         return 'СОСТОЯНИЕ';
+    }
+    function trace(key,state,warning,detail){
+        var signature=state+';'+(warning||'')+';'+(detail||''),previous=lastTraces[key];
+        if(previous===signature)return;
+        lastTraces[key]=signature;
+        var e={v:1,owner:owner,circuit:key,at:env.now(),state:state,
+            warning:warning||'',detail:detail||'',severity:'trace'};
+        try {env.publish(C.traceTopic||C.eventTopic+'/trace',JSON.stringify(e),0,false);}catch(ignoreTrace){}
+        return e;
     }
     var api={
         watch:function(path,min,max) {
