@@ -289,10 +289,11 @@ function evaluateOnce(){
             output:out,commands:commands,command_sent:commands.some(function(w){return w.sent;}),
             demand:requests[id].demand,requested_source_temperature:temperature,
             supply:io.read(c.supply),return_temperature:io.read(c.ret)};
-        var previous=lastReports[id],prior=previous?previous.output:null;
+        var previous=lastReports[id],prior=previous?previous.output:null,enableAttempt=null;
+        commands.forEach(function(w){if(c.kind==='mixed'&&w.path===c.enable&&w.attempted)enableAttempt=w;});
         if(!prior||prior.state!==out.state||prior.ready!==out.ready||prior.pump!==out.pump||
            prior.closed_readback_match!==out.closed_readback_match){
-            io.event(id+'_output','OUTPUT_TRANSITION','',
+            io.trace(id+'_output','OUTPUT_TRANSITION','',
                 'состояние='+R.stateText(out.state)+'; решение='+R.stateText(r.reason)+
                 '; расчёт_клапана_проц='+r.valve+'; команда_насосу='+onOff(out.pump)+
                 '; записи='+commands.filter(function(w){return w.attempted;}).map(function(w){
@@ -302,8 +303,18 @@ function evaluateOnce(){
                 '; readback_Switch='+readbackText(out.readback&&out.readback.enable)+
                 '; readback_насоса='+readbackText(out.readback&&out.readback.pump)+
                 '; сохранённый_Level='+logValue(out.saved_level)+
-                '; готовность='+(out.ready?'Подтверждена':'Не подтверждена')+
-                '; положение_штока=Не измеряется; вращение_насоса=Не измеряется; расход=Не измеряется');
+                '; готовность='+(out.ready?'Подтверждена':'Не подтверждена'));
+        }
+        if(prior&&prior.pump!==out.pump&&(out.pump===true||out.pump===false))
+            operatorEvent(id+'_pump_command','PUMP_COMMAND_CHANGED','',
+                'канал='+c.pump+'; значение='+onOff(out.pump)+'; причина='+R.stateText(r.reason));
+        if(c.kind==='mixed'&&prior){
+            if(prior.closed_command!==true&&out.closed_command===true&&enableAttempt&&enableAttempt.value===false)
+                operatorEvent(id+'_mixer_close','MIXER_CLOSE_COMMAND','',
+                    'канал='+c.enable+'; значение=ВЫКЛ; причина='+R.stateText(r.reason));
+            if(prior.closed_readback_match!==true&&out.closed_readback_match===true)
+                operatorEvent(id+'_mixer_close_confirmed','MIXER_CLOSE_CONFIRMED','',
+                    'канал='+c.enable+'; readback=ВЫКЛ');
         }
         sc('diag_request_'+id,diagnosticCircuitRequest(id,reports[id]));
         sc('circuit_'+id,operatorCircuit(id,r,out));
