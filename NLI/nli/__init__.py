@@ -1,2 +1,2 @@
-"""NEIROLINKS maintenance orchestrator; never imported by heating runtime."""
-__version__ = "0.1.9"
+"""NEIROLINKS Service Tool core; never imported by engineering runtime."""
+__version__ = "1.0.0"
