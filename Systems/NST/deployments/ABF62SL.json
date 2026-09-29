@@ -89,28 +89,28 @@
   "object_files": [
     {
       "sha256": "dad4c1d6949c515c1c73ed7ad45fda455fe6ba58ef03e351eb9436fff098b11b",
-      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules-modules/system.js",
+      "source": "Objects/05_31_Ivolga_13/Wirenboard/wb-rules-modules/system.js",
       "target": "/etc/wb-rules-modules/system.js"
     },
     {
       "sha256": "4d7f290fd00347c916751d2cd19a2fa932c95a74e34e3420e8375993395614c8",
-      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules/090_notification_service.js",
+      "source": "Objects/05_31_Ivolga_13/Wirenboard/wb-rules/090_notification_service.js",
       "target": "/etc/wb-rules/090_notification_service.js"
     },
     {
       "sha256": "8e8034e8543bf9af4b8e532379aad213eb036fc3c5ee3bf46d522ef5d4800c1e",
-      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules/100_power_monitor.js",
+      "source": "Objects/05_31_Ivolga_13/Wirenboard/wb-rules/100_power_monitor.js",
       "target": "/etc/wb-rules/100_power_monitor.js"
     },
     {
       "sha256": "cc0e261a1fb1747c4e42c142ead8013015a38d7ddb055af0437303a6bfc496af",
-      "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules/610_Boiler_state.js",
+      "source": "Objects/05_31_Ivolga_13/Wirenboard/wb-rules/610_Boiler_state.js",
       "target": "/etc/wb-rules/610_Boiler_state.js"
     }
   ],
   "profile": {
-    "path": "objects/05_31_Ivolga_13/controllers/ABF62SL.json",
-    "sha256": "78124b806420681803dfb4c3b3165dcb9396644c81cc00c322cc6958cd8bff62"
+    "path": "Objects/05_31_Ivolga_13/controllers/ABF62SL.json",
+    "sha256": "c2d6542b9c17677ba2fa43bcdbe4eb061434efb2375c06affc79228394f0af8b"
   },
   "role": "boiler",
   "schema": 1,
@@ -124,7 +124,7 @@
   },
   "signatures": [],
   "source": {
-    "commit": "d2acd6a5e3f623899854e01b47b2f44cc3488014",
+    "commit": "c09ebcedd32e27ba23abefb7800de8cfa66b5083",
     "repository": "psv76/Neirolinks"
   },
   "state": "active"
