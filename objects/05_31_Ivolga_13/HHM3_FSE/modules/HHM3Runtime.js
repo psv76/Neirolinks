@@ -255,8 +255,10 @@ exports.io = function (env, owner, allowed) {
 function safeText(value){return String(value).replace(/[\r\n;\[\]]/g,', ');}
 function safeDetail(value){return String(value).replace(/[\r\n\[\]]/g,', ');}
 exports.stateText=function(code){
-    var text={NORMAL:'Нагрев по запросу зон',HEAT:'Нагрев по запросу зон',
+    var text={NORMAL:'Нагрев по запросу зон',HEAT:'Нагрев по запросу зон',ACTIVE:'Источник обеспечивает запрос отопления',
         OFF:'Отключено',NO_DEMAND:'Нет запроса тепла',PUMP_POSTRUN:'Выбег насоса',
+        REQUESTS_UNAVAILABLE:'Нет достоверных данных о запросе тепла',OT_UNAVAILABLE:'OpenTherm недоступен',
+        SOURCE_SENSOR_UNAVAILABLE:'Датчик температуры источника недоступен',SOURCE_OVERHEAT:'Перегрев источника',
         AUTONOMOUS:'Местное управление без достоверного внешнего запроса',DEGRADED:'Работа в резервном режиме',
         PENDING_ON_READBACK:'Ждём подтверждение включения зоны',PENDING_OFF_READBACK:'Ждём подтверждение выключения зоны',
         OFF_READBACK_TIMEOUT:'Выключение зоны не подтверждено',ZONE_OUTPUT_UNCONFIRMED:'Ошибка выхода зоны',
