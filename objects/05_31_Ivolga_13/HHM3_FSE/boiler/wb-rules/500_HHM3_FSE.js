@@ -84,9 +84,25 @@ function sc(k,v){
     if(dev[p]!==v)dev[p]=v;
 }
 function linkState(r){return r&&r.reason?r.reason:'NORMAL';}
-function event(id,r){
-    var e=io.event(id,r.reason||r.state,r.warning);
+function operatorEvent(id,state,warning,detail){
+    var e=io.event(id,state,warning,detail);
     if(e)sc('last_event',String(id)+': '+R.stateText(e.state)+(e.warning?' · '+String(e.warning).slice(0,80):''));
+    return e;
+}
+function event(id,r){
+    return operatorEvent(id,r.reason||r.state,r.warning);
+}
+function sourceEvent(source,now){
+    var signature=source.state+';'+(source.warning||'');
+    io.trace('source',source.state,source.warning,
+        'запрос_С='+source.requested_heating_setpoint+'; команда='+logValue(source.command)+
+        '; запись='+(source.command_sent?'Отправлена':'Не отправлялась'));
+    if(sourceJournal.signature!==signature){
+        sourceJournal.signature=signature;sourceJournal.since=now;
+    }
+    if(source.state==='REQUESTS_UNAVAILABLE'&&now-sourceJournal.since<C.sourceJournalDelayMs)return;
+    if(sourceJournal.emitted===signature)return;
+    if(operatorEvent('source',source.state,source.warning))sourceJournal.emitted=signature;
 }
 function onOff(value){
     if(value===true||value===1)return 'ВКЛ';
