@@ -1,4 +1,4 @@
-/* HHM 3.5 — Иволга. Карта дома 09.09.2026 + Issue #59. */
+/* HHM 3.6 — Иволга. Карта дома 09.09.2026 + Issue #59. */
 exports.zones = [
     {
         "id": "601",
@@ -313,7 +313,7 @@ function mixed(id, ch, supply, ret, extra) {
     Object.keys(extra||{}).forEach(function(k){c[k]=extra[k];});return c;
 }
 exports.config={
-    version:'3.5',healthContract:'m1w2-health-v1',minWbRules:'2.42.0',periodMs:5000,sensorTtlMs:120000,
+    version:'3.6',healthContract:'m1w2-health-v1',minWbRules:'2.42.0',periodMs:5000,sensorTtlMs:120000,
     houseTopic:'/neiro/ivolga/hhm3/house/frame',houseSource:'ivolga-hhm3-house',
     eventTopic:'/neiro/ivolga/hhm3/events',requestTtlMs:15000,
     // Explicit tie ordering: incumbent house first, then gazebo/outbuilding.
@@ -348,11 +348,14 @@ exports.config={
 exports.config.circuits['504'].pump='A03/K4';
 
 // Объектные времена приводов. 180 с — ход НЗ VALTEC VT.TE3043.0.220,
-// а не срок подтверждения электрической команды. Выбег согласован для 502.
+// а не срок подтверждения электрической команды.
+// По полевому решению #81 насосы 501–504 имеют выбег 120 с.
+// 505 в это решение не входит: для него выбег остаётся 0 до отдельного согласования.
 var hydraulicTiming = {
-    '501':{zoneActuatorOpenMs:180000,zoneActuatorCloseMs:180000,pumpPostrunMs:0,collectorHasBypass:false},
+    '501':{zoneActuatorOpenMs:180000,zoneActuatorCloseMs:180000,pumpPostrunMs:120000,collectorHasBypass:false},
     '502':{zoneActuatorOpenMs:180000,zoneActuatorCloseMs:180000,pumpPostrunMs:120000,collectorHasBypass:false},
-    '503':{zoneActuatorOpenMs:180000,zoneActuatorCloseMs:180000,pumpPostrunMs:0,collectorHasBypass:false}
+    '503':{zoneActuatorOpenMs:180000,zoneActuatorCloseMs:180000,pumpPostrunMs:120000,collectorHasBypass:false},
+    '504':{zoneActuatorOpenMs:0,zoneActuatorCloseMs:0,pumpPostrunMs:120000,collectorHasBypass:false}
 };
 // Старые имена остаются совместимыми с потребителями. Для старого зонального
 // конфига без времени закрытия выбег не разрешаем молча: прежний manager его
