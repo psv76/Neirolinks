@@ -115,11 +115,17 @@ def validate_deployment(data):
             require(type(services[action]) is list and len(services[action]) == len(set(services[action])),
                     "Invalid component service list")
 
+    for component in data["components"]:
+        require(version(data["minimum_nst"]) >= version(component["minimum_nst"]),
+                "Deployment minimum NST is lower than component requirement")
+
     services = data["services"]
     require(type(services) is dict and set(services) == {"stop", "start"}, "Invalid deployment services")
     for action in ("stop", "start"):
         require(type(services[action]) is list and services[action] == sorted(set(services[action])),
                 "Deployment services must be sorted/unique")
+        expected = sorted({service for component in data["components"] for service in component["services"][action]})
+        require(services[action] == expected, "Deployment service aggregate mismatch")
 
     require(type(data["signatures"]) is list, "Invalid signatures field")
     for signature in data["signatures"]:
