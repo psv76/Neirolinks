@@ -278,7 +278,7 @@ function evaluateOnce(){
         // Ordinary mixing steps are bounded to 4 points, so >=8 merits a trace.
         if(c.kind==='mixed'){
             if(valveHistory[id]!==undefined&&valveHistory[id]-r.valve>=8)
-                io.event(id+'_valve_transition','VALVE_COMMAND_DROP','',
+                io.trace(id+'_valve_transition','VALVE_COMMAND_DROP','',
                     'расчёт_было_проц='+valveHistory[id]+'; расчёт_стало_проц='+r.valve+
                     '; основание='+R.stateText(r.reason)+'; код_основания='+r.reason+
                     '; состояние_выхода='+R.stateText(out.state));
