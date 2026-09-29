@@ -15,6 +15,7 @@
 - [Инструкция для ИИ-ассистента](EIM/AI/AI_instruction.md)
 - [Wiren Board coding standard](EIM/Standards/WB_coding_standard.md)
 - [WB-rules logging standard](EIM/Standards/WB_logging_standard.md)
+- [Стандарт развития, версионирования и накопления инженерного опыта](EIM/Standards/Development_lifecycle_standard.md)
 
 ### `SprutConfigurator/`
 
