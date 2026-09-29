@@ -1,4 +1,9 @@
-"""WB persistent data layout and narrowly scoped logical rule roots."""
+"""WB persistent data layout and narrowly scoped logical rule roots.
+
+NST 1.0 intentionally preserves the accepted NLI 0.1.9 durable paths under
+/mnt/data. They are storage-schema identifiers, not package/CLI branding.
+Keeping them in place makes upgrade/FIT/recovery byte-preserving.
+"""
 import os
 from .util import beneath, read_json, require, safe_relative
 
@@ -6,7 +11,7 @@ CONFIG_DIR = "/mnt/data/etc/neiro/nli"
 DEFAULT_CONFIG = CONFIG_DIR + "/config.json"
 STATE_DIR = "/mnt/data/var/lib/neiro/nli"
 LOG_DIR = "/mnt/data/var/log/neiro/nli"
-DATA_DIR = "/usr/share/neiro-nli"
+DATA_DIR = "/usr/share/neiro-nst"
 WB_ROOTS = {
     "/etc/wb-rules": "/mnt/data/etc/wb-rules",
     "/etc/wb-rules-modules": "/mnt/data/etc/wb-rules-modules",
@@ -53,7 +58,7 @@ def load_config(path=None, root="/"):
     if config.exists():
         return read_json(config)
     require(path == DEFAULT_CONFIG, "Explicit config does not exist: " + path)
-    require(not legacy_data_present(root), "LEGACY_MIGRATION_REQUIRED: see WB_SMOKE.md before using NLI 0.1.1")
+    require(not legacy_data_present(root), "LEGACY_MIGRATION_REQUIRED: reviewed persistent config migration is required")
     for folder in (CONFIG_DIR, STATE_DIR, LOG_DIR):
         p = target(root, folder)
         require(not p.exists() or not any(p.iterdir()), "Persistent data exists but config is missing: " + folder)
