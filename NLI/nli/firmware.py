@@ -144,10 +144,16 @@ class Firmware:
             except (Error, OSError) as exc:
                 record.update(final_status="failed", error=str(exc))
             return record
+        try:
+            e.require_controller_mutation("firmware " + action)
+        except (Error, OSError, ValueError, KeyError, TypeError) as exc:
+            record.update(final_status="failed", error=str(exc))
+            return record
         with Lock(e.target(STATE_DIR + "/mutation.lock")):
             started = False
             try:
-                require(e.config["hostname"] == e.system.hostname(), "Wrong controller hostname")
+                if e.controller is None:
+                    require(e.config["hostname"] == e.system.hostname(), "Wrong controller hostname")
                 previous = e.pending()
                 require(not e.target(STATE_DIR + '/self-update.json').exists(), 'Interrupted package update: nli self-update')
                 require(not previous or (action == "recover" and previous["component"] == "firmware"),
