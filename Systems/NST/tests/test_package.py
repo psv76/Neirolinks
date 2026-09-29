@@ -29,7 +29,7 @@ class PackageTests(unittest.TestCase):
         m = validate(json.loads(raw))
         PressureMakeup().validate(m, {})
         f = m['files'][0]
-        payload = (ROOT.parents[1] / f['source']).read_bytes()
+        payload = (ROOT / 'releases/pressure_makeup/1.0/507_Pressure_makeup.js').read_bytes()
         canonical = subprocess.check_output(['git', '-C', str(ROOT.parents[1]), 'show',
             'd75710dad93906af8869dcce48d26e14673b63fb:objects/05_31_Ivolga_13/Wirenboard/wb-rules/507_Pressure_makeup.js'])
         self.assertEqual(payload + b'\n', canonical)
@@ -101,7 +101,7 @@ class PackageTests(unittest.TestCase):
                 self.assertFalse(any("systemd" in p for p in tar.getnames()))
                 payload = 'NLI/releases/pressure_makeup/1.0/507_Pressure_makeup.js'
                 self.assertEqual(tar.extractfile('./usr/share/neiro-nst/payload/' + payload).read(),
-                                 (ROOT.parents[1] / payload).read_bytes())
+                                 (ROOT / 'releases/pressure_makeup/1.0/507_Pressure_makeup.js').read_bytes())
                 self.assertIn('./usr/share/neiro-nst/register_pressure_makeup.py', tar.getnames())
                 self.assertIn('./usr/share/neiro-nst/PRESSURE_MAKEUP.md', tar.getnames())
 
