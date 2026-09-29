@@ -33,39 +33,49 @@ def archive(entries, epoch):
 
 def build(output, epoch=0):
     control = [("control", (ROOT / "debian/control").read_bytes().replace(b"\r\n", b"\n"), 0o644)]
-    data = [("usr/bin/nli", (ROOT / "bin/nli").read_bytes().replace(b"\r\n", b"\n"), 0o755),
-            ("usr/share/neiro-nli/default-config.json", b'{"object":"unconfigured","role":"unconfigured",'
+    data = [
+            ("usr/bin/nst", (ROOT / "bin/nst").read_bytes().replace(b"\r\n", b"\n"), 0o755),
+            ("usr/bin/nli", (ROOT / "bin/nli").read_bytes().replace(b"\r\n", b"\n"), 0o755),
+            ("usr/share/neiro-nst/default-config.json", b'{"object":"unconfigured","role":"unconfigured",'
              b'"hostname":"unconfigured","components":{}}\n', 0o644)]
     for path in sorted((ROOT / "nli").glob("*.py")):
-        data.append(("usr/lib/neiro-nli/nli/" + path.name, path.read_bytes().replace(b"\r\n", b"\n"), 0o644))
+        data.append(("usr/lib/neiro-nst/nli/" + path.name, path.read_bytes().replace(b"\r\n", b"\n"), 0o644))
     for path in sorted((ROOT / "examples").rglob("*.json")):
-        data.append(("usr/share/neiro-nli/examples/" + path.relative_to(ROOT / "examples").as_posix(),
+        data.append(("usr/share/neiro-nst/examples/" + path.relative_to(ROOT / "examples").as_posix(),
                      path.read_bytes().replace(b"\r\n", b"\n"), 0o644))
-    data.append(("usr/share/neiro-nli/controller-registry.json",
+    data.append(("usr/share/neiro-nst/controller-registry.json",
                  (ROOT / "generated/controller-registry.json").read_bytes().replace(b"\r\n", b"\n"), 0o644))
-    data.append(("usr/share/neiro-nli/controller-profile.schema.json",
+    data.append(("usr/share/neiro-nst/controller-profile.schema.json",
                  (ROOT / "controller-profile.schema.json").read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    data.append(("usr/share/neiro-nst/deployment.schema.json",
+                 (ROOT / "deployment.schema.json").read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    data.append(("usr/share/neiro-nst/deployment/approved-components.json",
+                 (ROOT / "deployment/approved-components.json").read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    for path in sorted((ROOT / "deployments").glob("*.json")):
+        data.append(("usr/share/neiro-nst/deployments/" + path.name,
+                     path.read_bytes().replace(b"\r\n", b"\n"), 0o644))
     for path in sorted((ROOT / "diagnostics").glob("*.json")):
-        data.append(("usr/share/neiro-nli/diagnostics/" + path.name,
+        data.append(("usr/share/neiro-nst/diagnostics/" + path.name,
                      path.read_bytes().replace(b"\r\n", b"\n"), 0o644))
     # Immutable baseline payload is runtime data. Preserve exact bytes (no LF
     # normalization); live 507 1.0 intentionally has no terminal LF.
     for path in sorted((ROOT / "releases").rglob("*.js")):
-        data.append(("usr/share/neiro-nli/payload/NLI/" + path.relative_to(ROOT).as_posix(),
+        data.append(("usr/share/neiro-nst/payload/NLI/" + path.relative_to(ROOT).as_posix(),
                      path.read_bytes(), 0o644))
     for path in sorted((ROOT / 'releases').glob('hhm-*.json')):
-        data.append(('usr/share/neiro-nli/known/' + path.name,
+        data.append(('usr/share/neiro-nst/known/' + path.name,
                      path.read_bytes().replace(b'\r\n', b'\n'), 0o644))
-    data.append(("usr/share/neiro-nli/manifest.schema.json", (ROOT / "manifest.schema.json").read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    data.append(("usr/share/neiro-nst/manifest.schema.json", (ROOT / "manifest.schema.json").read_bytes().replace(b"\r\n", b"\n"), 0o644))
     # Smoke/bootstrap instructions are needed even on WB with dpkg nodoc policy.
-    data.append(("usr/share/neiro-nli/WB_SMOKE.md", (ROOT / "WB_SMOKE.md").read_bytes().replace(b"\r\n", b"\n"), 0o644))
-    data.append(("usr/share/neiro-nli/PRESSURE_MAKEUP.md", (ROOT / "PRESSURE_MAKEUP.md").read_bytes().replace(b"\r\n", b"\n"), 0o644))
-    data.append(("usr/share/neiro-nli/RECOVERY.md", (ROOT / "RECOVERY.md").read_bytes().replace(b"\r\n", b"\n"), 0o644))
-    data.append(("usr/share/neiro-nli/register_pressure_makeup.py",
+    data.append(("usr/share/neiro-nst/WB_SMOKE.md", (ROOT / "WB_SMOKE.md").read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    data.append(("usr/share/neiro-nst/PRESSURE_MAKEUP.md", (ROOT / "PRESSURE_MAKEUP.md").read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    data.append(("usr/share/neiro-nst/RECOVERY.md", (ROOT / "RECOVERY.md").read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    data.append(("usr/share/neiro-nst/register_pressure_makeup.py",
                  (ROOT / "tools/register_pressure_makeup.py").read_bytes().replace(b"\r\n", b"\n"), 0o644))
-    data.append(('usr/share/neiro-nli/RELEASES.md', (ROOT / 'RELEASES.md').read_bytes().replace(b'\r\n', b'\n'), 0o644))
+    data.append(('usr/share/neiro-nst/RELEASES.md', (ROOT / 'RELEASES.md').read_bytes().replace(b'\r\n', b'\n'), 0o644))
+    data.append(('usr/share/neiro-nst/DEPLOYMENT.md', (ROOT / 'DEPLOYMENT.md').read_bytes().replace(b'\r\n', b'\n'), 0o644))
     for name in ("README.md", "SECURITY.md", "FIRMWARE.md", "TEST_RESULTS.md"):
-        data.append(("usr/share/doc/neiro-nli/" + name, (ROOT / name).read_bytes().replace(b"\r\n", b"\n"), 0o644))
+        data.append(("usr/share/doc/neiro-nst/" + name, (ROOT / name).read_bytes().replace(b"\r\n", b"\n"), 0o644))
     content = bytearray(b"!<arch>\n")
     for name, value in [("debian-binary", b"2.0\n"), ("control.tar.gz", archive(control, epoch)),
                         ("data.tar.gz", archive(data, epoch))]:
@@ -84,6 +94,6 @@ def build(output, epoch=0):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--output", type=Path, default=ROOT / "dist/neiro-nli_0.1.9_all.deb")
+    p.add_argument("--output", type=Path, default=ROOT / "dist/neiro-nst_1.0.0_all.deb")
     args = p.parse_args()
     build(args.output, int(os.environ.get("SOURCE_DATE_EPOCH", "0")))
