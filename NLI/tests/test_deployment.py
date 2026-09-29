@@ -66,6 +66,7 @@ class DeploymentTests(unittest.TestCase):
         }
         self.approvals_raw = (json.dumps(self.approvals, sort_keys=True) + "\n").encode()
         self.blobs = {
+            (self.source, self.profile_path): self.profile_raw,
             (self.source, "NLI/diagnostics/controller-default-v1.json"): b'{"schema":1}\n',
             (self.source, "objects/test_object/object.js"): b"object payload",
             (self.manifest_commit, "NLI/releases/demo-1.1.json"): self.manifest_raw,
