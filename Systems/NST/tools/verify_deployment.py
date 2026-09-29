@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-REPO_ROOT = ROOT.parent
+REPO_ROOT = ROOT.parents[1]
 sys.path.insert(0, str(ROOT))
 
 from nli.deployment import validate_deployment, verify_offline
