@@ -142,7 +142,7 @@ def render_status(result, color):
             print(f"  {status_mark(healthy, color)} {paint(label, 'cyan', color)}")
             print(f"    Установлено: {paint(str(version), 'green' if healthy else 'red', color)}")
             if state.get('reconciliation_required'):
-                print('    Состояние NLI будет синхронизировано при следующей операции изменения')
+                print('    Состояние NST будет синхронизировано при следующей операции изменения')
             if state.get('error'):
                 print('    Ошибка: ' + state['error'])
             print(f"    Состояние:    {paint(last, 'green', color)}")
