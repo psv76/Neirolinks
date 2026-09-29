@@ -241,8 +241,8 @@ function evaluateOnce(){
                 engines[id].reset();
             }
             if(id!=='504'&&g.partial_ready===true&&r.reason==='NORMAL')
-                r.warning+='; '+(g.pending_off?'ждём подтверждение выключения зоны':'ждём подтверждение включения зоны')+
-                    (g.pending_off&&g.pending_on?'; ждём подтверждение включения другой зоны':'')+'; готовый путь сохранён';
+                io.trace(id+'_zone_transition',g.pending_off?'PENDING_OFF_READBACK':'PENDING_ON_READBACK','',
+                    'готовый_путь=сохранён'+(g.pending_off&&g.pending_on?'; ожидается_включение_другой_зоны=да':''));
             if(id!=='504'&&g.output_blocked!==true&&(!g.ready||!g.demand)&&r.reason!=='PUMP_POSTRUN'){
                 r.pump=false;r.valve=0;r.demand=false;r.target=0;
                 if(r.reason!=='OVERHEAT_STOP'&&r.reason!=='OVERHEAT_CLOSE')r.reason=g.reason;
