@@ -8,8 +8,8 @@ import re
 import subprocess
 import sys
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "NLI"))
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "Systems/NST"))
 from nli.manifest import validate
 from nli.plugins import BOILER, GAZEBO
 
