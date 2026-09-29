@@ -61,7 +61,7 @@ class PackageTests(unittest.TestCase):
     def test_deb_reproducible_layout_modes_no_service_hooks(self):
         tool = load_tool("build_deb")
         with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "nli.deb"
+            path = Path(folder) / "nst.deb"
             tool.build(path)
             data = path.read_bytes()
             tool.build(path)
@@ -83,18 +83,22 @@ class PackageTests(unittest.TestCase):
                     for parent in PurePosixPath(item.name).parents:
                         if str(parent) != ".":
                             self.assertTrue(tar.getmember("./" + str(parent)).isdir(), str(parent))
+                self.assertEqual(tar.getmember("./usr/bin/nst").mode, 0o755)
                 self.assertEqual(tar.getmember("./usr/bin/nli").mode, 0o755)
-                self.assertIn("./usr/lib/neiro-nli/nli/core.py", tar.getnames())
+                self.assertIn("./usr/lib/neiro-nst/nli/core.py", tar.getnames())
+                self.assertNotIn("./usr/lib/neiro-nli/nli/core.py", tar.getnames())
                 for name in ("default-config.json", "manifest.schema.json", "WB_SMOKE.md",
                              "examples/config-boiler.json", "examples/hhm-boiler-3.0.json"):
-                    self.assertIn("./usr/share/neiro-nli/" + name, tar.getnames())
+                    self.assertIn("./usr/share/neiro-nst/" + name, tar.getnames())
                 self.assertFalse(any(p.startswith(("./etc", "./mnt", "./var")) for p in tar.getnames()))
+                self.assertIn("./usr/share/neiro-nst/deployments/ABF62SL.json", tar.getnames())
+                self.assertIn("./usr/share/neiro-nst/deployment.schema.json", tar.getnames())
                 self.assertFalse(any("systemd" in p for p in tar.getnames()))
                 payload = 'NLI/releases/pressure_makeup/1.0/507_Pressure_makeup.js'
-                self.assertEqual(tar.extractfile('./usr/share/neiro-nli/payload/' + payload).read(),
+                self.assertEqual(tar.extractfile('./usr/share/neiro-nst/payload/' + payload).read(),
                                  (ROOT.parent / payload).read_bytes())
-                self.assertIn('./usr/share/neiro-nli/register_pressure_makeup.py', tar.getnames())
-                self.assertIn('./usr/share/neiro-nli/PRESSURE_MAKEUP.md', tar.getnames())
+                self.assertIn('./usr/share/neiro-nst/register_pressure_makeup.py', tar.getnames())
+                self.assertIn('./usr/share/neiro-nst/PRESSURE_MAKEUP.md', tar.getnames())
 
 
 if __name__ == "__main__":
