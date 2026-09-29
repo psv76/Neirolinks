@@ -1,6 +1,10 @@
-# HHM 3.5 — результаты проверки PR #83
+# HHM 3.6 — результаты проверки
 
-Область: сохранённые regression HHM3 + изменения #81/#69/#94 и интеграция source contract из #40 / draft PR #97. Offline simulation/source review; live deploy этой редакцией не выполнялся. Версия 3.5, контракт m1w2-health-v1.
+Область: сохранённые regression HHM3 + изменения #81/#69/#94 и интеграция source contract из #40 / draft PR #97. Offline simulation/source review; live deploy этой редакцией не выполнялся. Версия 3.6, контракт m1w2-health-v1.
+
+## Live 3.5 → regressions 3.6
+
+После live-проверки добавлены регрессии на 120-секундный postrun каждого насоса 501–505, включая direct 505 без зонального привода. Для operator journal добавлена проверка persistent dedup неизменной уставки котла через restart и отдельная проверка start/finish событий открытия зон 501–503. Визуально подтверждённый переход котла «Ожидание → Зима ЦО + ГВС» рассматривается как подтверждение поведения источника, но не как доказательство отсутствовавшей в дефектном WebUI-export строки.
 
 ## Operator journal — live 3.4 → regression 3.5
 
