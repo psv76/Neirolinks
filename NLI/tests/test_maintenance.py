@@ -106,16 +106,16 @@ class SelfUpdateTests(fixtures.Fixture):
         self.assertEqual(self.calls, [])
 
     def test_package_checksum_failure_before_install(self):
-        self.force_repair()
+        self.package['version'] = '1.0.1'
         self.data += b'corrupt'
         r = SelfUpdate(self.engine).execute()
         self.assertEqual(r['final_status'], 'failed', r)
         self.assertEqual(self.calls, [])
 
     def test_success_preserves_component_pending_and_all_durable_inputs(self):
-        self.force_repair()
         write_json(self.engine.pending_path, {'id': 'abc', 'component': 'demo', 'backup': None})
         before = self.snapshot()
+        self.force_repair()
         r = SelfUpdate(self.engine).execute()
         self.assertEqual(r['final_status'], 'ok', r)
         for name, data in before.items():
