@@ -27,11 +27,46 @@ def git_blob(repo_root, commit, path):
 
 def _latest(entries):
     require(entries, "Missing approved compatible component")
+    seen = set()
+    for item in entries:
+        require(item["version"] not in seen, "Duplicate approved component version: " + item["version"])
+        seen.add(item["version"])
     ranked = sorted(((version(item["version"]), item) for item in entries), key=lambda x: x[0], reverse=True)
-    rank, selected = ranked[0]
-    require(all(item == selected for candidate_rank, item in ranked if candidate_rank == rank),
-            "Conflicting duplicate approved component version")
-    return selected
+    return ranked[0][1]
+
+
+def _validate_approval_entry(item):
+    fields = {
+        "component", "object", "role", "track", "version", "approved",
+        "release_state", "draft", "prerelease", "minimum_nst", "approval", "manifest",
+    }
+    require(type(item) is dict and set(item) == fields, "Invalid approved component entry")
+    for key in ("component", "object", "role"):
+        require(isinstance(item[key], str) and item[key], "Invalid approved component " + key)
+    require(item["track"] == "stable", "Invalid approved component track")
+    version(item["version"])
+    version(item["minimum_nst"])
+    require(type(item["approved"]) is bool and type(item["draft"]) is bool and type(item["prerelease"]) is bool,
+            "Invalid approved component flags")
+    require(item["release_state"] in ("stable", "draft", "prerelease", "unapproved"),
+            "Invalid approved component release state")
+    approval = item["approval"]
+    require(type(approval) is dict and set(approval) == {
+        "kind", "tag", "published_at", "catalog_sha256", "release_commit"
+    }, "Invalid approved component provenance")
+    require(approval["kind"] == "github_release", "Invalid approved component provenance kind")
+    require(isinstance(approval["tag"], str) and approval["tag"].startswith("nli-approved-"),
+            "Invalid approved release tag")
+    require(isinstance(approval["published_at"], str) and approval["published_at"], "Missing approval timestamp")
+    require(len(approval["catalog_sha256"]) == 64, "Invalid approved catalog SHA256")
+    require(len(approval["release_commit"]) == 40, "Invalid approved release commit")
+    manifest = item["manifest"]
+    require(type(manifest) is dict and set(manifest) == {"commit", "path", "sha256"},
+            "Invalid approved manifest reference")
+    require(len(manifest["commit"]) == 40 and len(manifest["sha256"]) == 64,
+            "Invalid approved manifest identity")
+    safe_relative(manifest["path"])
+    return item
 
 
 def resolve(serial, source_commit, profile_path, profile_raw, approvals_raw, read_blob):
@@ -43,6 +78,8 @@ def resolve(serial, source_commit, profile_path, profile_raw, approvals_raw, rea
             "Invalid approved components snapshot")
     requested = profile.get("components", {})
     require(type(requested) is dict and requested, "Controller profile has no desired components")
+    for item in approvals["components"]:
+        _validate_approval_entry(item)
 
     resolved = []
     for component_name in sorted(requested):
