@@ -4,7 +4,7 @@ var C = require('HHM3Config').config;
 exports.number = W.number;
 exports.topic = function (path) { var p=path.indexOf('/'); return '/devices/'+path.slice(0,p)+'/controls/'+path.slice(p+1); };
 exports.io = function (env, owner, allowed) {
-    var sensors={}, lastCommands={}, lastEvents={}, attempts=[];
+    var sensors={}, lastCommands={}, lastEvents={}, lastTraces={}, attempts=[];
     // One outstanding serial read per rules instance; only startup/revalidation.
     // Three bounded attempts per sensor, no permanent polling/heartbeat loop.
     var proofBoot=env.proofStorage?W.nextSession(env.proofStorage):null, proofSeq=0, pending=null, proofNow=null, proofStart=env.now();
@@ -125,12 +125,19 @@ exports.io = function (env, owner, allowed) {
         return text[code]||safeText(code);
     }
     function eventKind(code){
-        if(/^TIMER_/.test(code))return 'ТАЙМЕР';
-        if(code==='VALVE_COMMAND_DROP')return 'РЕШЕНИЕ';
-        if(code==='OUTPUT_TRANSITION')return 'ВЫХОД';
-        if(/OVERHEAT|SAFETY/.test(code))return 'ЗАЩИТА';
+        if(code==='PUMP_COMMAND_CHANGED'||code==='MIXER_CLOSE_COMMAND')return 'КОМАНДА';
+        if(/OVERHEAT|SAFETY/.test(code))return 'АВАРИЯ';
         if(/ERROR|UNCERTAIN/.test(code))return 'ОШИБКА';
         return 'СОСТОЯНИЕ';
+    }
+    function trace(key,state,warning,detail){
+        var signature=state+';'+(warning||'')+';'+(detail||''),previous=lastTraces[key];
+        if(previous===signature)return;
+        lastTraces[key]=signature;
+        var e={v:1,owner:owner,circuit:key,at:env.now(),state:state,
+            warning:warning||'',detail:detail||'',severity:'trace'};
+        try {env.publish(C.traceTopic||C.eventTopic+'/trace',JSON.stringify(e),0,false);}catch(ignoreTrace){}
+        return e;
     }
     var api={
         watch:function(path,min,max) {
@@ -177,16 +184,25 @@ exports.io = function (env, owner, allowed) {
                 var d=s.sensor.diagnostics(),signature=d.phase+';'+d.reason+';'+d.cause;
                 if(s.healthSignature!==signature){
                     s.healthSignature=signature;
-                    var level=value===null?'warning':'info',healthPath=C.m1w2Health[path];
-                    env.log[level]('[отопление]['+owner+'][M1W2 '+path+']; ДАТЧИК='+
-                        (value===null?'Данные датчика не пригодны':'Датчик пригоден')+
-                        '; код='+safeText(d.reason)+'; этап='+(d.phase==='STARTUP'?'Запуск':'Работа')+
+                    var healthPath=C.m1w2Health[path],operatorState=value===null?'bad':'good',
+                        startupWait=value===null&&d.phase==='STARTUP'&&
+                            /STARTUP_VALIDATION|RETAINED_REVALIDATION|CONTROL_SYNC_WAIT/.test(d.reason);
+                    trace('sensor_'+path,'SENSOR_HEALTH',value===null?d.reason:'',
+                        'этап='+(d.phase==='STARTUP'?'Запуск':'Работа')+
                         '; причина='+sensorReason(d.reason)+'; источник='+sensorCause(d.cause)+
                         '; температура_С='+(value===null?'Нет достоверного значения':safeText(value))+
                         '; Sensor_OK='+ruOnOff(env.dev[healthPath])+
                         '; ошибка_температуры='+errorText(env.dev[path+'#error'])+
-                        '; ошибка_Sensor_OK='+errorText(env.dev[healthPath+'#error'])+
-                        '; действие='+(value===null?'Не использовать датчик в расчёте до восстановления':'Данные пригодны по контракту'));
+                        '; ошибка_Sensor_OK='+errorText(env.dev[healthPath+'#error']));
+                    if(!startupWait){
+                        if(operatorState==='bad'&&(s.operatorHealth!=='bad'||s.operatorReason!==d.reason))
+                            env.log.warning('[отопление]['+owner+'][M1W2 '+path+']; ОШИБКА=Датчик температуры непригоден'+
+                                '; код='+safeText(d.reason)+'; причина='+sensorReason(d.reason)+
+                                '; действие=Не использовать датчик в расчёте до восстановления');
+                        else if(operatorState==='good'&&s.operatorHealth==='bad')
+                            env.log.info('[отопление]['+owner+'][M1W2 '+path+']; СОСТОЯНИЕ=Датчик температуры восстановлен');
+                        s.operatorHealth=operatorState;s.operatorReason=d.reason;
+                    }
                 }
             }
             return value;
@@ -221,6 +237,7 @@ exports.io = function (env, owner, allowed) {
             catch(e){delete lastCommands[path];result.status='ERROR';result.ok=false;result.delivery_unknown=true;}
             result.readback=api.readback(path);attempts.push(result);return result;
         },
+        trace:trace,
         event:function(key,state,warning,detail) {
             var signature=state+';'+warning+';'+(detail||''), previous=lastEvents[key];
             if(previous && previous.signature===signature)return;
@@ -230,7 +247,7 @@ exports.io = function (env, owner, allowed) {
             var e={v:3,owner:owner,circuit:key,at:env.now(),state:state,warning:warning||'',detail:detail||'',severity:severity};
             lastEvents[key]={signature:signature,warning:warning};
             var text='[отопление]['+owner+']['+key+']; '+eventKind(state)+'='+exports.stateText(state)+
-                '; код='+safeText(state)+'; причина='+safeText(warning||'Штатный переход')+
+                '; код='+safeText(state)+(warning?'; причина='+safeText(warning):'')+
                 (detail?'; '+safeDetail(detail):'');
             // Отказ диагностического канала не должен блокировать управление.
             try {env.publish(C.eventTopic,JSON.stringify(e),0,false);}catch(ignorePublish){}
@@ -264,6 +281,12 @@ exports.stateText=function(code){
         HOUSE_LINK_LOST:'Нет достоверного запроса дома',FIRST_COMMISSIONING:'Ожидает первого ввода',
         RUNTIME_UNSUPPORTED:'Несовместимая среда управления',TIMER_STARTED:'Начало ожидания',TIMER_FINISHED:'Окончание ожидания',
         VALVE_COMMAND_DROP:'Расчётное открытие уменьшено',OUTPUT_TRANSITION:'Изменилось состояние выхода',
+        PUMP_COMMAND_CHANGED:'Изменена команда насосу',MIXER_CLOSE_COMMAND:'Отправлена команда закрыть горячий порт',
+        MIXER_CLOSE_CONFIRMED:'Выход смесителя подтверждён выключенным',
+        ACTIVE:'Источник обслуживает запрос',REQUESTS_UNAVAILABLE:'Запросы контуров временно недостоверны',
+        NO_DEMAND_ACTION_UNCONFIRMED:'Нет подтверждённого способа отключить отопление источника',
+        OT_UNAVAILABLE:'Связь OpenTherm недоступна',SOURCE_SENSOR_UNAVAILABLE:'Датчик источника недоступен',
+        SOURCE_OVERHEAT:'Перегрев источника',
         COMMAND_ACCEPTED:'Попытка записи без обнаруженной ошибки',NOT_SENT:'Команда не отправлялась',
         SETTINGS_INVALID:'Ошибка настроек',SENSOR_FALLBACK:'Резерв при недоступном датчике',FLOOR_HARD_MAX:'Перегрев пола'};
     return text[code]||'Состояние управления изменено';

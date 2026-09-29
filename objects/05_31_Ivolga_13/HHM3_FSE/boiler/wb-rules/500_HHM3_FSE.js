@@ -6,7 +6,7 @@ var W=require('HHM3Wire'),R=require('HHM3Runtime'),Policy=require('HHM3Circuit')
 var Outputs=require('HHM3Outputs'),outputSteps={},evaluating=false;
 var operation=new PersistentStorage('hhm3_operation',{global:true});
 var userSettings=new PersistentStorage('hhm3_thermostats',{global:true});
-var VD='HHM3_FSE',initialized=false,engines={},thermal={},directCool={},lastNow=null,openSince={},valveHistory={},lastReports={},lastSource={};
+var VD='HHM3_FSE',initialized=false,engines={},thermal={},directCool={},lastNow=null,openSince={},valveHistory={},lastReports={},lastSource={},sourceJournal={signature:null,since:null,emitted:null};
 var allowed=[C.source.setpoint,C.source.chEnable];
 Object.keys(C.circuits).forEach(function(id){var c=C.circuits[id];allowed.push(c.pump);if(c.kind==='mixed')allowed.push(c.level,c.enable);});
 var io=R.io({proofStorage:new PersistentStorage('hhm31_poll_500',{global:true}),dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log,
@@ -84,9 +84,25 @@ function sc(k,v){
     if(dev[p]!==v)dev[p]=v;
 }
 function linkState(r){return r&&r.reason?r.reason:'NORMAL';}
-function event(id,r){
-    var e=io.event(id,r.reason||r.state,r.warning);
+function operatorEvent(id,state,warning,detail){
+    var e=io.event(id,state,warning,detail);
     if(e)sc('last_event',String(id)+': '+R.stateText(e.state)+(e.warning?' · '+String(e.warning).slice(0,80):''));
+    return e;
+}
+function event(id,r){
+    return operatorEvent(id,r.reason||r.state,r.warning);
+}
+function sourceEvent(source,now){
+    var signature=source.state+';'+(source.warning||'');
+    io.trace('source',source.state,source.warning,
+        'запрос_С='+source.requested_heating_setpoint+'; команда='+logValue(source.command)+
+        '; запись='+(source.command_sent?'Отправлена':'Не отправлялась'));
+    if(sourceJournal.signature!==signature){
+        sourceJournal.signature=signature;sourceJournal.since=now;
+    }
+    if(source.state==='REQUESTS_UNAVAILABLE'&&now-sourceJournal.since<(C.sourceJournalDelayMs||15000))return;
+    if(sourceJournal.emitted===signature)return;
+    operatorEvent('source',source.state,source.warning);sourceJournal.emitted=signature;
 }
 function onOff(value){
     if(value===true||value===1)return 'ВКЛ';
@@ -181,7 +197,7 @@ function evaluate(){
 function evaluateOnce(){
     io.begin();
     var now=Date.now(),hl=house.read(now),gl=gazebo.read(now),requests={},reports={},faultCount=0;
-    if(lastNow!==null&&(now<lastNow||now-lastNow>C.periodMs*3)){directCool={};openSince={};directPostrun={};lastReports={};}
+    if(lastNow!==null&&(now<lastNow||now-lastNow>C.periodMs*3)){directCool={};openSince={};directPostrun={};lastReports={};sourceJournal={signature:null,since:null,emitted:null};}
     lastNow=now;
     Z.forEach(function(z){z.outputs.forEach(function(p){
         if(io.read(p)===1){if(openSince[p]===undefined)openSince[p]=now;}else delete openSince[p];
@@ -225,8 +241,8 @@ function evaluateOnce(){
                 engines[id].reset();
             }
             if(id!=='504'&&g.partial_ready===true&&r.reason==='NORMAL')
-                r.warning+='; '+(g.pending_off?'ждём подтверждение выключения зоны':'ждём подтверждение включения зоны')+
-                    (g.pending_off&&g.pending_on?'; ждём подтверждение включения другой зоны':'')+'; готовый путь сохранён';
+                io.trace(id+'_zone_transition',g.pending_off?'PENDING_OFF_READBACK':'PENDING_ON_READBACK','',
+                    'готовый_путь=сохранён'+(g.pending_off&&g.pending_on?'; ожидается_включение_другой_зоны=да':''));
             if(id!=='504'&&g.output_blocked!==true&&(!g.ready||!g.demand)&&r.reason!=='PUMP_POSTRUN'){
                 r.pump=false;r.valve=0;r.demand=false;r.target=0;
                 if(r.reason!=='OVERHEAT_STOP'&&r.reason!=='OVERHEAT_CLOSE')r.reason=g.reason;
@@ -262,7 +278,7 @@ function evaluateOnce(){
         // Ordinary mixing steps are bounded to 4 points, so >=8 merits a trace.
         if(c.kind==='mixed'){
             if(valveHistory[id]!==undefined&&valveHistory[id]-r.valve>=8)
-                io.event(id+'_valve_transition','VALVE_COMMAND_DROP','',
+                io.trace(id+'_valve_transition','VALVE_COMMAND_DROP','',
                     'расчёт_было_проц='+valveHistory[id]+'; расчёт_стало_проц='+r.valve+
                     '; основание='+R.stateText(r.reason)+'; код_основания='+r.reason+
                     '; состояние_выхода='+R.stateText(out.state));
@@ -273,10 +289,11 @@ function evaluateOnce(){
             output:out,commands:commands,command_sent:commands.some(function(w){return w.sent;}),
             demand:requests[id].demand,requested_source_temperature:temperature,
             supply:io.read(c.supply),return_temperature:io.read(c.ret)};
-        var previous=lastReports[id],prior=previous?previous.output:null;
+        var previous=lastReports[id],prior=previous?previous.output:null,enableAttempt=null;
+        commands.forEach(function(w){if(c.kind==='mixed'&&w.path===c.enable&&w.attempted)enableAttempt=w;});
         if(!prior||prior.state!==out.state||prior.ready!==out.ready||prior.pump!==out.pump||
            prior.closed_readback_match!==out.closed_readback_match){
-            io.event(id+'_output','OUTPUT_TRANSITION','',
+            io.trace(id+'_output','OUTPUT_TRANSITION','',
                 'состояние='+R.stateText(out.state)+'; решение='+R.stateText(r.reason)+
                 '; расчёт_клапана_проц='+r.valve+'; команда_насосу='+onOff(out.pump)+
                 '; записи='+commands.filter(function(w){return w.attempted;}).map(function(w){
@@ -286,8 +303,18 @@ function evaluateOnce(){
                 '; readback_Switch='+readbackText(out.readback&&out.readback.enable)+
                 '; readback_насоса='+readbackText(out.readback&&out.readback.pump)+
                 '; сохранённый_Level='+logValue(out.saved_level)+
-                '; готовность='+(out.ready?'Подтверждена':'Не подтверждена')+
-                '; положение_штока=Не измеряется; вращение_насоса=Не измеряется; расход=Не измеряется');
+                '; готовность='+(out.ready?'Подтверждена':'Не подтверждена'));
+        }
+        if(prior&&prior.pump!==out.pump&&(out.pump===true||out.pump===false))
+            operatorEvent(id+'_pump_command','PUMP_COMMAND_CHANGED','',
+                'канал='+c.pump+'; значение='+onOff(out.pump)+'; причина='+R.stateText(r.reason));
+        if(c.kind==='mixed'&&prior){
+            if(prior.closed_command!==true&&out.closed_command===true&&enableAttempt&&enableAttempt.value===false)
+                operatorEvent(id+'_mixer_close','MIXER_CLOSE_COMMAND','',
+                    'канал='+c.enable+'; значение=ВЫКЛ; причина='+R.stateText(r.reason));
+            if(prior.closed_readback_match!==true&&out.closed_readback_match===true)
+                operatorEvent(id+'_mixer_close_confirmed','MIXER_CLOSE_CONFIRMED','',
+                    'канал='+c.enable+'; readback=ВЫКЛ');
         }
         sc('diag_request_'+id,diagnosticCircuitRequest(id,reports[id]));
         sc('circuit_'+id,operatorCircuit(id,r,out));
@@ -304,9 +331,9 @@ function evaluateOnce(){
     sc('selected_consumer',selected.consumer||'Нет');sc('requested_source_temperature',selected.temperature);
     sc('requested_heating_setpoint',source.requested_heating_setpoint);
     sc('diag_request_boiler',diagnosticBoilerRequest(source));
-    sc('source_status',source.state+(source.warning?' · '+source.warning.slice(0,80):''));
+    sc('source_status',R.stateText(source.state)+(source.warning?' · '+source.warning.slice(0,80):''));
     sc('runtime_status',io.runtime()+' · дом '+linkState(hl)+' · беседка '+linkState(gl));
-    event('source',source);
+    sourceEvent(source,now);
 }
 defineRule('hhm3_first_start',{whenChanged:VD+'/start_heating',then:function(value){
     if(value!==true&&value!==1&&value!=='1')return;

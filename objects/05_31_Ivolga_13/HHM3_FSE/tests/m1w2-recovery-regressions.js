@@ -135,14 +135,23 @@ test('all mapped 501/502 and boiler 411-420 consumers recover current cache with
         if(Object.values(h.C.circuits).some(c=>c.supply===p))assert.notEqual(h.contexts['500'].io.read(p),null,p);
     }
 });
-test('watchM1w2 logs transition cause and recovery once, with sensor identity',()=>{
-    const h=running(),p='921.10_TEMP_NONE/External Sensor 1',v=h.values.gazebo[p],before=h.logs.length;
+test('watchM1w2 logs concise operator fault/recovery and keeps cause in trace',()=>{
+    const h=running(),p='921.10_TEMP_NONE/External Sensor 1',v=h.values.gazebo[p],
+        before=h.logs.length,beforeMessages=h.messages.length;
     h.values.gazebo[p]=undefined;h.tick('624');h.tick('624');
     h.values.gazebo[p]=v;h.tick('624');h.tick('624');
     const logs=h.logs.slice(before).filter(e=>e.text.includes('[M1W2 '+p+']'));
-    assert.equal(logs.length,2);assert.match(logs[0].text,/ДАТЧИК=Данные датчика не пригодны/);
-    assert.match(logs[0].text,/источник=Нет локального значения температуры/);assert.equal(logs[0].level,'warning');
-    assert.match(logs[1].text,/ДАТЧИК=Датчик пригоден/);assert.match(logs[1].text,/код=VALID/);assert.equal(logs[1].level,'info');
+    assert.equal(logs.length,2);
+    assert.match(logs[0].text,/ОШИБКА=Датчик температуры непригоден/);
+    assert.match(logs[0].text,/причина=Нет обязательного значения температуры или Sensor OK/);
+    assert.equal(logs[0].level,'warning');
+    assert.doesNotMatch(logs[0].text,/Sensor_OK=|ошибка_температуры=|источник=/);
+    assert.match(logs[1].text,/СОСТОЯНИЕ=Датчик температуры восстановлен/);
+    assert.equal(logs[1].level,'info');
+    const trace=h.messages.slice(beforeMessages).filter(m=>m.topic===h.C.traceTopic)
+        .map(m=>JSON.parse(m.payload)).filter(e=>e.circuit==='sensor_'+p);
+    assert.ok(trace.some(e=>/источник=Нет локального значения температуры/.test(e.detail)));
+    assert.ok(trace.some(e=>/Sensor_OK=/.test(e.detail)));
     assert.doesNotMatch(logs[0].text,/\{"phase"/);assert.doesNotMatch(logs[1].text,/\{"phase"/);
 });
 console.log('RESULT: '+passed+' PASS, '+failed+' FAIL; Issue #75 offline recovery regressions.');

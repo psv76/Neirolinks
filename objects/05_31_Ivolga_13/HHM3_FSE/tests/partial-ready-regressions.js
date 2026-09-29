@@ -19,7 +19,11 @@ module.exports=function(test,create){
   assert.equal(g.partial_ready,true);assert.equal(g.degraded,true);assert.equal(g.ready,true);
   assert.equal(r.reason,'NORMAL');assert.equal(r.demand,true);assert.equal(r.requested_source_temperature,37);
   assert.equal(r.output.pump,true);assert.ok(r.valve_pct>=before,'no fall to zero on pending zone');
-  assert.match(r.warning,/ждём подтверждение включения зоны/);
+  assert.equal(r.warning,'','штатный partial-ready не становится operator warning');
+  const transitionTrace=h.messages.filter(m=>m.topic===h.C.traceTopic).map(m=>JSON.parse(m.payload))
+      .filter(e=>e.circuit==='502_zone_transition').at(-1);
+  assert.equal(transitionTrace.state,'PENDING_ON_READBACK');
+  assert.match(transitionTrace.detail,/готовый_путь=сохранён/);
   // Even though its ON was commanded, pending 607 must never be used to make
   // a non-ready group ready; the ready grant here belongs to 606 only.
   assert.equal(h.values.boiler['NL_simple_thermostat_607/current_state'],true);
@@ -119,12 +123,12 @@ module.exports=function(test,create){
   assert.equal(h.values.boiler['A03/K3'],false);
   h.fail('');step(h);assert.equal(h.report()['503'].demand,true);
  });
- test('502 abrupt valve command drop produces diagnostic event without new writers',()=>{
+ test('502 abrupt valve command drop produces technical trace without new writers',()=>{
   const h=setup(()=>false);
   h.advance(700000);const before=h.report()['502'].valve_pct;
   assert.ok(before>=8,'test must first build a meaningful opening');
   h.set('boiler','NL_simple_thermostat_606/target_state',false);step(h);
-  const changes=h.messages.filter(m=>m.topic===h.C.eventTopic&&JSON.parse(m.payload).circuit==='502_valve_transition');
+  const changes=h.messages.filter(m=>m.topic===h.C.traceTopic&&JSON.parse(m.payload).circuit==='502_valve_transition');
   assert.ok(changes.length>=1);
   assert.equal(JSON.parse(changes.at(-1).payload).state,'VALVE_COMMAND_DROP');
   assert.equal(h.report()['502'].valve_pct,0);

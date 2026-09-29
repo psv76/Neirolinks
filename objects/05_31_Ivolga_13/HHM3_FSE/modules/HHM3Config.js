@@ -1,4 +1,4 @@
-/* HHM 3.3 — Иволга. Карта дома 09.09.2026 + Issue #59. */
+/* HHM 3.4 — Иволга. Карта дома 09.09.2026 + Issue #59. */
 exports.zones = [
     {
         "id": "601",
@@ -313,9 +313,10 @@ function mixed(id, ch, supply, ret, extra) {
     Object.keys(extra||{}).forEach(function(k){c[k]=extra[k];});return c;
 }
 exports.config={
-    version:'3.3',healthContract:'m1w2-health-v1',minWbRules:'2.42.0',periodMs:5000,sensorTtlMs:120000,
+    version:'3.4',healthContract:'m1w2-health-v1',minWbRules:'2.42.0',periodMs:5000,sensorTtlMs:120000,
     houseTopic:'/neiro/ivolga/hhm3/house/frame',houseSource:'ivolga-hhm3-house',
-    eventTopic:'/neiro/ivolga/hhm3/events',requestTtlMs:15000,
+    eventTopic:'/neiro/ivolga/hhm3/events',traceTopic:'/neiro/ivolga/hhm3/trace',
+    requestTtlMs:15000,sourceJournalDelayMs:15000,
     // Explicit tie ordering: incumbent house first, then gazebo/outbuilding.
     priority:['503','502','501','504','505'],
     source:{temperature:'wb-m1w2_170/External Sensor 1',setpoint:'wbe2-i-opentherm_11/Heating Setpoint',
