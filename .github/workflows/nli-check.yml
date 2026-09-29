@@ -1,8 +1,8 @@
-name: NLI v0.1 WB compatibility
+name: NST compatibility
 on:
   push:
-    branches: ['system/nst/85-consolidation']
-    paths: ['Systems/NST/**', 'objects/**/controllers/**', '.github/workflows/nli-check.yml']
+    branches: ['main', 'system/nst/**']
+    paths: ['Systems/NST/**', 'objects/**/controllers/**', 'Objects/**/controllers/**', '.github/workflows/nli-check.yml']
   pull_request:
     paths: ['Systems/NST/**', 'objects/**/controllers/**', '.github/workflows/nli-check.yml']
 permissions:
