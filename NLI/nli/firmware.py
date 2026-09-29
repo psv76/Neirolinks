@@ -22,7 +22,7 @@ SUPPORTED = {
 }
 BOOTLOADER_NOTICE = ("Штатный updater может обновить bootloader и firmware; временно нарушить связь "
                      "с модулями и приостановить serial clients. Требуется инженер на объекте. "
-                     "NLI не добавляет --force/--allow-downgrade и сохраняет вопросы штатной утилиты.")
+                     "NST не добавляет --force/--allow-downgrade и сохраняет вопросы штатной утилиты.")
 
 
 def parse_result(action, text, returncode):
