@@ -15,7 +15,7 @@ class SelfUpdate:
 
     def execute(self, check=False):
         e = self.engine
-        record = e.record('self-update check' if check else 'self-update', 'nli')
+        record = e.record('self-update check' if check else 'self-update', 'nst')
         record['from_version'] = __version__
         if check:
             try:
@@ -44,11 +44,13 @@ class SelfUpdate:
                 data = e.releases.asset(package['asset'], MAX_PACKAGE)
                 require(digest(data) == package['sha256'], 'Package checksum mismatch')
                 # Temp directory is removed on all ordinary success/failure paths.
-                with tempfile.TemporaryDirectory(prefix='nli-package-', dir=e.state_dir) as tmp:
-                    path = Path(tmp) / 'neiro-nli.deb'
+                with tempfile.TemporaryDirectory(prefix='nst-package-', dir=e.state_dir) as tmp:
+                    path = Path(tmp) / 'service-tool.deb'
                     atomic(path, data)
                     fields = e.system.run(['/usr/bin/dpkg-deb', '-f', str(path), 'Package', 'Version', 'Architecture'])
-                    require(fields.splitlines() == ['Package: neiro-nli', 'Version: ' + package['version'], 'Architecture: all'],
+                    require(fields.splitlines() == ['Package: ' + package['package_name'],
+                                                    'Version: ' + package['version'],
+                                                    'Architecture: all'],
                             'Wrong Debian package identity')
                     # Require runtime package without maintainer scripts/triggers/conffiles.
                     self.validate_deb(data)
@@ -56,10 +58,10 @@ class SelfUpdate:
                     write_json(marker, record)  # separate intent preserves component pending byte-for-byte
                     e.audit(record)
                     e.system.run(['/usr/bin/dpkg', '--install', str(path)], timeout=180)
-                installed = e.system.run(['/usr/bin/dpkg-query', '-W', '-f=${Version}', 'neiro-nli'])
-                require(installed == package['version'], 'Installed NLI version mismatch')
-                require(e.system.run(['/usr/bin/nli', '--json', '--version']) == '{"version": "' + installed + '"}',
-                        'NLI executable version mismatch')
+                installed = e.system.run(['/usr/bin/dpkg-query', '-W', '-f=${Version}', package['package_name']])
+                require(installed == package['version'], 'Installed service-tool version mismatch')
+                require(e.system.run([package['executable'], '--json', '--version']) == '{"version": "' + installed + '"}',
+                        'Service-tool executable version mismatch')
                 record.update(install='ok', verify='ok', final_status='ok')
                 e.audit(record)
                 marker.unlink()
@@ -102,10 +104,14 @@ class SelfUpdate:
                     if key == 'control.tar.gz':
                         require(item.isdir() or name == 'control', 'Package maintainer hooks/config forbidden')
                     elif item.isfile():
-                        require(name == 'usr/bin/nli' or name.startswith(('usr/lib/neiro-nli/', 'usr/share/neiro-nli/',
-                                                                                    'usr/share/doc/neiro-nli/')),
+                        require(name in ('usr/bin/nst', 'usr/bin/nli')
+                                or name.startswith(('usr/lib/neiro-nst/', 'usr/share/neiro-nst/',
+                                                    'usr/share/doc/neiro-nst/',
+                                                    'usr/lib/neiro-nli/', 'usr/share/neiro-nli/',
+                                                    'usr/share/doc/neiro-nli/')),
                                 'Package would modify persistent/system data')
                     else:
-                        roots = ('usr/bin', 'usr/lib/neiro-nli', 'usr/share/neiro-nli', 'usr/share/doc/neiro-nli')
+                        roots = ('usr/bin', 'usr/lib/neiro-nst', 'usr/share/neiro-nst', 'usr/share/doc/neiro-nst',
+                                 'usr/lib/neiro-nli', 'usr/share/neiro-nli', 'usr/share/doc/neiro-nli')
                         require(any(root == name or root.startswith(name + '/') or name.startswith(root + '/') for root in roots),
                                 'Package directory outside NLI namespaces')
