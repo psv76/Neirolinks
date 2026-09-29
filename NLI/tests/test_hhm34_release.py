@@ -16,7 +16,7 @@ from nli import __version__
 from nli.plugins import HHM
 from nli.releases import API, RAW, Releases, version
 
-RUNTIME = '065c042732c99695fd9b85315abfe8c0c9b122c5'
+RUNTIME = '404e410313c99336788cbd19a94696ecb524da3c'
 
 
 class Hhm34ReleaseTests(unittest.TestCase):
