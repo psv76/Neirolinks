@@ -17,13 +17,14 @@
 - [WB-rules logging standard](EIM/Standards/WB_logging_standard.md)
 - [Стандарт развития, версионирования и накопления инженерного опыта](EIM/Standards/Development_lifecycle_standard.md)
 
-### `Systems/Sprut Configurator/`
+### `Systems/`
 
-Общая разработка Sprut Configurator: архитектура, MQTT/identity contracts, YAML contract, baseline standalone v0.2.2, правила templates и граница будущей интеграции с NL Project.
+Общие разрабатываемые системы NEIROLINKS.
 
-Главный документ:
+Текущие разделы:
 
-- [Sprut Configurator](Systems/Sprut%20Configurator/README.md)
+- [HHM — Heating Manager](Systems/HHM/README.md) — общая система управления отоплением; в main находится подтверждённый общий core, объектовые адаптации хранятся отдельно.
+- [Sprut Configurator](Systems/Sprut%20Configurator/README.md) — архитектура, MQTT/identity contracts, YAML contract, baseline standalone v0.2.2 и reference implementation.
 
 ### `Templates/`
 
