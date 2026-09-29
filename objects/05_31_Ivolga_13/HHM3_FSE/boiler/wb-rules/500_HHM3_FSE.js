@@ -6,9 +6,12 @@ var W=require('HHM3Wire'),R=require('HHM3Runtime'),Policy=require('HHM3Circuit')
 var Outputs=require('HHM3Outputs'),outputSteps={},evaluating=false;
 var operation=new PersistentStorage('hhm3_operation',{global:true});
 var userSettings=new PersistentStorage('hhm3_thermostats',{global:true});
+var operatorLog=new PersistentStorage('hhm3_operator_log',{global:true});
 var VD='HHM3_FSE',initialized=false,engines={},thermal={},directCool={},lastNow=null,openSince={},valveHistory={},lastReports={},lastSource={};
 var sourceUnavailableSince=null,sourceUnavailableLogged=false;
-var pendingBoilerMode=null,lastObservedBoilerMode=null,lastLoggedSetpoint=null;
+var pendingBoilerMode=null,lastObservedBoilerMode=null;
+var lastLoggedSetpoint=(typeof operatorLog.lastSetpoint==='number'&&isFinite(operatorLog.lastSetpoint))?operatorLog.lastSetpoint:null;
+var setpointLogArmed=false;
 var allowed=[C.source.setpoint,C.source.boilerMode];
 Object.keys(C.circuits).forEach(function(id){var c=C.circuits[id];allowed.push(c.pump);if(c.kind==='mixed')allowed.push(c.level,c.enable);});
 var io=R.io({proofStorage:new PersistentStorage('hhm31_poll_500',{global:true}),dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log,
@@ -148,6 +151,7 @@ function sourceModeEvents(r){
             io.event('source_mode_confirmed',modeCode,'',
                 'канал='+C.source.boilerMode+'; readback='+String(rb)+'; режим='+boilerModeName(rb),reason);
             pendingBoilerMode=null;confirmed=true;
+            if(rb===C.source.heatingMode)setpointLogArmed=true;
         }
         if(!confirmed&&pendingBoilerMode===null&&lastObservedBoilerMode!==null&&rb!==lastObservedBoilerMode){
             io.event('source_mode_external','BOILER_MODE_EXTERNAL_CHANGE','',
@@ -158,10 +162,15 @@ function sourceModeEvents(r){
     }
     for(i=0;i<(r.commands||[]).length;i++){
         w=r.commands[i];
-        if(w.path===C.source.setpoint&&w.sent&&w.ok&&w.value!==lastLoggedSetpoint){
-            io.event('source_setpoint','BOILER_SETPOINT_COMMAND','',
-                'канал='+C.source.setpoint+'; значение_С='+String(w.value),'Есть запрос тепла');
-            lastLoggedSetpoint=w.value;
+        if(w.path===C.source.setpoint&&w.sent&&w.ok){
+            var setpoint=Number(w.value);
+            if(isFinite(setpoint)&&(setpointLogArmed||lastLoggedSetpoint===null||setpoint!==lastLoggedSetpoint)){
+                io.event('source_setpoint','BOILER_SETPOINT_COMMAND','',
+                    'канал='+C.source.setpoint+'; значение_С='+String(setpoint),'Есть запрос тепла');
+                lastLoggedSetpoint=setpoint;
+                operatorLog.lastSetpoint=setpoint;
+                setpointLogArmed=false;
+            }
         }
     }
 }
