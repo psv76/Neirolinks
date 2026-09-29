@@ -7,6 +7,7 @@ var Outputs=require('HHM3Outputs'),outputSteps={},evaluating=false;
 var operation=new PersistentStorage('hhm3_operation',{global:true});
 var userSettings=new PersistentStorage('hhm3_thermostats',{global:true});
 var VD='HHM3_FSE',initialized=false,engines={},thermal={},directCool={},lastNow=null,openSince={},valveHistory={},lastReports={},lastSource={};
+var sourceUnavailableSince=null,sourceUnavailableLogged=false;
 var allowed=[C.source.setpoint,C.source.chEnable];
 Object.keys(C.circuits).forEach(function(id){var c=C.circuits[id];allowed.push(c.pump);if(c.kind==='mixed')allowed.push(c.level,c.enable);});
 var io=R.io({proofStorage:new PersistentStorage('hhm31_poll_500',{global:true}),dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log,
@@ -84,9 +85,35 @@ function sc(k,v){
     if(dev[p]!==v)dev[p]=v;
 }
 function linkState(r){return r&&r.reason?r.reason:'NORMAL';}
-function event(id,r){
-    var e=io.event(id,r.reason||r.state,r.warning);
+function event(id,r,out){
+    var state=r.reason||r.state;
+    // Normal zone ON/OFF confirmation while an already-ready path keeps the pump commanded ON
+    // is technical handshake, not an operator event.
+    if((state==='PENDING_ON_READBACK'||state==='PENDING_OFF_READBACK')&&out&&out.pump===true){
+        io.trace(id,state,r.warning||'','готовый путь сохранён; команда_насосу=ВКЛ');
+        return;
+    }
+    var e=io.event(id,state,r.warning);
     if(e)sc('last_event',String(id)+': '+R.stateText(e.state)+(e.warning?' · '+String(e.warning).slice(0,80):''));
+}
+function sourceEvent(r,now){
+    if(r.state==='REQUESTS_UNAVAILABLE'){
+        if(sourceUnavailableSince===null)sourceUnavailableSince=now;
+        io.trace('source',r.state,r.warning,'краткая недоступность запросов');
+        if(!sourceUnavailableLogged&&now-sourceUnavailableSince>=C.requestTtlMs){
+            sourceUnavailableLogged=true;
+            event('source',r);
+        }
+        return;
+    }
+    sourceUnavailableSince=null;
+    if(sourceUnavailableLogged){
+        sourceUnavailableLogged=false;
+        event('source',r);
+        return;
+    }
+    // Ordinary ACTIVE/NO_DEMAND changes still use normal deduplicated operator events.
+    event('source',r);
 }
 function onOff(value){
     if(value===true||value===1)return 'ВКЛ';
@@ -262,7 +289,7 @@ function evaluateOnce(){
         // Ordinary mixing steps are bounded to 4 points, so >=8 merits a trace.
         if(c.kind==='mixed'){
             if(valveHistory[id]!==undefined&&valveHistory[id]-r.valve>=8)
-                io.event(id+'_valve_transition','VALVE_COMMAND_DROP','',
+                io.trace(id+'_valve_transition','VALVE_COMMAND_DROP','',
                     'расчёт_было_проц='+valveHistory[id]+'; расчёт_стало_проц='+r.valve+
                     '; основание='+R.stateText(r.reason)+'; код_основания='+r.reason+
                     '; состояние_выхода='+R.stateText(out.state));
@@ -276,7 +303,8 @@ function evaluateOnce(){
         var previous=lastReports[id],prior=previous?previous.output:null;
         if(!prior||prior.state!==out.state||prior.ready!==out.ready||prior.pump!==out.pump||
            prior.closed_readback_match!==out.closed_readback_match){
-            io.event(id+'_output','OUTPUT_TRANSITION','',
+            // Full output handshake belongs to machine trace, not the operator journal.
+            io.trace(id+'_output','OUTPUT_TRANSITION','',
                 'состояние='+R.stateText(out.state)+'; решение='+R.stateText(r.reason)+
                 '; расчёт_клапана_проц='+r.valve+'; команда_насосу='+onOff(out.pump)+
                 '; записи='+commands.filter(function(w){return w.attempted;}).map(function(w){
@@ -286,12 +314,22 @@ function evaluateOnce(){
                 '; readback_Switch='+readbackText(out.readback&&out.readback.enable)+
                 '; readback_насоса='+readbackText(out.readback&&out.readback.pump)+
                 '; сохранённый_Level='+logValue(out.saved_level)+
-                '; готовность='+(out.ready?'Подтверждена':'Не подтверждена')+
-                '; положение_штока=Не измеряется; вращение_насоса=Не измеряется; расход=Не измеряется');
+                '; готовность='+(out.ready?'Подтверждена':'Не подтверждена'));
+        }
+        if(!prior||prior.pump!==out.pump){
+            io.event(id+'_pump_command',out.pump?'PUMP_COMMAND_ON':'PUMP_COMMAND_OFF','',
+                'канал='+c.pump+'; значение='+onOff(out.pump)+'; причина='+R.stateText(r.reason));
+        }
+        if(c.kind==='mixed'){
+            var enableWrite=commands.filter(function(w){return w.attempted&&w.path===c.enable;}).slice(-1)[0];
+            if(enableWrite){
+                io.event(id+'_hot_port_command',enableWrite.value?'HOT_PORT_COMMAND_ON':'HOT_PORT_COMMAND_OFF','',
+                    'канал='+c.enable+'; значение='+onOff(enableWrite.value)+'; причина='+R.stateText(r.reason));
+            }
         }
         sc('diag_request_'+id,diagnosticCircuitRequest(id,reports[id]));
         sc('circuit_'+id,operatorCircuit(id,r,out));
-        event(id,r);
+        event(id,r,out);
     });
     var selected=R.select(requests,now),source=sourceStep(selected.temperature,operation.inService===true&&io.compatible(),now,selected.demandKnown);
     if(operation.inService===true&&!io.compatible()){source.state='RUNTIME_UNSUPPORTED';source.warning=W.RUNTIME_ERROR_RU;}
@@ -306,7 +344,7 @@ function evaluateOnce(){
     sc('diag_request_boiler',diagnosticBoilerRequest(source));
     sc('source_status',source.state+(source.warning?' · '+source.warning.slice(0,80):''));
     sc('runtime_status',io.runtime()+' · дом '+linkState(hl)+' · беседка '+linkState(gl));
-    event('source',source);
+    sourceEvent(source,now);
 }
 defineRule('hhm3_first_start',{whenChanged:VD+'/start_heating',then:function(value){
     if(value!==true&&value!==1&&value!=='1')return;
