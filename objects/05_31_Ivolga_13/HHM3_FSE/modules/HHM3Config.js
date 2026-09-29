@@ -321,9 +321,9 @@ exports.config={
     source:{temperature:'wb-m1w2_170/External Sensor 1',setpoint:'wbe2-i-opentherm_11/Heating Setpoint',
         connection:'wbe2-i-opentherm_11/Invalid Connection',fault:'wbe2-i-opentherm_11/Boiler fault indication',
         minC:30,maxC:60,hardMaxC:75,recoverC:70,coolMs:120000,responseMs:900000,
-        // unconfirmed: request remains 0, NO physical substitute setpoint.
-        // After supervised PNR: setpoint_zero OR ch_enable (heating only, never DHW).
-        noDemandMode:'unconfirmed',chEnable:'wbe2-i-opentherm_11/Master CH enable'},
+        // Field capture 29.09.2026 / #40: 0 = «Ожидание», 1 = «Зима ЦО+ГВС».
+        // This is the source ON/OFF contract; DHW controls are not written by HHM.
+        boilerMode:'wbe2-i-opentherm_11/Current Boiler Mode',standbyMode:0,heatingMode:1},
     circuits:{
         '501':mixed('501',1,'wb-m1w2_141/External Sensor 1','wb-m1w2_141/External Sensor 2',
             {normalSupplyC:30,maxSupplyC:38,autonomousSupplyC:28,supplyCloseC:42,supplyStopC:45,supplyImmediateStopC:48,
