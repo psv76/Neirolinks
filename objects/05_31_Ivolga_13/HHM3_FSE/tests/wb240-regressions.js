@@ -80,7 +80,9 @@ module.exports=function(test,create,epoch){
   const restarted=create({apiVersion:'2.40.0',stores:h.stores,values:h.values});restarted.advance(10000);
   assert.deepEqual(JSON.parse(JSON.stringify(restarted.stores.hhm3_thermostats)),saved);
   assert.equal(h.Z.filter(z=>z.id!=='505').length,18);
-  assert.equal(restarted.C.source.noDemandMode,'unconfirmed');assert.equal(restarted.C.circuits['504'].floorOnlyMaxPct,50);
+  assert.equal(restarted.C.source.boilerMode,'wbe2-i-opentherm_11/Current Boiler Mode');
+   assert.equal(restarted.C.source.standbyMode,0);assert.equal(restarted.C.source.heatingMode,1);
+   assert.equal(restarted.C.circuits['504'].floorOnlyMaxPct,50);
   assert.equal(restarted.physical().length,0,'no writes before commissioning');
  });
 };
