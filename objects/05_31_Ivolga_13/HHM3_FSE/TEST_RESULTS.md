@@ -1,6 +1,10 @@
-# HHM 3.4 — результаты проверки PR #83
+# HHM 3.5 — результаты проверки PR #83
 
-Область: сохранённые regression HHM3 + изменения #81/#69/#94 и интеграция source contract из #40 / draft PR #97. Offline simulation/source review; live deploy этой редакцией не выполнялся. Версия 3.4, контракт m1w2-health-v1.
+Область: сохранённые regression HHM3 + изменения #81/#69/#94 и интеграция source contract из #40 / draft PR #97. Offline simulation/source review; live deploy этой редакцией не выполнялся. Версия 3.5, контракт m1w2-health-v1.
+
+## Operator journal — live 3.4 → regression 3.5
+
+Live export после установки 3.4 подтвердил корректный source sequence, но выявил четыре дефекта представления: duplicate boiler-mode command до readback, два поля `причина=` в output commands, `WARNING/NORMAL` для штатного прогрева источника и generic timer wording. В 3.5 добавлены regressions на каждый из этих пунктов. Изменения не меняют алгоритм отопления или ownership outputs.
 
 ## Source / NO_DEMAND — field contract 29.09.2026
 
