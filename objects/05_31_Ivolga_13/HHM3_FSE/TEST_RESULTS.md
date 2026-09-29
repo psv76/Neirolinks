@@ -8,7 +8,7 @@
 - 502: существующий полный postrun/handoff suite сохранён.
 - 504: 120 с закреплены явно в объектном hydraulicTiming.
 - 505: regression фиксирует отсутствие выбега до отдельного решения.
-- Heating Setpoint: regression запрещает duplicate operator event при 30-секундном reassert и после restart; подтверждённый Standby→Winter заново разрешает одно setpoint event.
+- Heating Setpoint: regression запрещает duplicate operator event при 30-секундном reassert; после restart прежнее значение допускается только вслед за новым подтверждённым Standby→Winter session.
 
 ## Operator journal — live 3.4 → regression 3.5
 
