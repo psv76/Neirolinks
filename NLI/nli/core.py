@@ -485,7 +485,7 @@ class Engine:
             original_pending = self.pending()
             try:
                 self.registration(component)
-                require(not self.target(STATE_DIR + '/self-update.json').exists(), 'Interrupted package update: nli self-update')
+                require(not self.target(STATE_DIR + '/self-update.json').exists(), 'Interrupted package update: nst self-update')
                 require(not original_pending or (command == "rollback" and original_pending["component"] == component),
                         "Recovery required before new mutation")
                 current = self.recorded(component) if original_pending else self.current(component)
