@@ -1,9 +1,9 @@
 {
-  "release": "HHM 3.5",
+  "release": "HHM 3.6",
   "object": "05_31_Ivolga_13",
   "issue": 81,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "b9f310c9f04d3c911cafdf00feb8359fa5613a3726c19a17d4fa41b72c6b8da1",
+  "aggregate_sha256": "0f6dabc213e1d81181f0e9c22d85c599fa85a0cbd6a43fb44713699b89a1f93e",
   "files": [
     {
       "file": "FIELD_STARTUP_2026-09-25.md",
@@ -12,7 +12,7 @@
     },
     {
       "file": "INSTALL.md",
-      "sha256": "a6ad3a1c97671b2b9b0c4cc95d602ba8e96b4e5c1ec52838379c0b88269a75f5",
+      "sha256": "0648d2e3d639388c0e34a44b71ebbc4825d724994e065949aeaf22519864cb2a",
       "role": "documentation"
     },
     {
@@ -37,7 +37,7 @@
     },
     {
       "file": "README.md",
-      "sha256": "b1d4d23eff5d3a61d9e19aaf60971b2a257cc2ea98f07c1d0bd399868da99484",
+      "sha256": "0888e0b334b7f506675d5e20a2547d8b317142126f950c1381957306f5c9c498",
       "role": "documentation"
     },
     {
@@ -61,18 +61,23 @@
       "role": "documentation"
     },
     {
+      "file": "RELEASE_3_6.md",
+      "sha256": "7cf01004b34c781f7c826672908db4f8733876dac82c3eb3d646b7e2c44b98a8",
+      "role": "documentation"
+    },
+    {
       "file": "SENSOR_HEALTH.md",
       "sha256": "c31313994afa4cf0930c4c5ddae434f2c618c9d2c95d1f56905ce7374dbb98d8",
       "role": "documentation"
     },
     {
       "file": "TEST_RESULTS.md",
-      "sha256": "46ab7007b3049434b4877008e141b5bff39ce36af19bcad37ece8038d1602a5b",
+      "sha256": "397ef72c2d9f1b17679bb5b10cc346afed316ef918d147ab2bea5a077e768d7e",
       "role": "documentation"
     },
     {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
-      "sha256": "b2f6450eae2c1edb7fc225b04a3693ea3283818be86423d8e06f89b791a38ffd",
+      "sha256": "149929fc491c67163780f668199f6d625d202e26c8df156c230c56b51a127a08",
       "boards": [
         "boiler"
       ],
@@ -128,7 +133,7 @@
     },
     {
       "file": "modules/HHM3Config.js",
-      "sha256": "0ae548cef5985594898224625fe3596b553783205f6c87a86f726f9106b94377",
+      "sha256": "586529204cb2e9e3b46b0de9b64afc5a3d367cdb8c34c02f53a32b361e3ca592",
       "boards": [
         "boiler",
         "gazebo"
@@ -201,7 +206,7 @@
     },
     {
       "file": "tests/logging-regressions.js",
-      "sha256": "ebab4bd0f7bb6cfe86b8c269a5d0b109fc80a6112f623fc7c071856f9e4e2d19",
+      "sha256": "b3780a7780f6df754c8b6dad9993d14979eabb79a972eca459f618f59a9c3d8e",
       "role": "test"
     },
     {
@@ -231,7 +236,7 @@
     },
     {
       "file": "tests/postrun-regressions.js",
-      "sha256": "a6d8fd8eb5128c8a255f8f0616c84a45fc251448aa0cbc84f4085dd90d3ed2f7",
+      "sha256": "f28b2e348a1b6f4e1096cf15001f4b6251ce0689bd92e57b97043d119ef5594b",
       "role": "test"
     },
     {
@@ -241,7 +246,7 @@
     },
     {
       "file": "tests/run.js",
-      "sha256": "732941adf064560c7ff4a8729f1ec8fa8f61932e575f823ed32085dcb9c9404e",
+      "sha256": "34c737f14ccca9a9f129286449cd939a994e3b31218841531c1e3479a4c183b9",
       "role": "test"
     },
     {
@@ -256,7 +261,7 @@
     },
     {
       "file": "tests/timing-config-regressions.js",
-      "sha256": "9102de46cc7e945ea74f4afbe44641acf62ddf35f0647a782a477e4f228d2147",
+      "sha256": "fcd06facaaef1be7aea6a608525f7714251b2e305d848c6e97a2e09df7f89d0b",
       "role": "test"
     },
     {
