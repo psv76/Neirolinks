@@ -131,7 +131,13 @@ class DeploymentTests(unittest.TestCase):
         duplicate = copy.deepcopy(approvals["components"][1])
         duplicate["approval"]["tag"] = "nli-approved-demo-1.1-other"
         approvals["components"].append(duplicate)
-        with self.assertRaisesRegex(Error, "Conflicting duplicate"):
+        with self.assertRaisesRegex(Error, "Duplicate approved component version"):
+            self.build(approvals)
+
+    def test_malformed_approval_entry_blocks_publication(self):
+        approvals = copy.deepcopy(self.approvals)
+        del approvals["components"][0]["manifest"]["sha256"]
+        with self.assertRaisesRegex(Error, "Invalid approved manifest reference"):
             self.build(approvals)
 
     def test_manifest_checksum_mismatch_blocks_publication(self):
