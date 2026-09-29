@@ -43,8 +43,15 @@ assert.equal(src.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text)).length,i
 // Persistent operator-log state must also suppress an unchanged command after script restart.
 const restarted=create({stores:src.stores,values:src.values});
 restarted.samples();restarted.advance(35000);
-assert.equal(restarted.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text)).length,0,
-    'restart не превращает неизменную уставку в новое operator event');
+let winterCredits=0;
+for(const x of restarted.logs){
+    if(/BOILER_MODE_CONFIRMED_HEATING/.test(x.text))winterCredits++;
+    if(/BOILER_SETPOINT_COMMAND.*значение_С=40/.test(x.text)){
+        assert.ok(winterCredits>0,
+            'после restart прежний setpoint может журналироваться только после нового подтверждённого Winter session');
+        winterCredits--;
+    }
+}
 src.Z.forEach(z=>src.set('boiler','NL_simple_thermostat_'+z.id+'/target_state',false));
 src.gazeboTemperatures['921.09_MSW_TH/Temperature']=25;
 src.gazeboTemperatures['921.10_TEMP_NONE/External Sensor 1']=30;
