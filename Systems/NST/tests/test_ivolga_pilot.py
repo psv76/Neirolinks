@@ -13,7 +13,7 @@ from nli.controller import ControllerRegistry
 
 class IvolgaPilotTests(unittest.TestCase):
     def setUp(self):
-        self.profile_path = REPO / "objects/05_31_Ivolga_13/controllers/ABF62SL.json"
+        self.profile_path = REPO / "Objects/05_31_Ivolga_13/controllers/ABF62SL.json"
         self.profile = json.loads(self.profile_path.read_text(encoding="utf-8"))
         self.registry = json.loads((ROOT / "generated/controller-registry.json").read_text(encoding="utf-8"))
 

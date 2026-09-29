@@ -37,7 +37,7 @@ def entry(state="active", serial="ABF62SL", node="boiler", role="boiler", finger
         "state": state,
         "capabilities": ["hhm", "pressure_makeup"],
         "diagnostics_profile": "NLI/diagnostics/controller-default-v1.json",
-        "profile": "objects/05_31_Ivolga_13/controllers/" + serial + ".json",
+        "profile": "Objects/05_31_Ivolga_13/controllers/" + serial + ".json",
     }
     if fingerprint is not None:
         value["fingerprint_sha256"] = fingerprint
