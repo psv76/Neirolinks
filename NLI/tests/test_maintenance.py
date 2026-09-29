@@ -135,7 +135,7 @@ class SelfUpdateTests(fixtures.Fixture):
             r = SelfUpdate(self.engine).execute()
         self.assertEqual(r['final_status'], 'partial_failure', r)
         self.assertTrue(self.engine.target(STATE_DIR + '/self-update.json').exists())
-        self.assertFalse(list(self.engine.state_dir.glob('nli-package-*')))
+        self.assertFalse(list(self.engine.state_dir.glob('nst-package-*')))
         self.assertEqual(self.engine.mutate('update', self.component)['final_status'], 'failed')
         self.assertEqual(SelfUpdate(self.engine).execute()['final_status'], 'ok')
 
