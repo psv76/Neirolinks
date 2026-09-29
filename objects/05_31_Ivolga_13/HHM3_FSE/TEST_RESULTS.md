@@ -1,6 +1,12 @@
-# HHM 3.1 — результаты проверки PR #73
+# HHM 3.4 — результаты проверки PR #83
 
-Область: Issue #68 cold-start и сохранение fix #75 c35ddbd; база df484b8 после NLI #74/#79. Только offline simulation/source review. Версия 3.1, контракт m1w2-health-v1.
+Область: сохранённые regression HHM3 + изменения #81/#69/#94 и интеграция source contract из #40 / draft PR #97. Offline simulation/source review; live deploy этой редакцией не выполнялся. Версия 3.4, контракт m1w2-health-v1.
+
+## Source / NO_DEMAND — field contract 29.09.2026
+
+Для Иволги принят подтверждённый control `wbe2-i-opentherm_11/Current Boiler Mode`: `0` = «Ожидание», `1` = «Зима ЦО + ГВС». Regression проверяет известный NO_DEMAND → mode 0, новый demand → mode 1 перед Heating Setpoint, отсутствие OFF при неизвестном demand и отсутствие DHW writes.
+
+Logging regression отдельно проверяет operator events команды и readback для обоих режимов. Нормальное переключение режима является INFO, а не WARNING.
 
 ## HHM regression suite
 
