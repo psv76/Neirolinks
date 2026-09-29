@@ -8,5 +8,11 @@
     "hhm",
     "pressure_makeup"
   ],
+  "components": {
+    "hhm": {
+      "track": "stable"
+    }
+  },
+  "object_files": [],
   "diagnostics_profile": "NLI/diagnostics/controller-default-v1.json"
 }
