@@ -197,7 +197,7 @@ function evaluate(){
 function evaluateOnce(){
     io.begin();
     var now=Date.now(),hl=house.read(now),gl=gazebo.read(now),requests={},reports={},faultCount=0;
-    if(lastNow!==null&&(now<lastNow||now-lastNow>C.periodMs*3)){directCool={};openSince={};directPostrun={};lastReports={};}
+    if(lastNow!==null&&(now<lastNow||now-lastNow>C.periodMs*3)){directCool={};openSince={};directPostrun={};lastReports={};sourceJournal={signature:null,since:null,emitted:null};}
     lastNow=now;
     Z.forEach(function(z){z.outputs.forEach(function(p){
         if(io.read(p)===1){if(openSince[p]===undefined)openSince[p]=now;}else delete openSince[p];
