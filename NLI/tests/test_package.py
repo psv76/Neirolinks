@@ -78,6 +78,11 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(members["debian-binary"], b"2.0\n")
             with tarfile.open(fileobj=io.BytesIO(members["control.tar.gz"]), mode="r:gz") as tar:
                 self.assertEqual(set(tar.getnames()), {"./control"})
+                control = tar.extractfile("./control").read().decode()
+                self.assertIn("Package: neiro-nst\n", control)
+                self.assertIn("Version: 1.0.0\n", control)
+                self.assertIn("Conflicts: neiro-nli (<= 0.1.9)\n", control)
+                self.assertIn("Replaces: neiro-nli (<= 0.1.9)\n", control)
             with tarfile.open(fileobj=io.BytesIO(members["data.tar.gz"]), mode="r:gz") as tar:
                 for item in tar.getmembers():
                     for parent in PurePosixPath(item.name).parents:
