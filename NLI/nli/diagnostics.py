@@ -135,6 +135,23 @@ class Diagnostics:
         }
 
     def profile(self, component):
+        if component is None:
+            return {
+                "schema": 1,
+                "name": "NST common diagnostics",
+                "component": "all",
+                "semantics": {
+                    "command": "Command/requested value is not proof of physical execution.",
+                    "readback": "Electrical/controller readback is not proof of physical process.",
+                    "physical_result": "Physical result requires a dedicated measured channel.",
+                },
+                "journals": ["wb-rules"],
+                "current_controls": [],
+                "history_channels": [],
+                "config_files": [],
+                "source_files": [],
+                "max_history_records": 1,
+            }
         require(component in self.profiles, "No diagnostics profile for component: " + str(component))
         source = self.profiles[component]
         if isinstance(source, dict):
@@ -190,8 +207,7 @@ class Diagnostics:
         (root / "checksums.sha256").write_text("\n".join(rows) + "\n", encoding="ascii")
 
     def collect(self, component=None, since=None):
-        require(component is not None, "Component diagnostics profile required; use e.g. 'diagnostics collect hhm'")
-        profile = self.profile(component)
+        profile = validate_profile(self.profile(component))
         end = utc_now()
         start = parse_since(since, end)
         bundle_id = end.strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
@@ -222,7 +238,13 @@ class Diagnostics:
             self._write_json(root, "nst/platform.json", platform)
 
             inventory = []
-            for logical in profile["source_files"]:
+            managed = set(profile["source_files"])
+            for state in (status.get("components") or {}).values():
+                manifest = (state or {}).get("manifest") or {}
+                for item in manifest.get("files", []):
+                    if isinstance(item, dict) and isinstance(item.get("target"), str):
+                        managed.add(item["target"])
+            for logical in sorted(managed):
                 self._copy_file(root, logical, "sources", inventory)
             for logical in profile["config_files"]:
                 self._copy_file(root, logical, "config", inventory)
@@ -249,16 +271,25 @@ class Diagnostics:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(content, encoding="utf-8")
 
-            try:
-                history = self.engine.system.history(profile["history_channels"], iso(start), iso(end),
-                                                     profile["max_history_records"])
-                history_path = root / "history" / "mqtt.csv"
-                history_path.parent.mkdir(parents=True, exist_ok=True)
-                history_path.write_text(history, encoding="utf-8")
-            except (Error, OSError, ValueError) as exc:
-                metadata["warnings"].append("mqtt history: " + str(exc))
-                self._write_json(root, "history/unavailable.json", {"error": str(exc)})
+            if profile["history_channels"]:
+                try:
+                    history = self.engine.system.history(profile["history_channels"], iso(start), iso(end),
+                                                         profile["max_history_records"])
+                    history_path = root / "history" / "mqtt.csv"
+                    history_path.parent.mkdir(parents=True, exist_ok=True)
+                    history_path.write_text(history, encoding="utf-8")
+                except (Error, OSError, ValueError) as exc:
+                    metadata["warnings"].append("mqtt history: " + str(exc))
+                    self._write_json(root, "history/unavailable.json", {"error": str(exc)})
 
+            system_info = {"status": "unavailable"}
+            fn = getattr(self.engine.system, "diagnostic_info", None)
+            if fn:
+                try:
+                    system_info = fn()
+                except (Error, OSError, ValueError) as exc:
+                    metadata["warnings"].append("system info: " + str(exc))
+            self._write_json(root, "system.json", system_info)
             self._audit(root, start, end)
             # Rewrite metadata after optional-source warnings are known.
             self._write_json(root, "meta.json", metadata)
