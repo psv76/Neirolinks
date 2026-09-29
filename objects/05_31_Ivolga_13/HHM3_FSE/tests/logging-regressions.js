@@ -25,8 +25,7 @@ assert.equal(directTrace.length,1,'одинаковый trace подавляет
 assert.match(JSON.parse(directTrace[0][1]).detail,/readback_Level=10/);
 
 io.event('502','CLOSURE_UNCERTAIN','текст\n[подмена]; значение=1');
-assert.doesNotMatch(logs[2],[/\r/,/\n/][0]);
-assert.doesNotMatch(logs[2],/\n/);
+assert.doesNotMatch(logs[2],/[\r\n]/);
 assert.match(logs[2],/ОШИБКА=Закрытие смесителя не подтверждено/);
 
 const broken=R.io({dev:{},now:()=>1,trackMqtt:()=>{},publish:()=>{throw Error('MQTT');},
@@ -63,6 +62,8 @@ const h2=create({dropReadback:p=>{
     if(!dropped&&p==='A05/Channel 2 Dimming Level'){dropped=true;return true;}
     return false;
 }});
+h2.gazeboTemperatures['921.09_MSW_TH/Temperature']=30;
+h2.gazeboTemperatures['921.10_TEMP_NONE/External Sensor 1']=35;
 h2.samples();h2.start();h2.set('boiler','NL_simple_thermostat_606/target_state',true);h2.advance(220000);
 const sourceNoise=h2.logs.filter(x=>/\[source\]/.test(x.text)&&/REQUESTS_UNAVAILABLE/.test(x.text));
 assert.equal(sourceNoise.length,0,'краткий output handshake не шумит source warning');
