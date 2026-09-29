@@ -74,7 +74,7 @@ def build(output, epoch=0):
                  (ROOT / "tools/register_pressure_makeup.py").read_bytes().replace(b"\r\n", b"\n"), 0o644))
     data.append(('usr/share/neiro-nst/RELEASES.md', (ROOT / 'RELEASES.md').read_bytes().replace(b'\r\n', b'\n'), 0o644))
     data.append(('usr/share/neiro-nst/DEPLOYMENT.md', (ROOT / 'DEPLOYMENT.md').read_bytes().replace(b'\r\n', b'\n'), 0o644))
-    for name in ("README.md", "SECURITY.md", "FIRMWARE.md", "TEST_RESULTS.md"):
+    for name in ("README.md", "NST_MIGRATION.md", "SECURITY.md", "FIRMWARE.md", "TEST_RESULTS.md"):
         data.append(("usr/share/doc/neiro-nst/" + name, (ROOT / name).read_bytes().replace(b"\r\n", b"\n"), 0o644))
     content = bytearray(b"!<arch>\n")
     for name, value in [("debian-binary", b"2.0\n"), ("control.tar.gz", archive(control, epoch)),
