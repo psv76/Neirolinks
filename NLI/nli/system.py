@@ -32,6 +32,34 @@ class System:
         except Error:
             return "inactive"
 
+    def diagnostic_info(self):
+        os_release = {}
+        try:
+            for line in Path("/etc/os-release").read_text(encoding="utf-8").splitlines():
+                if "=" in line:
+                    key, value = line.split("=", 1)
+                    if key in ("ID", "VERSION_ID", "PRETTY_NAME"):
+                        os_release[key] = value.strip().strip('"')
+        except OSError:
+            pass
+        uptime = None
+        try:
+            uptime = float(Path("/proc/uptime").read_text(encoding="ascii").split()[0])
+        except (OSError, ValueError, IndexError):
+            pass
+        packages = {}
+        for package in ("neiro-nst", "neiro-nli", "wb-rules", "wb-mqtt-db", "wb-mqtt-serial"):
+            try:
+                packages[package] = self.run(["/usr/bin/dpkg-query", "-W", "-f=${Version}", package])
+            except Error:
+                packages[package] = None
+        return {
+            "os": os_release,
+            "uptime_seconds": uptime,
+            "packages": packages,
+            "resources": self.resources(),
+        }
+
     def resources(self):
         usage = shutil.disk_usage("/mnt/data" if Path("/mnt/data").exists() else "/")
         mem = {}
