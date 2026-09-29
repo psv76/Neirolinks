@@ -6,9 +6,12 @@ var W=require('HHM3Wire'),R=require('HHM3Runtime'),Policy=require('HHM3Circuit')
 var Outputs=require('HHM3Outputs'),outputSteps={},evaluating=false;
 var operation=new PersistentStorage('hhm3_operation',{global:true});
 var userSettings=new PersistentStorage('hhm3_thermostats',{global:true});
+var operatorLogState=new PersistentStorage('hhm3_operator_log',{global:true});
 var VD='HHM3_FSE',initialized=false,engines={},thermal={},directCool={},lastNow=null,openSince={},valveHistory={},lastReports={},lastSource={};
 var sourceUnavailableSince=null,sourceUnavailableLogged=false;
-var pendingBoilerMode=null,lastObservedBoilerMode=null,lastLoggedSetpoint=null;
+var pendingBoilerMode=null,lastObservedBoilerMode=null;
+var lastLoggedSetpoint=typeof operatorLogState.lastSetpoint==='number'&&isFinite(operatorLogState.lastSetpoint)?
+    operatorLogState.lastSetpoint:null;
 var allowed=[C.source.setpoint,C.source.boilerMode];
 Object.keys(C.circuits).forEach(function(id){var c=C.circuits[id];allowed.push(c.pump);if(c.kind==='mixed')allowed.push(c.level,c.enable);});
 var io=R.io({proofStorage:new PersistentStorage('hhm31_poll_500',{global:true}),dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log,
@@ -162,6 +165,7 @@ function sourceModeEvents(r){
             io.event('source_setpoint','BOILER_SETPOINT_COMMAND','',
                 'канал='+C.source.setpoint+'; значение_С='+String(w.value),'Есть запрос тепла');
             lastLoggedSetpoint=w.value;
+            operatorLogState.lastSetpoint=w.value;
         }
     }
 }
@@ -259,7 +263,7 @@ function direct(id,c,g,now){
     var demand=!!(g&&g.demand&&g.ready&&!s.hot),pump=demand,remaining=null;
     if(demand)delete directPostrun[id];
     else if(s.hot||!g||g.output_blocked||(g.degraded&&g.transition_safe!==true))delete directPostrun[id];
-    else if(c.zoneActuatorOpenMs>0&&c.pumpPostrunMs>0){
+    else if(c.pumpPostrunMs>0){
         if(directPostrun[id]===undefined&&lastReports[id]&&lastReports[id].pump_command===true)
             directPostrun[id]=now;
         if(directPostrun[id]!==undefined&&now-directPostrun[id]<c.pumpPostrunMs){

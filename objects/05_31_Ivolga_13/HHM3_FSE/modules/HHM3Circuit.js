@@ -123,8 +123,12 @@ exports.create=function(c,storage,Mixing){
                     if(!modeChanged)newMixer(); // once on demand loss, not every idle tick
                 }
                 responseAt=null;
-                var idle=result('NO_DEMAND',now-idleAt<c.postrunMs,false,0,0);
-                if(idle.pump)idle.stopRemainingMs=c.postrunMs-(now-idleAt);
+                var postrunActive=now-idleAt<c.postrunMs;
+                var idle=result(postrunActive?'PUMP_POSTRUN':'NO_DEMAND',postrunActive,false,0,0);
+                if(postrunActive){
+                    idle.valid=true;
+                    idle.stopRemainingMs=c.postrunMs-(now-idleAt);
+                }
                 return idle;
             }
             idleAt=null;

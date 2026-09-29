@@ -41,9 +41,9 @@ test('legacy HHM3 retained-only JSON controls are recreated and removed through 
 });
 test('WebUI omits raw JSON and keeps short operator controls without claiming physical proof',()=>{
     const h=create(),cells=h.definitions.HHM3_FSE.cells;
-    assert.equal(h.C.version,'3.5');assert.equal(h.C.healthContract,'m1w2-health-v1');
-    assert.equal(h.values.boiler['HHM3_FSE/runtime_version'],'3.5');
-    assert.equal(h.values.gazebo['NL_combo_thermostat_504/runtime_version'],'3.5');
+    assert.equal(h.C.version,'3.6');assert.equal(h.C.healthContract,'m1w2-health-v1');
+    assert.equal(h.values.boiler['HHM3_FSE/runtime_version'],'3.6');
+    assert.equal(h.values.gazebo['NL_combo_thermostat_504/runtime_version'],'3.6');
     for(const id of ['circuits_json','source_json','last_event_json'])assert.equal(cells[id],undefined,id);
     for(const id of ['501','502','503','504','505'])assert.equal(cells['circuit_'+id].type,'text');
     for(const id of ['501','502','503','504','505'])assert.equal(cells['diag_request_'+id].hidden,true,'diag_request_'+id);
@@ -89,12 +89,16 @@ test('simultaneous 501-505: pumps, paths, MAO4 target readbacks, arbiter MAX and
         assert.ok(r[id].valve_pct>0,id);
     }
 });
-test('505 no actuator delay, hysteresis 1 C, explicit OFF persists; no other pump changes',()=>{
+test('505 no actuator delay, hysteresis 1 C, explicit OFF gives 120 s postrun and persists',()=>{
     const h=running();const p='NL_simple_thermostat_505/';
-    h.temperatures['901.01_MSW_TH/Temperature']=20;h.advance(10000);assert.equal(h.values.boiler['A03/K5'],false);
+    h.temperatures['901.01_MSW_TH/Temperature']=20;h.advance(130000);assert.equal(h.values.boiler['A03/K5'],false);
     h.temperatures['901.01_MSW_TH/Temperature']=19.5;h.advance(10000);assert.equal(h.values.boiler['A03/K5'],false);
     h.temperatures['901.01_MSW_TH/Temperature']=19;h.advance(10000);assert.equal(h.values.boiler['A03/K5'],true);
-    h.set('boiler',p+'target_state',false);h.advance(10000);assert.equal(h.values.boiler['A03/K5'],false);
+    h.set('boiler',p+'target_state',false);h.advance(5000);
+    assert.equal(h.values.boiler['A03/K5'],true);assert.equal(h.report()['505'].reason,'PUMP_POSTRUN');
+    assert.equal(h.report()['505'].stopRemainingMs,120000);
+    h.advance(115000);assert.equal(h.values.boiler['A03/K5'],true);
+    h.advance(5000);assert.equal(h.values.boiler['A03/K5'],false);
     assert.equal(h.report()['503'].demand,true);assert.equal(h.request(),45);
     const b=create({stores:h.stores,values:h.values});b.samples();b.advance(240000);
     assert.equal(b.values.boiler[p+'target_state'],false);assert.equal(b.values.boiler['A03/K5'],false);

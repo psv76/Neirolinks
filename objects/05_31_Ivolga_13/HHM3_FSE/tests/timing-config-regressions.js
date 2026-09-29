@@ -15,8 +15,8 @@ assert.deepEqual(C.timing({zoneDelayMs:180000,postrunMs:120000}),
 assert.equal(C.timing({zoneDelayMs:0,postrunMs:120000}).pumpPostrunMs,120000);
 assert.equal(c.zoneDelayMs,c.zoneActuatorOpenMs);
 assert.equal(c.postrunMs,c.pumpPostrunMs);
-assert.equal(C.config.circuits['501'].pumpPostrunMs,0);
-assert.equal(C.config.circuits['503'].pumpPostrunMs,0);
-assert.equal(C.config.circuits['504'].postrunMs,120000);
+for(const id of ['501','502','503','504','505'])
+ assert.equal(C.config.circuits[id].pumpPostrunMs,120000,id+' pump postrun');
+assert.equal(C.config.circuits['504'].zoneActuatorOpenMs,0);
 assert.equal(C.config.circuits['505'].zoneActuatorOpenMs,0);
-console.log('PASS объектные времена, недопустимые значения, миграция и соседние контуры');
+console.log('PASS объектные времена: все пять насосов имеют 120 с выбега; ограничения конфигурации сохранены');
