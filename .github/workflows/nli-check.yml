@@ -1,7 +1,7 @@
 name: NLI v0.1 WB compatibility
 on:
   push:
-    branches: ['codex/nli-v0.1', 'codex/issue-74-nli-0.1.8', 'issue-86-nst-controller-identity', 'issue-87-nst-deployment-manifest', 'issue-88-nst-migration', 'issue-89-nst-desired-state', 'issue-90-nst-diagnostics']
+    branches: ['codex/nli-v0.1', 'codex/issue-74-nli-0.1.8', 'issue-86-nst-controller-identity', 'issue-87-nst-deployment-manifest', 'issue-88-nst-migration', 'issue-89-nst-desired-state', 'issue-90-nst-diagnostics', 'issue-91-nst-cleanup']
     paths: ['NLI/**', 'objects/**/controllers/**', '.github/workflows/nli-check.yml']
   pull_request:
     paths: ['NLI/**', 'objects/**/controllers/**', '.github/workflows/nli-check.yml']
