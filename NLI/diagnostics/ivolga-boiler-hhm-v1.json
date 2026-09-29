@@ -1,0 +1,279 @@
+{
+  "schema": 1,
+  "name": "05 31 Иволга · Котельная · HHM diagnostics v1",
+  "component": "hhm",
+  "semantics": {
+    "command": "Command/requested value is an automation command, not proof of physical execution.",
+    "readback": "Controller/electrical readback is not proof of hydraulic flow, valve travel, pump rotation or heat transfer.",
+    "physical_result": "No independent hydraulic/thermal result is inferred unless a dedicated measured channel is present."
+  },
+  "journals": [
+    "wb-rules",
+    "wb-mqtt-db",
+    "wb-mqtt-serial"
+  ],
+  "current_controls": [
+    {
+      "path": "A03/K2",
+      "kind": "command"
+    },
+    {
+      "path": "A03/Real State K2",
+      "kind": "readback"
+    },
+    {
+      "path": "A05/Channel 2 Dimming Level",
+      "kind": "command"
+    },
+    {
+      "path": "A05/Channel 2 Switch",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-m1w2_167/External Sensor 1",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-m1w2_167/External Sensor 2",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-m1w2_170/External Sensor 1",
+      "kind": "measurement"
+    },
+    {
+      "path": "wbe2-i-opentherm_11/Heating Setpoint",
+      "kind": "command"
+    },
+    {
+      "path": "HHM3_FSE/diag_request_502",
+      "kind": "calculated"
+    },
+    {
+      "path": "HHM3_FSE/requested_source_temperature",
+      "kind": "calculated"
+    },
+    {
+      "path": "HHM3_FSE/requested_heating_setpoint",
+      "kind": "calculated"
+    },
+    {
+      "path": "HHM3_FSE/circuit_502",
+      "kind": "calculated"
+    },
+    {
+      "path": "HHM3_FSE/source_status",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_606/current_state",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_606/status",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_606/valid",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_606/temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "NL_simple_thermostat_607/current_state",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_607/status",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_607/valid",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_607/temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "NL_simple_thermostat_608/current_state",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_608/status",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_608/valid",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_608/temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "NL_simple_thermostat_609/current_state",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_609/status",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_609/valid",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_609/temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "NL_simple_thermostat_610/current_state",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_610/status",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_610/valid",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_610/temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "NL_simple_thermostat_611/current_state",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_611/status",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_611/valid",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_611/temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "NL_simple_thermostat_612/current_state",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_612/status",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_612/valid",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_612/temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "NL_simple_thermostat_613/current_state",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_613/status",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_613/valid",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_613/temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "NL_simple_thermostat_614/current_state",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_614/status",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_614/valid",
+      "kind": "calculated"
+    },
+    {
+      "path": "NL_simple_thermostat_614/temperature",
+      "kind": "measurement"
+    }
+  ],
+  "history_channels": [
+    "A03/K2",
+    "A03/Real State K2",
+    "A05/Channel 2 Dimming Level",
+    "A05/Channel 2 Switch",
+    "wb-m1w2_167/External Sensor 1",
+    "wb-m1w2_167/External Sensor 2",
+    "wb-m1w2_170/External Sensor 1",
+    "wbe2-i-opentherm_11/Heating Setpoint",
+    "wb-w1/28-0000108fbbe1",
+    "HHM3_FSE/diag_request_502",
+    "HHM3_FSE/requested_source_temperature",
+    "HHM3_FSE/requested_heating_setpoint",
+    "NL_simple_thermostat_606/current_state",
+    "NL_simple_thermostat_606/status",
+    "NL_simple_thermostat_606/valid",
+    "NL_simple_thermostat_606/temperature",
+    "NL_simple_thermostat_607/current_state",
+    "NL_simple_thermostat_607/status",
+    "NL_simple_thermostat_607/valid",
+    "NL_simple_thermostat_607/temperature",
+    "NL_simple_thermostat_608/current_state",
+    "NL_simple_thermostat_608/status",
+    "NL_simple_thermostat_608/valid",
+    "NL_simple_thermostat_608/temperature",
+    "NL_simple_thermostat_609/current_state",
+    "NL_simple_thermostat_609/status",
+    "NL_simple_thermostat_609/valid",
+    "NL_simple_thermostat_609/temperature",
+    "NL_simple_thermostat_610/current_state",
+    "NL_simple_thermostat_610/status",
+    "NL_simple_thermostat_610/valid",
+    "NL_simple_thermostat_610/temperature",
+    "NL_simple_thermostat_611/current_state",
+    "NL_simple_thermostat_611/status",
+    "NL_simple_thermostat_611/valid",
+    "NL_simple_thermostat_611/temperature",
+    "NL_simple_thermostat_612/current_state",
+    "NL_simple_thermostat_612/status",
+    "NL_simple_thermostat_612/valid",
+    "NL_simple_thermostat_612/temperature",
+    "NL_simple_thermostat_613/current_state",
+    "NL_simple_thermostat_613/status",
+    "NL_simple_thermostat_613/valid",
+    "NL_simple_thermostat_613/temperature",
+    "NL_simple_thermostat_614/current_state",
+    "NL_simple_thermostat_614/status",
+    "NL_simple_thermostat_614/valid",
+    "NL_simple_thermostat_614/temperature"
+  ],
+  "config_files": [
+    "/etc/wb-mqtt-db.conf",
+    "/etc/wb-mqtt-serial.conf"
+  ],
+  "source_files": [
+    "/etc/wb-rules/500_HHM3_FSE.js",
+    "/etc/wb-rules/600_Heat_diagnostics.js",
+    "/etc/wb-rules/620_thermostats.js",
+    "/etc/wb-rules-modules/HHM3Circuit.js",
+    "/etc/wb-rules-modules/HHM3Config.js",
+    "/etc/wb-rules-modules/HHM3Mixing.js",
+    "/etc/wb-rules-modules/HHM3Outputs.js",
+    "/etc/wb-rules-modules/HHM3Runtime.js",
+    "/etc/wb-rules-modules/HHM3Wire.js"
+  ],
+  "max_history_records": 20000
+}
