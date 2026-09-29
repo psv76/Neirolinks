@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "name": "Котельная",
+  "node": "boiler",
+  "role": "boiler",
+  "state": "active",
+  "capabilities": [
+    "hhm",
+    "pressure_makeup"
+  ],
+  "diagnostics_profile": "NLI/diagnostics/controller-default-v1.json"
+}
