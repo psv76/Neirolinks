@@ -68,7 +68,7 @@ assert.doesNotMatch(coldLogs.map(x=>x.text).join('\n'),/причина=,\s*/);
 // them for every house circuit with 180 s actuator qualification; exporter/UI
 // defects are investigated separately.
 for(const id of ['501','502','503']){
-    const timerLogs=h.logs.map(x=>x.text).filter(x=>x.includes('['+id+'_start_timer]')).join('\n');
+    const timerLogs=src.logs.map(x=>x.text).filter(x=>x.includes('['+id+'_start_timer]')).join('\n');
     assert.match(timerLogs,/TIMER_ZONE_OPEN_STARTED/,id+' start timer start event');
     assert.match(timerLogs,/TIMER_ZONE_OPEN_FINISHED/,id+' start timer finish event');
 }
