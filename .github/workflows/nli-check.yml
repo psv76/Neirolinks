@@ -37,6 +37,8 @@ jobs:
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/partial-ready-regressions.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/persistent-storage-regressions.js
           node objects/05_31_Ivolga_13/HHM3_FSE/tests/manifest.js --check
+      - name: Shell syntax
+        run: sh -n NLI/tests/wb_package_smoke.sh
       - name: Build Debian package
         run: |
           python -B NLI/tools/build_deb.py
