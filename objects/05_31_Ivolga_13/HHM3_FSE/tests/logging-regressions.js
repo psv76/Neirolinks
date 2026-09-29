@@ -34,6 +34,17 @@ assert.doesNotMatch(operatorText,/Автономия: HEAT/);
 const src=create();src.enableAll();src.samples();src.start();src.advance(300000);
 let sourceText=src.logs.map(x=>x.text).join('\n');
 assert.match(sourceText,/КОМАНДА=Установить уставку котла/);
+const initialSetpointEvents=src.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text)).length;
+assert.ok(initialSetpointEvents>=1);
+src.advance(35000);
+assert.equal(src.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text)).length,initialSetpointEvents,
+    '30-секундный технический reassert неизменной уставки не создаёт новое operator event');
+
+// Persistent operator-log state must also suppress an unchanged command after script restart.
+const restarted=create({stores:src.stores,values:src.values});
+restarted.samples();restarted.advance(35000);
+assert.equal(restarted.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text)).length,0,
+    'restart не превращает неизменную уставку в новое operator event');
 src.Z.forEach(z=>src.set('boiler','NL_simple_thermostat_'+z.id+'/target_state',false));
 src.gazeboTemperatures['921.09_MSW_TH/Temperature']=25;
 src.gazeboTemperatures['921.10_TEMP_NONE/External Sensor 1']=30;
@@ -45,6 +56,14 @@ src.set('boiler','NL_simple_thermostat_505/target_state',true);src.advance(15000
 sourceText=src.logs.map(x=>x.text).join('\n');
 assert.match(sourceText,/КОМАНДА=Перевести котёл в режим «Зима ЦО \+ ГВС».*причина=Появился запрос тепла/);
 assert.match(sourceText,/СОСТОЯНИЕ=Котёл переведён в режим «Зима ЦО \+ ГВС».*readback=1/);
+src.advance(10000);
+const winterSetpoints=src.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text));
+assert.ok(winterSetpoints.length>initialSetpointEvents,
+    'после подтверждённого Ожидание → Зима один setpoint event разрешён даже при прежнем значении');
+const afterWinter=src.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text)).length;
+src.advance(35000);
+assert.equal(src.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text)).length,afterWinter,
+    'последующий неизменный reassert в том же heating session подавлен');
 for(const x of src.logs.filter(x=>/BOILER_MODE_COMMAND|BOILER_MODE_CONFIRMED/.test(x.text)))assert.equal(x.level,'info');
 assert.equal(src.logs.filter(x=>/BOILER_MODE_COMMAND_HEATING/.test(x.text)).length,1,
     'operator journal содержит одну команду перехода в Зима ЦО + ГВС до readback');
@@ -64,4 +83,4 @@ assert.ok(coldLogs.every(x=>!(x.level==='warning'&&/код=NORMAL/.test(x.text))
     'не должно быть WARNING с кодом NORMAL для штатного прогрева');
 assert.doesNotMatch(coldLogs.map(x=>x.text).join('\n'),/причина=,\s*/);
 
-console.log('PASS HHM 3.5 operator journal: без duplicate mode command/cause, точные timers, source warming INFO');
+console.log('PASS HHM 3.6 operator journal: без duplicate mode command/cause, точные timers, source warming INFO');
