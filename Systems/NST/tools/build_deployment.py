@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-REPO_ROOT = ROOT.parent
+REPO_ROOT = ROOT.parents[1]
 sys.path.insert(0, str(ROOT))
 
 from nli.controller import validate_profile
@@ -17,7 +17,7 @@ from nli.manifest import validate as validate_component_manifest
 from nli.releases import REPO, version
 from nli.util import decode, digest, require, safe_relative
 
-APPROVALS_PATH = "NLI/deployment/approved-components.json"
+APPROVALS_PATH = "Systems/NST/deployment/approved-components.json"
 
 
 def git_blob(repo_root, commit, path):
