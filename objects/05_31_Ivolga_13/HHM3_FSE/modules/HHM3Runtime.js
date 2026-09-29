@@ -277,6 +277,12 @@ exports.stateText=function(code){
         HOUSE_LINK_LOST:'Нет достоверного запроса дома',FIRST_COMMISSIONING:'Ожидает первого ввода',
         RUNTIME_UNSUPPORTED:'Несовместимая среда управления',TIMER_STARTED:'Начало ожидания',TIMER_FINISHED:'Окончание ожидания',
         VALVE_COMMAND_DROP:'Расчётное открытие уменьшено',OUTPUT_TRANSITION:'Изменилось состояние выхода',
+        PUMP_COMMAND_CHANGED:'Изменена команда насосу',MIXER_CLOSE_COMMAND:'Отправлена команда закрыть горячий порт',
+        MIXER_CLOSE_CONFIRMED:'Выход смесителя подтверждён выключенным',
+        ACTIVE:'Источник обслуживает запрос',REQUESTS_UNAVAILABLE:'Запросы контуров временно недостоверны',
+        NO_DEMAND_ACTION_UNCONFIRMED:'Нет подтверждённого способа отключить отопление источника',
+        OT_UNAVAILABLE:'Связь OpenTherm недоступна',SOURCE_SENSOR_UNAVAILABLE:'Датчик источника недоступен',
+        SOURCE_OVERHEAT:'Перегрев источника',
         COMMAND_ACCEPTED:'Попытка записи без обнаруженной ошибки',NOT_SENT:'Команда не отправлялась',
         SETTINGS_INVALID:'Ошибка настроек',SENSOR_FALLBACK:'Резерв при недоступном датчике',FLOOR_HARD_MAX:'Перегрев пола'};
     return text[code]||'Состояние управления изменено';
