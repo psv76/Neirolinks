@@ -6,7 +6,7 @@
   "role": "boiler",
   "release": {
     "repository": "psv76/Neirolinks",
-    "commit": "ae29d0b70394c4389ae5d5792bddf104b40d3704"
+    "commit": "48408e6f1649ad17d0b3253f1b7cade258cd4fb3"
   },
   "files": [
     {
@@ -42,7 +42,7 @@
     {
       "source": "objects/05_31_Ivolga_13/HHM3_FSE/boiler/wb-rules/500_HHM3_FSE.js",
       "target": "/etc/wb-rules/500_HHM3_FSE.js",
-      "sha256": "a0dc2304d7acc6e4e58bd98ef19e40f1c882fe9dc3307492200283a2730b2e58"
+      "sha256": "b2f6450eae2c1edb7fc225b04a3693ea3283818be86423d8e06f89b791a38ffd"
     },
     {
       "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules/600_Heat_diagnostics.js",
