@@ -80,6 +80,22 @@ class System:
         device, control = path.split("/", 1)
         return self.mqtt("/devices/" + device + "/controls/" + control, timeout=timeout)
 
+    def journal_unit(self, unit, since, until):
+        require(unit in ("wb-rules", "wb-mqtt-db", "wb-mqtt-serial"), "Unsafe journal unit")
+        require(isinstance(since, str) and since and isinstance(until, str) and until,
+                "Explicit journal window required")
+        return self.run(["/usr/bin/journalctl", "-u", unit, "--since", since, "--until", until,
+                         "--no-pager", "-o", "short-iso"], timeout=45)
+
+    def history(self, channels, since, until, limit):
+        require(type(channels) is list and channels and all(isinstance(c, str) and "/" in c for c in channels),
+                "Invalid MQTT history channels")
+        require(type(limit) is int and 1 <= limit <= 100000, "Invalid MQTT history limit")
+        args = ["/usr/bin/wb-mqtt-db-cli", "-b", "tcp://127.0.0.1:1883",
+                "--from", since, "--to", until, "--limit", str(limit), "-a", "-d;"]
+        args.extend(channels)
+        return self.run(args, timeout=60)
+
     def journal(self, since=None):
         require(isinstance(since, str) and bool(since), "Explicit journal observation boundary required")
         return self.run(["/usr/bin/journalctl", "-u", "wb-rules", "--since", since,
