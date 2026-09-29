@@ -269,7 +269,14 @@ class Engine:
                 require(m['release']['repository'] == REPO, 'Release source must be ' + REPO)
                 data = self.releases.fetch(RAW + m['release']['commit'] + '/' + f['source'], MAX_ARTIFACT)
             elif "payload_dir" in registration:
-                p = beneath(self.target(registration["payload_dir"]), f["source"])
+                payload_dir = registration["payload_dir"]
+                # Exact NLI 0.1.9 package-data path is part of the accepted
+                # persistent config. Keep that config byte-stable during the
+                # NST rename and resolve only this historical packaged payload
+                # root to the current NST package data directory.
+                if payload_dir == "/usr/share/neiro-nli/payload":
+                    payload_dir = DATA_DIR + "/payload"
+                p = beneath(self.target(payload_dir), f["source"])
                 require(p.stat().st_size <= MAX_ARTIFACT, "Oversize artifact")
                 data = p.read_bytes()
             else:
