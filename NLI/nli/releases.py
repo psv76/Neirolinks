@@ -27,7 +27,7 @@ class Redirect(urllib.request.HTTPRedirectHandler):
 
 def fetch(url, limit=MAX_METADATA, binary=False):
     require(url.startswith((API + '/', RAW)), 'Release source must be ' + REPO)
-    headers = {'User-Agent': 'neiro-nli/' + __version__,
+    headers = {'User-Agent': 'neiro-nst/' + __version__,
                'Accept': 'application/octet-stream' if binary else 'application/vnd.github+json'}
     try:
         request = urllib.request.Request(url, headers=headers)
@@ -125,20 +125,25 @@ class Releases:
     def package(self):
         candidates = []
         for catalog, release in self.catalogs():
-            package = catalog.get('nli')
-            if package is None:
-                continue
-            require(type(package) is dict, 'Invalid NLI package metadata')
-            require(package.get('approved') is True, 'Unapproved NLI package')
-            rank = version(package['version'])
-            match(package['sha256'], SHA, 'package SHA256')
-            assets = [a for a in release['assets'] if a['name'] == 'neiro-nli_' + package['version'] + '_all.deb']
-            require(len(assets) == 1 and assets[0].get('digest') == 'sha256:' + package['sha256'],
-                    'Missing/mismatched NLI release package')
-            candidates.append((rank, package, assets[0]))
+            for key, package_name in (('nst', 'neiro-nst'), ('nli', 'neiro-nli')):
+                package = catalog.get(key)
+                if package is None:
+                    continue
+                require(type(package) is dict, 'Invalid service-tool package metadata')
+                require(package.get('approved') is True, 'Unapproved service-tool package')
+                rank = version(package['version'])
+                match(package['sha256'], SHA, 'package SHA256')
+                asset_name = package_name + '_' + package['version'] + '_all.deb'
+                assets = [a for a in release['assets'] if a['name'] == asset_name]
+                require(len(assets) == 1 and assets[0].get('digest') == 'sha256:' + package['sha256'],
+                        'Missing/mismatched service-tool release package')
+                candidates.append((rank, key, package, assets[0], package_name))
         if not candidates:
             return None
         candidates.sort(key=lambda item: item[0], reverse=True)
-        rank, package, asset = candidates[0]
-        require(all(p == package for r, p, a in candidates if r == rank), 'Conflicting approved NLI packages')
-        return dict(package, asset=asset)
+        rank, key, package, asset, package_name = candidates[0]
+        require(all((k, p, n) == (key, package, package_name)
+                    for r, k, p, a, n in candidates if r == rank),
+                'Conflicting approved service-tool packages')
+        return dict(package, asset=asset, metadata_key=key, package_name=package_name,
+                    executable='/usr/bin/nst' if key == 'nst' else '/usr/bin/nli')
