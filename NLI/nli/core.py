@@ -28,9 +28,10 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 class Engine:
-    def __init__(self, config, root="/", system=None, releases=None):
+    def __init__(self, config, root="/", system=None, releases=None, controller=None):
         self.config = config
         self.root = Path(root).absolute()
+        self.controller = controller
         require(system is not None or self.root == Path("/"), "Alternate root requires injected sandbox backend")
         self.system = system or System()
         self.releases = releases or Releases()
@@ -43,6 +44,17 @@ class Engine:
 
     def target(self, path):
         return resolve_target(self.root, path)
+
+    def require_controller_mutation(self, operation):
+        if self.controller is None:
+            return
+        require(self.controller.get("mutation_allowed") is True,
+                self.controller.get("reason") or "CONTROLLER_MUTATION_BLOCKED: " + operation)
+        assignment = self.controller.get("assignment") or {}
+        require(assignment.get("state") == "active", "CONTROLLER_NOT_ACTIVE: " + operation)
+        require(self.config.get("object") == assignment.get("object")
+                and self.config.get("role") == assignment.get("role"),
+                "CONTROLLER_CONFIG_MISMATCH: registry assignment does not match local config")
 
     def registration(self, component):
         match(component, NAME, "component")
@@ -57,7 +69,13 @@ class Engine:
         validate(m)
         require(m["component"] == component, "Component mismatch")
         require(m["object"] == self.config["object"] and m["role"] == self.config["role"], "Object/role mismatch")
-        require(self.config["hostname"] == self.system.hostname(), "Wrong controller hostname")
+        if self.controller is None:
+            require(self.config["hostname"] == self.system.hostname(), "Wrong controller hostname")
+        else:
+            assignment = self.controller.get("assignment")
+            if assignment and assignment.get("state") == "active":
+                require((m["object"], m["role"]) == (assignment["object"], assignment["role"]),
+                        "Controller registry object/role mismatch")
         r = self.registration(component)
         PLUGINS[r["plugin"]].validate(m, r)
         for f in m["files"]:
@@ -148,11 +166,18 @@ class Engine:
         return read_json(self.pending_path) if self.pending_path.exists() else None
 
     def record(self, command, component=None):
-        return dict(id=uuid.uuid4().hex, time=now(), hostname=self.system.hostname(),
-                    object=self.config["object"], role=self.config["role"], nli=__version__,
-                    command=command, component=component, from_version=None, to_version=None,
-                    release=None, preflight="not_run", backup=None, services=[],
-                    install="not_run", verify="not_run", rollback="not_run", final_status="running")
+        record = dict(id=uuid.uuid4().hex, time=now(), hostname=self.system.hostname(),
+                      object=self.config["object"], role=self.config["role"], nli=__version__,
+                      command=command, component=component, from_version=None, to_version=None,
+                      release=None, preflight="not_run", backup=None, services=[],
+                      install="not_run", verify="not_run", rollback="not_run", final_status="running")
+        if self.controller is not None:
+            record["controller"] = self.controller
+            assignment = self.controller.get("assignment")
+            if assignment:
+                record.update(object=assignment["object"], role=assignment["role"],
+                              node=assignment["node"], controller_name=assignment["name"])
+        return record
 
     def audit(self, record):
         # One durable file per operation, updated after each action. No unbounded log append.
@@ -445,6 +470,13 @@ class Engine:
         return record
 
     def mutate(self, command, component):
+        if self.controller is not None:
+            blocked = self.record(command, component)
+            try:
+                self.require_controller_mutation(command)
+            except (Error, OSError, ValueError, KeyError, TypeError) as exc:
+                blocked.update(final_status="failed", error=str(exc))
+                return blocked
         with Lock(self.target(STATE_DIR + "/mutation.lock")):
             record = self.record(command, component)
             mutation = False
