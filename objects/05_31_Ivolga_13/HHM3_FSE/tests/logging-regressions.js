@@ -64,4 +64,23 @@ assert.ok(coldLogs.every(x=>!(x.level==='warning'&&/код=NORMAL/.test(x.text))
     'не должно быть WARNING с кодом NORMAL для штатного прогрева');
 assert.doesNotMatch(coldLogs.map(x=>x.text).join('\n'),/причина=,\s*/);
 
-console.log('PASS HHM 3.5 operator journal: без duplicate mode command/cause, точные timers, source warming INFO');
+// Live 3.5 export did not show zone-open completion lines. The runtime must emit
+// them for every house circuit with 180 s actuator qualification; exporter/UI
+// defects are investigated separately.
+for(const id of ['501','502','503']){
+    const timerLogs=h.logs.map(x=>x.text).filter(x=>x.includes('['+id+'_start_timer]')).join('\n');
+    assert.match(timerLogs,/TIMER_ZONE_OPEN_STARTED/,id+' start timer start event');
+    assert.match(timerLogs,/TIMER_ZONE_OPEN_FINISHED/,id+' start timer finish event');
+}
+
+// Operator log dedup must survive a wb-rules/script restart. The physical source
+// writer may reassert the same setpoint after its 30 s write cache expires, but
+// that is not a new operator event.
+const beforeRestart=src.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text)).map(x=>x.text);
+assert.ok(beforeRestart.length>0,'setpoint command must exist before restart');
+const restarted=create({stores:src.stores,values:src.values});
+restarted.samples();restarted.advance(40000);
+assert.equal(restarted.logs.filter(x=>/BOILER_SETPOINT_COMMAND/.test(x.text)).length,0,
+    'unchanged setpoint reassertion after restart must not enter operator journal');
+
+console.log('PASS HHM 3.6 operator journal: persistent setpoint dedup, mode dedup, exact timers, source warming INFO');
