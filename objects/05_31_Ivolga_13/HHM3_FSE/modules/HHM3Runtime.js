@@ -126,6 +126,7 @@ exports.io = function (env, owner, allowed) {
     }
     function eventKind(code){
         if(/^TIMER_/.test(code))return 'ТАЙМЕР';
+        if(/^PUMP_COMMAND_|^HOT_PORT_COMMAND_/.test(code))return 'КОМАНДА';
         if(code==='VALVE_COMMAND_DROP')return 'РЕШЕНИЕ';
         if(code==='OUTPUT_TRANSITION')return 'ВЫХОД';
         if(/OVERHEAT|SAFETY/.test(code))return 'ЗАЩИТА';
@@ -240,6 +241,12 @@ exports.io = function (env, owner, allowed) {
                 else env.log.info(text);
             }catch(ignoreLog){}
             return e;
+        },
+        trace:function(key,state,warning,detail) {
+            var e={v:3,owner:owner,circuit:key,at:env.now(),state:state,warning:warning||'',detail:detail||'',severity:'trace'};
+            // Machine-readable technical trace: intentionally not written to operator journal.
+            try {env.publish(C.eventTopic,JSON.stringify(e),0,false);}catch(ignorePublish){}
+            return e;
         }
     };
     allowed.forEach(function(path){api.watch(path,-100000,100000);});
@@ -264,6 +271,8 @@ exports.stateText=function(code){
         HOUSE_LINK_LOST:'Нет достоверного запроса дома',FIRST_COMMISSIONING:'Ожидает первого ввода',
         RUNTIME_UNSUPPORTED:'Несовместимая среда управления',TIMER_STARTED:'Начало ожидания',TIMER_FINISHED:'Окончание ожидания',
         VALVE_COMMAND_DROP:'Расчётное открытие уменьшено',OUTPUT_TRANSITION:'Изменилось состояние выхода',
+        PUMP_COMMAND_ON:'Команда насосу ВКЛ',PUMP_COMMAND_OFF:'Команда насосу ВЫКЛ',
+        HOT_PORT_COMMAND_ON:'Команда разрешить горячий порт',HOT_PORT_COMMAND_OFF:'Команда закрыть горячий порт',
         COMMAND_ACCEPTED:'Попытка записи без обнаруженной ошибки',NOT_SENT:'Команда не отправлялась',
         SETTINGS_INVALID:'Ошибка настроек',SENSOR_FALLBACK:'Резерв при недоступном датчике',FLOOR_HARD_MAX:'Перегрев пола'};
     return text[code]||'Состояние управления изменено';
