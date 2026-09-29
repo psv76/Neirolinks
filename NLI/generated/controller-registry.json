@@ -1,0 +1,19 @@
+{
+  "controllers": {
+    "ABF62SL": {
+      "capabilities": [
+        "hhm",
+        "pressure_makeup"
+      ],
+      "diagnostics_profile": "NLI/diagnostics/controller-default-v1.json",
+      "name": "Котельная",
+      "node": "boiler",
+      "object": "05_31_Ivolga_13",
+      "profile": "objects/05_31_Ivolga_13/controllers/ABF62SL.json",
+      "role": "boiler",
+      "state": "active"
+    }
+  },
+  "schema": 1,
+  "source": "objects/*/controllers/*.json"
+}
