@@ -5,7 +5,7 @@
         "hhm",
         "pressure_makeup"
       ],
-      "diagnostics_profile": "NLI/diagnostics/ivolga-boiler-hhm-v1.json",
+      "diagnostics_profile": "Systems/NST/diagnostics/ivolga-boiler-hhm-v1.json",
       "name": "Котельная",
       "node": "boiler",
       "object": "05_31_Ivolga_13",
