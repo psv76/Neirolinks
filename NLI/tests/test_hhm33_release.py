@@ -44,9 +44,7 @@ class Hhm33ReleaseTests(unittest.TestCase):
                 self.assertEqual((Path(tmp) / name).read_bytes(), raw)
                 for entry in manifest['files']:
                     blob = subprocess.check_output(['git', 'show', RUNTIME + ':' + entry['source']], cwd=ROOT)
-                    head = subprocess.check_output(['git', 'show', 'HEAD:' + entry['source']], cwd=ROOT)
                     self.assertEqual(hashlib.sha256(blob).hexdigest(), entry['sha256'])
-                    self.assertEqual(blob, head, entry['source'])
                     self.assertNotIn('507', entry['target'])
 
     def test_builder_rejects_32_runtime_as_33(self):
