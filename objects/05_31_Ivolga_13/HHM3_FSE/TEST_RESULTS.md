@@ -1,6 +1,10 @@
 # HHM 3.1 — результаты проверки PR #73
 
-Область: Issue #68 cold-start и сохранение fix #75 c35ddbd; база df484b8 после NLI #74/#79. Только offline simulation/source review. Версия 3.1, контракт m1w2-health-v1.
+Область: Issue #68 cold-start и сохранение fix #75 c35ddbd; база df484b8 после NLI #74/#79. Только offline simulation/source review. Версия 3.1.1, контракт m1w2-health-v1.
+
+## Source / NO_DEMAND — полевая фиксация 29.09.2026
+
+На live Иволги подтверждён MQTT control `wbe2-i-opentherm_11/Current Boiler Mode`: команда/readback `0` соответствует «Ожидание», `1` — «Зима ЦО+ГВС». В runtime добавлена последовательность: известный NO_DEMAND → mode 0; новый валидный запрос → mode 1, после readback режима — Heating Setpoint. Старые гипотезы setpoint=0 и Master CH enable удалены из source writer. Regression проверяет порядок mode=1 перед setpoint, отсутствие OFF при неизвестном demand и отсутствие writes в DHW controls. Это программная проверка; новый HHM release ещё не установлен live.
 
 ## HHM regression suite
 
