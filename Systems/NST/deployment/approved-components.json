@@ -49,6 +49,54 @@
         "path": "NLI/releases/hhm-boiler-3.3.json",
         "sha256": "8ffb11739fdc1a828ef913245bb0b4cd04d519e4cc416c5066e01aa8adcf5039"
       }
+    },
+    {
+      "component": "hhm",
+      "object": "05_31_Ivolga_13",
+      "role": "boiler",
+      "track": "stable",
+      "version": "3.4",
+      "approved": true,
+      "release_state": "stable",
+      "draft": false,
+      "prerelease": false,
+      "minimum_nst": "1.0.0",
+      "approval": {
+        "kind": "github_release",
+        "tag": "nli-approved-hhm-3.4",
+        "published_at": "2026-09-29T15:35:13Z",
+        "catalog_sha256": "1e939a00172e7885b37be8bf67ff6114073dc5d5620a1e91467a7f1ab9dae166",
+        "release_commit": "6b82051919a9de17d16f70ac5ec9f76c9096e3c3"
+      },
+      "manifest": {
+        "commit": "6b82051919a9de17d16f70ac5ec9f76c9096e3c3",
+        "path": "NLI/releases/hhm-boiler-3.4.json",
+        "sha256": "34d995fb98c4bd7d3f921bd6b232d63b04966a5d4b6bc3a2f2dba383c93eb821"
+      }
+    },
+    {
+      "component": "hhm",
+      "object": "05_31_Ivolga_13",
+      "role": "boiler",
+      "track": "stable",
+      "version": "3.5",
+      "approved": true,
+      "release_state": "stable",
+      "draft": false,
+      "prerelease": false,
+      "minimum_nst": "1.0.0",
+      "approval": {
+        "kind": "github_release",
+        "tag": "nli-approved-hhm-3.5",
+        "published_at": "2026-09-29T16:18:18Z",
+        "catalog_sha256": "512611dac72450a9333517af5f1cada2032ec429606d3dd2accf36b57f8353f5",
+        "release_commit": "05bdaec7d0bd82615b7c0247df0d0737c59df71e"
+      },
+      "manifest": {
+        "commit": "05bdaec7d0bd82615b7c0247df0d0737c59df71e",
+        "path": "NLI/releases/hhm-boiler-3.5.json",
+        "sha256": "12d7946643ca2307bf0cf92fd582d33de19e83fa60c9a3c0c6b79c1f7e1f4be9"
+      }
     }
   ]
 }
