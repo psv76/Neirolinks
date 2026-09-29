@@ -17,13 +17,13 @@
 - [WB-rules logging standard](EIM/Standards/WB_logging_standard.md)
 - [Стандарт развития, версионирования и накопления инженерного опыта](EIM/Standards/Development_lifecycle_standard.md)
 
-### `SprutConfigurator/`
+### `Systems/Sprut Configurator/`
 
 Общая разработка Sprut Configurator: архитектура, MQTT/identity contracts, YAML contract, baseline standalone v0.2.2, правила templates и граница будущей интеграции с NL Project.
 
 Главный документ:
 
-- [Sprut Configurator](SprutConfigurator/README.md)
+- [Sprut Configurator](Systems/Sprut%20Configurator/README.md)
 
 ### `Templates/`
 
