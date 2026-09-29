@@ -6,7 +6,7 @@
   "role": "boiler",
   "release": {
     "repository": "psv76/Neirolinks",
-    "commit": "065c042732c99695fd9b85315abfe8c0c9b122c5"
+    "commit": "404e410313c99336788cbd19a94696ecb524da3c"
   },
   "files": [
     {
@@ -17,7 +17,7 @@
     {
       "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Config.js",
       "target": "/etc/wb-rules-modules/HHM3Config.js",
-      "sha256": "ec8588cc1087a83090389617cbbf8acab1e6f45197022ab399338d59a4c780e3"
+      "sha256": "98bf06003afeb6e8c27ba4c8800860ae8533c2583b7cfedad3f4e13bf1a07a4c"
     },
     {
       "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Mixing.js",
@@ -32,7 +32,7 @@
     {
       "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Runtime.js",
       "target": "/etc/wb-rules-modules/HHM3Runtime.js",
-      "sha256": "c07fc43d78d5b641b2af8d138f0d8ca1cd6c7368bfac22b449b248f5542e5b48"
+      "sha256": "e2be722b90fbb2e36c96b178b2b8a8a6f3681512e4ca343687922856a56b4163"
     },
     {
       "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Wire.js",
@@ -42,7 +42,7 @@
     {
       "source": "objects/05_31_Ivolga_13/HHM3_FSE/boiler/wb-rules/500_HHM3_FSE.js",
       "target": "/etc/wb-rules/500_HHM3_FSE.js",
-      "sha256": "bf5aa9aac91f65fdb81ca5be5aa29c974b6722c55a5fbb96cd61ee731a6aa12e"
+      "sha256": "1153a851ab8858fe52c529408bab1310711ac0bc506c9ab1e8837c035dfcd60c"
     },
     {
       "source": "objects/05_31_Ivolga_13/Wirenboard/wb-rules/600_Heat_diagnostics.js",
