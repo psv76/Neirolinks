@@ -8,7 +8,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
 import test_nli as fixtures
-from nli.layout import STATE_DIR
+from nli.layout import DATA_DIR, STATE_DIR
 from nli.platform import PLATFORM_STATE, default_platform_state, load_platform_state, save_platform_state
 from nli.util import Error
 
@@ -32,6 +32,19 @@ class PlatformStateTests(fixtures.Fixture):
         save_platform_state(self.engine, value)
         self.assertEqual(load_platform_state(self.engine), value)
         self.assertTrue(str(self.engine.target(PLATFORM_STATE)).endswith("mnt/data/var/lib/neiro/nli/platform.json"))
+
+    def test_legacy_packaged_payload_dir_resolves_to_nst_data_without_rewriting_config(self):
+        registration = self.config["components"][self.component]
+        registration["payload_dir"] = "/usr/share/neiro-nli/payload"
+        source = self.new["files"][0]["source"]
+        self.put(DATA_DIR + "/payload/" + source, b"new")
+        before = self.snapshot()
+
+        payload = self.engine.payload(self.new)
+
+        self.assertEqual(payload[self.new["files"][0]["target"]], b"new")
+        self.assertEqual(registration["payload_dir"], "/usr/share/neiro-nli/payload")
+        self.assertEqual(before, self.snapshot())
 
     def test_platform_schema_rejects_unknown_fields(self):
         value = default_platform_state()
