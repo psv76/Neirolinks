@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Неизменяемые manifests HHM 3.1/3.2/3.3; только подготовка файлов, без установки."""
+"""Неизменяемые manifests HHM 3.1/3.2/3.3/3.4; только подготовка файлов, без установки."""
 import argparse
 import hashlib
 import json
@@ -21,8 +21,8 @@ def prepare(commit, role, output, version="3.1"):
         raise ValueError("Use the complete immutable commit SHA")
     if role not in ("boiler", "gazebo"):
         raise ValueError("Unknown HHM role")
-    if version not in ("3.1", "3.2", "3.3"):
-        raise ValueError("Поддерживаются только HHM 3.1, 3.2 и 3.3")
+    if version not in ("3.1", "3.2", "3.3", "3.4"):
+        raise ValueError("Поддерживаются HHM 3.1–3.4")
     base = "objects/05_31_Ivolga_13/HHM3_FSE/"
     entries, payload = [], {}
     for target in sorted(BOILER if role == "boiler" else GAZEBO):
@@ -65,6 +65,6 @@ if __name__ == "__main__":
     parser.add_argument("--commit", required=True)
     parser.add_argument("--role", required=True, choices=("boiler", "gazebo"))
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--version", default="3.1", choices=("3.1", "3.2", "3.3"))
+    parser.add_argument("--version", default="3.1", choices=("3.1", "3.2", "3.3", "3.4"))
     args = parser.parse_args()
     prepare(args.commit, args.role, args.output, args.version)
