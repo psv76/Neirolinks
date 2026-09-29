@@ -7,6 +7,7 @@ from .core import Engine
 from .controller import load_controller_context
 from .desired import DesiredState
 from .diagnostics import Diagnostics
+from .controller_cleanup import ControllerCleanup
 from .firmware import Firmware
 from .self_update import SelfUpdate
 from .layout import load_config
@@ -387,6 +388,8 @@ def main(argv=None, engine=None):
     sub.add_parser("sync")
     for command in ("update", "verify", "rollback"):
         sub.add_parser(command).add_argument("component")
+    cleanup = sub.add_parser("cleanup")
+    cleanup.add_argument("action", nargs="?", choices=("check",))
     diagnostics = sub.add_parser("diagnostics")
     diagnostics_sub = diagnostics.add_subparsers(dest="diagnostics_action", required=True)
     diagnostics_collect = diagnostics_sub.add_parser("collect")
@@ -411,7 +414,10 @@ def main(argv=None, engine=None):
             e = Engine(load_config(args.config), controller=load_controller_context())
         else:
             e = engine
-        if args.command == "diagnostics":
+        if args.command == "cleanup":
+            cleaner = ControllerCleanup(e)
+            result = cleaner.check() if args.action == "check" else cleaner.execute()
+        elif args.command == "diagnostics":
             result = Diagnostics(e).collect(args.component, args.since)
         elif args.command == "firmware":
             result = Firmware(e).execute(args.action)
