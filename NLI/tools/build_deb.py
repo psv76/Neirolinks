@@ -41,6 +41,13 @@ def build(output, epoch=0):
     for path in sorted((ROOT / "examples").rglob("*.json")):
         data.append(("usr/share/neiro-nli/examples/" + path.relative_to(ROOT / "examples").as_posix(),
                      path.read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    data.append(("usr/share/neiro-nli/controller-registry.json",
+                 (ROOT / "generated/controller-registry.json").read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    data.append(("usr/share/neiro-nli/controller-profile.schema.json",
+                 (ROOT / "controller-profile.schema.json").read_bytes().replace(b"\r\n", b"\n"), 0o644))
+    for path in sorted((ROOT / "diagnostics").glob("*.json")):
+        data.append(("usr/share/neiro-nli/diagnostics/" + path.name,
+                     path.read_bytes().replace(b"\r\n", b"\n"), 0o644))
     # Immutable baseline payload is runtime data. Preserve exact bytes (no LF
     # normalization); live 507 1.0 intentionally has no terminal LF.
     for path in sorted((ROOT / "releases").rglob("*.js")):
