@@ -1,0 +1,44 @@
+"""NST 1.0 persistent platform metadata compatibility."""
+from pathlib import Path
+import sys
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "tests"))
+
+import test_nli as fixtures
+from nli.layout import STATE_DIR
+from nli.platform import PLATFORM_STATE, default_platform_state, load_platform_state, save_platform_state
+from nli.util import Error
+
+
+class PlatformStateTests(fixtures.Fixture):
+    def test_status_default_is_read_only_and_creates_no_platform_file(self):
+        before = self.snapshot()
+        result = self.engine.read_operation("status")
+        self.assertEqual(result["platform"], default_platform_state())
+        self.assertEqual(before, self.snapshot())
+        self.assertFalse(self.engine.target(PLATFORM_STATE).exists())
+
+    def test_explicit_platform_state_roundtrip_uses_preserved_state_root(self):
+        value = {
+            "schema": 1,
+            "controller": {"serial": "ABF62SL"},
+            "registry": {"commit": "1" * 40},
+            "deployment": {"sha256": "2" * 64},
+            "desired_state": {"status": "exact"},
+        }
+        save_platform_state(self.engine, value)
+        self.assertEqual(load_platform_state(self.engine), value)
+        self.assertTrue(str(self.engine.target(PLATFORM_STATE)).endswith("mnt/data/var/lib/neiro/nli/platform.json"))
+
+    def test_platform_schema_rejects_unknown_fields(self):
+        value = default_platform_state()
+        value["future_without_schema_bump"] = {}
+        with self.assertRaisesRegex(Error, "fields"):
+            save_platform_state(self.engine, value)
+
+
+if __name__ == "__main__":
+    unittest.main()
