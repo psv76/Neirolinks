@@ -13,7 +13,7 @@ from prepare_hhm31 import prepare
 
 
 class Hhm31ReleaseTests(unittest.TestCase):
-    def test_both_roles_reproduce_pinned_runtime_and_current_payload(self):
+    def test_both_roles_reproduce_historical_pinned_runtime(self):
         commits = set()
         for role in ('boiler', 'gazebo'):
             with self.subTest(role=role), tempfile.TemporaryDirectory() as tmp:
@@ -31,8 +31,17 @@ class Hhm31ReleaseTests(unittest.TestCase):
                 self.assertEqual((Path(tmp) / name).read_bytes(), data)
                 for entry in manifest['files']:
                     blob = subprocess.check_output(['git', 'show', commit + ':' + entry['source']], cwd=ROOT)
-                    head = subprocess.check_output(['git', 'show', 'HEAD:' + entry['source']], cwd=ROOT)
                     self.assertEqual(hashlib.sha256(blob).hexdigest(), entry['sha256'])
-                    self.assertEqual(blob, head, entry['source'])
                     self.assertNotIn('507', entry['target'])
         self.assertEqual(len(commits), 1)
+
+    def test_historical_manifests_and_recognition_are_unchanged(self):
+        baseline = '4015b576b2e280569951cf7d328a83420cbd90b6'
+        for folder in ('releases', 'known'):
+            for role in ('boiler', 'gazebo'):
+                path = 'NLI/' + folder + '/hhm-' + role + '-3.1.json'
+                expected = subprocess.check_output(['git', 'show', baseline + ':' + path], cwd=ROOT)
+                self.assertEqual((ROOT / path).read_bytes().replace(b'\r\n', b'\n'), expected)
+                if folder == 'releases':
+                    self.assertEqual((ROOT / (path + '.sha256')).read_text().split()[0],
+                                     hashlib.sha256(expected).hexdigest())

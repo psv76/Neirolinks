@@ -1,6 +1,24 @@
-# HHM 3.1 — результаты проверки PR #73
+# HHM 3.6 — результаты проверки PR #83
 
-Область: Issue #68 cold-start и сохранение fix #75 c35ddbd; база df484b8 после NLI #74/#79. Только offline simulation/source review. Версия 3.1, контракт m1w2-health-v1.
+Область: сохранённые regression HHM3 + изменения #81/#69/#94 и интеграция source contract из #40 / draft PR #97. Offline simulation/source review; live deploy этой редакцией не выполнялся. Версия 3.6, контракт m1w2-health-v1.
+
+## Live 3.5 → regressions 3.6
+
+- 501 и 503: новый regression на полный 120-секундный выбег после последнего зонального запроса.
+- 502: существующий полный postrun/handoff suite сохранён.
+- 504: 120 с закреплены явно в объектном hydraulicTiming.
+- 505: regression фиксирует отсутствие выбега до отдельного решения.
+- Heating Setpoint: regression запрещает duplicate operator event при 30-секундном reassert; после restart прежнее значение допускается только вслед за новым подтверждённым Standby→Winter session.
+
+## Operator journal — live 3.4 → regression 3.5
+
+Live export после установки 3.4 подтвердил корректный source sequence, но выявил четыре дефекта представления: duplicate boiler-mode command до readback, два поля `причина=` в output commands, `WARNING/NORMAL` для штатного прогрева источника и generic timer wording. В 3.5 добавлены regressions на каждый из этих пунктов. Изменения не меняют алгоритм отопления или ownership outputs.
+
+## Source / NO_DEMAND — field contract 29.09.2026
+
+Для Иволги принят подтверждённый control `wbe2-i-opentherm_11/Current Boiler Mode`: `0` = «Ожидание», `1` = «Зима ЦО + ГВС». Regression проверяет известный NO_DEMAND → mode 0, новый demand → mode 1 перед Heating Setpoint, отсутствие OFF при неизвестном demand и отсутствие DHW writes.
+
+Logging regression отдельно проверяет operator events команды и readback для обоих режимов. Нормальное переключение режима является INFO, а не WARNING.
 
 ## HHM regression suite
 

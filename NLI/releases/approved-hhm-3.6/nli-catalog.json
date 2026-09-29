@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "repository": "psv76/Neirolinks",
+  "approved": true,
+  "components": [
+    {
+      "component": "hhm",
+      "object": "05_31_Ivolga_13",
+      "role": "boiler",
+      "version": "3.6",
+      "approved": true,
+      "minimum_nli": "0.1.9",
+      "manifest": {
+        "commit": "12e5805d22e365bdbe049245fefccdc005e960fa",
+        "path": "NLI/releases/hhm-boiler-3.6.json",
+        "sha256": "9469bf5c4d62555b62adcc033fde62a151156392cd64004ebaaae075f6eb37ab"
+      }
+    },
+    {
+      "component": "hhm",
+      "object": "05_31_Ivolga_13",
+      "role": "gazebo",
+      "version": "3.6",
+      "approved": true,
+      "minimum_nli": "0.1.9",
+      "manifest": {
+        "commit": "12e5805d22e365bdbe049245fefccdc005e960fa",
+        "path": "NLI/releases/hhm-gazebo-3.6.json",
+        "sha256": "df1efa30c6eb5e289af8acc369a930c83e2da541a1cee9a9fa989f4701d93614"
+      }
+    }
+  ]
+}

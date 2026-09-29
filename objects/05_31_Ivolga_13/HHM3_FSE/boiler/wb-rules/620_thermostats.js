@@ -5,7 +5,7 @@ var Config=require('HHM3Config'),C=Config.config,W=require('HHM3Wire'),R=require
 var operation=new PersistentStorage('hhm3_operation',{global:true});
 var settings=new PersistentStorage('hhm3_thermostats',{global:true});
 var session=W.nextSession(new PersistentStorage('hhm3_house_sender',{global:true})),seq=0;
-var allowed=[],memory={},opened={},lastNow=null;
+var allowed=[],memory={},opened={},offPending={},lastNow=null;
 Config.zones.forEach(function(z){allowed=allowed.concat(z.outputs);});
 var io=R.io({proofStorage:new PersistentStorage('hhm31_poll_620',{global:true}),dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log},'620',allowed);
 function sc(id,k,v){dev['NL_simple_thermostat_'+id+'/'+k]=v;}
@@ -27,6 +27,9 @@ function statusText(reason){
         RUNTIME_UNSUPPORTED:'Ошибка среды',
         OUTPUT_WRITE_ERROR:'Ошибка выхода',
         WAIT_OUTPUT_READBACK:'Ждём подтверждение',
+        PENDING_ON_READBACK:'Ждём подтверждение включения зоны',
+        PENDING_OFF_READBACK:'Ждём подтверждение выключения зоны',
+        OFF_READBACK_TIMEOUT:'Выключение зоны не подтверждено',
         FIRST_COMMISSIONING:'Первичный пуск'
     };
     return texts[reason]||'Неизвестно';
@@ -51,11 +54,11 @@ function stateValue(v){if(v===true||v===1||v==='1')return 1;if(v===false||v===0|
 function evaluate(){
     io.begin();
     var now=Date.now(),groups={},pending={},unsafe={},blocked={};
-    if(lastNow!==null&&(now<lastNow||now-lastNow>C.periodMs*3))opened={};
+    if(lastNow!==null&&(now<lastNow||now-lastNow>C.periodMs*3)){opened={};offPending={};}
     lastNow=now;
     ['501','502','503','505'].forEach(function(id){
         groups[id]={valid:true,demand:false,ready:false,enabled:false,degraded:false,
-            partial_ready:false,output_blocked:false,reason:'OFF',floor:null};
+            partial_ready:false,output_blocked:false,pending_on:false,pending_off:false,startRemainingMs:null,reason:'OFF',floor:null};
         pending[id]=false;unsafe[id]=false;blocked[id]=false;
     });
     Config.zones.forEach(function(z){
@@ -86,23 +89,45 @@ function evaluate(){
         }else memory[z.id]=false;
         if(!io.compatible()){on=false;valid=false;reason='RUNTIME_UNSUPPORTED';memory[z.id]=false;}
         if(!valid&&enabled!==0){g.degraded=true;g.reason=reason;unsafe[z.circuit]=true;}
-        var sent=true;
-        if(operation.inService===true)z.outputs.forEach(function(p){var w=io.write(p,on);error=error||!w.ok;sent=w.ok&&io.matches(p,on)&&sent;});
+        var sent=true,offWait=false,offExpired=false,c=C.circuits[z.circuit];
+        if(operation.inService===true)z.outputs.forEach(function(p){
+            var pendingOff=offPending[p],w={ok:true};
+            if(pendingOff&&io.matches(p,false)){delete offPending[p];pendingOff=null;}
+            // Не открываем выход заново, пока прежнее выключение не подтверждено.
+            if(pendingOff){
+                offWait=true;
+                if(now-pendingOff.at>=(c.commandTimeoutMs||10000))offExpired=true;
+                else if(now-pendingOff.lastTry>=(c.commandRetryMs||5000)){
+                    w=io.write(p,false,true);pendingOff.lastTry=now;
+                }
+                if(!w.ok)pendingOff.writeFailed=true;
+                error=error||pendingOff.writeFailed===true;sent=false;
+            }else{
+                w=io.write(p,on);error=error||!w.ok;
+                if(!on&&!io.matches(p,false)){
+                    offPending[p]={at:now,lastTry:now,writeFailed:!w.ok};offWait=true;
+                }
+                sent=w.ok&&io.matches(p,on)&&sent;
+            }
+        });
         if(!sent){
-            reason=error?'OUTPUT_WRITE_ERROR':'WAIT_OUTPUT_READBACK';
+            reason=error?'OUTPUT_WRITE_ERROR':offExpired?'OFF_READBACK_TIMEOUT':
+                offWait?'PENDING_OFF_READBACK':'PENDING_ON_READBACK';
             g.degraded=true;g.valid=false;
-            // A clean thermostat transition may wait for MQTT readback while
-            // another already-confirmed ready zone keeps the shared circuit heating.
-            // The pending zone itself is never counted as an open/ready path.
-            // Explicit disable, sensor/settings faults and write errors remain blocking.
-            if(!error&&valid&&enabled===1)pending[z.circuit]=true;
+            if(offWait)g.pending_off=true;else g.pending_on=true;
+            // Штатные ON и OFF не отменяют другой готовый путь. Отказ датчика,
+            // ошибка записи и истечение электрического таймаута остаются защитами.
+            if(!error&&!offExpired&&(valid||enabled===0))pending[z.circuit]=true;
             else unsafe[z.circuit]=true;
-            if(error||(!on&&enabled!==1))blocked[z.circuit]=true;
+            if(error||offExpired||(!on&&!valid&&enabled!==0))blocked[z.circuit]=true;
+            g.reason=reason;
         }
         if(on&&sent&&operation.inService===true){
             if(opened[z.id]===undefined||now<opened[z.id])opened[z.id]=now;
             g.demand=true;
-            if(now-opened[z.id]>=C.circuits[z.circuit].zoneDelayMs)g.ready=true;
+            var remaining=Math.max(0,c.zoneActuatorOpenMs-(now-opened[z.id]));
+            if(remaining===0)g.ready=true;
+            if(g.startRemainingMs===null||remaining<g.startRemainingMs)g.startRemainingMs=remaining;
             if(!g.degraded)g.reason='HEAT';
         }else delete opened[z.id];
         if(enabled!==0&&!on&&!valid)g.valid=false;
@@ -115,6 +140,8 @@ function evaluate(){
         if(g.demand)g.valid=true; // one confirmed ON is a real path, not proof of all zones
         g.partial_ready=g.demand&&g.ready&&pending[id]&&!unsafe[id];
         g.output_blocked=blocked[id];
+        g.transition_safe=!unsafe[id]&&!blocked[id];
+        if(g.ready||g.output_blocked)g.startRemainingMs=null;
         if(!g.enabled){g.valid=true;g.reason='OFF';}
         else if(g.partial_ready)g.reason='HEAT';
         else if(!g.demand&&!g.degraded)g.reason='NO_DEMAND';

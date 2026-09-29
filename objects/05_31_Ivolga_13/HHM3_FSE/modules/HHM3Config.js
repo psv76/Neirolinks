@@ -1,4 +1,4 @@
-/* HHM 3.1 — Иволга. Карта дома 09.09.2026 + Issue #59. */
+/* HHM 3.6 — Иволга. Карта дома 09.09.2026 + Issue #59. */
 exports.zones = [
     {
         "id": "601",
@@ -313,7 +313,7 @@ function mixed(id, ch, supply, ret, extra) {
     Object.keys(extra||{}).forEach(function(k){c[k]=extra[k];});return c;
 }
 exports.config={
-    version:'3.1',healthContract:'m1w2-health-v1',minWbRules:'2.42.0',periodMs:5000,sensorTtlMs:120000,
+    version:'3.6',healthContract:'m1w2-health-v1',minWbRules:'2.42.0',periodMs:5000,sensorTtlMs:120000,
     houseTopic:'/neiro/ivolga/hhm3/house/frame',houseSource:'ivolga-hhm3-house',
     eventTopic:'/neiro/ivolga/hhm3/events',requestTtlMs:15000,
     // Explicit tie ordering: incumbent house first, then gazebo/outbuilding.
@@ -321,9 +321,9 @@ exports.config={
     source:{temperature:'wb-m1w2_170/External Sensor 1',setpoint:'wbe2-i-opentherm_11/Heating Setpoint',
         connection:'wbe2-i-opentherm_11/Invalid Connection',fault:'wbe2-i-opentherm_11/Boiler fault indication',
         minC:30,maxC:60,hardMaxC:75,recoverC:70,coolMs:120000,responseMs:900000,
-        // unconfirmed: request remains 0, NO physical substitute setpoint.
-        // After supervised PNR: setpoint_zero OR ch_enable (heating only, never DHW).
-        noDemandMode:'unconfirmed',chEnable:'wbe2-i-opentherm_11/Master CH enable'},
+        // Field capture 29.09.2026 / #40: 0 = «Ожидание», 1 = «Зима ЦО+ГВС».
+        // This is the source ON/OFF contract; DHW controls are not written by HHM.
+        boilerMode:'wbe2-i-opentherm_11/Current Boiler Mode',standbyMode:0,heatingMode:1},
     circuits:{
         '501':mixed('501',1,'wb-m1w2_141/External Sensor 1','wb-m1w2_141/External Sensor 2',
             {normalSupplyC:30,maxSupplyC:38,autonomousSupplyC:28,supplyCloseC:42,supplyStopC:45,supplyImmediateStopC:48,
@@ -346,6 +346,40 @@ exports.config={
 };
 
 exports.config.circuits['504'].pump='A03/K4';
+
+// Объектные времена приводов. 180 с — ход НЗ VALTEC VT.TE3043.0.220,
+// а не срок подтверждения электрической команды.
+// По полевому решению #81 насосы 501–504 имеют выбег 120 с.
+// 505 в это решение не входит: для него выбег остаётся 0 до отдельного согласования.
+var hydraulicTiming = {
+    '501':{zoneActuatorOpenMs:180000,zoneActuatorCloseMs:180000,pumpPostrunMs:120000,collectorHasBypass:false},
+    '502':{zoneActuatorOpenMs:180000,zoneActuatorCloseMs:180000,pumpPostrunMs:120000,collectorHasBypass:false},
+    '503':{zoneActuatorOpenMs:180000,zoneActuatorCloseMs:180000,pumpPostrunMs:120000,collectorHasBypass:false},
+    '504':{zoneActuatorOpenMs:0,zoneActuatorCloseMs:0,pumpPostrunMs:120000,collectorHasBypass:false}
+};
+// Старые имена остаются совместимыми с потребителями. Для старого зонального
+// конфига без времени закрытия выбег не разрешаем молча: прежний manager его
+// подавлял. Для незонального 504 сохраняется прежний postrunMs.
+exports.timing=function(c){
+    var open=c.zoneActuatorOpenMs===undefined?(c.zoneDelayMs||0):c.zoneActuatorOpenMs;
+    var close=c.zoneActuatorCloseMs===undefined?open:c.zoneActuatorCloseMs;
+    var post=c.pumpPostrunMs===undefined?(open>0?0:(c.postrunMs||0)):c.pumpPostrunMs;
+    var bypass=c.collectorHasBypass===undefined?false:c.collectorHasBypass;
+    [open,close,post].forEach(function(v){
+        if(typeof v!=='number'||!isFinite(v)||v<0)throw new Error('Некорректное время привода/выбега');
+    });
+    if(typeof bypass!=='boolean'||((open>0||close>0)&&!bypass&&post>=close))
+        throw new Error('Без байпаса выбег должен быть короче закрытия привода');
+    return {zoneActuatorOpenMs:open,zoneActuatorCloseMs:close,pumpPostrunMs:post,collectorHasBypass:bypass};
+};
+Object.keys(exports.config.circuits).forEach(function(id){
+    var c=exports.config.circuits[id],t=hydraulicTiming[id];
+    if(t)Object.keys(t).forEach(function(k){c[k]=t[k];});
+    t=exports.timing(c);
+    Object.keys(t).forEach(function(k){c[k]=t[k];});
+    c.zoneDelayMs=t.zoneActuatorOpenMs;
+    c.postrunMs=t.pumpPostrunMs;
+});
 
 // Explicit object inventory: 9 house floors + 10 boiler + 1 gazebo. No name inference.
 exports.config.m1w2Health={

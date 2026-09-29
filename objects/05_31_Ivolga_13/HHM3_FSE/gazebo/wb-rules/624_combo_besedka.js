@@ -33,6 +33,7 @@ cell('state', 'Состояние', 'text', 'Самопроверка датчи
 cell('reason', 'Причина', 'text', 'STARTUP', true);
 cell('runtime_status', 'Совместимость wb-rules', 'text', 'Ожидание MQTT: требуется wb-rules >= 2.42.0', true);
 cells.sensor_health_contract={type:'text',value:require('HHM3Config').config.healthContract,readonly:true,forceDefault:true,hidden:true};
+cells.runtime_version={title:'Версия HHM',type:'text',value:require('HHM3Config').config.version,readonly:true,forceDefault:true};
 defineVirtualDevice(VD, { title: '504 Беседка — воздух и пол', cells: cells });
 function sc(k, v) { dev[VD + '/' + k] = v; }
 function watch(path, sensor) {

@@ -140,9 +140,10 @@ test('watchM1w2 logs transition cause and recovery once, with sensor identity',(
     h.values.gazebo[p]=undefined;h.tick('624');h.tick('624');
     h.values.gazebo[p]=v;h.tick('624');h.tick('624');
     const logs=h.logs.slice(before).filter(e=>e.text.includes('[M1W2 '+p+']'));
-    assert.equal(logs.length,2);assert.match(logs[0].text,/LOCAL_TEMPERATURE_MISSING/);
-    assert.match(logs[0].text,/"phase":"RUNTIME"/);assert.equal(logs[0].level,'warning');
-    assert.match(logs[1].text,/"reason":"VALID"/);assert.equal(logs[1].level,'info');
+    assert.equal(logs.length,2);assert.match(logs[0].text,/ДАТЧИК=Данные датчика не пригодны/);
+    assert.match(logs[0].text,/источник=Нет локального значения температуры/);assert.equal(logs[0].level,'warning');
+    assert.match(logs[1].text,/ДАТЧИК=Датчик пригоден/);assert.match(logs[1].text,/код=VALID/);assert.equal(logs[1].level,'info');
+    assert.doesNotMatch(logs[0].text,/\{"phase"/);assert.doesNotMatch(logs[1].text,/\{"phase"/);
 });
 console.log('RESULT: '+passed+' PASS, '+failed+' FAIL; Issue #75 offline recovery regressions.');
 if(failed)process.exitCode=1;

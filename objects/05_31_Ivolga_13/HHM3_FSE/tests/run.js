@@ -41,12 +41,15 @@ test('legacy HHM3 retained-only JSON controls are recreated and removed through 
 });
 test('WebUI omits raw JSON and keeps short operator controls without claiming physical proof',()=>{
     const h=create(),cells=h.definitions.HHM3_FSE.cells;
+    assert.equal(h.C.version,'3.6');assert.equal(h.C.healthContract,'m1w2-health-v1');
+    assert.equal(h.values.boiler['HHM3_FSE/runtime_version'],'3.6');
+    assert.equal(h.values.gazebo['NL_combo_thermostat_504/runtime_version'],'3.6');
     for(const id of ['circuits_json','source_json','last_event_json'])assert.equal(cells[id],undefined,id);
     for(const id of ['501','502','503','504','505'])assert.equal(cells['circuit_'+id].type,'text');
     for(const id of ['501','502','503','504','505'])assert.equal(cells['diag_request_'+id].hidden,true,'diag_request_'+id);
     assert.equal(cells.diag_request_boiler.hidden,true,'diag_request_boiler');
     h.enableAll();h.samples();h.start();h.advance(300000);
-    assert.match(h.values.boiler['HHM3_FSE/circuit_501'],/Команда насосу/);
+    assert.match(h.values.boiler['HHM3_FSE/circuit_501'],/команда насосу/i);
     assert.match(h.values.boiler['HHM3_FSE/operational_status'],/без подтверждения работы оборудования/);
     assert.doesNotMatch(h.values.boiler['HHM3_FSE/circuit_501'],/[{}\[\]]/);
     assert.equal(h.values.boiler['HHM3_FSE/circuits_json'],undefined);
@@ -96,27 +99,31 @@ test('505 no actuator delay, hysteresis 1 C, explicit OFF persists; no other pum
     const b=create({stores:h.stores,values:h.values});b.samples();b.advance(240000);
     assert.equal(b.values.boiler[p+'target_state'],false);assert.equal(b.values.boiler['A03/K5'],false);
 });
-test('all no demand => numerical request 0; unknown physical OFF does not send 42 or guessed 0',()=>{
+test('all no demand => request 0 and field-proven boiler Standby, never guessed setpoint zero',()=>{
     const h=running();h.Z.forEach(z=>h.set('boiler','NL_simple_thermostat_'+z.id+'/target_state',false));
     h.gazeboTemperatures['921.09_MSW_TH/Temperature']=25;h.gazeboTemperatures['921.10_TEMP_NONE/External Sensor 1']=30;
-    h.advance(10000);assert.equal(h.request(),0);
-    const before=h.physical().filter(w=>w.path===h.C.source.setpoint).length;
-    h.advance(140000);assert.equal(h.request(),0);assert.equal(h.source().requested_heating_setpoint,0);
-    assert.equal(h.source().state,'NO_DEMAND_ACTION_UNCONFIRMED');
-    assert.equal(h.physical().filter(w=>w.path===h.C.source.setpoint).length,before);
+    const setpointZeroBefore=h.physical().filter(w=>w.path===h.C.source.setpoint&&w.value===0).length;
+    h.advance(150000);assert.equal(h.request(),0);assert.equal(h.source().requested_heating_setpoint,0);
+    assert.equal(h.values.boiler[h.C.source.boilerMode],h.C.source.standbyMode);
+    assert.equal(h.source().state,'NO_DEMAND');
+    assert.ok(h.physical().some(w=>w.path===h.C.source.boilerMode&&w.value===0));
+    assert.equal(h.physical().filter(w=>w.path===h.C.source.setpoint&&w.value===0).length,setpointZeroBefore);
     h.set('boiler','NL_simple_thermostat_505/target_state',true);h.advance(10000);assert.equal(h.request(),45);
 });
-test('configured physical NO_DEMAND modes are explicit, CH-only and restore heat',()=>{
-    for(const mode of ['setpoint_zero','ch_enable']){
-        const h=running({configure:C=>C.source.noDemandMode=mode});
-        h.Z.forEach(z=>h.set('boiler','NL_simple_thermostat_'+z.id+'/target_state',false));
-        h.gazeboTemperatures['921.09_MSW_TH/Temperature']=25;h.gazeboTemperatures['921.10_TEMP_NONE/External Sensor 1']=30;
-        h.advance(150000);assert.equal(h.request(),0);assert.equal(h.source().state,'NO_DEMAND');
-        assert.ok(h.physical().some(w=>w.path===(mode==='setpoint_zero'?h.C.source.setpoint:h.C.source.chEnable)&&w.value===(mode==='setpoint_zero'?0:false)));
-        assert.equal(h.values.boiler[mode==='setpoint_zero'?h.C.source.setpoint:h.C.source.chEnable],mode==='setpoint_zero'?0:false);
-        h.set('boiler','NL_simple_thermostat_505/target_state',true);h.advance(10000);assert.equal(h.values.boiler[h.C.source.setpoint],45);
-        if(mode==='ch_enable')assert.equal(h.values.boiler[h.C.source.chEnable],true);
-    }
+test('field contract: Standby 0; heat demand restores Winter mode 1 before setpoint',()=>{
+    const h=running(),mode=h.C.source.boilerMode;
+    h.Z.forEach(z=>h.set('boiler','NL_simple_thermostat_'+z.id+'/target_state',false));
+    h.gazeboTemperatures['921.09_MSW_TH/Temperature']=25;h.gazeboTemperatures['921.10_TEMP_NONE/External Sensor 1']=30;
+    h.advance(150000);
+    assert.equal(h.values.boiler[mode],0);assert.equal(h.source().state,'NO_DEMAND');
+    const mark=h.writes.length;
+    h.set('boiler','NL_simple_thermostat_505/target_state',true);h.advance(10000);
+    const seq=h.writes.slice(mark).filter(w=>w.path===mode||w.path===h.C.source.setpoint);
+    const modeOn=seq.findIndex(w=>w.path===mode&&w.value===1);
+    const setpoint=seq.findIndex(w=>w.path===h.C.source.setpoint&&w.value===45);
+    assert.ok(modeOn>=0,'Winter mode command missing');assert.ok(setpoint>modeOn,'setpoint must follow mode=1');
+    assert.equal(h.values.boiler[mode],1);assert.equal(h.values.boiler[h.C.source.setpoint],45);
+    assert.ok(seq.every(w=>!/DHW|Domestic/.test(w.path)));
 });
 test('power return/rules restart: persistent service and intent, fresh sensors, no second click',()=>{
     const h=running(),b=create({stores:h.stores,values:h.values});
@@ -229,19 +236,21 @@ test('source arbiter independent TTL and deterministic five-way ties',()=>{
     for(const r of Object.values(requests))r.demand=false;assert.equal(select(requests,epoch).temperature,0);
 });
 test('506/507/GazeboPanel and DHW untouched; one owner per every output',()=>{
-    const h=running({configure:C=>C.source.noDemandMode='ch_enable'});
+    const h=running();
     assert.ok(h.physical().length>0);
     for(const w of h.physical())assert.doesNotMatch(w.path,/A03\/K6|A04\/|905\.3|DHW|Domestic|GazeboPanel|A14\/K4/);
     const owners={};for(const w of h.physical()){(owners[w.path]||(owners[w.path]=new Set())).add(w.owner);}
     Object.values(owners).forEach(s=>assert.equal(s.size,1));
 });
-test('unknown requests are not physical OFF; known zero is distinct',()=>{
+test('unknown requests are not physical OFF; known zero commands boiler Standby',()=>{
     const h=create(),R=h.load('HHM3Runtime'),writes=[];
-    const io={read:p=>p===h.C.source.temperature?50:0,at:()=>epoch,commands:()=>[],readback:()=>({value:null}),write:(p,v)=>{writes.push([p,v]);return {ok:true,sent:true};}};
-    h.C.source.noDemandMode='setpoint_zero';const step=R.source(h.C.source,{},io);
+    const io={read:p=>p===h.C.source.temperature?50:(p===h.C.source.boilerMode?1:0),observedAt:()=>epoch,
+        commands:()=>[],readback:()=>({value:null}),write:(p,v)=>{writes.push([p,v]);return {ok:true,sent:true};}};
+    const step=R.source(h.C.source,{},io);
     const missing=R.select({},epoch);assert.equal(missing.demandKnown,false);
     assert.equal(step(0,true,epoch,missing.demandKnown).state,'REQUESTS_UNAVAILABLE');assert.equal(writes.length,0);
-    assert.equal(step(0,true,epoch+5000,true).off_command_sent,true);assert.equal(writes[0][1],0);
+    const known=step(0,true,epoch+5000,true);assert.equal(known.state,'NO_DEMAND_SWITCHING');
+    assert.equal(known.off_command_sent,true);assert.deepEqual(writes[0],[h.C.source.boilerMode,0]);
 });
 test('house link fallback respects actuator delay and resumes without a grant',()=>{
     const h=create();h.enableAll();h.samples();h.start();h.tick('620');

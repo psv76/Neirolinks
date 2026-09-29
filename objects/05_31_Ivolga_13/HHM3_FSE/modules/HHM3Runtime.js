@@ -16,7 +16,7 @@ exports.io = function (env, owner, allowed) {
     function finishProof(why){
         if(!pending)return;
         var p=pending.path,s=sensors[p];pending=null;s.proofAfter=env.now()+60000;
-        if(why)env.log.warning('[отопление]['+owner+'][M1W2 '+p+']; POST_START_PROOF='+why);
+        if(why)env.log.warning('[отопление]['+owner+'][M1W2 '+p+']; ДАТЧИК=Не удалось подтвердить датчик после запуска; код=POST_START_PROOF; причина='+proofReason(why)+'; действие=Датчик не считается пригодным до успешного подтверждения');
     }
     function requestProof(path,stage,temperature){
         var s=sensors[path],input=s.input,now=env.now();
@@ -68,6 +68,71 @@ exports.io = function (env, owner, allowed) {
         pumpProof();
     });
     function numeric(v){return typeof v==='boolean'?(v?1:0):v;}
+    function ruOnOff(v){
+        if(v===true||v===1||v==='1')return 'ВКЛ';
+        if(v===false||v===0||v==='0')return 'ВЫКЛ';
+        return 'Нет данных';
+    }
+    function errorText(v){
+        return v===undefined||v===null||v===''||v===0||v===false?'Нет':'Есть: '+safeText(v);
+    }
+    function proofReason(code){
+        var text={
+            PUBLISH_FAILED:'Не удалось отправить запрос проверки датчика',
+            TIMEOUT_OR_STATE_CHANGED:'Проверка не завершилась вовремя или состояние датчика изменилось',
+            STALE_OR_STATE_CHANGED:'Ответ проверки устарел или состояние датчика изменилось',
+            RPC_ERROR_OR_UNSUPPORTED:'Устройство не ответило корректно на проверочный запрос',
+            BAD_TEMPERATURE_RESPONSE:'Получен некорректный ответ температуры',
+            TEMPERATURE_INVALID:'Получена недопустимая температура',
+            LOCAL_VALUE_MISMATCH:'Ответ устройства не совпал с текущим локальным значением',
+            HEALTH_NOT_OK:'Устройство сообщает, что датчик неисправен',
+            LOCAL_STATE_NOT_HEALTHY:'Текущее локальное состояние датчика не позволяет принять данные'
+        };
+        return text[code]||safeText(code);
+    }
+    function sensorReason(code){
+        var text={
+            VALID:'Данные пригодны',
+            STARTUP_VALIDATION:'Ожидается подтверждение после запуска',
+            RETAINED_REVALIDATION:'Ожидается подтверждение сохранённых данных',
+            CONTROL_MISSING:'Нет обязательного значения температуры или Sensor OK',
+            CONTROL_ERROR:'Канал датчика сообщает ошибку',
+            VALUE_INVALID:'Температура вне допустимого диапазона или некорректна',
+            SENSOR_NOT_OK:'Sensor OK сообщает неисправность',
+            CONTROL_SYNC_WAIT:'Ожидается согласование текущих значений',
+            RUNTIME_UNSUPPORTED:'Среда не поддерживает требуемый контракт контроля датчика'
+        };
+        return text[code]||safeText(code);
+    }
+    function sensorCause(code){
+        var text={
+            NEW_INSTANCE:'Новый запуск скрипта',
+            CLOCK_ROLLBACK:'Обнаружен откат системного времени',
+            RETAINED_TEMPERATURE:'Получена сохранённая температура',
+            RETAINED_HEALTH:'Получено сохранённое состояние Sensor OK',
+            MQTT_TEMPERATURE_ERROR:'Получено сообщение об ошибке канала температуры',
+            MQTT_HEALTH_ERROR:'Получено сообщение об ошибке Sensor OK',
+            POST_START_SERIAL_READ:'Датчик подтверждён прямым чтением после запуска',
+            MQTT_METADATA_UNSUPPORTED:'Недостаточно данных MQTT для доказательства актуальности',
+            LOCAL_TEMPERATURE_MISSING:'Нет локального значения температуры',
+            LOCAL_HEALTH_MISSING:'Нет локального значения Sensor OK',
+            TEMPERATURE_ERROR:'Ошибка канала температуры',
+            HEALTH_ERROR:'Ошибка канала Sensor OK',
+            LOCAL_TEMPERATURE_INVALID:'Локальная температура некорректна',
+            LOCAL_HEALTH_NOT_OK:'Локальный Sensor OK не подтверждает исправность',
+            LIVE_INVALID_SAMPLE:'Получено некорректное новое значение'
+        };
+        return text[code]||safeText(code);
+    }
+    function eventKind(code){
+        if(/^TIMER_/.test(code))return 'ТАЙМЕР';
+        if(/^PUMP_COMMAND_|^HOT_PORT_COMMAND_|^BOILER_MODE_COMMAND_|^BOILER_SETPOINT_COMMAND/.test(code))return 'КОМАНДА';
+        if(code==='VALVE_COMMAND_DROP')return 'РЕШЕНИЕ';
+        if(code==='OUTPUT_TRANSITION')return 'ВЫХОД';
+        if(/OVERHEAT|SAFETY/.test(code))return 'ЗАЩИТА';
+        if(/ERROR|UNCERTAIN/.test(code))return 'ОШИБКА';
+        return 'СОСТОЯНИЕ';
+    }
     var api={
         watch:function(path,min,max) {
             if(sensors[path])return;
@@ -113,8 +178,16 @@ exports.io = function (env, owner, allowed) {
                 var d=s.sensor.diagnostics(),signature=d.phase+';'+d.reason+';'+d.cause;
                 if(s.healthSignature!==signature){
                     s.healthSignature=signature;
-                    var level=value===null?'warning':'info';
-                    env.log[level]('[отопление]['+owner+'][M1W2 '+path+']; '+JSON.stringify(d));
+                    var level=value===null?'warning':'info',healthPath=C.m1w2Health[path];
+                    env.log[level]('[отопление]['+owner+'][M1W2 '+path+']; ДАТЧИК='+
+                        (value===null?'Данные датчика не пригодны':'Датчик пригоден')+
+                        '; код='+safeText(d.reason)+'; этап='+(d.phase==='STARTUP'?'Запуск':'Работа')+
+                        '; причина='+sensorReason(d.reason)+'; источник='+sensorCause(d.cause)+
+                        '; температура_С='+(value===null?'Нет достоверного значения':safeText(value))+
+                        '; Sensor_OK='+ruOnOff(env.dev[healthPath])+
+                        '; ошибка_температуры='+errorText(env.dev[path+'#error'])+
+                        '; ошибка_Sensor_OK='+errorText(env.dev[healthPath+'#error'])+
+                        '; действие='+(value===null?'Не использовать датчик в расчёте до восстановления':'Данные пригодны по контракту'));
                 }
             }
             return value;
@@ -149,24 +222,76 @@ exports.io = function (env, owner, allowed) {
             catch(e){delete lastCommands[path];result.status='ERROR';result.ok=false;result.delivery_unknown=true;}
             result.readback=api.readback(path);attempts.push(result);return result;
         },
-        event:function(key,state,warning) {
-            var signature=state+';'+warning, previous=lastEvents[key];
+        event:function(key,state,warning,detail,reason) {
+            var signature=state+';'+warning+';'+(detail||'')+';'+(reason||''), previous=lastEvents[key];
             if(previous && previous.signature===signature)return;
             var severity=warning?'warning':'state';
             if(/OVERHEAT|CLOSURE_UNCERTAIN/.test(state))severity='alarm';
             else if(previous && previous.warning && !warning)severity='recovery';
-            var e={v:3,owner:owner,circuit:key,at:env.now(),state:state,warning:warning||'',severity:severity};
+            var e={v:3,owner:owner,circuit:key,at:env.now(),state:state,warning:warning||'',detail:detail||'',severity:severity};
             lastEvents[key]={signature:signature,warning:warning};
-            env.publish(C.eventTopic,JSON.stringify(e),0,false);
-            var text='[отопление]['+owner+']['+key+']; STATE='+state+'; '+(warning||'');
-            if(severity==='alarm')env.log.error(text);
-            else if(severity==='warning')env.log.warning(text);
-            else env.log.info(text);
+            var text='[отопление]['+owner+']['+key+']; '+eventKind(state)+'='+exports.stateText(state)+
+                '; код='+safeText(state)+'; причина='+safeText(reason||warning||'Штатный переход')+
+                (detail?'; '+safeDetail(detail):'');
+            // Отказ диагностического канала не должен блокировать управление.
+            try {env.publish(C.eventTopic,JSON.stringify(e),0,false);}catch(ignorePublish){}
+            try {
+                if(severity==='alarm')env.log.error(text);
+                else if(severity==='warning')env.log.warning(text);
+                else env.log.info(text);
+            }catch(ignoreLog){}
+            return e;
+        },
+        trace:function(key,state,warning,detail) {
+            var e={v:3,owner:owner,circuit:key,at:env.now(),state:state,warning:warning||'',detail:detail||'',severity:'trace'};
+            // Machine-readable technical trace: intentionally not written to operator journal.
+            try {env.publish(C.eventTopic,JSON.stringify(e),0,false);}catch(ignorePublish){}
             return e;
         }
     };
     allowed.forEach(function(path){api.watch(path,-100000,100000);});
     return api;
+};
+function safeText(value){return String(value).replace(/[\r\n;\[\]]/g,', ');}
+function safeDetail(value){return String(value).replace(/[\r\n\[\]]/g,', ');}
+exports.stateText=function(code){
+    var text={NORMAL:'Нагрев по запросу зон',HEAT:'Нагрев по запросу зон',ACTIVE:'Источник обеспечивает запрос отопления',
+        OFF:'Отключено',NO_DEMAND:'Нет запроса тепла',PUMP_POSTRUN:'Выбег насоса',
+        REQUESTS_UNAVAILABLE:'Нет достоверных данных о запросе тепла',OT_UNAVAILABLE:'OpenTherm недоступен',
+        SOURCE_SENSOR_UNAVAILABLE:'Датчик температуры источника недоступен',SOURCE_OVERHEAT:'Перегрев источника',
+        AUTONOMOUS:'Местное управление без достоверного внешнего запроса',DEGRADED:'Работа в резервном режиме',
+        PENDING_ON_READBACK:'Ждём подтверждение включения зоны',PENDING_OFF_READBACK:'Ждём подтверждение выключения зоны',
+        OFF_READBACK_TIMEOUT:'Выключение зоны не подтверждено',ZONE_OUTPUT_UNCONFIRMED:'Ошибка выхода зоны',
+        OFF_COMMANDED:'Отправлена команда закрытия смесителя',HEAT_COMMANDED:'Команда нагрева подтверждена выходом',
+        WAIT_OUTPUT_READBACK:'Ждём подтверждение команды выхода',CLOSURE_UNCERTAIN:'Закрытие смесителя не подтверждено',
+        ENABLE_UNCERTAIN:'Включение смесителя не подтверждено',OFF_WRITE_ERROR:'Ошибка записи закрытия смесителя',
+        LEVEL_WRITE_ERROR:'Ошибка записи уровня смесителя',ENABLE_WRITE_ERROR:'Ошибка включения смесителя',
+        PUMP_WRITE_ERROR:'Ошибка записи команды насосу',OUTPUT_WRITE_ERROR:'Ошибка записи выхода',
+        OVERHEAT_CLOSE:'Перегрев: команда закрыть горячий порт',OVERHEAT_STOP:'Перегрев: защитная остановка',
+        FLOOR_SENSOR_UNAVAILABLE:'Датчик пола недоступен',NO_FEEDBACK_UNCOVERED:'Нет достоверной подачи и пола',
+        FLOOR_ONLY:'Ограниченное регулирование по полу',FLOOR_CAP_UNMEASURED:'Не задан проверенный предел по полу',
+        HOUSE_LINK_LOST:'Нет достоверного запроса дома',FIRST_COMMISSIONING:'Ожидает первого ввода',
+        RUNTIME_UNSUPPORTED:'Несовместимая среда управления',
+        TIMER_ZONE_OPEN_STARTED:'Начато ожидание открытия зоны',
+        TIMER_ZONE_OPEN_FINISHED:'Ожидание открытия зоны завершено',
+        TIMER_ZONE_OPEN_CANCELLED:'Ожидание открытия зоны отменено',
+        TIMER_PUMP_POSTRUN_STARTED:'Начат выбег насоса',
+        TIMER_PUMP_POSTRUN_FINISHED:'Выбег насоса завершён',
+        TIMER_PUMP_POSTRUN_CANCELLED:'Выбег насоса отменён',
+        TIMER_INTERRUPTED:'Таймер прерван',
+        SOURCE_WARMING:'Ожидание прогрева источника',
+        VALVE_COMMAND_DROP:'Расчётное открытие уменьшено',OUTPUT_TRANSITION:'Изменилось состояние выхода',
+        PUMP_COMMAND_ON:'Команда насосу ВКЛ',PUMP_COMMAND_OFF:'Команда насосу ВЫКЛ',
+        HOT_PORT_COMMAND_ON:'Команда разрешить горячий порт',HOT_PORT_COMMAND_OFF:'Команда закрыть горячий порт',
+        NO_DEMAND_SWITCHING:'Перевод котла в режим «Ожидание»',SOURCE_MODE_STARTING:'Перевод котла в режим «Зима ЦО + ГВС»',
+        BOILER_MODE_COMMAND_STANDBY:'Перевести котёл в режим «Ожидание»',
+        BOILER_MODE_COMMAND_HEATING:'Перевести котёл в режим «Зима ЦО + ГВС»',
+        BOILER_MODE_CONFIRMED_STANDBY:'Котёл переведён в режим «Ожидание»',
+        BOILER_MODE_CONFIRMED_HEATING:'Котёл переведён в режим «Зима ЦО + ГВС»',
+        BOILER_MODE_EXTERNAL_CHANGE:'Изменился режим котла',BOILER_SETPOINT_COMMAND:'Установить уставку котла',
+        COMMAND_ACCEPTED:'Попытка записи без обнаруженной ошибки',NOT_SENT:'Команда не отправлялась',
+        SETTINGS_INVALID:'Ошибка настроек',SENSOR_FALLBACK:'Резерв при недоступном датчике',FLOOR_HARD_MAX:'Перегрев пола'};
+    return text[code]||'Состояние управления изменено';
 };
 exports.houseValid=function(f) {
     if(!f || f.v!==3 || f.source!==C.houseSource || f.ttl_ms!==W.TTL_MS ||
@@ -180,6 +305,13 @@ exports.houseValid=function(f) {
             typeof g.reason==='string' &&
             (g.partial_ready===undefined || typeof g.partial_ready==='boolean') &&
             (g.output_blocked===undefined || typeof g.output_blocked==='boolean') &&
+            (g.pending_on===undefined || typeof g.pending_on==='boolean') &&
+            (g.pending_off===undefined || typeof g.pending_off==='boolean') &&
+            (g.transition_safe===undefined || typeof g.transition_safe==='boolean') &&
+            (!g.transition_safe || !g.output_blocked) &&
+            (g.startRemainingMs===undefined || g.startRemainingMs===null ||
+                (typeof g.startRemainingMs==='number'&&isFinite(g.startRemainingMs)&&g.startRemainingMs>=0&&
+                 g.startRemainingMs<=C.circuits[id].zoneActuatorOpenMs&&!g.ready)) &&
             (!g.output_blocked || g.degraded) &&
             (!g.output_blocked || !g.partial_ready) &&
             (!g.partial_ready || (g.demand&&g.ready&&g.degraded&&g.valid)) &&
@@ -201,6 +333,7 @@ exports.source=function(config,storage,io) {
     var coolAt=null,firstSample=null,lastNow=null,lastWritten=null,responseAt=null,baseline=null;
     return function(requested,inService,now,demandKnown) {
         var t=io.read(config.temperature),connection=io.read(config.connection),fault=io.read(config.fault);
+        var mode=io.read(config.boilerMode);
         if(lastNow!==null&&(now<lastNow||now-lastNow>15000)){coolAt=null;responseAt=null;}
         lastNow=now;
         if(t!==null&&t>=config.hardMaxC)storage.hot=true;
@@ -209,34 +342,46 @@ exports.source=function(config,storage,io) {
             else if(coolAt===null){coolAt=now;firstSample=io.observedAt(config.temperature);}
             if(coolAt!==null&&now-coolAt>=config.coolMs&&io.observedAt(config.temperature)>firstSample)storage.hot=false;
         }
-        var state='ACTIVE',warning='',command=null,ok=true,sent=false;
-        function write(path,value){var w=io.write(path,value);sent=w.sent||sent;return w.ok;}
+        var state='ACTIVE',warning='',command=null,modeCommand=null,ok=true,sent=false,setpointSent=false,modeSent=false;
+        function write(path,value){
+            var w=io.write(path,value);
+            sent=w.sent||sent;
+            if(path===config.setpoint)setpointSent=w.sent||setpointSent;
+            if(path===config.boilerMode)modeSent=w.sent||modeSent;
+            return w.ok;
+        }
         if(!inService)state='FIRST_COMMISSIONING';
         else if(storage.hot){state='SOURCE_OVERHEAT';warning='Аппаратные защиты котла обязательны; насосы соседей не выключаются';}
         else if(connection!==0||fault!==0){state='OT_UNAVAILABLE';warning='Нет свежей исправной связи OT; новые команды удержаны';}
         else if(t===null){state='SOURCE_SENSOR_UNAVAILABLE';warning='Нет достоверного 411; новые команды удержаны';}
         else if(requested===0&&demandKnown===false){state='REQUESTS_UNAVAILABLE';warning='Запрос 0, но отсутствие спроса не подтверждено: команду OFF не выдаём';}
         else if(requested===0){
-            state='NO_DEMAND';
-            if(config.noDemandMode==='setpoint_zero') {ok=write(config.setpoint,0);command=0;}
-            else if(config.noDemandMode==='ch_enable') {ok=write(config.chEnable,false);command=false;}
-            else {state='NO_DEMAND_ACTION_UNCONFIRMED';warning='Запрос 0; физический способ выключения CH с сохранением ГВС не подтверждён';}
+            modeCommand=config.standbyMode;
+            if(mode===config.standbyMode)state='NO_DEMAND';
+            else {
+                state='NO_DEMAND_SWITCHING';
+                ok=write(config.boilerMode,modeCommand);
+            }
         } else {
             command=Math.max(config.minC,Math.min(config.maxC,requested));
-            ok=write(config.setpoint,command);
-            if(config.noDemandMode==='ch_enable'&&ok)ok=write(config.chEnable,true);
+            if(mode!==config.heatingMode){
+                state='SOURCE_MODE_STARTING';
+                modeCommand=config.heatingMode;
+                ok=write(config.boilerMode,modeCommand);
+            } else ok=write(config.setpoint,command);
         }
         if(!ok){state='OUTPUT_WRITE_ERROR';warning='Повтор записи автоматически';}
-        if(command!==null&&ok&&sent)lastWritten=command;
+        if(command!==null&&ok&&setpointSent)lastWritten=command;
         if(requested>0&&t!==null){
             if(responseAt===null){responseAt=now;baseline=t;}
             if(t>=requested-1||t>=baseline+1){responseAt=now;baseline=t;}
             else if(now-responseAt>=config.responseMs)warning+='; NO_RESPONSE — недостаточный отклик, не защёлка';
         }else{responseAt=null;baseline=null;}
         return {requested_heating_setpoint:requested,state:state,warning:warning,
-            command:command,last_written:lastWritten,command_sent:sent,
-            commands:io.commands([config.setpoint,config.chEnable]),
-            readback:{setpoint:io.readback(config.setpoint),chEnable:io.readback(config.chEnable)},
-            off_command_sent:requested===0&&command!==null&&ok&&sent};
+            command:command,boiler_mode_command:modeCommand,last_written:lastWritten,command_sent:sent,
+            setpoint_command_sent:setpointSent,mode_command_sent:modeSent,
+            commands:io.commands([config.setpoint,config.boilerMode]),
+            readback:{setpoint:io.readback(config.setpoint),boilerMode:io.readback(config.boilerMode)},
+            off_command_sent:requested===0&&modeCommand===config.standbyMode&&ok&&modeSent};
     };
 };

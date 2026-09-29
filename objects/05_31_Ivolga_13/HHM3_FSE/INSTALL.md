@@ -1,4 +1,21 @@
-# HHM 3.1 — migration и rollback через NLI 0.1.9
+# HHM 3.6 — выпуск через NLI 0.1.9
+
+Актуальная подготовка выпуска описана в [RELEASE_3_6.md](RELEASE_3_6.md).
+
+Approved `nli-approved-hhm-3.2` от 28.09.2026 сохраняется как неизменяемая
+история, но после полевого дефекта A05/насоса **не используется для новых
+установок**. По политике NLI approved asset/manifest не заменяется; исправление было выпущено как 3.3; после live 3.5 выбег 501/503 и setpoint dedup готовятся новой версией **3.6** и новым unique tag.
+
+После публикации нового stable approved release зарегистрированному контроллеру
+с NLI 0.1.9 достаточно штатного `nli check hhm` и затем, в согласованное окно,
+`nli update hhm`. До публикации/green CI беседку не обновлять. Manifests 3.1
+и 3.2 остаются историческими.
+
+
+## Исторический план ввода 3.1
+
+Ниже сохранены сведения прежнего controlled retry. Они не заменяют
+актуальные R/M и approved-каталог 3.2 из Этапа 9 #81.
 
 Это план будущих действий оператора, не разрешение и не выполненный deploy. В рамках Issue #68 нет доступа к live WB, restart, OT или физическим командам.
 
@@ -54,7 +71,8 @@
 
 ## Приёмка после согласованной установки
 
-- Проверить version 3.1 в HHM3Config и `sensor_health_contract=m1w2-health-v1` на HHM3_FSE (boiler) / NL_combo_thermostat_504 (gazebo); поля attestation в manifests являются metadata и не возвращают runtime gate в NLI 0.1.9.
+- Проверить version 3.6 в HHM3Config и `sensor_health_contract=m1w2-health-v1` на HHM3_FSE (boiler) / NL_combo_thermostat_504 (gazebo); поля attestation в manifests являются metadata и не возвращают runtime gate в NLI 0.1.9.
+- На boiler отдельно проверить source sequence: известный NO_DEMAND → `Current Boiler Mode=0` («Ожидание»); новый demand → команда `Current Boiler Mode=1`, подтверждённый readback 1, затем Heating Setpoint. В журнале должны быть короткие INFO для команды и подтверждения обоих режимов. Master DHW enable и другие DHW controls не должны записываться.
 - Проверить 18 пользовательских настроек дома и отдельный 505, compact diagnostics, отсутствие нового первичного ввода. `start_heating` повторно не нажимать.
 - Проверить новые rules instances в порядках 500→620 и 620→500; recorded POST_START_SERIAL_READ должен сопровождаться квалификацией required sensors без numeric republish. House receiver должен принимать новые session/seq и оставаться fresh. Затем наблюдать >120 с при стабильных температурах: локальные M1W2 valid, 504 не переключается в автономию из-за numeric silence. Проверить диагностику 411–420, включая 412. Отказ датчика не моделировать опасным нагревом.
 - Действующие MSW, межконтроллерная связь, реальные ошибки датчиков и локальные защиты должны сохранять свои реакции. UI/гидравлическая приёмка остаётся отдельной #20, не выводить её из CI или software command accepted.
