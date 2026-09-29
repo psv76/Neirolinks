@@ -38,6 +38,24 @@ test('Первый пуск ждёт все 180 с после ON; из прос�
  h.advance(175000);assert.equal(h.report()['502'].pump_command,false);
  h.advance(5000);assert.equal(h.report()['502'].pump_command,true);
 });
+test('501 и 503: после последнего зонального запроса насос остаётся включён ровно 120 с',()=>{
+ for(const item of [{id:'501',zone:'601',pump:'A03/K1'},{id:'503',zone:'005',pump:'A03/K3'}]){
+  const h=create();h.samples();h.start();
+  h.set('boiler','NL_simple_thermostat_'+item.zone+'/target_state',true);
+  h.advance(190000);
+  assert.equal(h.report()[item.id].pump_command,true,item.id+' должен быть запущен после открытия зоны');
+  h.set('boiler','NL_simple_thermostat_'+item.zone+'/target_state',false);
+  h.advance(5000);
+  assert.equal(h.report()[item.id].reason,'PUMP_POSTRUN',item.id);
+  assert.equal(h.report()[item.id].pump_command,true,item.id);
+  assert.equal(h.report()[item.id].stopRemainingMs,120000,item.id);
+  h.advance(115000);
+  assert.equal(h.report()[item.id].pump_command,true,item.id);
+  assert.equal(h.report()[item.id].stopRemainingMs,5000,item.id);
+  h.advance(5000);
+  assert.equal(h.report()[item.id].pump_command,false,item.id);
+ }
+});
 test('Перегрев и ошибка выхода прерывают выбег',()=>{
  for(const kind of ['heat','output']){
   const h=setup();off(h);
