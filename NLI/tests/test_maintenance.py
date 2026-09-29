@@ -70,43 +70,50 @@ class SelfUpdateTests(fixtures.Fixture):
         self.data = package.read_bytes()
         package.unlink()
         package.with_suffix('.deb.sha256').unlink()
-        self.package = dict(version='0.1.10', approved=True, sha256=digest(self.data), asset={'id': 99})
+        self.package = dict(version=__version__, approved=True, sha256=digest(self.data), asset={'id': 99},
+                            package_name='neiro-nst', executable='/usr/bin/nst', metadata_key='nst')
         self.engine.releases.package = lambda: self.package
         self.engine.releases.asset = lambda *args: self.data
         self.calls = []
         def run(argv, timeout=None):
             self.calls.append(argv)
             if argv[:2] == ['/usr/bin/dpkg-deb', '-f']:
-                return 'Package: neiro-nli\nVersion: 0.1.10\nArchitecture: all'
+                return 'Package: neiro-nst\nVersion: 1.0.0\nArchitecture: all'
             if argv[:2] == ['/usr/bin/dpkg-query', '-W']:
-                return '0.1.10'
-            if argv[0] == '/usr/bin/nli':
-                return '{"version": "0.1.10"}'
+                return '1.0.0'
+            if argv[0] == '/usr/bin/nst':
+                return '{"version": "1.0.0"}'
             self.assertEqual(argv[:2], ['/usr/bin/dpkg', '--install'])
             return ''
         self.system.run = run
 
+    def force_repair(self):
+        write_json(self.engine.target(STATE_DIR + '/self-update.json'), {'to_version': __version__})
+
     def test_check_readonly_metadata_only(self):
         before = self.snapshot()
-        with patch.object(self.engine.releases, 'asset', side_effect=AssertionError('No package download')):
+        newer = dict(self.package, version='1.0.1')
+        with patch.object(self.engine.releases, 'package', return_value=newer), \
+             patch.object(self.engine.releases, 'asset', side_effect=AssertionError('No package download')):
             r = SelfUpdate(self.engine).execute(check=True)
         self.assertTrue(r['update_available'])
         self.assertEqual(before, self.snapshot())
         self.assertEqual(self.calls, [])
 
     def test_no_update(self):
-        self.package['version'] = __version__
         r = SelfUpdate(self.engine).execute()
         self.assertEqual(r['final_status'], 'ok')
         self.assertEqual(self.calls, [])
 
     def test_package_checksum_failure_before_install(self):
+        self.force_repair()
         self.data += b'corrupt'
         r = SelfUpdate(self.engine).execute()
         self.assertEqual(r['final_status'], 'failed', r)
         self.assertEqual(self.calls, [])
 
     def test_success_preserves_component_pending_and_all_durable_inputs(self):
+        self.force_repair()
         write_json(self.engine.pending_path, {'id': 'abc', 'component': 'demo', 'backup': None})
         before = self.snapshot()
         r = SelfUpdate(self.engine).execute()
@@ -114,10 +121,11 @@ class SelfUpdateTests(fixtures.Fixture):
         for name, data in before.items():
             self.assertEqual(self.snapshot()[name], data)
         self.assertEqual(self.system.actions, [])
-        self.assertFalse(list(self.engine.state_dir.glob('nli-package-*')))
+        self.assertFalse(list(self.engine.state_dir.glob('nst-package-*')))
         self.assertFalse(self.engine.target(STATE_DIR + '/self-update.json').exists())
 
     def test_install_failure_retains_separate_intent_and_cleans_temp(self):
+        self.force_repair()
         original = self.system.run
         def fail(argv, **kwargs):
             if argv[0] == '/usr/bin/dpkg':
@@ -132,6 +140,7 @@ class SelfUpdateTests(fixtures.Fixture):
         self.assertEqual(SelfUpdate(self.engine).execute()['final_status'], 'ok')
 
     def test_interrupt_keeps_pending_and_never_restarts_wb(self):
+        self.force_repair()
         original = self.system.run
         def interrupted(argv, **kwargs):
             if argv[0] == '/usr/bin/dpkg':
@@ -147,8 +156,8 @@ class SelfUpdateTests(fixtures.Fixture):
         from tools.build_deb import archive
         for member, entries in [('control.tar.gz', [('postinst', b'#!/bin/sh', 0o755)]),
                                 ('data.tar.gz', [('mnt/data/etc/neiro/nli/config.json', b'{}', 0o644)])]:
-            chunks = {'debian-binary': b'2.0\n', 'control.tar.gz': archive([('control', b'Package: neiro-nli', 0o644)],0),
-                      'data.tar.gz': archive([('usr/bin/nli', b'code', 0o755)],0)}
+            chunks = {'debian-binary': b'2.0\n', 'control.tar.gz': archive([('control', b'Package: neiro-nst', 0o644)],0),
+                      'data.tar.gz': archive([('usr/bin/nst', b'code', 0o755)],0)}
             chunks[member] = archive(entries,0)
             data = b'!<arch>\n'
             for name, value in chunks.items():
