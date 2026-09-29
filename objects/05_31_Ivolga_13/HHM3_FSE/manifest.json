@@ -1,68 +1,13 @@
 {
-  "release": "HHM 3.3",
+  "release": "HHM 3.4",
   "object": "05_31_Ivolga_13",
   "issue": 81,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "6002bfe8ba7f816d3b6d85062ec07ad79b0cf5c5021b2e1883ceadedb66aec57",
+  "aggregate_sha256": "44ba00eb6c42eb43123829ba5e3f94c5132c7f1cdfd0d05706c15f1e656424b5",
   "files": [
     {
-      "file": "FIELD_STARTUP_2026-09-25.md",
-      "sha256": "0c886dbfeeac5203641522f13128af5fdf43bfa9f5fa829bec12d0ab44b7e900",
-      "role": "documentation"
-    },
-    {
-      "file": "INSTALL.md",
-      "sha256": "a8d3d3ddabb7f4414d7dac81ac272f3488194d7f6070bcb722710f8791f80651",
-      "role": "documentation"
-    },
-    {
-      "file": "ISSUE61.md",
-      "sha256": "7d248f3c83a4850cb9a125ce55436240102b50331490be77d84df610d9457d30",
-      "role": "documentation"
-    },
-    {
-      "file": "ISSUE75_RECOVERY.md",
-      "sha256": "36ef12d458beaeab742dbaab83afa3fa745ec9d0ecb72c77f1d1b31ae88d8f11",
-      "role": "documentation"
-    },
-    {
-      "file": "ISSUE81.md",
-      "sha256": "3bed5164291c84be80fb332457d53a002a380ea1eef87d00b7d1a38abad587e1",
-      "role": "documentation"
-    },
-    {
-      "file": "ISSUE_502_READBACK.md",
-      "sha256": "ae8a85af38619ce2fbadf4ec1817839d8be4ec5d7caf2761c8912def09fd59f8",
-      "role": "documentation"
-    },
-    {
-      "file": "README.md",
-      "sha256": "8c312e66a3d02331acbb192bf0d932b773bbcbbfbfe0b2bb99d079fce56b7427",
-      "role": "documentation"
-    },
-    {
-      "file": "RELEASE_3_2.md",
-      "sha256": "58a28ee407b5486dfb4dbfc01431d8e25b492cdc170dd935aae4f0a980f69a35",
-      "role": "documentation"
-    },
-    {
-      "file": "RELEASE_3_3.md",
-      "sha256": "53a1f59f475c3599614a452fa7948b0bd468f51bcb12fd42a358a1c45c277f78",
-      "role": "documentation"
-    },
-    {
-      "file": "SENSOR_HEALTH.md",
-      "sha256": "c31313994afa4cf0930c4c5ddae434f2c618c9d2c95d1f56905ce7374dbb98d8",
-      "role": "documentation"
-    },
-    {
-      "file": "TEST_RESULTS.md",
-      "sha256": "8c976f94a8fba020aa6f320f4c4ca6070717fc5d2d13c6958507395f34d0016e",
-      "role": "documentation"
-    },
-    {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
-      "sha256": "9aa1b9e3508f6ce08a19597087a83bb73cdbacafcc0a7d254015a054e3e88472",
+      "sha256": "bf5aa9aac91f65fdb81ca5be5aa29c974b6722c55a5fbb96cd61ee731a6aa12e",
       "boards": [
         "boiler"
       ],
@@ -77,6 +22,11 @@
       ],
       "destination": "/etc/wb-rules/620_thermostats.js",
       "role": "rule"
+    },
+    {
+      "file": "FIELD_STARTUP_2026-09-25.md",
+      "sha256": "0c886dbfeeac5203641522f13128af5fdf43bfa9f5fa829bec12d0ab44b7e900",
+      "role": "documentation"
     },
     {
       "file": "gazebo/mosquitto/504-acl.example",
@@ -108,6 +58,31 @@
       "role": "rule"
     },
     {
+      "file": "INSTALL.md",
+      "sha256": "a8d3d3ddabb7f4414d7dac81ac272f3488194d7f6070bcb722710f8791f80651",
+      "role": "documentation"
+    },
+    {
+      "file": "ISSUE_502_READBACK.md",
+      "sha256": "ae8a85af38619ce2fbadf4ec1817839d8be4ec5d7caf2761c8912def09fd59f8",
+      "role": "documentation"
+    },
+    {
+      "file": "ISSUE61.md",
+      "sha256": "7d248f3c83a4850cb9a125ce55436240102b50331490be77d84df610d9457d30",
+      "role": "documentation"
+    },
+    {
+      "file": "ISSUE75_RECOVERY.md",
+      "sha256": "36ef12d458beaeab742dbaab83afa3fa745ec9d0ecb72c77f1d1b31ae88d8f11",
+      "role": "documentation"
+    },
+    {
+      "file": "ISSUE81.md",
+      "sha256": "3bed5164291c84be80fb332457d53a002a380ea1eef87d00b7d1a38abad587e1",
+      "role": "documentation"
+    },
+    {
       "file": "modules/HHM3Circuit.js",
       "sha256": "fb89d11916e95483dd0db18e6d69104e0b097ee59c3f2df16830c65e50986e7d",
       "boards": [
@@ -118,7 +93,7 @@
     },
     {
       "file": "modules/HHM3Config.js",
-      "sha256": "ef17fb2db19698f9d36d457a9fc84308fc2224994d1d06e6ccbf634119102f67",
+      "sha256": "ec8588cc1087a83090389617cbbf8acab1e6f45197022ab399338d59a4c780e3",
       "boards": [
         "boiler",
         "gazebo"
@@ -146,7 +121,7 @@
     },
     {
       "file": "modules/HHM3Runtime.js",
-      "sha256": "c97449d41b8eb946f01bf2f85185d2e89eddabbbfc370d301f332b3aad9c6b04",
+      "sha256": "c07fc43d78d5b641b2af8d138f0d8ca1cd6c7368bfac22b449b248f5542e5b48",
       "boards": [
         "boiler",
         "gazebo"
@@ -163,6 +138,36 @@
       ],
       "destination": "/etc/wb-rules-modules/HHM3Wire.js",
       "role": "module"
+    },
+    {
+      "file": "README.md",
+      "sha256": "b4a86787a88b0f3003fc30ef971653826458d34aff103ac7e7ee04d1c897b08d",
+      "role": "documentation"
+    },
+    {
+      "file": "RELEASE_3_2.md",
+      "sha256": "58a28ee407b5486dfb4dbfc01431d8e25b492cdc170dd935aae4f0a980f69a35",
+      "role": "documentation"
+    },
+    {
+      "file": "RELEASE_3_3.md",
+      "sha256": "53a1f59f475c3599614a452fa7948b0bd468f51bcb12fd42a358a1c45c277f78",
+      "role": "documentation"
+    },
+    {
+      "file": "RELEASE_3_4.md",
+      "sha256": "ccc907feeb84533e6fb10af5f427166020ecd87c836293ff4e5c1bbc4e0efdd9",
+      "role": "documentation"
+    },
+    {
+      "file": "SENSOR_HEALTH.md",
+      "sha256": "c31313994afa4cf0930c4c5ddae434f2c618c9d2c95d1f56905ce7374dbb98d8",
+      "role": "documentation"
+    },
+    {
+      "file": "TEST_RESULTS.md",
+      "sha256": "8c976f94a8fba020aa6f320f4c4ca6070717fc5d2d13c6958507395f34d0016e",
+      "role": "documentation"
     },
     {
       "file": "tests/cold-start-proof-regressions.js",
@@ -191,7 +196,7 @@
     },
     {
       "file": "tests/logging-regressions.js",
-      "sha256": "1ba6e14ecca72f77e0ef7dd9f58e727a05cb121447d92503909a7112d1c43d11",
+      "sha256": "12deb2047ef3b48fe882ef5f99308f8bb47ed4be7a1c37dd034752f934348a5a",
       "role": "test"
     },
     {
@@ -285,13 +290,13 @@
       "role": "documentation"
     },
     {
-      "file": "tools/install_hhm3_ui_cleanup.sh",
-      "sha256": "c8091c0cc4ab071c4ccfe1cab7820901b3a3abb8b252f709b3d34480aebb0700",
+      "file": "tools/install_hhm3_ui_cleanup_v2.sh",
+      "sha256": "017f374d1723f5f2631835517d904e8223b076ecd5317b4f0972f74486c9298a",
       "role": "documentation"
     },
     {
-      "file": "tools/install_hhm3_ui_cleanup_v2.sh",
-      "sha256": "017f374d1723f5f2631835517d904e8223b076ecd5317b4f0972f74486c9298a",
+      "file": "tools/install_hhm3_ui_cleanup.sh",
+      "sha256": "c8091c0cc4ab071c4ccfe1cab7820901b3a3abb8b252f709b3d34480aebb0700",
       "role": "documentation"
     },
     {
