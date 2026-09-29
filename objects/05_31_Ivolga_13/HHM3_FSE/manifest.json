@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 81,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "0f6dabc213e1d81181f0e9c22d85c599fa85a0cbd6a43fb44713699b89a1f93e",
+  "aggregate_sha256": "60bffe8c2cb451aa1b491423289718def3afe0c6b6735683292160fa8703f1f5",
   "files": [
     {
       "file": "FIELD_STARTUP_2026-09-25.md",
@@ -62,7 +62,7 @@
     },
     {
       "file": "RELEASE_3_6.md",
-      "sha256": "7cf01004b34c781f7c826672908db4f8733876dac82c3eb3d646b7e2c44b98a8",
+      "sha256": "100d3c783d5a5990ce8cac9b8c45d1f2d33701e5617094ed88bfd52249cb9ab3",
       "role": "documentation"
     },
     {
@@ -72,7 +72,7 @@
     },
     {
       "file": "TEST_RESULTS.md",
-      "sha256": "397ef72c2d9f1b17679bb5b10cc346afed316ef918d147ab2bea5a077e768d7e",
+      "sha256": "45890fc8e69872312472688bf6059ec255045408e777b461f1e254028350e088",
       "role": "documentation"
     },
     {
@@ -206,7 +206,7 @@
     },
     {
       "file": "tests/logging-regressions.js",
-      "sha256": "b3780a7780f6df754c8b6dad9993d14979eabb79a972eca459f618f59a9c3d8e",
+      "sha256": "70b9e99bfe62db91a0f8a9124a4064c551eaa45bd8312455fcfd9c82add7e980",
       "role": "test"
     },
     {
