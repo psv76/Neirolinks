@@ -6,9 +6,34 @@
 
 - последняя approved версия: **HHM 3.5**;
 - GitHub Release: `nli-approved-hhm-3.5`;
-- release tag commit: `05bdaec7d0bd82615b7c0247df0d0737c59df71e`;
-- runtime source commit выпуска 3.5: `48408e6f1649ad17d0b3253f1b7cade258cd4fb3`;
-- HHM 3.6 находится в разработке в PR #106 и не является approved Release.
+- HHM 3.6: **release-ready, но ещё не approved**, пока не опубликован `nli-approved-hhm-3.6`;
+- проверенный runtime commit HHM 3.6: `f4673abbe52f1a89db5c84dd4c8cd391bc9ee0ef`;
+- проверенный manifest commit HHM 3.6: `12e5805d22e365bdbe049245fefccdc005e960fa`;
+- manifest SHA256: boiler `9469bf5c...`, gazebo `df1efa30...`.
+
+### Переходный выпуск HHM 3.6
+
+HHM 3.6 был разработан и полностью проверен до миграции репозитория на `Systems/Objects`. Чтобы не менять уже проверенные runtime bytes и не получать новый непроверенный manifest, выпуск 3.6 сохраняет immutable provenance старой линии:
+
+- runtime `R = f4673abbe52f1a89db5c84dd4c8cd391bc9ee0ef`;
+- manifest `M = 12e5805d22e365bdbe049245fefccdc005e960fa`;
+- source paths внутри manifest остаются историческими `objects/.../HHM3_FSE`.
+
+При этом publication record 3.6 проходит уже по новому стандарту:
+
+```text
+release-prep PR → main
+                ↓
+конкретный commit main
+                ↓
+tag nli-approved-hhm-3.6
+                ↓
+GitHub Release + nli-catalog.json
+```
+
+Копии проверенных manifest 3.6 находятся в `Systems/NST/releases/` и должны совпадать по SHA256 с исходными immutable manifest.
+
+Начиная со следующей разработки HHM новый release-ready код должен формироваться от актуального `main`, а не от старого stacked branch graph.
 
 Releases 3.2–3.5 были опубликованы до принятия стандарта `EIM/Standards/Development_lifecycle_standard.md`. Их tags и Releases сохраняются как исторические неизменяемые точки и не переписываются задним числом. Для новых выпусков применяется правило: PR → main → конкретный commit main → tag → Release.
 
