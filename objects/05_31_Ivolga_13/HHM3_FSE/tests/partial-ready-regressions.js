@@ -123,12 +123,12 @@ module.exports=function(test,create){
   assert.equal(h.values.boiler['A03/K3'],false);
   h.fail('');step(h);assert.equal(h.report()['503'].demand,true);
  });
- test('502 abrupt valve command drop produces diagnostic event without new writers',()=>{
+ test('502 abrupt valve command drop produces technical trace without new writers',()=>{
   const h=setup(()=>false);
   h.advance(700000);const before=h.report()['502'].valve_pct;
   assert.ok(before>=8,'test must first build a meaningful opening');
   h.set('boiler','NL_simple_thermostat_606/target_state',false);step(h);
-  const changes=h.messages.filter(m=>m.topic===h.C.eventTopic&&JSON.parse(m.payload).circuit==='502_valve_transition');
+  const changes=h.messages.filter(m=>m.topic===h.C.traceTopic&&JSON.parse(m.payload).circuit==='502_valve_transition');
   assert.ok(changes.length>=1);
   assert.equal(JSON.parse(changes.at(-1).payload).state,'VALVE_COMMAND_DROP');
   assert.equal(h.report()['502'].valve_pct,0);
