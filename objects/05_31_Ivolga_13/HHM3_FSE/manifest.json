@@ -3,7 +3,7 @@
   "object": "05_31_Ivolga_13",
   "issue": 81,
   "encoding": "UTF-8; SHA-256 over LF-normalized text",
-  "aggregate_sha256": "1e710f134ea178eb502c276eef80d60884878dce1f058f7c80485e58c3c64ec2",
+  "aggregate_sha256": "27129195ab4e93b5b83eba3d0709e448e9dce69fabc438c1a3f1b6398ee28234",
   "files": [
     {
       "file": "FIELD_STARTUP_2026-09-25.md",
@@ -72,7 +72,7 @@
     },
     {
       "file": "boiler/wb-rules/500_HHM3_FSE.js",
-      "sha256": "a0dc2304d7acc6e4e58bd98ef19e40f1c882fe9dc3307492200283a2730b2e58",
+      "sha256": "7345635858b471d9b3a6a386b670cfdbd654f536b64ce81a1e71ab4f848e8cde",
       "boards": [
         "boiler"
       ],
