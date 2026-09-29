@@ -8,7 +8,8 @@ var operation=new PersistentStorage('hhm3_operation',{global:true});
 var userSettings=new PersistentStorage('hhm3_thermostats',{global:true});
 var VD='HHM3_FSE',initialized=false,engines={},thermal={},directCool={},lastNow=null,openSince={},valveHistory={},lastReports={},lastSource={};
 var sourceUnavailableSince=null,sourceUnavailableLogged=false;
-var allowed=[C.source.setpoint,C.source.chEnable];
+var pendingBoilerMode=null,lastObservedBoilerMode=null,lastLoggedSetpoint=null;
+var allowed=[C.source.setpoint,C.source.boilerMode];
 Object.keys(C.circuits).forEach(function(id){var c=C.circuits[id];allowed.push(c.pump);if(c.kind==='mixed')allowed.push(c.level,c.enable);});
 var io=R.io({proofStorage:new PersistentStorage('hhm31_poll_500',{global:true}),dev:dev,now:Date.now,trackMqtt:trackMqtt,publish:publish,log:log,
     onSample:function(){if(initialized)evaluate();}},'500_HHM3',allowed);
@@ -96,6 +97,47 @@ function event(id,r,out){
     var e=io.event(id,state,r.warning);
     if(e)sc('last_event',String(id)+': '+R.stateText(e.state)+(e.warning?' · '+String(e.warning).slice(0,80):''));
 }
+function boilerModeName(value){
+    if(value===C.source.standbyMode)return '«Ожидание»';
+    if(value===C.source.heatingMode)return '«Зима ЦО + ГВС»';
+    return 'код '+String(value);
+}
+function sourceModeEvents(r){
+    var rb=r.readback&&r.readback.boilerMode?r.readback.boilerMode.value:null;
+    var modeCode,reason,confirmed=false,i,w;
+    if(r.mode_command_sent){
+        pendingBoilerMode=r.boiler_mode_command;
+        modeCode=pendingBoilerMode===C.source.standbyMode?'BOILER_MODE_COMMAND_STANDBY':'BOILER_MODE_COMMAND_HEATING';
+        reason=pendingBoilerMode===C.source.standbyMode?'Нет запроса тепла':
+            (lastSource&&lastSource.requested_heating_setpoint===0?'Появился запрос тепла':'Есть запрос тепла');
+        io.event('source_mode_command',modeCode,'',
+            'канал='+C.source.boilerMode+'; значение='+String(pendingBoilerMode)+'; режим='+boilerModeName(pendingBoilerMode),
+            reason);
+    }
+    if(rb!==null&&rb!==undefined){
+        if(pendingBoilerMode!==null&&rb===pendingBoilerMode){
+            modeCode=rb===C.source.standbyMode?'BOILER_MODE_CONFIRMED_STANDBY':'BOILER_MODE_CONFIRMED_HEATING';
+            reason=rb===C.source.standbyMode?'Нет запроса тепла':'Есть запрос тепла';
+            io.event('source_mode_confirmed',modeCode,'',
+                'канал='+C.source.boilerMode+'; readback='+String(rb)+'; режим='+boilerModeName(rb),reason);
+            pendingBoilerMode=null;confirmed=true;
+        }
+        if(!confirmed&&pendingBoilerMode===null&&lastObservedBoilerMode!==null&&rb!==lastObservedBoilerMode){
+            io.event('source_mode_external','BOILER_MODE_EXTERNAL_CHANGE','',
+                'было='+boilerModeName(lastObservedBoilerMode)+' ('+String(lastObservedBoilerMode)+')'+
+                '; стало='+boilerModeName(rb)+' ('+String(rb)+')','Получен новый readback режима котла');
+        }
+        lastObservedBoilerMode=rb;
+    }
+    for(i=0;i<(r.commands||[]).length;i++){
+        w=r.commands[i];
+        if(w.path===C.source.setpoint&&w.sent&&w.ok&&w.value!==lastLoggedSetpoint){
+            io.event('source_setpoint','BOILER_SETPOINT_COMMAND','',
+                'канал='+C.source.setpoint+'; значение_С='+String(w.value),'Есть запрос тепла');
+            lastLoggedSetpoint=w.value;
+        }
+    }
+}
 function sourceEvent(r,now){
     if(r.state==='REQUESTS_UNAVAILABLE'){
         if(sourceUnavailableSince===null)sourceUnavailableSince=now;
@@ -112,7 +154,9 @@ function sourceEvent(r,now){
         event('source',r);
         return;
     }
-    // Ordinary ACTIVE/NO_DEMAND changes still use normal deduplicated operator events.
+    // Normal source mode switching is represented by explicit command/readback events.
+    if(!r.warning&&(r.state==='NO_DEMAND_SWITCHING'||r.state==='SOURCE_MODE_STARTING'||
+       r.state==='NO_DEMAND'||r.state==='ACTIVE'))return;
     event('source',r);
 }
 function onOff(value){
@@ -333,7 +377,7 @@ function evaluateOnce(){
     });
     var selected=R.select(requests,now),source=sourceStep(selected.temperature,operation.inService===true&&io.compatible(),now,selected.demandKnown);
     if(operation.inService===true&&!io.compatible()){source.state='RUNTIME_UNSUPPORTED';source.warning=W.RUNTIME_ERROR_RU;}
-    lastReports=reports;lastSource=source;
+    lastReports=reports;
     sc('in_service',operation.inService===true);
     sc('operational_status',operation.inService!==true?'Ожидает первого ввода':
         !io.compatible()?'Несовместимая версия wb-rules':
@@ -342,9 +386,11 @@ function evaluateOnce(){
     sc('selected_consumer',selected.consumer||'Нет');sc('requested_source_temperature',selected.temperature);
     sc('requested_heating_setpoint',source.requested_heating_setpoint);
     sc('diag_request_boiler',diagnosticBoilerRequest(source));
-    sc('source_status',source.state+(source.warning?' · '+source.warning.slice(0,80):''));
+    sc('source_status',R.stateText(source.state)+(source.warning?' · '+source.warning.slice(0,80):''));
     sc('runtime_status',io.runtime()+' · дом '+linkState(hl)+' · беседка '+linkState(gl));
+    sourceModeEvents(source);
     sourceEvent(source,now);
+    lastSource=source;
 }
 defineRule('hhm3_first_start',{whenChanged:VD+'/start_heating',then:function(value){
     if(value!==true&&value!==1&&value!=='1')return;
