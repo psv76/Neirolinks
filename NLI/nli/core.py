@@ -504,7 +504,7 @@ class Engine:
                     record["preflight"] = "running"
                     self.preflight(current, target)
                     record["preflight"] = "ok"
-                    remote_payload = (record['discovery']['source'] == 'approved-releases'
+                    remote_payload = (record['discovery'].get('source') == 'approved-releases'
                                       or self.registration(component).get('remote_payload') is True)
                     payload = self.payload(target, remote=remote_payload) \
                         if target != current or self.config.get('release_source') == 'pinned' else {}
