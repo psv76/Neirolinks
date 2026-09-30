@@ -18,6 +18,7 @@ from nl_project_2.persistence.migration import (
     TIMBER_MOUNT_WAY_REVISION,
     TOPOLOGY_AUTOCAD_CONTRACT_REVISION,
     current_revision_read_only,
+    downgrade_database,
     initialize_database,
     upgrade_database,
 )
@@ -135,19 +136,23 @@ def test_upgrade_from_real_pre_conduit_contract_shape_adds_columns_and_index(tmp
 
 def test_upgrade_011_to_012_allows_timber_mount_way(tmp_path) -> None:
     path = tmp_path / "pre-timber.sqlite"
-    backup_directory = tmp_path / "backup"
+    downgrade_backup = tmp_path / "downgrade-backup"
+    upgrade_backup = tmp_path / "upgrade-backup"
 
-    assert (
-        initialize_database(path, target=TOPOLOGY_AUTOCAD_CONTRACT_REVISION)
-        == TOPOLOGY_AUTOCAD_CONTRACT_REVISION
+    assert initialize_database(path) == TIMBER_MOUNT_WAY_REVISION == HEAD_REVISION
+    downgrade_database(
+        path,
+        downgrade_backup,
+        target=TOPOLOGY_AUTOCAD_CONTRACT_REVISION,
     )
+    assert current_revision_read_only(path) == TOPOLOGY_AUTOCAD_CONTRACT_REVISION
     with sqlite3.connect(path) as connection:
         before_sql = connection.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='cable_segment'"
         ).fetchone()[0]
     assert "В брусе" not in before_sql
 
-    receipt = upgrade_database(path, backup_directory)
+    receipt = upgrade_database(path, upgrade_backup)
 
     assert receipt.source_revision == TOPOLOGY_AUTOCAD_CONTRACT_REVISION
     assert current_revision_read_only(path) == TIMBER_MOUNT_WAY_REVISION == HEAD_REVISION
