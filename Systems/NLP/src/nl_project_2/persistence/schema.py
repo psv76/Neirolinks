@@ -1594,6 +1594,7 @@ bus_segment = Table(
     UniqueConstraint("id", "project_id"),
     uuid_check(),
     enum_check("connection_kind", ("CABLE", "TRACK"), "connection_kind"),
+    enum_check("mount_way", MOUNT_WAYS, "mount_way"),
     enum_check("origin_kind", TOPOLOGY_ORIGINS, "origin_kind"),
     enum_check("migration_state", TOPOLOGY_MIGRATION_STATES, "migration_state"),
     CheckConstraint(
