@@ -258,6 +258,39 @@ def test_simple_and_shared_socket_materialize_exactly_one_incoming_segment(datab
     assert {change.change_class for change in reopened.changes} == {ChangeClass.EQUAL}
 
 
+def test_timber_route_survives_dwg_preview_and_project_materialization(database):
+    project_id = _project(database)
+    service = DwgSyncService(database.engine)
+    socket = _observation(
+        "SOCKET_IN",
+        handle="TIMBER-1",
+        cable_id="101.01",
+        attributes={
+            "MOUNT_WAY": "В брусе",
+            "GOFRA_TYPE": "ППЛ25",
+            "GOFRA_COLOR": "синий",
+            "GOFRA_ID": "",
+        },
+    )
+
+    proposal = service.preview(project_id=project_id, batch=_batch(socket))
+    _apply_new(service, proposal)
+
+    with database.engine.connect() as connection:
+        row = (
+            connection.execute(
+                select(cable_segment)
+                .join(cable_line, cable_line.c.id == cable_segment.c.cable_line_id)
+                .where(cable_line.c.designation == "101")
+            )
+            .mappings()
+            .one()
+        )
+    assert row["mount_way"] == "В брусе"
+    assert row["gofra_type"] == "ППЛ25"
+    assert row["gofra_color"] == "синий"
+
+
 def test_grouped_switch_order_and_physical_keys_survive_reopen(database):
     project_id = _project(database)
     service = DwgSyncService(database.engine)
