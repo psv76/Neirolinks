@@ -2,19 +2,23 @@
 
 NL Project 2.0 — Windows desktop-система NEIROLINKS для ведения связанной цифровой модели проекта электрики и проводного умного дома. AutoCAD остаётся рабочим чертежом; NL Project связывает планировочные данные, кабельные линии, полевое оборудование, щиты, аппараты, ресурсы каналов и выходную документацию в одной модели.
 
-`Systems/NLP/` — каноническое место текущего принятого состояния NL Project в репозитории NEIROLINKS. Исторические локальные комплекты `D:\NLP_2_DOCS` и старые документы `EIM/AutoCAD/Doc` не являются параллельными источниками истины после завершения миграции.
+`Systems/NLP/` — каноническое место текущего принятого состояния NL Project в репозитории NEIROLINKS. Исторические локальные комплекты `D:\NLP_2`, `D:\NLP_2_DOCS` и старые документы `EIM/AutoCAD/Doc` не являются параллельными источниками истины после завершения миграции.
 
 ## Текущий статус
 
-Переносимый baseline соответствует рабочему состоянию после Repair 08:
+Текущий `main` содержит завершённую миграцию Repair 08 и последующие принятые repair:
 
 - NL Project: `2.0` development state;
 - schema head: `000000000011_topology_autocad_contract`;
-- AutoCAD machine contract: `3.0.0`, 71 canonical block definitions;
+- AutoCAD machine contract: `3.0.0`, 71 canonical block definitions / 10 groups;
 - equipment catalog release: `nlp2.mvp.equipment.2026-08-24.repair-05`;
-- catalog: 18 passports / 31 products.
+- catalog: 18 passports / 31 products;
+- conduit contract: `ППЛ20 -> PP20`, `ППЛ25 -> PP25`, `МПТ16 -> MPT16` для ordinary и bus route fields;
+- последний полный non-live/non-manual regression после PR #121: **631 passed, 0 failed, 0 skipped**;
+- Windows clean checkout catalog JSON защищён `.gitattributes` с LF после PR #123;
+- clean clone, bootstrap CPython 3.13.14 x64 и source launch на Windows подтверждены локально.
 
-Persistent build evidence исходного комплекта фиксировало технический Repair 08 как `PASSED`, при этом общая пользовательская приёмка оставалась незавершённой. Сам перенос в GitHub не объявляет новый Release и не заменяет отдельную пользовательскую приёмку.
+Известный format debt по 52 Python-файлам остаётся отдельной задачей. Общая пользовательская приёмка не завершена; отдельный Release не создан.
 
 ## Источники истины
 
@@ -49,6 +53,8 @@ Systems/NLP/
 
 Текущий runtime зафиксирован в `runtime.lock.json`; зависимости — в `requirements.lock`. Рабочий контур рассчитан на Windows x64 и PowerShell 7.
 
+После clean clone:
+
 ```powershell
 & .\tools\bootstrap.ps1
 & .\tools\run.ps1
@@ -59,6 +65,8 @@ Systems/NLP/
 ```
 
 После bootstrap source-запуск также доступен через `START_NL_PROJECT_2.vbs`.
+
+Runtime catalog JSON в `resources/catalogs/` должны checkout-иться с LF; это закреплено корневым `.gitattributes`, потому что manifest проверяет SHA-256 сырых байтов payload.
 
 Clean build:
 
