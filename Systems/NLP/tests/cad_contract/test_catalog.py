@@ -81,6 +81,8 @@ def test_schema_and_payload_are_json_objects():
     assert schema["additionalProperties"] is False
     assert "block_families" in schema["required"]
     assert "approved_block_names" in schema["required"]
+    assert "route_rules" in schema["required"]
+    assert "route_rules" in schema["properties"]
 
 
 def test_loader_rejects_duplicate_or_incomplete_catalog(tmp_path: Path):
