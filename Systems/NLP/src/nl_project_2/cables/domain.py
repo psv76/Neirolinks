@@ -31,7 +31,8 @@ CONDUIT_TYPE_CODES = {
     "ПНД": "PND",
     "ПВХ": "PVH",
     "Металлорукав": "MR",
-    "ПП": "PP",
+    "ППЛ": "PP",
+    "МПТ": "MPT",
 }
 _CONDUIT_ID = re.compile(r"^(?P<number>[0-9]{3})\.(?P<suffix>[A-Z0-9]+)$")
 _NOMINAL_SIZE = re.compile(r"^[0-9]+$")
@@ -53,7 +54,7 @@ def conduit_type_suffix(value: str) -> str:
             break
         return f"{latin}{nominal}"
     raise ConduitContractError(
-        "GOFRA_TYPE must contain ПНД, ПВХ, Металлорукав or ПП and a numeric nominal size"
+        "GOFRA_TYPE must contain ПНД, ПВХ, Металлорукав, ППЛ or МПТ and a numeric nominal size"
     )
 
 

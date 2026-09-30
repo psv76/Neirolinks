@@ -6,7 +6,7 @@ import math
 import re
 from collections import Counter, defaultdict
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 
 from nl_project_2.cables.domain import (
@@ -267,6 +267,25 @@ class CadContractValidator:
         issues.extend(self._validate_posts_and_keys(observation, rule, normalized, facts))
         issues.extend(self._validate_special_attributes(observation, rule, normalized, facts))
         issues.extend(self._validate_line_conduit(observation, normalized))
+        bus_conduit_fields = {
+            "CABLE_ID": normalized.get("BUS_POINT_ID", ""),
+            **{
+                tag: normalized[f"BUS_{tag}"]
+                for tag in LINE_CONDUIT_ATTRIBUTES
+                if f"BUS_{tag}" in normalized
+            },
+        }
+        issues.extend(
+            replace(
+                issue,
+                code=f"BUS_{issue.code}",
+                field=f"BUS_{issue.field}",
+                message=issue.message.replace("GOFRA", "BUS_GOFRA").replace(
+                    "MOUNT_WAY", "BUS_MOUNT_WAY"
+                ),
+            )
+            for issue in self._validate_line_conduit(observation, bus_conduit_fields)
+        )
         issues.extend(
             self._collect_line_facts(observation, rule, function_group, normalized, facts)
         )

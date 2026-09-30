@@ -62,6 +62,8 @@ Physical port ATTDEF (`COM1`, `COM2`, `K1`, `K2`, `IN_1`, `IN_2`, `W1`, `W2`) п
 Для `WB_MRM2_MINI` текущий target поддерживает один ordinary CableLine/CableSegment set для типового питания силовых контактов. `COM1` и `COM2` остаются отдельными физическими портами. Два независимых полных feed-set пока не вводятся.
 ### 2.6. Bus cable fields
 Для блока с реальным входящим bus cable используются `BUS_CABLE_TYPE`, `BUS_MOUNT_WAY`, `BUS_GOFRA_TYPE`, `BUS_GOFRA_COLOR`, `BUS_GOFRA_ID`. `BUS_CABLE_TYPE` — line-owned свойство `BUS_ID`; остальные — route facts входящего `BusSegment`. Для track-connected DALI light route fields отдельного bus cable отсутствуют.
+
+Типы и suffix защитных труб для обычных и bus-полей определяет [22_CABLE_LENGTHS_AND_CONDUITS.md, раздел 8](../product/22_CABLE_LENGTHS_AND_CONDUITS.md#8-тип-цвет-и-обозначение-трубы). Русское `ППЛ` сохраняет технический код `PP`; поддержка `МПТ16` относится к contract/validation и не означает наличие catalog passport/product.
 ### 2.7. `LOAD_TYPE`
 `LOAD_TYPE` сохраняется только у светильников/LED, розеток, кабельных выводов и щитов. Он удалён у `SW_*`, `BTN_*`, `SENSOR_*`, `WB_M1W2`, `WB_MAI2`, `FAN`, `AIR_VALVE`, `CONTROL_PANEL_*`, `TRACK_*`, `WB_MRM2_MINI`.
 ### 2.8. `PHASE` и `CALC_POWER`

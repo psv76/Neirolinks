@@ -79,7 +79,21 @@ def _sources(database):
     )
 
 
-def test_physical_bus_segments_share_conduit_once_and_track_has_none(database):
+@pytest.mark.parametrize(
+    ("conduit_type", "suffix"),
+    [
+        ("ППЛ20", "PP20"),
+        ("ППЛ25", "PP25"),
+        ("МПТ16", "MPT16"),
+        ("ПНД25", "PND25"),
+        ("ПВХ20", "PVH20"),
+        ("Металлорукав25", "MR25"),
+    ],
+)
+@pytest.mark.parametrize("generate_id", [False, True])
+def test_physical_bus_segments_share_conduit_once_and_track_has_none(
+    database, conduit_type, suffix, generate_id
+):
     project_id = database.test_project_id
     _automation, dali_root, _knx_root, _instance_id = _sources(database)
     endpoints = _rs485_resources(database, count=4)
@@ -93,9 +107,9 @@ def test_physical_bus_segments_share_conduit_once_and_track_has_none(database):
     )
     route = {
         "BUS_MOUNT_WAY": "По потолку",
-        "BUS_GOFRA_TYPE": "ПНД25",
+        "BUS_GOFRA_TYPE": conduit_type,
         "BUS_GOFRA_COLOR": "Черный",
-        "BUS_GOFRA_ID": "007.PND25",
+        "BUS_GOFRA_ID": "" if generate_id else f"007.{suffix}",
     }
     sync = DwgSyncService(database.engine)
     with UnitOfWork(database.engine) as uow:
@@ -107,6 +121,8 @@ def test_physical_bus_segments_share_conduit_once_and_track_has_none(database):
             ).scalars()
         )
         for segment_id in segment_ids:
+            if generate_id and segment_id != segment_ids[0]:
+                route["BUS_GOFRA_ID"] = f"001.{suffix}"
             uow.execute(
                 update(bus_segment)
                 .where(bus_segment.c.id == segment_id)
@@ -134,6 +150,9 @@ def test_physical_bus_segments_share_conduit_once_and_track_has_none(database):
         uow.commit()
     with database.engine.connect() as connection:
         assert connection.scalar(select(func.count()).select_from(conduit)) == 1
+        tube = connection.execute(select(conduit)).mappings().one()
+        assert tube["designation"] == f"{1 if generate_id else 7:03d}.{suffix}"
+        assert tube["conduit_type"] == conduit_type
         assert connection.scalar(
             select(func.count()).select_from(bus_segment_conduit_assignment)
         ) == 1

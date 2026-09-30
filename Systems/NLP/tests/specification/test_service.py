@@ -195,7 +195,7 @@ def test_selected_dkc_11525_conduit_enters_specification_by_article(database):
     conduit_id = cables.create_empty_conduit(
         project_id=project_id,
         designation="001.PP25",
-        conduit_type="ПП25",
+        conduit_type="ППЛ25",
         color="синий",
         diameter_mm=25,
         length_m=50,

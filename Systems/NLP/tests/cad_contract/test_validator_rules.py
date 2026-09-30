@@ -340,7 +340,7 @@ def test_pp25_and_numbered_room_are_valid_project_line_data(block_contract, make
         attributes={
             "ROOM": "5. Кухня-ниша",
             "MOUNT_WAY": "По полу",
-            "GOFRA_TYPE": "ПП25",
+            "GOFRA_TYPE": "ППЛ25",
             "GOFRA_COLOR": "синий",
             "GOFRA_ID": "001.PP25",
         },
@@ -458,3 +458,70 @@ def test_arbitrary_geometry_cannot_influence_validation(block_contract, make_obs
     )
     assert plain.issues == decorated.issues
     assert plain.observations == decorated.observations
+
+
+@pytest.mark.parametrize("prefix", ["", "BUS_"])
+@pytest.mark.parametrize(
+    ("conduit_type", "suffix"),
+    [
+        ("ППЛ20", "PP20"),
+        ("ППЛ25", "PP25"),
+        ("МПТ16", "MPT16"),
+        ("ПНД20", "PND20"),
+        ("ПНД25", "PND25"),
+        ("ПВХ20", "PVH20"),
+        ("Металлорукав25", "MR25"),
+    ],
+)
+def test_ordinary_and_bus_conduit_types_and_ids_are_validated(
+    block_contract, make_observation, prefix, conduit_type, suffix
+):
+    route = {
+        f"{prefix}MOUNT_WAY": "По полу",
+        f"{prefix}GOFRA_TYPE": conduit_type,
+        f"{prefix}GOFRA_COLOR": "",
+        f"{prefix}GOFRA_ID": f"003.{suffix}",
+    }
+    observation = make_observation("LIGHT_OUT_DALI_230V", attributes=route)
+    validator = CadContractValidator(block_contract)
+    result = validator.validate(CadObservationBatch("doc", (observation,)))
+    assert not [issue for issue in result.issues if issue.blocks_acceptance]
+    payload = result.observations[0].read_payload
+    assert payload is not None
+    fields = payload.bus_route_fields if prefix else payload.route_fields
+    assert {item.tag: item.value for item in fields}.items() >= route.items()
+
+    wrong_id = make_observation(
+        "LIGHT_OUT_DALI_230V", attributes={**route, f"{prefix}GOFRA_ID": "003.WRONG16"}
+    )
+    failure = validator.validate(CadObservationBatch("doc", (wrong_id,)))
+    assert any(
+        issue.code == f"{prefix}GOFRA_ID_TYPE_MISMATCH"
+        and issue.field == f"{prefix}GOFRA_ID"
+        and issue.blocks_acceptance
+        for issue in failure.issues
+    )
+
+
+@pytest.mark.parametrize("prefix", ["", "BUS_"])
+@pytest.mark.parametrize("invalid_type", ["ПП25", "МПТ16.5", "Неизвестная16"])
+def test_invalid_conduit_type_is_rejected_in_both_networks(
+    block_contract, make_observation, prefix, invalid_type
+):
+    observation = make_observation(
+        "LIGHT_OUT_DALI_230V",
+        attributes={
+            f"{prefix}MOUNT_WAY": "По полу",
+            f"{prefix}GOFRA_TYPE": invalid_type,
+            f"{prefix}GOFRA_ID": "",
+        },
+    )
+    result = CadContractValidator(block_contract).validate(
+        CadObservationBatch("doc", (observation,))
+    )
+    assert any(
+        issue.code == f"{prefix}GOFRA_TYPE_FORMAT"
+        and issue.field == f"{prefix}GOFRA_TYPE"
+        and issue.blocks_acceptance
+        for issue in result.issues
+    )

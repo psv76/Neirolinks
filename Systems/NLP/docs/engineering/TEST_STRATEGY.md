@@ -103,6 +103,8 @@ Changes to the CAD bridge require a read-only robustness contour: connect, timeo
 
 CAD test matrix covers malformed block/layer/attributes, document identity, idempotent scan, three-way diff, explicit DWG→Project apply, closed Project→DWG allow-list, line-wide `CABLE_TYPE`/`BOARD`/base `CABLE_ID`/`LED_TYPE`, segment-owned `MOUNT_WAY`/`GOFRA_*`, rejection of `MIX`, `EL_BOX`/`CABLE_SOURCE` graph validation, shared multi-mechanism `SOCKET` point, grouped `2YY` physical-key order/wire capacity, WB-MRM2/WB-M1W2 field ports, conduit creation/grouping, key-level identity, frame/mechanism/IP44 checks, target preconditions, owner-aware write-back/read-back, partial external failure and no autosave.
 
+Conduit acceptance matrix проверяется для обоих наборов `GOFRA_TYPE/GOFRA_ID` и `BUS_GOFRA_TYPE/BUS_GOFRA_ID`: `ППЛ20 → PP20`, `ППЛ25 → PP25`, `МПТ16 → MPT16`, `ПНД25 → PND25`, `ПВХ20 → PVH20`, `Металлорукав25 → MR25`. Tests должны подтвердить принятие корректных значений, генерацию ID, отклонение неверного suffix и старого `ПП25`, независимость ordinary/bus route facts, подбор DKC 11525 для `ППЛ25` и попадание товара в спецификацию. `МПТ16` проверяется без passport/product; catalog composition и manifest/payload сохраняются.
+
 ### 3.6. UI
 
 pytest-qt and controlled UI fixtures cover:
