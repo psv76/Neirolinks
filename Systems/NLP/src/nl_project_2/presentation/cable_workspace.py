@@ -99,6 +99,7 @@ class CableWorkspaceDialog(QDialog):
         for method, title in (
             (RouteMethod.FLOOR, "По полу"),
             (RouteMethod.CEILING, "По потолку"),
+            (RouteMethod.TIMBER, "В брусе"),
             (RouteMethod.CABLE_CHANNEL, "В кабель-канале"),
         ):
             self.route_combo.addItem(title, method)
