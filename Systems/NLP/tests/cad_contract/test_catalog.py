@@ -5,11 +5,16 @@ from pathlib import Path
 
 import pytest
 
+from nl_project_2.cables import (
+    MOUNT_WAY_BY_ROUTE_METHOD,
+    TIMBER_CABLE_RESERVE_M,
+    TIMBER_CONDUIT_TYPES,
+)
 from nl_project_2.cad_contract import ContractCatalogError, default_contract_path, load_contract
 
 
 def test_machine_contract_has_exact_approved_shape(block_contract):
-    assert block_contract.contract_version == "3.0.0"
+    assert block_contract.contract_version == "3.1.0"
     assert set(block_contract.blocks) == set(block_contract.approved_block_names)
     assert len(block_contract.functional_groups) == 10
     assert set(block_contract.source_documents) == {
@@ -38,6 +43,15 @@ def test_machine_contract_has_exact_approved_shape(block_contract):
         block_contract.block("WB_MRM2_MINI").optional_attributes
     )
     assert {"W1", "W2"} <= set(block_contract.block("WB_M1W2").optional_attributes)
+    assert set(block_contract.route_rules["mount_ways"]) == set(MOUNT_WAY_BY_ROUTE_METHOD.values())
+    assert set(block_contract.route_rules["timber"]["allowed_conduit_types"]) == set(
+        TIMBER_CONDUIT_TYPES
+    )
+    assert block_contract.route_rules["timber"]["mount_way"] == "В брусе"
+    assert block_contract.route_rules["timber"]["cable_reserve_m"] == str(
+        TIMBER_CABLE_RESERVE_M
+    )
+    assert block_contract.route_rules["timber"]["conduit_reserve_m"] == "0"
 
 
 def test_every_physical_name_has_device_type_profile_and_group(block_contract):
@@ -67,6 +81,8 @@ def test_schema_and_payload_are_json_objects():
     assert schema["additionalProperties"] is False
     assert "block_families" in schema["required"]
     assert "approved_block_names" in schema["required"]
+    assert "route_rules" in schema["required"]
+    assert "route_rules" in schema["properties"]
 
 
 def test_loader_rejects_duplicate_or_incomplete_catalog(tmp_path: Path):

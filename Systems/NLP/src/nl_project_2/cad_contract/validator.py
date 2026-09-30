@@ -492,6 +492,8 @@ class CadContractValidator:
                 code, field = "GOFRA_TYPE_REQUIRED", "GOFRA_TYPE"
             elif "must be empty" in message:
                 code, field = "GOFRA_TYPE_NOT_EMPTY", "GOFRA_TYPE"
+            elif "must be ППЛ20 or ППЛ25" in message:
+                code, field = "GOFRA_TYPE_NOT_ALLOWED", "GOFRA_TYPE"
             else:
                 code, field = "GOFRA_TYPE_FORMAT", "GOFRA_TYPE"
             issues.append(self._issue(code, message, observation, field))

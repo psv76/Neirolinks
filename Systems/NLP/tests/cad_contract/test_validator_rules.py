@@ -525,3 +525,54 @@ def test_invalid_conduit_type_is_rejected_in_both_networks(
         and issue.blocks_acceptance
         for issue in result.issues
     )
+
+
+def test_timber_route_is_validated_and_preserved_for_ordinary_and_bus(
+    block_contract, make_observation
+):
+    valid = make_observation(
+        "LIGHT_OUT_DALI_230V",
+        attributes={
+            "MOUNT_WAY": "В брусе",
+            "GOFRA_TYPE": "ППЛ25",
+            "GOFRA_ID": "",
+            "BUS_MOUNT_WAY": "В брусе",
+            "BUS_GOFRA_TYPE": "ППЛ20",
+            "BUS_GOFRA_ID": "",
+        },
+    )
+    result = CadContractValidator(block_contract).validate(
+        CadObservationBatch("doc", (valid,))
+    )
+    assert not {
+        "MOUNT_WAY_NOT_ALLOWED",
+        "GOFRA_TYPE_REQUIRED",
+        "GOFRA_TYPE_NOT_ALLOWED",
+        "BUS_MOUNT_WAY_NOT_ALLOWED",
+        "BUS_GOFRA_TYPE_REQUIRED",
+        "BUS_GOFRA_TYPE_NOT_ALLOWED",
+    } & issue_codes(result.issues)
+    payload = result.observations[0].read_payload
+    assert payload is not None
+    assert {fact.tag: fact.value for fact in payload.route_fields}["MOUNT_WAY"] == "В брусе"
+    assert {fact.tag: fact.value for fact in payload.bus_route_fields}[
+        "BUS_MOUNT_WAY"
+    ] == "В брусе"
+
+    invalid = make_observation(
+        "LIGHT_OUT_DALI_230V",
+        handle="TIMBER-BAD",
+        attributes={
+            "MOUNT_WAY": "В брусе",
+            "GOFRA_TYPE": "ПНД25",
+            "BUS_MOUNT_WAY": "В брусе",
+            "BUS_GOFRA_TYPE": "МПТ16",
+        },
+    )
+    failure = CadContractValidator(block_contract).validate(
+        CadObservationBatch("doc", (invalid,))
+    )
+    assert {"GOFRA_TYPE_NOT_ALLOWED", "BUS_GOFRA_TYPE_NOT_ALLOWED"} <= issue_codes(
+        failure.issues
+    )
+

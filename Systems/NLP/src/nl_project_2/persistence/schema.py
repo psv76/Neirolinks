@@ -46,7 +46,7 @@ TOPOLOGY_POINT_KINDS = (
 TOPOLOGY_ENDPOINT_KINDS = ("TOPOLOGY_POINT", "INSTANCE_RESOURCE", "FIELD_PORT")
 TOPOLOGY_MIGRATION_STATES = ("CONFIRMED", "MIGRATION_REVIEW_REQUIRED")
 TOPOLOGY_ORIGINS = ("MIGRATION", "PROJECT")
-MOUNT_WAYS = ("По полу", "По потолку", "В стене", "В кабель-канале")
+MOUNT_WAYS = ("По полу", "По потолку", "В стене", "В брусе", "В кабель-канале")
 FIELD_PORT_KINDS = (
     "RELAY_COMMON",
     "RELAY_OUTPUT",
@@ -1594,6 +1594,7 @@ bus_segment = Table(
     UniqueConstraint("id", "project_id"),
     uuid_check(),
     enum_check("connection_kind", ("CABLE", "TRACK"), "connection_kind"),
+    enum_check("mount_way", MOUNT_WAYS, "mount_way"),
     enum_check("origin_kind", TOPOLOGY_ORIGINS, "origin_kind"),
     enum_check("migration_state", TOPOLOGY_MIGRATION_STATES, "migration_state"),
     CheckConstraint(

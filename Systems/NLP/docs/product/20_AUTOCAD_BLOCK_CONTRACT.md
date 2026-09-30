@@ -2,7 +2,7 @@
 
 ## Active Repair08 contract (normative)
 
-Текущий machine contract: `3.0.0`, ровно 71 canonical definition. Exact canonical names, ATTDEF sets и `LOAD_TYPE` allow-lists определяет [AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](../autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md); topology/ownership определяет соседний [CURRENT_TOPOLOGY_ARCHITECTURE.md](../autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md). Machine projection — [resources/autocad/block_contract.json](../../resources/autocad/block_contract.json); расхождение с exact reference является ошибкой parity.
+Текущий machine contract: `3.1.0`, ровно 71 canonical definition. Machine `route_rules` проецирует принятые способы прокладки из [22_CABLE_LENGTHS_AND_CONDUITS.md](22_CABLE_LENGTHS_AND_CONDUITS.md), включая `В брусе` для ordinary и bus route fields. Exact canonical names, ATTDEF sets и `LOAD_TYPE` allow-lists определяет [AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](../autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md); topology/ownership определяет соседний [CURRENT_TOPOLOGY_ARCHITECTURE.md](../autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md). Machine projection — [resources/autocad/block_contract.json](../../resources/autocad/block_contract.json); расхождение с exact reference является ошибкой parity.
 
 Target planning ATTDEF не содержат `DEVICE_TYPE`, `POSTS`, global `SOURCE`, исходящие box fields, `CABLE_LINK`, `BUS_LINK`, `LINE_ROLE`, `ROOT_ENDPOINT`, `BUS_ID`, `BUS_TYPE`. Эти значения Project-owned/derived. `DEVICE_NAME` остаётся пользовательским planning fact.
 

@@ -12,6 +12,7 @@
     "attribute_profiles",
     "conditional_attributes",
     "forbidden_attributes",
+    "route_rules",
     "functional_groups",
     "block_families",
     "logical_blocks",
@@ -38,6 +39,40 @@
     "conditional_attributes": {"type": "array", "items": {"type": "string"}},
     "forbidden_attributes": {"type": "array", "items": {"type": "string"}},
     "numeric_attributes": {"type": "object"},
+    "route_rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mount_ways", "timber"],
+      "properties": {
+        "mount_ways": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "timber": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mount_way",
+            "allowed_conduit_types",
+            "cable_reserve_m",
+            "conduit_reserve_m"
+          ],
+          "properties": {
+            "mount_way": {"const": "В брусе"},
+            "allowed_conduit_types": {
+              "type": "array",
+              "minItems": 1,
+              "items": {"type": "string"},
+              "uniqueItems": true
+            },
+            "cable_reserve_m": {"type": "string"},
+            "conduit_reserve_m": {"type": "string"}
+          }
+        }
+      }
+    },
     "functional_groups": {"type": "object", "minProperties": 10},
     "block_families": {
       "type": "array",

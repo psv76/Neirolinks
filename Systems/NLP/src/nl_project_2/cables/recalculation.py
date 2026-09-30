@@ -36,6 +36,7 @@ from .domain import (
     CablePointInput,
     ConduitContractError,
     RouteMethod,
+    TIMBER_CABLE_RESERVE_M,
     calculate_segment_length,
     conduit_is_present,
     format_conduit_id,
@@ -214,7 +215,12 @@ def _endpoint_geometry(uow, project_id: str, endpoint_id: str, route: RouteMetho
             }
         )
     required = {"x", "y"}
-    if route in {RouteMethod.FLOOR, RouteMethod.CEILING, RouteMethod.WALL}:
+    if route in {
+        RouteMethod.FLOOR,
+        RouteMethod.CEILING,
+        RouteMethod.WALL,
+        RouteMethod.TIMBER,
+    }:
         required.add("mount")
     if route is RouteMethod.FLOOR:
         required.add("base")
@@ -427,7 +433,7 @@ def _reconcile_segment_conduit(uow, project_id: str, segment_row: dict, now: dat
                 conduit_number=number,
                 conduit_type=conduit_type,
                 color=segment_row["gofra_color"],
-                length_m_decimal=segment_row["calculated_length_m_decimal"],
+                length_m_decimal=_segment_conduit_length(segment_row),
                 path_json={
                     "origin": "AUTO_SEGMENT",
                     "source_segment_id": segment_row["id"],
@@ -453,18 +459,21 @@ def _refresh_conduit_length(uow, project_id: str, conduit_id: str, now: datetime
     path = dict(conduit_row["path_json"] or {})
     if path.get("length_source") == "USER_CONFIRMED":
         return
-    lengths = list(
+    segments = list(
         uow.execute(
-            select(cable_segment.c.calculated_length_m_decimal)
+            select(
+                cable_segment.c.calculated_length_m_decimal,
+                cable_segment.c.mount_way,
+            )
             .join(
                 conduit_segment_assignment,
                 conduit_segment_assignment.c.cable_segment_id == cable_segment.c.id,
             )
             .where(conduit_segment_assignment.c.conduit_id == conduit_id)
-        ).scalars()
+        ).mappings()
     )
-    value = lengths[0] if len(lengths) == 1 else None
-    if len(lengths) == 1:
+    value = _segment_conduit_length(segments[0]) if len(segments) == 1 else None
+    if len(segments) == 1:
         path["length_source"] = "SEGMENT_GEOMETRY" if value is not None else "INCOMPLETE_SEGMENT"
     else:
         path["length_source"] = "INCOMPLETE_SHARED"
@@ -479,6 +488,18 @@ def _refresh_conduit_length(uow, project_id: str, conduit_id: str, now: datetime
                 updated_at_utc=now,
             )
         )
+
+
+def _segment_conduit_length(segment_row: dict) -> str | None:
+    value = segment_row["calculated_length_m_decimal"]
+    if value is None:
+        return None
+    length = Decimal(str(value))
+    if str(segment_row.get("mount_way") or "") == "В брусе":
+        length -= TIMBER_CABLE_RESERVE_M
+    if length < 0:
+        raise RecalculationError("Calculated conduit geometry cannot be negative")
+    return str(length)
 
 
 def refresh_conduit_length(uow, project_id: str, conduit_id: str) -> None:

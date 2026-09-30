@@ -1,5 +1,5 @@
 {
-  "contract_version": "3.0.0",
+  "contract_version": "3.1.0",
   "source_documents": ["01_CURRENT_TOPOLOGY_ARCHITECTURE_2026-08-30.md", "02_AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE_2026-08-30.md"],
   "approved_block_names": [
     "FRAME_1","FRAME_2","FRAME_3","FRAME_4","FRAME_5","FRAME_1_IP44","FRAME_2_IP44","FRAME_3_IP44",
@@ -35,6 +35,15 @@
   },
   "forbidden_attributes": ["ID","KEY","CONTACT*","ARTICLE","BRAND","SERIES","ROUTER_ID","DEVICE_TYPE","POSTS","SOURCE","OUT*","CABLE_LINK","BUS_LINK","LINE_ROLE","BUS_ID","BUS_TYPE"],
   "numeric_attributes": {"MOUNT_HEIGHT":"DECIMAL","CALC_POWER":"NON_NEGATIVE_DECIMAL","LENGTH":"POSITIVE_DECIMAL","PHASE":"POSITIVE_INTEGER"},
+  "route_rules": {
+    "mount_ways": ["По полу","По потолку","В стене","В брусе","В кабель-канале"],
+    "timber": {
+      "mount_way": "В брусе",
+      "allowed_conduit_types": ["ППЛ20","ППЛ25"],
+      "cable_reserve_m": "0.5",
+      "conduit_reserve_m": "0"
+    }
+  },
   "functional_groups": {
     "POWER":{"cable_prefix":"1","layers":["POWER","POWER_MOTOR","BOARD"],"device_types":["SOCKET","CABLE_OUTLET","BOARD","FRAME","MOTOR","RELAY_DEVICE","EL_BOX"]},
     "SWITCHES":{"cable_prefix":"2","layers":["SWITCHES"],"device_types":["SWITCH","BUTTON","FRAME","EL_BOX"]},

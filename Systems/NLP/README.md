@@ -9,11 +9,11 @@ NL Project 2.0 — Windows desktop-система NEIROLINKS для ведени
 Текущий `main` содержит завершённую миграцию Repair 08 и последующие принятые repair:
 
 - NL Project: `2.0` development state;
-- schema head: `000000000011_topology_autocad_contract`;
-- AutoCAD machine contract: `3.0.0`, 71 canonical block definitions / 10 groups;
+- schema head: `000000000012_timber_mount_way`;
+- AutoCAD machine contract: `3.1.0`, 71 canonical block definitions / 10 groups;
 - equipment catalog release: `nlp2.mvp.equipment.2026-08-24.repair-05`;
 - catalog: 18 passports / 31 products;
-- conduit contract: `ППЛ20 -> PP20`, `ППЛ25 -> PP25`, `МПТ16 -> MPT16` для ordinary и bus route fields;
+- conduit contract: `ППЛ20 -> PP20`, `ППЛ25 -> PP25`, `МПТ16 -> MPT16` для ordinary и bus route fields; `В брусе` требует `ППЛ20/ППЛ25`, добавляет `0,5 м` только к длине кабеля segment и не увеличивает длину трубы;
 - последний полный non-live/non-manual regression после PR #121: **631 passed, 0 failed, 0 skipped**;
 - Windows clean checkout catalog JSON защищён `.gitattributes` с LF после PR #123;
 - clean clone, bootstrap CPython 3.13.14 x64 и source launch на Windows подтверждены локально.
