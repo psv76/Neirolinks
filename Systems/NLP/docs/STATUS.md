@@ -7,11 +7,11 @@
 Текущие подтверждённые факты:
 
 - NL Project: `2.0` development state;
-- schema head: `000000000011_topology_autocad_contract`;
-- AutoCAD machine contract: `3.0.0`, 71 canonical block definitions / 10 groups;
+- schema head: `000000000012_timber_mount_way`;
+- AutoCAD machine contract: `3.1.0`, 71 canonical block definitions / 10 groups;
 - equipment catalog release: `nlp2.mvp.equipment.2026-08-24.repair-05`;
 - equipment catalog: 18 passports / 31 products;
-- conduit contract после PR #121 поддерживает `ППЛ20 -> PP20`, `ППЛ25 -> PP25`, `МПТ16 -> MPT16` для ordinary и bus route fields; material code полипропилена остаётся `PP`;
+- conduit contract поддерживает `ППЛ20 -> PP20`, `ППЛ25 -> PP25`, `МПТ16 -> MPT16` для ordinary и bus route fields; для `В брусе` обязательны `ППЛ20/ППЛ25`, кабельный запас составляет `0,5 м` на segment и не входит в длину трубы; material code полипропилена остаётся `PP`;
 - полный non-live/non-manual regression на состоянии PR #121: **631 passed, 0 failed, 0 skipped**; один существующий SQLite datetime adapter warning;
 - AutoCAD contract, human ↔ machine parity, catalog checker и static checks на PR #121: `PASS`;
 - PR #123 добавил корневой `.gitattributes` с `text eol=lf` для `Systems/NLP/resources/catalogs/*.json`, чтобы Windows checkout не менял байты catalog payload и не ломал manifest hashes;
