@@ -38,6 +38,7 @@ from .domain import (
     RouteMethod,
     calculate_segment_length,
     conduit_is_present,
+    conduit_length_from_segment_length,
     format_conduit_id,
 )
 
@@ -214,7 +215,7 @@ def _endpoint_geometry(uow, project_id: str, endpoint_id: str, route: RouteMetho
             }
         )
     required = {"x", "y"}
-    if route in {RouteMethod.FLOOR, RouteMethod.CEILING, RouteMethod.WALL}:
+    if route in {RouteMethod.FLOOR, RouteMethod.CEILING, RouteMethod.WALL, RouteMethod.TIMBER}:
         required.add("mount")
     if route is RouteMethod.FLOOR:
         required.add("base")
@@ -419,6 +420,16 @@ def _reconcile_segment_conduit(uow, project_id: str, segment_row: dict, now: dat
             raise RecalculationError("No automatic conduit number remains")
         designation = format_conduit_id(number, conduit_type)
         conduit_id = new_id()
+        calculated_length = segment_row["calculated_length_m_decimal"]
+        conduit_length = (
+            None
+            if calculated_length is None
+            else str(
+                conduit_length_from_segment_length(
+                    calculated_length, _route_method(segment_row["mount_way"])
+                )
+            )
+        )
         uow.execute(
             conduit.insert().values(
                 id=conduit_id,
@@ -427,7 +438,7 @@ def _reconcile_segment_conduit(uow, project_id: str, segment_row: dict, now: dat
                 conduit_number=number,
                 conduit_type=conduit_type,
                 color=segment_row["gofra_color"],
-                length_m_decimal=segment_row["calculated_length_m_decimal"],
+                length_m_decimal=conduit_length,
                 path_json={
                     "origin": "AUTO_SEGMENT",
                     "source_segment_id": segment_row["id"],
@@ -453,18 +464,28 @@ def _refresh_conduit_length(uow, project_id: str, conduit_id: str, now: datetime
     path = dict(conduit_row["path_json"] or {})
     if path.get("length_source") == "USER_CONFIRMED":
         return
-    lengths = list(
+    segments = list(
         uow.execute(
-            select(cable_segment.c.calculated_length_m_decimal)
+            select(
+                cable_segment.c.calculated_length_m_decimal,
+                cable_segment.c.mount_way,
+            )
             .join(
                 conduit_segment_assignment,
                 conduit_segment_assignment.c.cable_segment_id == cable_segment.c.id,
             )
             .where(conduit_segment_assignment.c.conduit_id == conduit_id)
-        ).scalars()
+        ).mappings()
     )
-    value = lengths[0] if len(lengths) == 1 else None
-    if len(lengths) == 1:
+    value = None
+    if len(segments) == 1 and segments[0]["calculated_length_m_decimal"] is not None:
+        value = str(
+            conduit_length_from_segment_length(
+                segments[0]["calculated_length_m_decimal"],
+                _route_method(segments[0]["mount_way"]),
+            )
+        )
+    if len(segments) == 1:
         path["length_source"] = "SEGMENT_GEOMETRY" if value is not None else "INCOMPLETE_SEGMENT"
     else:
         path["length_source"] = "INCOMPLETE_SHARED"
