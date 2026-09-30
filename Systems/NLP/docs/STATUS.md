@@ -18,7 +18,9 @@
 
 Не переносятся временные build/recovery TASK/REPORT, `90_ARCHIVE`, caches, `.venv`, `build`, `dist`, пользовательские SQLite/DWG и иные generated/runtime данные. Их историческая ценность не превращает их в действующие требования.
 
-Три ранних документа `EIM/AutoCAD/Doc/Blocks.md`, `Parsing.md` и `NL_Cloud_Desktop_v1.0.md` относятся к прежнему этапу и после завершения migration PR должны быть удалены из активного `main`, чтобы не существовал второй NLP source of truth.
+Три ранних документа `EIM/AutoCAD/Doc/Blocks.md`, `Parsing.md` и `NL_Cloud_Desktop_v1.0.md` удалены в migration branch после появления канонических successors. Карта замены и фактические проверки переноса находятся в `MIGRATION.md`.
+
+Повторный non-live/non-manual regression перенесённой копии: **586 passed, 0 failed, 0 skipped**. Contract/catalog parity и static check пройдены. Format check сохраняет исходное замечание по 52 файлам; оно не исправлялось массовым форматированием в migration scope. PR остаётся Draft, merge требует отдельного подтверждения пользователя.
 
 ## Release
 

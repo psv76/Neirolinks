@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nlp2/equipment-passports/1.0",
+  "type": "object",
+  "required": ["schema_version", "catalog_id", "status", "published_on", "passports"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "status": {"const": "CANONICAL"},
+    "passports": {"type": "array", "minItems": 1}
+  }
+}
