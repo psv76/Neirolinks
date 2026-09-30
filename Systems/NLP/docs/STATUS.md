@@ -1,27 +1,34 @@
-# NL Project 2.0 — состояние переносимого baseline
+# NL Project 2.0 — текущее состояние
 
-## Baseline
+## Current development state
 
-Состояние восстанавливается из локальных снимков документации и программы, использовавшихся до переноса в `Systems/NLP/`.
+`Systems/NLP/` в `main` является каноническим текущим состоянием NL Project 2.0. Миграция из локальных `D:\NLP_2` / `D:\NLP_2_DOCS` завершена через Issue #118 и PR #119; локальные исторические комплекты больше не являются параллельным source of truth.
 
-Подтверждённые артефактами baseline-факты:
+Текущие подтверждённые факты:
 
+- NL Project: `2.0` development state;
 - schema head: `000000000011_topology_autocad_contract`;
-- AutoCAD machine contract: `3.0.0`;
-- canonical AutoCAD block definitions: 71;
+- AutoCAD machine contract: `3.0.0`, 71 canonical block definitions / 10 groups;
 - equipment catalog release: `nlp2.mvp.equipment.2026-08-24.repair-05`;
 - equipment catalog: 18 passports / 31 products;
-- Repair 08 implementation report исходного build-комплекта: `PASSED`;
-- общий пользовательский acceptance исходного build-комплекта: не завершён.
+- conduit contract после PR #121 поддерживает `ППЛ20 -> PP20`, `ППЛ25 -> PP25`, `МПТ16 -> MPT16` для ordinary и bus route fields; material code полипропилена остаётся `PP`;
+- полный non-live/non-manual regression на состоянии PR #121: **631 passed, 0 failed, 0 skipped**; один существующий SQLite datetime adapter warning;
+- AutoCAD contract, human ↔ machine parity, catalog checker и static checks на PR #121: `PASS`;
+- PR #123 добавил корневой `.gitattributes` с `text eol=lf` для `Systems/NLP/resources/catalogs/*.json`, чтобы Windows checkout не менял байты catalog payload и не ломал manifest hashes;
+- после PR #123 локально подтверждены clean clone на Windows, bootstrap CPython 3.13.14 x64 и source launch NL Project из `Systems/NLP`.
 
-## Что не переносится как source of truth
+## Что не является текущим source of truth
 
-Не переносятся временные build/recovery TASK/REPORT, `90_ARCHIVE`, caches, `.venv`, `build`, `dist`, пользовательские SQLite/DWG и иные generated/runtime данные. Их историческая ценность не превращает их в действующие требования.
+Временные build/recovery TASK/REPORT, `90_ARCHIVE`, caches, `.venv`, `build`, `dist`, пользовательские SQLite/DWG и иные generated/runtime данные не являются действующими требованиями системы.
 
-Три ранних документа `EIM/AutoCAD/Doc/Blocks.md`, `Parsing.md` и `NL_Cloud_Desktop_v1.0.md` удалены в migration branch после появления канонических successors. Карта замены и фактические проверки переноса находятся в [MIGRATION.md](MIGRATION.md).
+Три ранних документа `EIM/AutoCAD/Doc/Blocks.md`, `Parsing.md` и `NL_Cloud_Desktop_v1.0.md` удалены после появления канонических successors. Карта замены и исторические проверки переноса находятся в [MIGRATION.md](MIGRATION.md).
 
-Повторный non-live/non-manual regression перенесённой копии: **586 passed, 0 failed, 0 skipped**. Contract/catalog parity и static check пройдены. Format check сохраняет исходное замечание по 52 файлам; оно не исправлялось массовым форматированием в migration scope. PR остаётся Draft, merge требует отдельного подтверждения пользователя.
+## Открытый technical debt
 
-## Release
+Format check по-прежнему выявляет 52 Python-файла, требующих `ruff format`. Этот долг существовал до миграции и пока не исправлен массовым форматированием.
 
-Этот baseline является текущим development state NL Project 2.0. Перенос в GitHub не создаёт Release и не подтверждает пользовательскую приёмку.
+## User acceptance и Release
+
+Общая пользовательская приёмка NL Project 2.0 не завершена. Merge технических PR и успешные автоматические проверки сами по себе не создают Release.
+
+Текущий `main` остаётся development state; отдельный Release не создан.
