@@ -80,18 +80,14 @@ class EquipmentWorkspace(QWidget):
         self.instances.itemSelectionChanged.connect(self._instance_changed)
         self.resources = QTableWidget(0, 3, self)
         self.resources.setObjectName("equipmentResourcesTable")
-        self.resources.setHorizontalHeaderLabels(
-            ["Ресурс", "Занятость", "Связанные линии"]
-        )
+        self.resources.setHorizontalHeaderLabels(["Ресурс", "Занятость", "Связанные линии"])
         self.resources.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.resources.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.resources.itemSelectionChanged.connect(self._resource_changed)
         self.related_lines = QTableWidget(0, 2, self)
         self.related_lines.setObjectName("equipmentRelatedLinesTable")
         self.related_lines.setHorizontalHeaderLabels(["Линия", "Назначенный ресурс"])
-        self.related_lines.setSelectionBehavior(
-            QTableWidget.SelectionBehavior.SelectRows
-        )
+        self.related_lines.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.related_lines.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.related_lines.cellDoubleClicked.connect(lambda *_: self._open_line())
         self.status_label = QLabel("Состояние: —", self)
@@ -237,8 +233,7 @@ class EquipmentWorkspace(QWidget):
     def _update_status(self) -> None:
         status = self._statuses.get(self._selected_instance_id())
         self.status_label.setText(
-            "Состояние: "
-            + (status.status.value if status is not None else "Требуется действие")
+            "Состояние: " + (status.status.value if status is not None else "Требуется действие")
         )
         self.status_reason.setText(
             status.result if status is not None else "Проверьте назначения оборудования"
@@ -262,10 +257,7 @@ class EquipmentWorkspace(QWidget):
             self.resources.setRowCount(len(rows))
             selected_row = 0 if rows else -1
             for row_index, row in enumerate(rows):
-                related = sum(
-                    item["output_resource_id"] == row["id"]
-                    for item in self._assignments
-                )
+                related = sum(item["output_resource_id"] == row["id"] for item in self._assignments)
                 values = (
                     resource_user_label(row),
                     "Занят" if row["occupied"] else "Свободен",
@@ -287,9 +279,7 @@ class EquipmentWorkspace(QWidget):
 
     def _load_related_lines(self) -> None:
         resource_id = self._selected_resource_id()
-        rows = [
-            row for row in self._assignments if row["output_resource_id"] == resource_id
-        ]
+        rows = [row for row in self._assignments if row["output_resource_id"] == resource_id]
         self.related_lines.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
             values = (row["cable_designation"], row["user_label"])
@@ -346,8 +336,7 @@ class EquipmentWorkspace(QWidget):
             "selected_instance_id": self._selected_instance_id(),
             "splitter_sizes": self.splitter.sizes(),
             "instance_columns": [
-                self.instances.columnWidth(column)
-                for column in range(self.instances.columnCount())
+                self.instances.columnWidth(column) for column in range(self.instances.columnCount())
             ],
         }
         workspace["projects"] = projects
@@ -374,10 +363,7 @@ class EquipmentWorkspace(QWidget):
             selected = state.get("selected_instance_id")
             if selected in self._instances_by_id:
                 for row in range(self.instances.rowCount()):
-                    if (
-                        self.instances.item(row, 0).data(Qt.ItemDataRole.UserRole)
-                        == selected
-                    ):
+                    if self.instances.item(row, 0).data(Qt.ItemDataRole.UserRole) == selected:
                         self.instances.selectRow(row)
                         self._instance_changed()
                         break

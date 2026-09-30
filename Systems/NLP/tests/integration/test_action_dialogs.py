@@ -187,9 +187,7 @@ def test_guided_dialog_keeps_blocked_reason_and_confirms_full_preview(qtbot, mon
 
 def test_bulk_dialog_uses_variants_preview_and_all_or_none_confirm(qtbot, monkeypatch):
     service = FakeBulkService()
-    dialog = BulkActionDialog(
-        service, GuidedAction.OUTPUT, "project", ("line-1", "line-2")
-    )
+    dialog = BulkActionDialog(service, GuidedAction.OUTPUT, "project", ("line-1", "line-2"))
     qtbot.addWidget(dialog)
     assert dialog.summary.text().startswith("Выбрано: 2")
     assert dialog.variants.item(0, 2).text() == "Да"

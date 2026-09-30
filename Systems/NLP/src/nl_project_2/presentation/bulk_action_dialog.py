@@ -153,8 +153,7 @@ class BulkActionDialog(QDialog):
             f"Новых фактов: {self.preview.canonical_fact_count}",
         ]
         lines.extend(
-            f"{item.owner_label} → {item.instance_designation} / "
-            f"{', '.join(item.resource_labels)}"
+            f"{item.owner_label} → {item.instance_designation} / {', '.join(item.resource_labels)}"
             for item in self.preview.mappings
         )
         if self.preview.conflicts:

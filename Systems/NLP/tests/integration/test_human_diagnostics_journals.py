@@ -169,12 +169,10 @@ def test_documents_workspace_has_working_in_app_cable_journal_without_export(qtb
     assert branched.childCount() == 2
     assert all(branched.child(index).text(0) == "" for index in range(2))
     assert all(
-        branched.child(index).data(0, Qt.ItemDataRole.UserRole) == "line-10"
-        for index in range(2)
+        branched.child(index).data(0, Qt.ItemDataRole.UserRole) == "line-10" for index in range(2)
     )
     assert not any(
-        "экспорт" in button.text().casefold()
-        for button in widget.findChildren(QPushButton)
+        "экспорт" in button.text().casefold() for button in widget.findChildren(QPushButton)
     )
 
     widget.cable_journal.search.setText("кухня")
@@ -237,9 +235,13 @@ def test_scalar_line_edit_creates_one_canonical_human_operation(database):
             )
             == 1
         )
-        stored = connection.execute(
-            select(operation_journal).where(operation_journal.c.project_id == project_id)
-        ).mappings().one()
+        stored = (
+            connection.execute(
+                select(operation_journal).where(operation_journal.c.project_id == project_id)
+            )
+            .mappings()
+            .one()
+        )
     assert stored["project_revision_after"] == stored["project_revision_before"] + 1
     assert stored["command_type"] == "LINE_SCALAR_BATCH_UPDATE"
     assert stored["summary_json"]["canonical_fact_count"] == 2

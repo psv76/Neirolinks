@@ -96,9 +96,7 @@ def conduit_is_present(mount_way: str, conduit_type: str) -> bool:
         if conduit_type:
             raise ConduitContractError("GOFRA_TYPE must be empty for MOUNT_WAY=В кабель-канале")
         return False
-    raise ConduitContractError(
-        "MOUNT_WAY must be По полу, По потолку, В стене or В кабель-канале"
-    )
+    raise ConduitContractError("MOUNT_WAY must be По полу, По потолку, В стене or В кабель-канале")
 
 
 def validate_line_conduit_fields(

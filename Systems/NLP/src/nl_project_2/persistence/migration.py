@@ -67,9 +67,7 @@ def _sqlite_url(path: Path) -> str:
 
 def _config(path: Path) -> Config:
     config = Config()
-    config.set_main_option(
-        "script_location", str(package_data_path("persistence", "migrations"))
-    )
+    config.set_main_option("script_location", str(package_data_path("persistence", "migrations")))
     config.set_main_option("sqlalchemy.url", _sqlite_url(path))
     return config
 
@@ -87,9 +85,7 @@ def current_revision_read_only(path: Path) -> str | None:
             ).fetchone()
             if row is None:
                 return None
-            revision = connection.execute(
-                "SELECT version_num FROM alembic_version"
-            ).fetchone()
+            revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
     except sqlite3.DatabaseError as exc:
         raise MigrationError(f"Cannot inspect database revision: {resolved}") from exc
     return None if revision is None else str(revision[0])
@@ -124,9 +120,7 @@ def create_verified_backup(source: Path, backup_directory: Path) -> BackupReceip
         with sqlite3.connect(source_uri, uri=True) as source_connection:
             with sqlite3.connect(target) as target_connection:
                 source_connection.backup(target_connection)
-        with sqlite3.connect(
-            f"file:{target.as_posix()}?mode=ro", uri=True
-        ) as connection:
+        with sqlite3.connect(f"file:{target.as_posix()}?mode=ro", uri=True) as connection:
             result = connection.execute("PRAGMA integrity_check").fetchone()
             copied_revision = connection.execute(
                 "SELECT version_num FROM alembic_version"
@@ -136,16 +130,12 @@ def create_verified_backup(source: Path, backup_directory: Path) -> BackupReceip
         raise BackupVerificationError("SQLite backup or verification failed") from exc
     if result != ("ok",) or copied_revision != (revision,):
         target.unlink(missing_ok=True)
-        raise BackupVerificationError(
-            "Backup integrity or revision verification failed"
-        )
+        raise BackupVerificationError("Backup integrity or revision verification failed")
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
     return BackupReceipt(path=target, sha256=digest, source_revision=revision)
 
 
-def upgrade_database(
-    path: Path, backup_directory: Path, *, target: str = "head"
-) -> BackupReceipt:
+def upgrade_database(path: Path, backup_directory: Path, *, target: str = "head") -> BackupReceipt:
     """Upgrade a versioned database after creating a verified backup."""
     resolved = path.resolve()
     receipt = create_verified_backup(resolved, backup_directory)
@@ -157,9 +147,7 @@ def upgrade_database(
     return receipt
 
 
-def downgrade_database(
-    path: Path, backup_directory: Path, *, target: str
-) -> BackupReceipt:
+def downgrade_database(path: Path, backup_directory: Path, *, target: str) -> BackupReceipt:
     """Downgrade a versioned database after creating a verified backup."""
 
     resolved = path.resolve()

@@ -24,18 +24,13 @@ def _paths(tmp_path) -> PathConfig:
 def _revision(runtime, project_id: str) -> int:
     with runtime.database.engine.connect() as connection:
         return int(
-            connection.scalar(
-                select(project.c.project_revision).where(project.c.id == project_id)
-            )
+            connection.scalar(select(project.c.project_revision).where(project.c.id == project_id))
         )
 
 
 def _select(workspace: EquipmentWorkspace, instance_id: str) -> None:
     for row in range(workspace.instances.rowCount()):
-        if (
-            workspace.instances.item(row, 0).data(Qt.ItemDataRole.UserRole)
-            == instance_id
-        ):
+        if workspace.instances.item(row, 0).data(Qt.ItemDataRole.UserRole) == instance_id:
             workspace.instances.setCurrentCell(row, 0)
             workspace.instances.selectRow(row)
             return
@@ -52,9 +47,9 @@ def _visible_facts(workspace: EquipmentWorkspace) -> tuple[str, ...]:
 
 def _resource_owners(workspace: EquipmentWorkspace) -> set[str]:
     return {
-        workspace._resources_by_id[
-            workspace.resources.item(row, 0).data(Qt.ItemDataRole.UserRole)
-        ]["project_instance_id"]
+        workspace._resources_by_id[workspace.resources.item(row, 0).data(Qt.ItemDataRole.UserRole)][
+            "project_instance_id"
+        ]
         for row in range(workspace.resources.rowCount())
     }
 
@@ -103,8 +98,7 @@ def test_equipment_selection_is_atomic_owner_correct_and_reopens(qtbot, tmp_path
     assert workspace.status_label.text().endswith(breaker_facts[4])
     assert _resource_owners(workspace) == {breaker.instance_id}
     assert {
-        workspace.resources.item(row, 0).text()
-        for row in range(workspace.resources.rowCount())
+        workspace.resources.item(row, 0).text() for row in range(workspace.resources.rowCount())
     } == {
         "QF.01 / LINE_IN",
         "QF.01 / PROTECTED_OUT",
@@ -117,8 +111,7 @@ def test_equipment_selection_is_atomic_owner_correct_and_reopens(qtbot, tmp_path
     assert "MEAN WELL" in psu_facts[2]
     assert _resource_owners(workspace) == {power_supply.instance_id}
     assert {
-        workspace.resources.item(row, 0).text()
-        for row in range(workspace.resources.rowCount())
+        workspace.resources.item(row, 0).text() for row in range(workspace.resources.rowCount())
     } == {
         "PSU.01 / AC_INPUT",
         "PSU.01 / DC24_OUTPUT",

@@ -130,8 +130,7 @@ def test_physical_devices_mounting_boxes_el_box_and_no_points_heuristic(database
     try:
         reopened_mounting = next(
             row
-            for row in SpecificationService(reopened.engine)
-            .build(database.test_project_id)["rows"]
+            for row in SpecificationService(reopened.engine).build(database.test_project_id)["rows"]
             if row.item_key.startswith("MOUNTING_BOX")
         )
         assert reopened_mounting.quantity == Decimal("5")
@@ -140,9 +139,7 @@ def test_physical_devices_mounting_boxes_el_box_and_no_points_heuristic(database
 
 
 def test_shared_socket_mechanisms_and_m1w2_count_physical_insertions_once(database):
-    socket_ids = [
-        _device(database, "SOCKET", handle) for handle in ("S1", "S2", "S3")
-    ]
+    socket_ids = [_device(database, "SOCKET", handle) for handle in ("S1", "S2", "S3")]
     sensor_ids = [_device(database, "SENSOR_M1W2", handle) for handle in ("W1", "W2")]
     _device(database, "FRAME", "F1")
     with database.engine.begin() as connection:

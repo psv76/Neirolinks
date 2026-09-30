@@ -165,9 +165,9 @@ def test_previous_head_simple_line_without_conduit_is_deterministic(tmp_path) ->
     upgrade_database(path, tmp_path / "backup")
     with sqlite3.connect(path) as connection:
         assert connection.execute("SELECT count(*) FROM cable_segment").fetchone()[0] == 1
-        assert connection.execute(
-            "SELECT count(*) FROM conduit_segment_assignment"
-        ).fetchone()[0] == 0
+        assert (
+            connection.execute("SELECT count(*) FROM conduit_segment_assignment").fetchone()[0] == 0
+        )
         review_count = connection.execute(
             "SELECT count(*) FROM topology_migration_review"
         ).fetchone()[0]
@@ -204,9 +204,9 @@ def test_previous_head_shared_identity_becomes_one_point_with_memberships(tmp_pa
             key=lambda item: item[1],
         )
         assert connection.execute("SELECT count(*) FROM cable_segment").fetchone()[0] == 1
-        assert connection.execute(
-            "SELECT count(*) FROM topology_migration_review"
-        ).fetchone()[0] == 0
+        assert (
+            connection.execute("SELECT count(*) FROM topology_migration_review").fetchone()[0] == 0
+        )
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
 
@@ -222,9 +222,9 @@ def test_previous_head_upgrade_reopen_integrity_and_safe_downgrade(tmp_path) -> 
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
         assert connection.execute("SELECT count(*) FROM cable_segment").fetchone()[0] == 1
-        assert connection.execute(
-            "SELECT count(*) FROM cable_point_field_device"
-        ).fetchone()[0] == 1
+        assert (
+            connection.execute("SELECT count(*) FROM cable_point_field_device").fetchone()[0] == 1
+        )
         assignment = connection.execute(
             "SELECT cable_segment_id FROM conduit_segment_assignment"
         ).fetchone()
@@ -247,9 +247,9 @@ def test_previous_head_upgrade_reopen_integrity_and_safe_downgrade(tmp_path) -> 
         ).fetchone()[0]
         assert "logical_identity" not in columns
         assert owner == ids["device1"]
-        assert connection.execute(
-            "SELECT count(*) FROM conduit_cable_assignment"
-        ).fetchone()[0] == 1
+        assert (
+            connection.execute("SELECT count(*) FROM conduit_cable_assignment").fetchone()[0] == 1
+        )
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
 
 

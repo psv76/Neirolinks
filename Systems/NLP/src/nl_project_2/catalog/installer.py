@@ -173,17 +173,13 @@ class CatalogInstaller:
                     True,
                 )
             active = (
-                uow.execute(
-                    select(catalog_release).where(catalog_release.c.status == "ACTIVE")
-                )
+                uow.execute(select(catalog_release).where(catalog_release.c.status == "ACTIVE"))
                 .mappings()
                 .one_or_none()
             )
             if active is not None:
                 predecessor = active["release_code"]
-                declaration = (manifest.get("additive_predecessors") or {}).get(
-                    predecessor
-                )
+                declaration = (manifest.get("additive_predecessors") or {}).get(predecessor)
                 if declaration is None:
                     raise CatalogInstallError(
                         f"Active immutable release {active['release_code']!r} is not the declared "
@@ -320,9 +316,7 @@ class CatalogInstaller:
         for key, current in installed_passports.items():
             candidate = candidate_passports.get(key)
             if candidate is None or current["content_sha256"] != _sha(candidate):
-                raise CatalogInstallError(
-                    f"Catalog successor changes existing passport {key!r}"
-                )
+                raise CatalogInstallError(f"Catalog successor changes existing passport {key!r}")
 
         installed_products = {
             row["product_key"]: dict(row)
@@ -342,9 +336,7 @@ class CatalogInstaller:
                 raise CatalogInstallError(f"Catalog successor removes product {key!r}")
             expected = _product_values(candidate)
             if any(current[field] != value for field, value in expected.items()):
-                raise CatalogInstallError(
-                    f"Catalog successor changes existing product {key!r}"
-                )
+                raise CatalogInstallError(f"Catalog successor changes existing product {key!r}")
 
         passport_ids = {key: row["id"] for key, row in installed_passports.items()}
         for key in sorted(added_passports):

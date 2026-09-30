@@ -370,9 +370,7 @@ class EquipmentActionService:
             revision = self._project_revision(uow, project_id)
             if revision != expected_project_revision:
                 raise StaleEquipmentPreview("STALE_PROJECT_REVISION")
-            target_label, _instance_id = self._target_label(
-                uow, project_id, kind, target_id
-            )
+            target_label, _instance_id = self._target_label(uow, project_id, kind, target_id)
             existing = self._active_reserve(uow, project_id, kind, target_id)
             if existing is not None:
                 uow.commit()
@@ -439,9 +437,7 @@ class EquipmentActionService:
             revision = self._project_revision(uow, project_id)
             if revision != expected_project_revision:
                 raise StaleEquipmentPreview("STALE_PROJECT_REVISION")
-            target_label, _instance_id = self._target_label(
-                uow, project_id, kind, target_id
-            )
+            target_label, _instance_id = self._target_label(uow, project_id, kind, target_id)
             existing = self._active_reserve(uow, project_id, kind, target_id)
             if existing is not None:
                 uow.execute(

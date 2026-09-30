@@ -57,9 +57,7 @@ def test_main_shell_lands_on_lines_and_navigation_is_read_only(qtbot, tmp_path):
 
 def test_line_equipment_back_restores_line_filter_and_does_not_write(qtbot, tmp_path):
     runtime = _runtime(tmp_path)
-    project_id = runtime.objects.create_project(
-        ProjectCard(name="Navigation", project_code="NAV")
-    )
+    project_id = runtime.objects.create_project(ProjectCard(name="Navigation", project_code="NAV"))
     instance = EquipmentService(runtime.database.engine).create_instance(
         project_id=project_id,
         designation="A01",

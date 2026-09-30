@@ -194,10 +194,7 @@ def test_lines_zero_result_search_clears_selection_and_stale_details(database, q
 
     workspace.search.setText("line-that-does-not-exist")
 
-    assert all(
-        workspace.table.isRowHidden(row)
-        for row in range(workspace.table.rowCount())
-    )
+    assert all(workspace.table.isRowHidden(row) for row in range(workspace.table.rowCount()))
     assert workspace.current_line_id() is None
     assert workspace.selected_line_ids() == ()
     assert workspace.card_title.text() == "Линия не выбрана"

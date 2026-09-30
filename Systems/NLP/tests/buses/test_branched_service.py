@@ -153,12 +153,12 @@ def test_physical_bus_segments_share_conduit_once_and_track_has_none(
         tube = connection.execute(select(conduit)).mappings().one()
         assert tube["designation"] == f"{1 if generate_id else 7:03d}.{suffix}"
         assert tube["conduit_type"] == conduit_type
-        assert connection.scalar(
-            select(func.count()).select_from(bus_segment_conduit_assignment)
-        ) == 1
-        assert connection.scalar(
-            select(func.count()).select_from(bus_segment)
-        ) == 2
+        assert (
+            connection.scalar(select(func.count()).select_from(bus_segment_conduit_assignment)) == 1
+        )
+        assert connection.scalar(select(func.count()).select_from(bus_segment)) == 2
+
+
 def test_dali_branches_group_recalculation_and_reopen(database):
     project_id = database.test_project_id
     automation, dali_root, _knx_root, _dali_instance = _sources(database)

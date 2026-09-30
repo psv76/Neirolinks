@@ -42,8 +42,7 @@ from .room_presentation import ROOM_MARKERS_ROLE, RoomChipDelegate
 
 def _natural_key(value: str) -> tuple:
     return tuple(
-        int(part) if part.isdigit() else part.casefold()
-        for part in re.split(r"(\d+)", value)
+        int(part) if part.isdigit() else part.casefold() for part in re.split(r"(\d+)", value)
     )
 
 
@@ -67,9 +66,7 @@ class CableMarkItem(NaturalSortItem):
     def setData(self, role: int, value) -> None:
         if role == Qt.ItemDataRole.EditRole:
             self._edit_value = "" if value is None else str(value)
-            super().setData(
-                Qt.ItemDataRole.DisplayRole, format_cable_mark(self._edit_value)
-            )
+            super().setData(Qt.ItemDataRole.DisplayRole, format_cable_mark(self._edit_value))
             return
         super().setData(role, value)
 
@@ -87,10 +84,7 @@ class SpreadsheetTable(QTableWidget):
         if event.matches(QKeySequence.StandardKey.Paste):
             self.pasteRequested.emit()
             return
-        if (
-            event.modifiers() == Qt.KeyboardModifier.ControlModifier
-            and event.key() == Qt.Key.Key_D
-        ):
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_D:
             self.fillDownRequested.emit()
             return
         if self.state() != QAbstractItemView.State.EditingState:
@@ -156,9 +150,7 @@ class GroupedHeaderView(QHeaderView):
         spans = []
         for label, logicals in runs:
             left = self.sectionViewportPosition(logicals[0])
-            right = self.sectionViewportPosition(logicals[-1]) + self.sectionSize(
-                logicals[-1]
-            )
+            right = self.sectionViewportPosition(logicals[-1]) + self.sectionSize(logicals[-1])
             spans.append(GroupSpan(label, tuple(logicals), left, right - left))
         return tuple(spans)
 
@@ -186,9 +178,7 @@ class GroupedHeaderView(QHeaderView):
             option.text = span.label
             option.textAlignment = Qt.AlignmentFlag.AlignCenter
             option.position = QStyleOptionHeader.SectionPosition.Middle
-            self.style().drawControl(
-                QStyle.ControlElement.CE_Header, option, painter, self
-            )
+            self.style().drawControl(QStyle.ControlElement.CE_Header, option, painter, self)
         painter.end()
 
 
@@ -330,12 +320,8 @@ class LinesWorkspace(QWidget):
         self.table.pasteRequested.connect(self.paste_clipboard)
         self.table.fillDownRequested.connect(self.fill_down)
         self.table.editableMoveRequested.connect(self._move_editable)
-        self.table.verticalScrollBar().valueChanged.connect(
-            lambda *_: self._save_state()
-        )
-        self.table.horizontalScrollBar().valueChanged.connect(
-            lambda *_: self._save_state()
-        )
+        self.table.verticalScrollBar().valueChanged.connect(lambda *_: self._save_state())
+        self.table.horizontalScrollBar().valueChanged.connect(lambda *_: self._save_state())
         header = self.table.horizontalHeader()
         header.sectionMoved.connect(lambda *_: self._save_state())
         header.sectionResized.connect(lambda *_: self._save_state())
@@ -357,17 +343,13 @@ class LinesWorkspace(QWidget):
         ):
             button = QPushButton(f"Массово: {action.label}", self)
             button.setObjectName(f"bulk{action.value.title()}Button")
-            button.clicked.connect(
-                lambda _checked=False, value=action: self.run_bulk_action(value)
-            )
+            button.clicked.connect(lambda _checked=False, value=action: self.run_bulk_action(value))
             self.bulk_buttons[action] = button
             table_actions.addWidget(button)
         input_bulk = QPushButton("Массово: Назначить вход", self)
         input_bulk.setObjectName("bulkInputButton")
         input_bulk.setEnabled(False)
-        input_bulk.setToolTip(
-            "Вход назначается выбранным физическим клавишам, не строкам линий"
-        )
+        input_bulk.setToolTip("Вход назначается выбранным физическим клавишам, не строкам линий")
         table_actions.addWidget(input_bulk)
         table_actions.addStretch(1)
         top = QWidget(self)
@@ -498,9 +480,7 @@ class LinesWorkspace(QWidget):
             action.setCheckable(True)
             action.setChecked(column.default_visible)
             action.toggled.connect(
-                lambda visible, logical=index: self._set_column_visible(
-                    logical, visible
-                )
+                lambda visible, logical=index: self._set_column_visible(logical, visible)
             )
             menu.addAction(action)
             self.column_actions[column.key] = action
@@ -520,9 +500,7 @@ class LinesWorkspace(QWidget):
         self.table.setSortingEnabled(False)
         self.table.blockSignals(True)
         try:
-            self._cards = (
-                list(self.cables.line_cards(self.project_id)) if self.cables else []
-            )
+            self._cards = list(self.cables.line_cards(self.project_id)) if self.cables else []
             statuses = (
                 self.status_service.line_statuses(self.project_id)
                 if self.status_service is not None
@@ -535,9 +513,9 @@ class LinesWorkspace(QWidget):
             )
             self._assignments_by_line = {}
             for assignment in assignments:
-                self._assignments_by_line.setdefault(
-                    assignment["cable_line_id"], []
-                ).append(assignment)
+                self._assignments_by_line.setdefault(assignment["cable_line_id"], []).append(
+                    assignment
+                )
             for card in self._cards:
                 status = statuses.get(card["id"])
                 card["status_summary"] = status
@@ -573,9 +551,7 @@ class LinesWorkspace(QWidget):
                     if definition.key == "resource_labels":
                         technical = ", ".join(
                             assignment["technical_identity"]
-                            for assignment in self._assignments_by_line.get(
-                                card["id"], []
-                            )
+                            for assignment in self._assignments_by_line.get(card["id"], [])
                         )
                         item.setToolTip(technical)
                     if definition.key == "room_names":
@@ -583,18 +559,10 @@ class LinesWorkspace(QWidget):
                         item.setData(ROOM_MARKERS_ROLE, markers)
                         item.setToolTip("\n".join(marker["name"] for marker in markers))
                     self.table.setItem(row, column, item)
-            self._populate_filter(
-                self.system_filter, (card["system_kind"] for card in self._cards)
-            )
-            self._populate_filter(
-                self.room_filter, (card["room_names"] for card in self._cards)
-            )
-            self._populate_filter(
-                self.board_filter, (card["board"] for card in self._cards)
-            )
-            self._populate_filter(
-                self.status_filter, (card["user_status"] for card in self._cards)
-            )
+            self._populate_filter(self.system_filter, (card["system_kind"] for card in self._cards))
+            self._populate_filter(self.room_filter, (card["room_names"] for card in self._cards))
+            self._populate_filter(self.board_filter, (card["board"] for card in self._cards))
+            self._populate_filter(self.status_filter, (card["user_status"] for card in self._cards))
         finally:
             self.table.blockSignals(False)
             self.table.setSortingEnabled(True)
@@ -604,8 +572,7 @@ class LinesWorkspace(QWidget):
             row for row in range(self.table.rowCount()) if not self.table.isRowHidden(row)
         ]
         visible_ids = {
-            self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
-            for row in visible_rows
+            self.table.item(row, 0).data(Qt.ItemDataRole.UserRole) for row in visible_rows
         }
         surviving = set(selected_line_ids) & visible_ids
         if surviving:
@@ -614,9 +581,7 @@ class LinesWorkspace(QWidget):
                 line_id = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
                 if line_id in surviving:
                     self.table.setRangeSelected(
-                        QTableWidgetSelectionRange(
-                            row, 0, row, self.table.columnCount() - 1
-                        ),
+                        QTableWidgetSelectionRange(row, 0, row, self.table.columnCount() - 1),
                         True,
                     )
             if selected_line_id in surviving:
@@ -643,9 +608,7 @@ class LinesWorkspace(QWidget):
     @staticmethod
     def _populate_filter(combo: QComboBox, values) -> None:
         current = combo.currentData()
-        unique = sorted(
-            {str(value) for value in values if str(value).strip()}, key=_natural_key
-        )
+        unique = sorted({str(value) for value in values if str(value).strip()}, key=_natural_key)
         combo.blockSignals(True)
         combo.clear()
         combo.addItem("Все", "")
@@ -749,14 +712,10 @@ class LinesWorkspace(QWidget):
             self.open_resource.setEnabled(False)
             self.show_issue.setEnabled(False)
             return
-        identity = (
-            f"{card['designation']} — {card['load_name'] or 'Потребитель не указан'}"
-        )
+        identity = f"{card['designation']} — {card['load_name'] or 'Потребитель не указан'}"
         self.card_title.setText(identity)
         self.card_fields["location"].setText(
-            " / ".join(
-                value for value in (card["building_names"], card["room_names"]) if value
-            )
+            " / ".join(value for value in (card["building_names"], card["room_names"]) if value)
             or "Не указано"
         )
         self.card_fields["board"].setText(card["board"] or "Не указан")
@@ -783,9 +742,7 @@ class LinesWorkspace(QWidget):
         assignments = self._assignments_by_line.get(line_id, [])
         has_target = len(assignments) == 1
         self.single_buttons[GuidedAction.OUTPUT].setEnabled(self.guided is not None)
-        self.single_buttons[GuidedAction.POWER].setEnabled(
-            self.guided is not None and has_target
-        )
+        self.single_buttons[GuidedAction.POWER].setEnabled(self.guided is not None and has_target)
         self.single_buttons[GuidedAction.PROTECTION].setEnabled(
             self.guided is not None and has_target
         )
@@ -816,9 +773,7 @@ class LinesWorkspace(QWidget):
         selected = self.current_line_id()
         selected_ids = self.selected_line_ids()
         try:
-            self.cables.batch_update_line_fields(
-                project_id=self.project_id, edits=edits
-            )
+            self.cables.batch_update_line_fields(project_id=self.project_id, edits=edits)
         except Exception as exc:
             QMessageBox.warning(self, "Изменения не применены", str(exc))
             self.refresh(selected_line_id=selected, selected_line_ids=selected_ids)
@@ -859,9 +814,7 @@ class LinesWorkspace(QWidget):
             lines.pop()
         matrix = [line.split("\t") for line in lines]
         if not matrix or any(len(row) != len(matrix[0]) for row in matrix):
-            QMessageBox.warning(
-                self, "Вставка не выполнена", "Буфер не является прямоугольником"
-            )
+            QMessageBox.warning(self, "Вставка не выполнена", "Буфер не является прямоугольником")
             return False
         visible_columns = sorted(
             (
@@ -878,17 +831,13 @@ class LinesWorkspace(QWidget):
         rows_overflow = anchor.row() + len(matrix) > self.table.rowCount()
         columns_overflow = visual_anchor + len(matrix[0]) > len(visible_columns)
         if rows_overflow or columns_overflow:
-            QMessageBox.warning(
-                self, "Вставка не выполнена", "Диапазон выходит за границы таблицы"
-            )
+            QMessageBox.warning(self, "Вставка не выполнена", "Диапазон выходит за границы таблицы")
             return False
         edits = []
         for row_offset, values in enumerate(matrix):
             target_row = anchor.row() + row_offset
             if self.table.isRowHidden(target_row):
-                QMessageBox.warning(
-                    self, "Вставка не выполнена", "Скрытые строки не изменяются"
-                )
+                QMessageBox.warning(self, "Вставка не выполнена", "Скрытые строки не изменяются")
                 return False
             for column_offset, value in enumerate(values):
                 target_column = visible_columns[visual_anchor + column_offset]
@@ -918,9 +867,7 @@ class LinesWorkspace(QWidget):
         rows = sorted({index.row() for index in indexes})
         columns = sorted({index.column() for index in indexes})
         if rows != list(range(rows[0], rows[-1] + 1)):
-            QMessageBox.warning(
-                self, "Заполнение не выполнено", "Выберите непрерывный диапазон"
-            )
+            QMessageBox.warning(self, "Заполнение не выполнено", "Выберите непрерывный диапазон")
             return False
         edits = []
         for column in columns:
@@ -936,9 +883,7 @@ class LinesWorkspace(QWidget):
             for row in rows[1:]:
                 edits.append(
                     {
-                        "cable_line_id": self.table.item(row, 0).data(
-                            Qt.ItemDataRole.UserRole
-                        ),
+                        "cable_line_id": self.table.item(row, 0).data(Qt.ItemDataRole.UserRole),
                         "field": definition.editable_field,
                         "value": source,
                     }
@@ -981,8 +926,7 @@ class LinesWorkspace(QWidget):
             for row in range(self.table.rowCount())
             if not self.table.isRowHidden(row)
             for column, definition in enumerate(COLUMNS)
-            if definition.editable_field is not None
-            and not self.table.isColumnHidden(column)
+            if definition.editable_field is not None and not self.table.isColumnHidden(column)
         ]
         if not editable:
             return
@@ -1008,9 +952,7 @@ class LinesWorkspace(QWidget):
                 )
                 return
             owner_id = assignments[0]["output_resource_id"]
-        dialog = GuidedActionDialog(
-            self.guided, action, self.project_id, owner_id, self
-        )
+        dialog = GuidedActionDialog(self.guided, action, self.project_id, owner_id, self)
         if dialog.exec() == dialog.DialogCode.Accepted:
             self.refresh(selected_line_id=line_id)
             self.projectChanged.emit()
@@ -1075,9 +1017,7 @@ class LinesWorkspace(QWidget):
             "horizontal_scroll": self.table.horizontalScrollBar().value(),
             "splitter_sizes": self.splitter.sizes(),
             "layout_version": LINES_LAYOUT_VERSION,
-            "sort_column": COLUMNS[
-                self.table.horizontalHeader().sortIndicatorSection()
-            ].key,
+            "sort_column": COLUMNS[self.table.horizontalHeader().sortIndicatorSection()].key,
             "sort_order": int(self.table.horizontalHeader().sortIndicatorOrder().value),
             "columns": {
                 column.key: {
@@ -1096,9 +1036,7 @@ class LinesWorkspace(QWidget):
     def _restore_state(self) -> None:
         if self.ui_state is None:
             self._apply_default_layout()
-            self.table.sortItems(
-                _column_index("designation"), Qt.SortOrder.AscendingOrder
-            )
+            self.table.sortItems(_column_index("designation"), Qt.SortOrder.AscendingOrder)
             return
         self._restoring = True
         try:
@@ -1120,9 +1058,7 @@ class LinesWorkspace(QWidget):
                 if isinstance(width, int) and width > 20:
                     self.table.setColumnWidth(logical, width)
                 elif not columns:
-                    self.table.setColumnWidth(
-                        logical, _DEFAULT_COLUMN_WIDTHS[column.key]
-                    )
+                    self.table.setColumnWidth(logical, _DEFAULT_COLUMN_WIDTHS[column.key])
                 visible = saved.get("visible", column.default_visible)
                 self.table.setColumnHidden(logical, not bool(visible))
                 self.column_actions[column.key].setChecked(bool(visible))
@@ -1140,16 +1076,10 @@ class LinesWorkspace(QWidget):
                 self.table.horizontalHeader().moveSection(current_visual, target_visual)
             sort_key = state.get("sort_column", "designation")
             sort_column = next(
-                (
-                    index
-                    for index, column in enumerate(COLUMNS)
-                    if column.key == sort_key
-                ),
+                (index for index, column in enumerate(COLUMNS) if column.key == sort_key),
                 0,
             )
-            order_value = state.get(
-                "sort_order", int(Qt.SortOrder.AscendingOrder.value)
-            )
+            order_value = state.get("sort_order", int(Qt.SortOrder.AscendingOrder.value))
             order = (
                 Qt.SortOrder.DescendingOrder
                 if order_value == int(Qt.SortOrder.DescendingOrder.value)
@@ -1170,12 +1100,8 @@ class LinesWorkspace(QWidget):
             if selected in self._cards_by_id:
                 self.select_line(selected)
             self.apply_filters()
-            self.table.verticalScrollBar().setValue(
-                int(state.get("vertical_scroll", 0))
-            )
-            self.table.horizontalScrollBar().setValue(
-                int(state.get("horizontal_scroll", 0))
-            )
+            self.table.verticalScrollBar().setValue(int(state.get("vertical_scroll", 0)))
+            self.table.horizontalScrollBar().setValue(int(state.get("horizontal_scroll", 0)))
         finally:
             self._restoring = False
 

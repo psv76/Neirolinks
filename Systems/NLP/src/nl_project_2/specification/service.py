@@ -317,9 +317,7 @@ class SpecificationService:
             )
         return output
 
-    def _field_device_sources(
-        self, project_id: str, context: dict
-    ) -> list[SpecificationSource]:
+    def _field_device_sources(self, project_id: str, context: dict) -> list[SpecificationSource]:
         rows = self._field_device_rows(project_id)
         output = []
         for row in rows:
@@ -335,8 +333,7 @@ class SpecificationService:
             if confirmed:
                 configuration = _normalized_json(row["configuration_json"])
                 item_key = (
-                    f"PRODUCT:{row['product_key']}:v{row['product_version']}:"
-                    f"CONFIG:{configuration}"
+                    f"PRODUCT:{row['product_key']}:v{row['product_version']}:CONFIG:{configuration}"
                 )
                 name = row["product_name"]
                 article = row["article"]
@@ -358,9 +355,7 @@ class SpecificationService:
                     f"Полевое устройство {row['entity_handle'] or row['id']}; "
                     f"физический тип {kind}; каталог не подтверждён"
                 )
-            note = _join_note(
-                _override_value(override, "note", None), configuration_note
-            )
+            note = _join_note(_override_value(override, "note", None), configuration_note)
             output.append(
                 SpecificationSource(
                     "FIELD_DEVICE",
@@ -381,9 +376,7 @@ class SpecificationService:
             )
         return output
 
-    def _mounting_box_sources(
-        self, project_id: str, context: dict
-    ) -> list[SpecificationSource]:
+    def _mounting_box_sources(self, project_id: str, context: dict) -> list[SpecificationSource]:
         output = []
         eligible = {"SOCKET", "SWITCH", "BUTTON", "SENSOR_MSW", "CONTROL_PANEL"}
         for row in self._field_device_rows(project_id):
@@ -391,9 +384,7 @@ class SpecificationService:
             if kind not in eligible:
                 continue
             override = context["overrides"].get(("MOUNTING_BOX_DEMAND", row["id"]), {})
-            scope = _override_value(
-                override, "supply_scope", row["selection_supply_scope"]
-            )
+            scope = _override_value(override, "supply_scope", row["selection_supply_scope"])
             output.append(
                 SpecificationSource(
                     "MOUNTING_BOX_DEMAND",
@@ -601,9 +592,7 @@ class SpecificationService:
                         product_definition,
                         product_definition.c.id == conduit.c.product_definition_id,
                     )
-                    .where(
-                        conduit.c.project_id == project_id, conduit.c.lifecycle == "ACTIVE"
-                    )
+                    .where(conduit.c.project_id == project_id, conduit.c.lifecycle == "ACTIVE")
                 ).mappings()
             )
         output = []
@@ -958,11 +947,7 @@ def _confirmed_field_selection(row, kind: str) -> bool:
         values = option.get("values")
         if not key or not isinstance(values, list):
             return False
-        allowed = {
-            str(value.get("id", "")).strip()
-            for value in values
-            if isinstance(value, dict)
-        }
+        allowed = {str(value.get("id", "")).strip() for value in values if isinstance(value, dict)}
         allowed_keys.add(key)
         selected = configuration.get(key)
         if selected in (None, ""):

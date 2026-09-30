@@ -101,15 +101,11 @@ def _normalize_legacy_identities(bind) -> None:
     for row in endpoints:
         address = str(row["address"] or "")
         match = _LEGACY_RS485.fullmatch(address) if row["bus_kind"] == "RS485" else None
-        normalized = (
-            f"{match.group(1)}.{int(match.group(2)):03d}" if match else address
-        )
+        normalized = f"{match.group(1)}.{int(match.group(2)):03d}" if match else address
         key = (row["bus_id"], normalized)
         previous = proposed.get(key)
         if previous is not None and previous != row["id"]:
-            raise RuntimeError(
-                f"AMBIGUOUS_RS485_ADDRESS_MIGRATION:{row['bus_id']}:{normalized}"
-            )
+            raise RuntimeError(f"AMBIGUOUS_RS485_ADDRESS_MIGRATION:{row['bus_id']}:{normalized}")
         proposed[key] = row["id"]
         if normalized != address:
             bind.exec_driver_sql(
@@ -166,9 +162,7 @@ def _materialize_existing_bus_segments(bind) -> None:
                 target: parents for target, parents in candidate_parents.items() if len(parents) > 1
             }
             if ambiguous:
-                raise RuntimeError(
-                    f"AMBIGUOUS_LEGACY_BUS_TOPOLOGY:{bus_row['id']}:{ambiguous}"
-                )
+                raise RuntimeError(f"AMBIGUOUS_LEGACY_BUS_TOPOLOGY:{bus_row['id']}:{ambiguous}")
             edges = [(next(iter(parents)), target) for target, parents in candidate_parents.items()]
         for source, target in edges:
             bind.exec_driver_sql(

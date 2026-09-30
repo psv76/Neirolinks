@@ -81,15 +81,17 @@ def test_canonical_payload_schema_hash_and_exact_coverage(catalog_dir):
         {"vendor alpha", "vendor beta", "vendor gamma"}
         & {item["manufacturer"].casefold() for item in payload.products["products"]}
     )
-    dkc = next(
-        item for item in payload.products["products"] if item["id"] == "product.dkc.11525"
-    )
+    dkc = next(item for item in payload.products["products"] if item["id"] == "product.dkc.11525")
     assert dkc["article"] == "11525"
-    assert dkc["parameters_used_by_project"] | {
-        "material_code": "PP",
-        "nominal_diameter_mm": 25,
-        "color": "BLUE",
-    } == dkc["parameters_used_by_project"]
+    assert (
+        dkc["parameters_used_by_project"]
+        | {
+            "material_code": "PP",
+            "nominal_diameter_mm": 25,
+            "color": "BLUE",
+        }
+        == dkc["parameters_used_by_project"]
+    )
     for passport_key, resource_key in (
         ("power.acdc.24v.din", "DC24_OUTPUT"),
         ("power.acdc.48v.din", "DC48_OUTPUT"),

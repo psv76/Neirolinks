@@ -153,7 +153,8 @@ def _normalize_legacy_points(
         canonical = dict(rows[0])
         canonical["field_device_id"] = None
         canonical["point_kind"] = (
-            "INSTALLATION_GROUP" if logical_identity is not None and len(rows) > 1
+            "INSTALLATION_GROUP"
+            if logical_identity is not None and len(rows) > 1
             else "DEVICE_POINT"
         )
         bind.execute(
@@ -249,9 +250,7 @@ def _upgrade_led_profile(bind) -> bool:
                 type_="check",
             )
         batch.alter_column("voltage_decimal", existing_type=sa.Text(), nullable=True)
-        batch.create_check_constraint(
-            "led_kind", "led_kind IN ('MONO','CCT','RGB','RGBW')"
-        )
+        batch.create_check_constraint("led_kind", "led_kind IN ('MONO','CCT','RGB','RGBW')")
         batch.create_check_constraint(
             "led_type_origin", "led_type_origin IN ('DWG','PROJECT','MIGRATION')"
         )
@@ -268,8 +267,16 @@ def _upgrade_led_profile(bind) -> bool:
     return True
 
 
-def _review(bind, *, project_id: str, line_id: str, kind: str, legacy_id: str | None,
-            reason: str, payload: dict) -> None:
+def _review(
+    bind,
+    *,
+    project_id: str,
+    line_id: str,
+    kind: str,
+    legacy_id: str | None,
+    reason: str,
+    payload: dict,
+) -> None:
     bind.execute(
         schema.topology_migration_review.insert().values(
             id=_id(),
@@ -284,12 +291,21 @@ def _review(bind, *, project_id: str, line_id: str, kind: str, legacy_id: str | 
     )
 
 
-def _endpoint(bind, *, project_id: str, line_id: str, kind: str,
-              point_id: str | None = None, resource_id: str | None = None,
-              port_id: str | None = None) -> str:
-    filters = [schema.cable_topology_endpoint.c.project_id == project_id,
-               schema.cable_topology_endpoint.c.cable_line_id == line_id,
-               schema.cable_topology_endpoint.c.endpoint_kind == kind]
+def _endpoint(
+    bind,
+    *,
+    project_id: str,
+    line_id: str,
+    kind: str,
+    point_id: str | None = None,
+    resource_id: str | None = None,
+    port_id: str | None = None,
+) -> str:
+    filters = [
+        schema.cable_topology_endpoint.c.project_id == project_id,
+        schema.cable_topology_endpoint.c.cable_line_id == line_id,
+        schema.cable_topology_endpoint.c.endpoint_kind == kind,
+    ]
     values = {
         "cable_point_id": point_id,
         "instance_resource_id": resource_id,
@@ -419,8 +435,12 @@ def _migrate_line_assignments(bind, legacy_assignments: list[dict]) -> dict[str,
     return endpoints_by_line
 
 
-def _migrate_topology(bind, point_rows: list[dict], conduit_rows: list[dict],
-                      assignment_endpoints: dict[str, list[str]]) -> None:
+def _migrate_topology(
+    bind,
+    point_rows: list[dict],
+    conduit_rows: list[dict],
+    assignment_endpoints: dict[str, list[str]],
+) -> None:
     points_by_line: dict[str, list[dict]] = defaultdict(list)
     for row in point_rows:
         points_by_line[row["cable_line_id"]].append(row)
@@ -451,13 +471,17 @@ def _migrate_topology(bind, point_rows: list[dict], conduit_rows: list[dict],
                 kind="LEGACY_LINE_TOPOLOGY",
                 legacy_id=line_id,
                 reason=(
-                    "Legacy point order is absent" if not points
+                    "Legacy point order is absent"
+                    if not points
                     else "Legacy multi-point ordinal may reflect scan order"
                 ),
                 payload={
                     "points": [
-                        {"id": point["id"], "ordinal": point["ordinal"],
-                         "point_kind": point.get("point_kind")}
+                        {
+                            "id": point["id"],
+                            "ordinal": point["ordinal"],
+                            "point_kind": point.get("point_kind"),
+                        }
                         for point in points
                     ],
                     "route_facts": route,
@@ -568,8 +592,7 @@ def upgrade() -> None:
     device_rows: dict[str, dict] = {}
     if "cable_point" in tables:
         point_rows = [
-            dict(row)
-            for row in bind.execute(sa.text("SELECT * FROM cable_point")).mappings()
+            dict(row) for row in bind.execute(sa.text("SELECT * FROM cable_point")).mappings()
         ]
     if "field_device" in tables:
         device_rows = {
@@ -626,9 +649,7 @@ def _assert_downgrade_safe(bind) -> None:
             bind, "SELECT count(*) FROM cable_segment WHERE origin_kind='PROJECT'"
         ),
         "migration reviews": _scalar(bind, "SELECT count(*) FROM topology_migration_review"),
-        "key input assignments": _scalar(
-            bind, "SELECT count(*) FROM control_key_input_assignment"
-        ),
+        "key input assignments": _scalar(bind, "SELECT count(*) FROM control_key_input_assignment"),
         "field product selections": _scalar(
             bind, "SELECT count(*) FROM field_device_product_selection"
         ),
@@ -679,14 +700,18 @@ def _restore_legacy_line_facts(bind) -> list[dict]:
             facts["GOFRA_TYPE"] = segment["gofra_type"]
         if segment.get("gofra_color"):
             facts["GOFRA_COLOR"] = segment["gofra_color"]
-        assigned = bind.execute(
-            sa.select(schema.conduit_segment_assignment, schema.conduit.c.designation)
-            .join(
-                schema.conduit,
-                schema.conduit.c.id == schema.conduit_segment_assignment.c.conduit_id,
+        assigned = (
+            bind.execute(
+                sa.select(schema.conduit_segment_assignment, schema.conduit.c.designation)
+                .join(
+                    schema.conduit,
+                    schema.conduit.c.id == schema.conduit_segment_assignment.c.conduit_id,
+                )
+                .where(schema.conduit_segment_assignment.c.cable_segment_id == segment["id"])
             )
-            .where(schema.conduit_segment_assignment.c.cable_segment_id == segment["id"])
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if assigned is not None:
             facts["GOFRA_ID"] = assigned["designation"]
             legacy_conduit_rows.append(
@@ -802,7 +827,8 @@ def downgrade() -> None:
         sa.Column("row_version", sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(["project_id"], ["project.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
-            ["conduit_id", "project_id"], ["conduit.id", "conduit.project_id"],
+            ["conduit_id", "project_id"],
+            ["conduit.id", "conduit.project_id"],
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
@@ -830,12 +856,8 @@ def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS uq_cable_point_project_identity")
     op.execute("DROP INDEX IF EXISTS uq_cable_point_id_project_line")
     op.execute("DROP INDEX IF EXISTS uq_cable_point_id_project")
-    checks = {
-        item.get("name") for item in sa.inspect(bind).get_check_constraints("cable_point")
-    }
-    uniques = {
-        item.get("name") for item in sa.inspect(bind).get_unique_constraints("cable_point")
-    }
+    checks = {item.get("name") for item in sa.inspect(bind).get_check_constraints("cable_point")}
+    uniques = {item.get("name") for item in sa.inspect(bind).get_unique_constraints("cable_point")}
     with op.batch_alter_table("cable_point") as batch:
         for name in (
             "ck_cable_point_point_kind",
@@ -846,9 +868,7 @@ def downgrade() -> None:
             if name in checks:
                 batch.drop_constraint(op.f(name), type_="check")
         if "uq_cable_point_id_project_line" in uniques:
-            batch.drop_constraint(
-                op.f("uq_cable_point_id_project_line"), type_="unique"
-            )
+            batch.drop_constraint(op.f("uq_cable_point_id_project_line"), type_="unique")
         if "uq_cable_point_id_project" in uniques:
             batch.drop_constraint(op.f("uq_cable_point_id_project"), type_="unique")
         batch.drop_column("migration_state")

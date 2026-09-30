@@ -122,9 +122,7 @@ class IntegratedUiService:
         items: list[ActionableIssue] = []
         line_cards = list(self.cables.line_cards(project_id)) if self.cables else []
         assignments = (
-            list(self.constructor.list_cable_assignments(project_id))
-            if self.constructor
-            else []
+            list(self.constructor.list_cable_assignments(project_id)) if self.constructor else []
         )
         items.extend(self._line_issues(line_cards, assignments))
         items.extend(self._constructor_issues(project_id))
@@ -171,9 +169,7 @@ class IntegratedUiService:
     def status_for_line(self, project_id: str, line_id: str) -> UserStatusSummary:
         return self.line_statuses(project_id).get(
             line_id,
-            aggregate_status(
-                (), navigation=NavigationTarget("Линии", "CABLE_LINE", line_id)
-            ),
+            aggregate_status((), navigation=NavigationTarget("Линии", "CABLE_LINE", line_id)),
         )
 
     def instance_statuses(self, project_id: str) -> dict[str, UserStatusSummary]:
@@ -206,9 +202,7 @@ class IntegratedUiService:
             instance_id,
             aggregate_status(
                 (),
-                navigation=NavigationTarget(
-                    "Оборудование", "PROJECT_INSTANCE", instance_id
-                ),
+                navigation=NavigationTarget("Оборудование", "PROJECT_INSTANCE", instance_id),
             ),
         )
 
@@ -231,9 +225,7 @@ class IntegratedUiService:
                     mount_way=str(card.get("mount_way") or ""),
                     conduit=str(card.get("gofra_id") or ""),
                     total_length_m=(
-                        None
-                        if card.get("effective_m") is None
-                        else str(card.get("effective_m"))
+                        None if card.get("effective_m") is None else str(card.get("effective_m"))
                     ),
                     length_mode=str(card.get("length_mode") or "Не рассчитана"),
                     length_explanation=str(card.get("length_explanation") or ""),
@@ -404,9 +396,7 @@ class IntegratedUiService:
                 instance_label = getattr(item, "instance_label", None) or getattr(
                     item, "target_label", "Оборудование"
                 )
-                instance_id = getattr(item, "instance_id", None) or getattr(
-                    item, "target_id", ""
-                )
+                instance_id = getattr(item, "instance_id", None) or getattr(item, "target_id", "")
                 items.append(
                     self._issue(
                         UserStatus.ACTION_REQUIRED,
@@ -419,9 +409,7 @@ class IntegratedUiService:
                         item.code,
                         "PROJECT_INSTANCE",
                         instance_id,
-                        NavigationTarget(
-                            "Оборудование", "PROJECT_INSTANCE", instance_id
-                        ),
+                        NavigationTarget("Оборудование", "PROJECT_INSTANCE", instance_id),
                         "equipment_actions.empty_instance_issues",
                     )
                 )
@@ -436,9 +424,7 @@ class IntegratedUiService:
             assessment = None
             try:
                 if equipment_class.startswith("AC_DC_POWER_SUPPLY"):
-                    assessment = self.distribution.assess_psu_instance(
-                        project_id, instance["id"]
-                    )
+                    assessment = self.distribution.assess_psu_instance(project_id, instance["id"])
                 elif equipment_class == "DISTRIBUTION_BLOCK":
                     assessment = self.distribution.assess_cross_module_instance(
                         project_id, instance["id"]
@@ -464,9 +450,7 @@ class IntegratedUiService:
                     f"DISTRIBUTION_{assessment.status}",
                     "PROJECT_INSTANCE",
                     instance["id"],
-                    NavigationTarget(
-                        "Оборудование", "PROJECT_INSTANCE", instance["id"], "POWER"
-                    ),
+                    NavigationTarget("Оборудование", "PROJECT_INSTANCE", instance["id"], "POWER"),
                     "distribution.assessment",
                     evidence=tuple(str(item) for item in assessment.trace),
                 )
@@ -560,13 +544,15 @@ class IntegratedUiService:
                     cable_segment.c.cable_line_id,
                     cable_segment.c.mount_way,
                     conduit_segment_assignment.c.conduit_id,
-                ).outerjoin(
+                )
+                .outerjoin(
                     conduit_segment_assignment,
                     and_(
                         conduit_segment_assignment.c.cable_segment_id == cable_segment.c.id,
                         conduit_segment_assignment.c.project_id == project_id,
                     ),
-                ).where(cable_segment.c.project_id == project_id)
+                )
+                .where(cable_segment.c.project_id == project_id)
             ).mappings()
             for row in rows:
                 if row["mount_way"] == "По полу" and row["conduit_id"] is None:
@@ -582,9 +568,7 @@ class IntegratedUiService:
                             "CONDUIT_REQUIRED_FOR_FLOOR_SEGMENT",
                             "CABLE_LINE",
                             row["cable_line_id"],
-                            NavigationTarget(
-                                "Трассы", "CABLE_SEGMENT", row["id"]
-                            ),
+                            NavigationTarget("Трассы", "CABLE_SEGMENT", row["id"]),
                             "cables.segment_conduit",
                             technical_ids=(row["id"],),
                         )
@@ -713,9 +697,7 @@ class IntegratedUiService:
                     "COST_UNKNOWN",
                     source_kind,
                     source_id,
-                    NavigationTarget(
-                        "Документы", source_kind, source_id, "SPECIFICATION"
-                    ),
+                    NavigationTarget("Документы", source_kind, source_id, "SPECIFICATION"),
                     "specification.commercial_fact",
                 )
             )
@@ -796,9 +778,7 @@ class IntegratedUiService:
                     blocking = row["change_class"] != "MISSING_DWG_INSERTION"
                     items.append(
                         self._issue(
-                            UserStatus.PROJECT_ERROR
-                            if blocking
-                            else UserStatus.ACTION_REQUIRED,
+                            UserStatus.PROJECT_ERROR if blocking else UserStatus.ACTION_REQUIRED,
                             "Расхождение Project / DWG",
                             f"{row['field_path']}: {_human_code(row['change_class'])}",
                             "Синхронизация выбранного поля заблокирована",
@@ -902,8 +882,7 @@ class IntegratedUiService:
 
 def _natural_key(value: str) -> tuple:
     return tuple(
-        int(part) if part.isdigit() else part.casefold()
-        for part in re.split(r"(\d+)", value)
+        int(part) if part.isdigit() else part.casefold() for part in re.split(r"(\d+)", value)
     )
 
 

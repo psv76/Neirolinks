@@ -48,9 +48,7 @@ def _instance(database, designation, passport, product):
 def _resource(database, instance_id, key, ordinal=0):
     return next(
         row
-        for row in ConstructorService(database.engine).list_resources(
-            database.test_project_id
-        )
+        for row in ConstructorService(database.engine).list_resources(database.test_project_id)
         if row["project_instance_id"] == instance_id
         and row["resource_key"] == key
         and row["ordinal"] == ordinal
@@ -112,9 +110,7 @@ def _keys(database, count):
 def _revision(database):
     with database.engine.connect() as connection:
         return connection.scalar(
-            select(project.c.project_revision).where(
-                project.c.id == database.test_project_id
-            )
+            select(project.c.project_revision).where(project.c.id == database.test_project_id)
         )
 
 
@@ -219,13 +215,8 @@ def test_bulk_power_reuses_one_branching_source_and_is_idempotent(database, tmp_
             )
             == 3
         )
-        assert (
-            connection.scalar(select(func.count()).select_from(bulk_operation_receipt))
-            == 1
-        )
-        assert (
-            connection.scalar(select(func.count()).select_from(operation_journal)) == 1
-        )
+        assert connection.scalar(select(func.count()).select_from(bulk_operation_receipt)) == 1
+        assert connection.scalar(select(func.count()).select_from(operation_journal)) == 1
 
 
 def test_wb_mcm8_shortage_uses_eight_inputs_and_explicit_new_designation(database):
@@ -262,10 +253,7 @@ def test_wb_mcm8_shortage_uses_eight_inputs_and_explicit_new_designation(databas
     assert receipt.canonical_fact_count == 10
     with database.engine.connect() as connection:
         assert (
-            connection.scalar(
-                select(func.count()).select_from(control_key_input_assignment)
-            )
-            == 10
+            connection.scalar(select(func.count()).select_from(control_key_input_assignment)) == 10
         )
         new_instance = connection.scalar(
             select(project_instance.c.id).where(
@@ -327,10 +315,7 @@ def test_bulk_protection_reuses_existing_then_creates_exact_shortage(database):
     assert preview.mappings[0].instance_designation == "QF.1"
     service.confirm(preview, confirmed=True)
     with database.engine.connect() as connection:
-        assert (
-            connection.scalar(select(func.count()).select_from(functional_relation))
-            == 2
-        )
+        assert connection.scalar(select(func.count()).select_from(functional_relation)) == 2
         assert (
             connection.scalar(
                 select(func.count())
@@ -348,9 +333,7 @@ def test_bulk_ordinary_output_shortage_preserves_existing_designations(database)
         "controller.wb_mr6c_v2",
         "product.wirenboard.wb_mr6c_v2",
     )
-    lines = tuple(
-        _line(database, f"30{index}", "LIGHTING_230V") for index in range(1, 8)
-    )
+    lines = tuple(_line(database, f"30{index}", "LIGHTING_230V") for index in range(1, 8))
     service = BulkActionService(database.engine)
     snapshot = service.selection_snapshot(
         GuidedAction.OUTPUT,
@@ -377,10 +360,7 @@ def test_bulk_ordinary_output_shortage_preserves_existing_designations(database)
             ).scalars()
         )
         assert designations == ("MR6C.1", "MR6C.10")
-        assert (
-            connection.scalar(select(func.count()).select_from(cable_line_assignment))
-            == 7
-        )
+        assert connection.scalar(select(func.count()).select_from(cable_line_assignment)) == 7
 
 
 @pytest.mark.parametrize(
@@ -542,14 +522,10 @@ def test_failure_on_nth_write_rolls_back_new_instances_prior_assignments_and_rec
     keys = _keys(database, 10)
 
     class FailingBulkService(BulkActionService):
-        def _execute_mapping(
-            self, uow, preview, mapping, new_ids, command_id, index, now
-        ):
+        def _execute_mapping(self, uow, preview, mapping, new_ids, command_id, index, now):
             if index == 9:
                 raise BulkActionError("INJECTED_NINTH_WRITE_FAILURE")
-            return super()._execute_mapping(
-                uow, preview, mapping, new_ids, command_id, index, now
-            )
+            return super()._execute_mapping(uow, preview, mapping, new_ids, command_id, index, now)
 
     service = FailingBulkService(database.engine)
     snapshot = service.selection_snapshot(
@@ -568,15 +544,9 @@ def test_failure_on_nth_write_rolls_back_new_instances_prior_assignments_and_rec
         service.confirm(preview, confirmed=True)
     with database.engine.connect() as connection:
         assert (
-            connection.scalar(
-                select(func.count()).select_from(control_key_input_assignment)
-            )
-            == 0
+            connection.scalar(select(func.count()).select_from(control_key_input_assignment)) == 0
         )
-        assert (
-            connection.scalar(select(func.count()).select_from(bulk_operation_receipt))
-            == 0
-        )
+        assert connection.scalar(select(func.count()).select_from(bulk_operation_receipt)) == 0
 
     with database.engine.connect() as connection:
         assert (
@@ -587,10 +557,7 @@ def test_failure_on_nth_write_rolls_back_new_instances_prior_assignments_and_rec
             )
             == 0
         )
-        assert (
-            connection.scalar(select(func.count()).select_from(bulk_operation_receipt))
-            == 0
-        )
+        assert connection.scalar(select(func.count()).select_from(bulk_operation_receipt)) == 0
     assert _revision(database) == before_revision
 
 
@@ -625,15 +592,9 @@ def test_stale_reserve_and_designation_collision_leave_no_partial_changes(databa
         service.confirm(preview, confirmed=True)
     with database.engine.connect() as connection:
         assert (
-            connection.scalar(
-                select(func.count()).select_from(control_key_input_assignment)
-            )
-            == 0
+            connection.scalar(select(func.count()).select_from(control_key_input_assignment)) == 0
         )
-        assert (
-            connection.scalar(select(func.count()).select_from(bulk_operation_receipt))
-            == 0
-        )
+        assert connection.scalar(select(func.count()).select_from(bulk_operation_receipt)) == 0
 
     fresh = service.selection_snapshot(
         GuidedAction.INPUT,
@@ -641,9 +602,7 @@ def test_stale_reserve_and_designation_collision_leave_no_partial_changes(databa
         owner_ids=keys[:2],
     )
     fresh_variant = _catalog_variant(service.candidate_variants(fresh), "WB-MCM8")
-    fresh_preview = service.preview(
-        fresh, chosen_variant_identity=fresh_variant.stable_identity
-    )
+    fresh_preview = service.preview(fresh, chosen_variant_identity=fresh_variant.stable_identity)
     resource_id = _resource(database, first.instance_id, "INPUT")["id"]
     TopologyPersistenceService(database.engine).set_user_reserve(
         project_id=database.test_project_id,
@@ -656,10 +615,7 @@ def test_stale_reserve_and_designation_collision_leave_no_partial_changes(databa
     with database.engine.connect() as connection:
         assert connection.scalar(select(func.count()).select_from(user_reserve)) == 1
         assert (
-            connection.scalar(
-                select(func.count()).select_from(control_key_input_assignment)
-            )
-            == 0
+            connection.scalar(select(func.count()).select_from(control_key_input_assignment)) == 0
         )
 
 
@@ -689,24 +645,17 @@ def test_reopen_preserves_mapping_receipt_and_obsolete_confirm_is_idempotent(dat
         restored = reopened_service.list_receipts(project_id)
         assert len(restored) == 1
         assert restored[0].command_id == receipt.command_id
-        assert (
-            reopened_service.confirm(preview, confirmed=True).command_id
-            == receipt.command_id
-        )
+        assert reopened_service.confirm(preview, confirmed=True).command_id == receipt.command_id
         with reopened.engine.connect() as connection:
             assert (
-                connection.scalar(
-                    select(func.count()).select_from(control_key_input_assignment)
-                )
+                connection.scalar(select(func.count()).select_from(control_key_input_assignment))
                 == 2
             )
     finally:
         reopened.close()
 
 
-def test_local_preference_failure_does_not_rollback_successful_project_commit(
-    database, tmp_path
-):
+def test_local_preference_failure_does_not_rollback_successful_project_commit(database, tmp_path):
     class FailingProfile(LocalApplicationProfile):
         def update(self, action_type, stable_identity):
             raise OSError("profile unavailable")
@@ -730,11 +679,5 @@ def test_local_preference_failure_does_not_rollback_successful_project_commit(
     assert not receipt.preference_updated
     assert receipt.preference_diagnostic == "LOCAL_PREFERENCE_UPDATE_FAILED:OSError"
     with database.engine.connect() as connection:
-        assert (
-            connection.scalar(select(func.count()).select_from(cable_line_assignment))
-            == 1
-        )
-        assert (
-            connection.scalar(select(func.count()).select_from(bulk_operation_receipt))
-            == 1
-        )
+        assert connection.scalar(select(func.count()).select_from(cable_line_assignment)) == 1
+        assert connection.scalar(select(func.count()).select_from(bulk_operation_receipt)) == 1

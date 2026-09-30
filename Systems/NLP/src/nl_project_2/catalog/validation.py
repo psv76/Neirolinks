@@ -134,8 +134,7 @@ def validate_payload(payload: CatalogPayload) -> None:
                 or input_resource.get("direction") != "IN"
                 or input_resource.get("quantity") != 8
                 or input_resource.get("exclusive") is not True
-                or input_resource.get("labels")
-                != [f"Input {index}" for index in range(1, 9)]
+                or input_resource.get("labels") != [f"Input {index}" for index in range(1, 9)]
             ):
                 issues.append(f"{key}:INPUT_CONTRACT")
 

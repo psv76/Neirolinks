@@ -88,9 +88,7 @@ def resolve_room(candidates: Iterable[RoomLike], observed_name: str) -> RoomReso
         return RoomResolution(None, "EXACT_CANONICAL", True)
 
     normalized = normalize_room_name(raw)
-    normalized_matches = [
-        item for item in rooms if normalize_room_name(item.name) == normalized
-    ]
+    normalized_matches = [item for item in rooms if normalize_room_name(item.name) == normalized]
     if len(normalized_matches) == 1:
         return RoomResolution(normalized_matches[0].id, "NORMALIZED_EXACT")
     if len(normalized_matches) > 1:
@@ -105,9 +103,7 @@ def resolve_room(candidates: Iterable[RoomLike], observed_name: str) -> RoomReso
             return RoomResolution(None, "UNIQUE_NUMERIC_PREFIX", True)
 
     stripped = stripped_room_name(raw)
-    stripped_matches = [
-        item for item in rooms if stripped_room_name(item.name) == stripped
-    ]
+    stripped_matches = [item for item in rooms if stripped_room_name(item.name) == stripped]
     if len(stripped_matches) == 1:
         return RoomResolution(stripped_matches[0].id, "UNIQUE_STRIPPED_PREFIX")
     if len(stripped_matches) > 1:
@@ -133,9 +129,7 @@ def assign_default_room_colors(
         current = _normalized_color(item.marking_color)
         if current == DEFAULT_ROOM_COLOR:
             least_used = min(counts.values())
-            available = [
-                color for color in ROOM_COLOR_PALETTE if counts[color] == least_used
-            ]
+            available = [color for color in ROOM_COLOR_PALETTE if counts[color] == least_used]
             if previous_color is None:
                 chosen = available[0]
             else:

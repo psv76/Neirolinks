@@ -152,9 +152,7 @@ class TopologyPersistenceService:
                 raise FieldModelError("Field device already belongs to a topology point") from exc
         return identifier
 
-    def create_field_port(
-        self, *, project_id: str, field_device_id: str, port_tag: str
-    ) -> str:
+    def create_field_port(self, *, project_id: str, field_device_id: str, port_tag: str) -> str:
         identifier = new_id()
         with UnitOfWork(self._engine) as uow:
             block_kind = uow.execute(
@@ -239,9 +237,7 @@ class TopologyPersistenceService:
                     select(cable_topology_endpoint.c.id).where(
                         cable_topology_endpoint.c.project_id == project_id,
                         cable_topology_endpoint.c.cable_line_id == cable_line_id,
-                        cable_topology_endpoint.c.id.in_(
-                            (source_endpoint_id, target_endpoint_id)
-                        ),
+                        cable_topology_endpoint.c.id.in_((source_endpoint_id, target_endpoint_id)),
                     )
                 ).scalars()
             )
@@ -400,10 +396,10 @@ class TopologyPersistenceService:
             ).scalar_one_or_none()
             if key is None or resource is None or not resource.active:
                 raise FieldModelError("Physical key or input resource not found")
-            if (
-                resource.resource_kind not in {"DRY_CONTACT_INPUT", "DIGITAL_INPUT"}
-                or resource.direction not in {"IN", "BIDIRECTIONAL"}
-            ):
+            if resource.resource_kind not in {
+                "DRY_CONTACT_INPUT",
+                "DIGITAL_INPUT",
+            } or resource.direction not in {"IN", "BIDIRECTIONAL"}:
                 raise FieldModelError(
                     "Physical key requires a passport-compatible DRY_CONTACT_INPUT resource"
                 )
@@ -489,9 +485,7 @@ class TopologyPersistenceService:
                 ) from exc
         return assignment_id
 
-    def unassign_control_key_input(
-        self, *, project_id: str, field_control_key_id: str
-    ) -> None:
+    def unassign_control_key_input(self, *, project_id: str, field_control_key_id: str) -> None:
         """Remove the exact key-level assignment and its resource reservation atomically."""
 
         with UnitOfWork(self._engine) as uow:
@@ -499,8 +493,7 @@ class TopologyPersistenceService:
                 uow.execute(
                     select(control_key_input_assignment).where(
                         control_key_input_assignment.c.project_id == project_id,
-                        control_key_input_assignment.c.field_control_key_id
-                        == field_control_key_id,
+                        control_key_input_assignment.c.field_control_key_id == field_control_key_id,
                     )
                 )
                 .mappings()
@@ -598,10 +591,12 @@ class TopologyPersistenceService:
         with self._engine.connect() as connection:
             keys = list(
                 connection.execute(
-                    select(field_control_key, field_device.c.entity_handle).join(
+                    select(field_control_key, field_device.c.entity_handle)
+                    .join(
                         field_device,
                         field_device.c.id == field_control_key.c.field_device_id,
-                    ).where(
+                    )
+                    .where(
                         field_control_key.c.project_id == project_id,
                         field_control_key.c.lifecycle == "ACTIVE",
                     )
@@ -800,9 +795,7 @@ class TopologyPersistenceService:
                 "linked_key_id": key_links.get(row["id"]),
                 "linked_cable_line_ids": tuple(cable_links.get(row["id"], ())),
                 "status": (
-                    "LINKED"
-                    if row["id"] in key_links or row["id"] in cable_links
-                    else "UNUSED"
+                    "LINKED" if row["id"] in key_links or row["id"] in cable_links else "UNUSED"
                 ),
             }
             for row in ports

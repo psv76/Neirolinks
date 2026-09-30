@@ -31,4 +31,3 @@ def database(tmp_path):
     finally:
         if not handle.is_closed:
             handle.close()
-

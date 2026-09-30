@@ -44,9 +44,7 @@ class ConstructorStub:
 def test_lines_keep_repair02_layout_and_present_room_chips(qtbot):
     widget = LinesWorkspace(CableStub(), ConstructorStub(), "project")
     qtbot.addWidget(widget)
-    room_column = next(
-        index for index, column in enumerate(COLUMNS) if column.key == "room_names"
-    )
+    room_column = next(index for index, column in enumerate(COLUMNS) if column.key == "room_names")
     item = widget.table.item(0, room_column)
     assert item.text() == "1. Прихожая, 4. Гостиная"
     assert len(item.data(ROOM_MARKERS_ROLE)) == 2

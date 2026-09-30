@@ -183,15 +183,9 @@ def _room_migration_plan(rows, names):
 
 
 def _validated_alias_pairs(rows, aliases) -> tuple[tuple[dict, dict], ...]:
-    pairs = tuple(
-        (str(source).strip(), str(target).strip()) for source, target in aliases.items()
-    )
-    if not pairs or any(
-        not source or not target or source == target for source, target in pairs
-    ):
-        raise ObjectValidationError(
-            "Distinct source and target room aliases are required"
-        )
+    pairs = tuple((str(source).strip(), str(target).strip()) for source, target in aliases.items())
+    if not pairs or any(not source or not target or source == target for source, target in pairs):
+        raise ObjectValidationError("Distinct source and target room aliases are required")
     if len({normalize_room_name(source) for source, _target in pairs}) != len(pairs):
         raise ObjectValidationError("Alias source rooms must be unique")
     by_name: dict[str, list[dict]] = {}
@@ -202,26 +196,18 @@ def _validated_alias_pairs(rows, aliases) -> tuple[tuple[dict, dict], ...]:
         sources = by_name.get(source_name, [])
         targets = by_name.get(target_name, [])
         if len(sources) != 1:
-            raise ObjectValidationError(
-                f"Alias room must exist exactly once: {source_name}"
-            )
+            raise ObjectValidationError(f"Alias room must exist exactly once: {source_name}")
         if len(targets) != 1:
-            raise ObjectValidationError(
-                f"Target room must exist exactly once: {target_name}"
-            )
+            raise ObjectValidationError(f"Target room must exist exactly once: {target_name}")
         result.append((sources[0], targets[0]))
     source_ids = {source["id"] for source, _target in result}
     target_ids = {target["id"] for _source, target in result}
     if source_ids & target_ids:
-        raise ObjectValidationError(
-            "Alias chains are not supported in one reviewed merge"
-        )
+        raise ObjectValidationError("Alias chains are not supported in one reviewed merge")
     return tuple(result)
 
 
-def _assign_default_colors_in_uow(
-    uow, project_id: str, now: datetime
-) -> dict[str, str]:
+def _assign_default_colors_in_uow(uow, project_id: str, now: datetime) -> dict[str, str]:
     rows = list(
         uow.execute(
             select(room.c.id, room.c.name, room.c.display_json).where(
@@ -233,9 +219,7 @@ def _assign_default_colors_in_uow(
         _ColoredRoomCandidate(
             id=row["id"],
             name=row["name"],
-            marking_color=(row["display_json"] or {}).get(
-                "marking_color", DEFAULT_ROOM_COLOR
-            ),
+            marking_color=(row["display_json"] or {}).get("marking_color", DEFAULT_ROOM_COLOR),
         )
         for row in rows
     ]
@@ -367,9 +351,7 @@ class ObjectService:
                 )
                 uow.commit()
             except IntegrityError as exc:
-                raise DuplicateIdentityError(
-                    f"Building already exists: {clean}"
-                ) from exc
+                raise DuplicateIdentityError(f"Building already exists: {clean}") from exc
         return identifier
 
     def add_room(
@@ -438,9 +420,7 @@ class ObjectService:
         height = _decimal(height_m, "height_m", non_negative=True)
         color = marking_color.strip().upper()
         if not clean or not re.fullmatch(r"#[0-9A-F]{6}", color):
-            raise ObjectValidationError(
-                "Valid room name and #RRGGBB color are required"
-            )
+            raise ObjectValidationError("Valid room name and #RRGGBB color are required")
         with UnitOfWork(self._engine) as uow:
             try:
                 previous = (
@@ -470,11 +450,9 @@ class ObjectService:
                 )
                 if result.rowcount != 1:
                     raise ObjectValidationError("Room not found")
-                if previous["base_mark"] != (
-                    None if base is None else str(base)
-                ) or previous["height_m_decimal"] != (
-                    None if height is None else str(height)
-                ):
+                if previous["base_mark"] != (None if base is None else str(base)) or previous[
+                    "height_m_decimal"
+                ] != (None if height is None else str(height)):
                     recalculate_segments(uow, project_id, room_ids={room_id})
                 uow.execute(
                     update(project)
@@ -573,9 +551,7 @@ class ObjectService:
             )
             actions, _virtual_targets, ambiguities = _room_migration_plan(rows, names)
             if ambiguities:
-                raise ObjectValidationError(
-                    "Ambiguous room migration: " + "; ".join(ambiguities)
-                )
+                raise ObjectValidationError("Ambiguous room migration: " + "; ".join(ambiguities))
 
             target_ids: dict[str, str] = {}
             now = datetime.now(UTC)
@@ -597,14 +573,10 @@ class ObjectService:
                     if action.action == "RENAME":
                         uow.execute(
                             update(room)
-                            .where(
-                                room.c.id == target_id, room.c.project_id == project_id
-                            )
+                            .where(room.c.id == target_id, room.c.project_id == project_id)
                             .values(
                                 name=action.canonical_name,
-                                normalized_name=normalize_identity(
-                                    action.canonical_name
-                                ),
+                                normalized_name=normalize_identity(action.canonical_name),
                                 updated_at_utc=now,
                                 row_version=room.c.row_version + 1,
                             )
@@ -772,9 +744,7 @@ class ObjectService:
                     )
                 )
                 if deleted.rowcount != 1:
-                    raise ObjectValidationError(
-                        f"Alias room was not retired: {source['name']}"
-                    )
+                    raise ObjectValidationError(f"Alias room was not retired: {source['name']}")
                 affected_target_ids.add(target["id"])
                 actions.append(
                     RoomAliasMergeAction(
@@ -817,11 +787,7 @@ class ObjectService:
 
     def delete_room(self, project_id: str, room_id: str) -> None:
         with UnitOfWork(self._engine) as uow:
-            uow.execute(
-                delete(room).where(
-                    room.c.id == room_id, room.c.project_id == project_id
-                )
-            )
+            uow.execute(delete(room).where(room.c.id == room_id, room.c.project_id == project_id))
             uow.execute(
                 update(project)
                 .where(project.c.id == project_id)
@@ -888,9 +854,7 @@ class ObjectService:
             if prior_reserve != values["cable_reserve_at_board_m"]:
                 line_ids = set(
                     uow.execute(
-                        select(cable_line.c.id).where(
-                            cable_line.c.project_id == project_id
-                        )
+                        select(cable_line.c.id).where(cable_line.c.project_id == project_id)
                     ).scalars()
                 )
                 recalculate_segments(
@@ -938,9 +902,9 @@ class ObjectService:
                 ).mappings()
             )
             settings_rows = connection.execute(
-                select(
-                    project_setting.c.setting_key, project_setting.c.value_json
-                ).where(project_setting.c.project_id == project_id)
+                select(project_setting.c.setting_key, project_setting.c.value_json).where(
+                    project_setting.c.project_id == project_id
+                )
             ).all()
         settings_map = dict(settings_rows)
         settings = ProjectSettings(
@@ -960,9 +924,7 @@ class ObjectService:
                 name=row["name"],
                 base_mark_mm=_decimal(row["base_mark"], "base_mark"),
                 height_m=_decimal(row["height_m_decimal"], "height_m"),
-                marking_color=(row["display_json"] or {}).get(
-                    "marking_color", "#FFFFFF"
-                ),
+                marking_color=(row["display_json"] or {}).get("marking_color", "#FFFFFF"),
             )
             for row in room_rows
         ]

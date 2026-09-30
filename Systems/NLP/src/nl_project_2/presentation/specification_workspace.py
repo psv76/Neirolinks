@@ -73,9 +73,17 @@ class SpecificationWorkspace(QWidget):
         self.table.setObjectName("specificationTable")
         self.table.setHorizontalHeaderLabels(
             [
-                "Позиция", "Артикул", "Количество", "Ед.", "Поставка",
-                "Состояние", "В спецификации", "В смете", "Цена",
-                "Стоимость", "Примечание",
+                "Позиция",
+                "Артикул",
+                "Количество",
+                "Ед.",
+                "Поставка",
+                "Состояние",
+                "В спецификации",
+                "В смете",
+                "Цена",
+                "Стоимость",
+                "Примечание",
             ]
         )
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -107,9 +115,17 @@ class SpecificationWorkspace(QWidget):
         self.workshop.setObjectName("workshopControlTable")
         self.workshop.setHorizontalHeaderLabels(
             [
-                "Материал", "Расч. кол-во", "Расч. цена", "Расч. стоимость",
-                "Кол-во цеха", "Цена цеха", "Предъявлено", "Δ кол-ва",
-                "Δ стоимости", "Валюта", "Основание",
+                "Материал",
+                "Расч. кол-во",
+                "Расч. цена",
+                "Расч. стоимость",
+                "Кол-во цеха",
+                "Цена цеха",
+                "Предъявлено",
+                "Δ кол-ва",
+                "Δ стоимости",
+                "Валюта",
+                "Основание",
             ]
         )
         layout = QVBoxLayout(tab)
@@ -162,9 +178,17 @@ class SpecificationWorkspace(QWidget):
     def _load_workshop(self, rows) -> None:
         self.workshop.setRowCount(len(rows))
         keys = (
-            "material_kind", "calculated_quantity", "calculated_price",
-            "calculated_cost", "workshop_quantity", "workshop_price",
-            "claimed_cost", "quantity_deviation", "cost_deviation", "currency", "trace",
+            "material_kind",
+            "calculated_quantity",
+            "calculated_price",
+            "calculated_cost",
+            "workshop_quantity",
+            "workshop_price",
+            "claimed_cost",
+            "quantity_deviation",
+            "cost_deviation",
+            "currency",
+            "trace",
         )
         for row_index, row in enumerate(rows):
             for column, key in enumerate(keys):
@@ -185,12 +209,9 @@ class SpecificationWorkspace(QWidget):
                 self.table.item(table_row, column).text() for column in (0, 1, 4, 5, 10)
             )
             visible = not phrase or phrase in searchable.casefold()
+            visible = visible and (not supply or first.data(Qt.ItemDataRole.UserRole + 2) == supply)
             visible = visible and (
-                not supply or first.data(Qt.ItemDataRole.UserRole + 2) == supply
-            )
-            visible = visible and (
-                not incomplete
-                or first.data(Qt.ItemDataRole.UserRole + 3) == "Нужны данные"
+                not incomplete or first.data(Qt.ItemDataRole.UserRole + 3) == "Нужны данные"
             )
             self.table.setRowHidden(table_row, not visible)
 
@@ -295,9 +316,9 @@ class SpecificationWorkspaceDialog(QDialog):
         self.summary = workspace.summary
         if navigate_instance is not None:
             workspace.sourceRequested.connect(
-                lambda kind, identifier: navigate_instance(identifier)
-                if kind == "PROJECT_INSTANCE"
-                else None
+                lambda kind, identifier: (
+                    navigate_instance(identifier) if kind == "PROJECT_INSTANCE" else None
+                )
             )
         layout = QVBoxLayout(self)
         layout.addWidget(workspace)

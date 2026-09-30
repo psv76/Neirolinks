@@ -44,9 +44,7 @@ def _revision(database) -> int:
     with database.engine.connect() as connection:
         return int(
             connection.scalar(
-                select(project.c.project_revision).where(
-                    project.c.id == database.test_project_id
-                )
+                select(project.c.project_revision).where(project.c.id == database.test_project_id)
             )
         )
 

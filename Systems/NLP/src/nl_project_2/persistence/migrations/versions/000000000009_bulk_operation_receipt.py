@@ -26,12 +26,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     bind = op.get_bind()
-    count = bind.execute(
-        sa.text("SELECT count(*) FROM bulk_operation_receipt")
-    ).scalar_one()
+    count = bind.execute(sa.text("SELECT count(*) FROM bulk_operation_receipt")).scalar_one()
     if count:
         raise RuntimeError(
-            "Revision 000000000009 downgrade would discard bulk operation receipts: "
-            f"count={count}"
+            f"Revision 000000000009 downgrade would discard bulk operation receipts: count={count}"
         )
     schema.bulk_operation_receipt.drop(bind, checkfirst=False)

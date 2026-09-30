@@ -29,8 +29,7 @@ from .validation_center import ValidationCenterWidget
 
 def _natural_key(value: str) -> tuple:
     return tuple(
-        int(part) if part.isdigit() else part.casefold()
-        for part in re.split(r"(\d+)", value)
+        int(part) if part.isdigit() else part.casefold() for part in re.split(r"(\d+)", value)
     )
 
 
@@ -345,9 +344,7 @@ class DocumentsWorkspace(QWidget):
         self.project_id = project_id
         self.tabs = QTabWidget(self)
         self.tabs.setObjectName("documentsTabs")
-        self.cable_journal = CableJournalWidget(
-            service, project_id, ui_state=ui_state, parent=self
-        )
+        self.cable_journal = CableJournalWidget(service, project_id, ui_state=ui_state, parent=self)
         self.validation = ValidationCenterWidget(
             service,
             project_id,
@@ -367,9 +364,7 @@ class DocumentsWorkspace(QWidget):
                 ui_state=ui_state,
                 parent=self,
             )
-            self.specification.sourceRequested.connect(
-                self.specificationSourceRequested.emit
-            )
+            self.specification.sourceRequested.connect(self.specificationSourceRequested.emit)
             self.tabs.addTab(self.specification, "Спецификация и стоимость")
         self.cable_journal.lineRequested.connect(self.lineRequested)
         layout = QVBoxLayout(self)

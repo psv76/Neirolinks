@@ -82,9 +82,7 @@ def test_canonical_room_migration_previews_reuses_preserves_and_reassigns(databa
     assert by_name["Улица"].id == street_id
     with database.engine.connect() as connection:
         assert (
-            connection.scalar(
-                select(field_device.c.room_id).where(field_device.c.id == device_id)
-            )
+            connection.scalar(select(field_device.c.room_id).where(field_device.c.id == device_id))
             == by_name["2. Гардероб"].id
         )
     assert result.device_reassignments == ((device_id, "2. Гардероб"),)
