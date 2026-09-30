@@ -8,8 +8,8 @@ from urllib.parse import quote
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from nli.releases import API, Releases, fetch
-from nli.util import decode, require
+from nst.releases import API, Releases, fetch
+from nst.util import decode, require
 
 
 def verify_snapshot(path):

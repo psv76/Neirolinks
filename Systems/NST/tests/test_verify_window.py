@@ -3,8 +3,8 @@ from unittest.mock import patch
 import unittest
 
 import test_pressure_makeup as fixtures
-from nli.system import System
-from nli.util import Error
+from nst.system import System
+from nst.util import Error
 
 OLD = '2026-09-23T18:46:50+00:00'
 START = '2026-09-24T08:00:00+00:00'
@@ -25,7 +25,7 @@ class VerifyWindowTests(fixtures.PressureFixture):
 
     def test_stale_errors_ignored_and_running_507_needs_no_new_marker(self):
         before = self.snapshot()
-        with patch('nli.core.now', return_value=START), \
+        with patch('nst.core.now', return_value=START), \
              patch.object(self.system, 'rule_started', side_effect=AssertionError('Standalone must not await restart')):
             for component in ('hhm', 'pressure_makeup'):
                 result = self.engine.read_operation('verify', component)
@@ -43,7 +43,7 @@ class VerifyWindowTests(fixtures.PressureFixture):
                     def emit(m):
                         self.entries.append((NEW, message + (' 500_HHM3_FSE.js' if component == 'hhm' else ' 507_Pressure_makeup.js')))
                         return original(m)
-                    with patch('nli.core.now', return_value=START), \
+                    with patch('nst.core.now', return_value=START), \
                          patch.object(self.engine, 'files_match', side_effect=emit):
                         result = self.engine.read_operation('verify', component)
                     self.assertEqual(result['final_status'], 'failed', result)
@@ -74,7 +74,7 @@ class VerifyWindowTests(fixtures.PressureFixture):
                             starts.append(clock())
                             if len(starts) == 1:
                                 self.entries.append((starts[-1], message + (' 500_HHM3_FSE.js' if component == 'hhm' else ' 507_Pressure_makeup.js')))
-                    with patch('nli.core.now', side_effect=clock), patch.object(self.system, 'service', side_effect=emit_once):
+                    with patch('nst.core.now', side_effect=clock), patch.object(self.system, 'service', side_effect=emit_once):
                         result = self.engine.mutate('update', component)
                     self.assertEqual(result['final_status'], 'rolled_back', result)
                     self.assertEqual(len(starts), 2)
@@ -87,7 +87,7 @@ class VerifyWindowTests(fixtures.PressureFixture):
     def test_explicit_rollback_errors_preserve_pending_recovery(self):
         clock = self.transaction_clock()
         self.entries = []
-        with patch('nli.core.now', side_effect=clock):
+        with patch('nst.core.now', side_effect=clock):
             self.assertEqual(self.engine.mutate('update', 'pressure_makeup')['final_status'], 'ok')
             original = self.system.service
             def emit(action, name):

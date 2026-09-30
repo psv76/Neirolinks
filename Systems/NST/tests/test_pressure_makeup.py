@@ -5,12 +5,12 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-import test_nli as fixtures
-from nli.core import Engine
-from nli.layout import CONFIG_DIR, STATE_DIR, LOG_DIR, WB_ROOTS, target
-from nli.manifest import MAKEUP_TARGET, validate
-from nli.plugins import PressureMakeup
-from nli.util import Error, digest
+import test_core as fixtures
+from nst.core import Engine
+from nst.layout import CONFIG_DIR, STATE_DIR, LOG_DIR, WB_ROOTS, target
+from nst.manifest import MAKEUP_TARGET, validate
+from nst.plugins import PressureMakeup
+from nst.util import Error, digest
 
 ROOT = Path(__file__).resolve().parents[1]
 

@@ -83,7 +83,7 @@ def mkdir_durable(path):
 def atomic(path, data, mode=0o600, owner=None):
     path = Path(path)
     mkdir_durable(path.parent)
-    fd, name = tempfile.mkstemp(prefix=".nli-", dir=path.parent)
+    fd, name = tempfile.mkstemp(prefix=".nst-", dir=path.parent)
     try:
         with os.fdopen(fd, "wb") as stream:
             stream.write(data)
@@ -121,7 +121,7 @@ class Lock:
                 msvcrt.locking(self.file.fileno(), msvcrt.LK_NBLCK, 1)
         except OSError as exc:
             self.file.close()
-            raise Error("NLI_BUSY: another mutation is in progress") from exc
+            raise Error("NST_BUSY: another mutation is in progress") from exc
         return self
 
     def __exit__(self, *args):

@@ -27,7 +27,7 @@ class Redirect(urllib.request.HTTPRedirectHandler):
 
 def fetch(url, limit=MAX_METADATA, binary=False):
     require(url.startswith((API + '/', RAW)), 'Release source must be ' + REPO)
-    headers = {'User-Agent': 'neiro-nst/' + __version__,
+    headers = {'User-Agent': 'nst/' + __version__,
                'Accept': 'application/octet-stream' if binary else 'application/vnd.github+json'}
     try:
         request = urllib.request.Request(url, headers=headers)
@@ -42,10 +42,16 @@ def fetch(url, limit=MAX_METADATA, binary=False):
 
 
 def version(value):
+    # Compatibility parser for immutable historical manifests (including NLI 0.1.9).
     match(value, r'\d+\.\d+(?:\.\d+)?(?:-[A-Za-z0-9_.-]+)?(?:\+[A-Za-z0-9_.-]+)?',
           'release version')
     numbers = re.match(r'\d+\.\d+(?:\.\d+)?', value)[0].split('.')
     return tuple(map(int, numbers)) + (0,) * (3 - len(numbers))
+
+
+def software_version(value):
+    match(value, r'(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)', 'X.Y software version')
+    return version(value)
 
 
 class Releases:
@@ -61,13 +67,16 @@ class Releases:
             for release in releases:
                 require(type(release) is dict, 'Invalid GitHub release')
                 if (release.get('draft') is not False or release.get('prerelease') is not False
-                        or not release.get('published_at') or not release.get('tag_name', '').startswith('nli-approved-')):
+                        or not release.get('published_at') or not release.get('tag_name', '').startswith(
+                            ('nli-approved-', 'nst-approved-package-', 'nst-approved-components-'))):
                     continue
                 require(type(release.get('assets')) is list and all(type(a) is dict for a in release['assets']),
                         'Invalid release assets')
-                assets = [a for a in release['assets'] if a.get('name') == 'nli-catalog.json']
+                legacy = release['tag_name'].startswith('nli-approved-')
+                asset_name = 'nli-catalog.json' if legacy else 'nst-catalog.json'
+                assets = [a for a in release['assets'] if a.get('name') == asset_name]
                 require(len(catalogs) < 32, 'Approved catalog count bound exceeded; consolidate published catalogs')
-                require(len(assets) == 1, 'Approved release requires one nli-catalog.json')
+                require(len(assets) == 1, 'Approved release requires one ' + asset_name)
                 data = self.asset(assets[0], MAX_METADATA)
                 catalog = decode(data)
                 require(type(catalog) is dict, 'Invalid catalog object')
@@ -108,7 +117,7 @@ class Releases:
         require(all(e == entry for r, e in candidates if r == rank), 'Conflicting latest approved releases')
         if rank <= version(installed['version']):
             return installed, {'source': 'approved-releases', 'update_available': False}
-        required = entry['minimum_nli']
+        required = entry.get('minimum_nst', entry.get('minimum_nli'))
         require(version(__version__) >= version(required), 'Требуется NST ' + required + ': nst self-update')
         ref = entry['manifest']
         match(ref['commit'], r'[0-9a-f]{40}', 'immutable manifest commit')
@@ -120,18 +129,20 @@ class Releases:
         require(m['release']['repository'] == REPO and m['version'] == entry['version'], 'Release identity mismatch')
         engine.validate(m, component)
         return m, {'source': 'approved-releases', 'manifest_sha256': ref['sha256'],
-                   'update_available': True, 'minimum_nli': required}
+                   'update_available': True, 'minimum_nst': required}
 
     def package(self):
         candidates = []
         for catalog, release in self.catalogs():
-            for key, package_name in (('nst', 'neiro-nst'), ('nli', 'neiro-nli')):
+            if not release['tag_name'].startswith('nst-approved-package-'):
+                continue  # Historical NLI/NST packages are never new installation targets.
+            for key, package_name in (('nst', 'nst'),):
                 package = catalog.get(key)
                 if package is None:
                     continue
                 require(type(package) is dict, 'Invalid service-tool package metadata')
                 require(package.get('approved') is True, 'Unapproved service-tool package')
-                rank = version(package['version'])
+                rank = software_version(package['version'])
                 match(package['sha256'], SHA, 'package SHA256')
                 asset_name = package_name + '_' + package['version'] + '_all.deb'
                 assets = [a for a in release['assets'] if a['name'] == asset_name]

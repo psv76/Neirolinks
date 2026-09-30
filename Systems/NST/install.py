@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone bootstrap installer for the latest published approved NLI package.
+"""Standalone bootstrap installer for the latest published approved NST package.
 
 This file intentionally uses only Python stdlib and dpkg. It does not create or
 modify object configuration and never restarts Wiren Board services itself.
@@ -35,7 +35,7 @@ def digest(data):
 
 def version(value):
     require(isinstance(value, str) and re.fullmatch(
-        r"\d+\.\d+(?:\.\d+)?(?:[-+][A-Za-z0-9_.-]+)?", value), "Invalid release version")
+        r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", value), "Invalid release version")
     numbers = re.match(r"\d+\.\d+(?:\.\d+)?", value)[0].split(".")
     return tuple(map(int, numbers)) + (0,) * (3 - len(numbers))
 
@@ -53,7 +53,7 @@ def fetch(url, limit=MAX_METADATA, binary=False):
     request = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "neiro-nli-bootstrap/1",
+            "User-Agent": "nst-bootstrap/1",
             "Accept": "application/octet-stream" if binary else "application/vnd.github+json",
         },
     )
@@ -78,7 +78,7 @@ def run(argv, capture=False):
 
 
 class Bootstrap:
-    def __init__(self, transport=fetch, runner=run, euid=os.geteuid):
+    def __init__(self, transport=fetch, runner=run, euid=lambda: getattr(os, "geteuid", lambda: -1)()):
         self.fetch = transport
         self.run = runner
         self.euid = euid
@@ -106,13 +106,13 @@ class Bootstrap:
                 require(isinstance(release, dict), "Invalid GitHub release")
                 if (release.get("draft") is not False or release.get("prerelease") is not False
                         or not release.get("published_at")
-                        or not release.get("tag_name", "").startswith("nli-approved-")):
+                        or not release.get("tag_name", "").startswith("nst-approved-package-")):
                     continue
                 assets = release.get("assets")
                 require(isinstance(assets, list) and all(isinstance(a, dict) for a in assets),
                         "Invalid release assets")
-                catalogs = [a for a in assets if a.get("name") == "nli-catalog.json"]
-                require(len(catalogs) == 1, "Approved release requires one nli-catalog.json")
+                catalogs = [a for a in assets if a.get("name") == "nst-catalog.json"]
+                require(len(catalogs) == 1, "Approved release requires one nst-catalog.json")
                 data = self.asset(catalogs[0], MAX_METADATA)
                 try:
                     catalog = json.loads(data)
@@ -132,25 +132,25 @@ class Bootstrap:
     def package(self):
         candidates = []
         for catalog, release in self.catalogs():
-            package = catalog.get("nli")
+            package = catalog.get("nst")
             if package is None:
                 continue
             require(isinstance(package, dict) and package.get("approved") is True,
-                    "Unapproved NLI package")
+                    "Unapproved NST package")
             rank = version(package.get("version"))
             sha = package.get("sha256")
             require(isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{64}", sha),
                     "Invalid package SHA256")
             assets = [a for a in release["assets"]
-                      if a.get("name") == "neiro-nli_" + package["version"] + "_all.deb"]
+                      if a.get("name") == "nst_" + package["version"] + "_all.deb"]
             require(len(assets) == 1 and assets[0].get("digest") == "sha256:" + sha,
-                    "Missing/mismatched NLI release package")
+                    "Missing/mismatched NST release package")
             candidates.append((rank, package, assets[0]))
-        require(candidates, "Нет опубликованного approved NLI release")
+        require(candidates, "Нет опубликованного approved NST release")
         candidates.sort(key=lambda item: item[0], reverse=True)
         rank, package, asset = candidates[0]
         require(all(p == package for r, p, a in candidates if r == rank),
-                "Conflicting approved NLI packages")
+                "Conflicting approved NST packages")
         return dict(package, asset=asset)
 
     def check(self):
@@ -162,7 +162,7 @@ class Bootstrap:
         package = self.package()
         data = self.asset(package["asset"], MAX_PACKAGE)
         require(digest(data) == package["sha256"], "Package checksum mismatch")
-        fd, path = tempfile.mkstemp(prefix="neiro-nli-", suffix=".deb", dir="/tmp")
+        fd, path = tempfile.mkstemp(prefix="nst-", suffix=".deb")
         try:
             with os.fdopen(fd, "wb") as stream:
                 stream.write(data)
@@ -172,16 +172,16 @@ class Bootstrap:
                 self.run(["/usr/bin/dpkg-deb", "-f", path, field], True)
                 for field in ("Package", "Version", "Architecture")
             ]
-            require(metadata == ["neiro-nli", package["version"], "all"],
+            require(metadata == ["nst", package["version"], "all"],
                     "Downloaded .deb identity mismatch")
             self.run(["/usr/bin/dpkg", "--install", path])
-            reported = self.run(["/usr/bin/nli", "--json", "--version"], True)
+            reported = self.run(["/usr/bin/nst", "--json", "--version"], True)
             try:
                 actual = json.loads(reported).get("version")
             except (AttributeError, json.JSONDecodeError) as exc:
-                raise InstallError("Installed NLI version check failed") from exc
+                raise InstallError("Installed NST version check failed") from exc
             require(actual == package["version"],
-                    "Installed NLI version mismatch: " + str(actual))
+                    "Installed NST version mismatch: " + str(actual))
             return {"version": actual, "sha256": package["sha256"]}
         finally:
             try:
@@ -193,7 +193,7 @@ class Bootstrap:
 def main(argv=None, bootstrap=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true",
-                        help="only show the latest approved NLI package; do not install")
+                        help="only show the latest approved NST package; do not install")
     args = parser.parse_args(argv)
     bootstrap = bootstrap or Bootstrap()
     try:
@@ -202,12 +202,12 @@ def main(argv=None, bootstrap=None):
         print("Ошибка:", exc)
         return 1
     if args.check:
-        print("Последний approved NLI:", result["version"])
+        print("Последний approved NST:", result["version"])
         print("SHA256:", result["sha256"])
     else:
-        print("NLI установлен:", result["version"])
+        print("NST установлен:", result["version"])
         print("SHA256:", result["sha256"])
-        print("Далее: nli status")
+        print("Далее: nst status")
     return 0
 
 

@@ -8,10 +8,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-import test_nli as fixtures
-from nli.controller_cleanup import ControllerCleanup, KEEP_DIAGNOSTIC_BUNDLES
-from nli.layout import STATE_DIR
-from nli.util import write_json
+import test_core as fixtures
+from nst.controller_cleanup import ControllerCleanup, KEEP_DIAGNOSTIC_BUNDLES
+from nst.layout import STATE_DIR
+from nst.util import write_json
 
 
 class CleanupTests(fixtures.Fixture):

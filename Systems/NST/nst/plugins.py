@@ -18,7 +18,7 @@ class Files:
     def validate(self, m, registration):
         allowed = registration.get("allowed_targets", [])
         require(all(f["target"] in allowed for f in m["files"]), "Target outside local component whitelist")
-        require(all(f["target"].startswith("/etc/neiro/components/" + m["component"] + "/")
+        require(all(f["target"].startswith("/etc/neirolinks/components/" + m["component"] + "/")
                     for f in m["files"]), "Generic component target outside its namespace")
         require(m["services"] == {"stop": [], "start": []}, "Generic files plugin cannot control services")
         require(m["preflight"] == ["identity", "drift"], "Invalid files policy")

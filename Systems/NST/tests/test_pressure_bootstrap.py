@@ -8,10 +8,10 @@ import unittest
 from unittest.mock import patch
 
 import test_pressure_makeup as pressure
-from nli.layout import CONFIG_DIR, DEFAULT_CONFIG, DATA_DIR, STATE_DIR, LOG_DIR
-from nli.manifest import MAKEUP_TARGET
-from nli.system import System
-from nli.util import Error, digest, read_json
+from nst.layout import CONFIG_DIR, DEFAULT_CONFIG, DATA_DIR, STATE_DIR, LOG_DIR
+from nst.manifest import MAKEUP_TARGET
+from nst.system import System
+from nst.util import Error, digest, read_json
 
 
 class BootstrapTests(pressure.PressureFixture):
@@ -85,7 +85,7 @@ class StartupProbeTests(unittest.TestCase):
     def test_waits_for_delayed_marker_and_is_readonly(self):
         system=System()
         with patch.object(system,'journal',side_effect=['','startup-marker']) as journal, \
-             patch('nli.system.time.sleep') as sleep:
+             patch('nst.system.time.sleep') as sleep:
             system.rule_started('startup-marker','start-time')
         self.assertEqual(journal.call_count,2)
         journal.assert_called_with('start-time')
@@ -94,5 +94,5 @@ class StartupProbeTests(unittest.TestCase):
     def test_missing_marker_has_bounded_failure(self):
         system=System()
         with patch.object(system,'journal',return_value=''), \
-             patch('nli.system.time.monotonic',side_effect=[0,16]):
+             patch('nst.system.time.monotonic',side_effect=[0,16]):
             with self.assertRaisesRegex(Error,'Missing rule startup'): system.rule_started('marker', 'restart-time')

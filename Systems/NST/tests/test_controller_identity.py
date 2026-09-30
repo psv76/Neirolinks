@@ -10,10 +10,10 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
 from build_controller_registry import build_registry
-from nli.controller import ControllerRegistry, read_hardware_identity
-from nli.core import Engine
-from nli.firmware import Firmware
-from nli.self_update import SelfUpdate
+from nst.controller import ControllerRegistry, read_hardware_identity
+from nst.core import Engine
+from nst.firmware import Firmware
+from nst.self_update import SelfUpdate
 
 
 class NoTouchSystem:
@@ -67,6 +67,7 @@ class IdentityTests(unittest.TestCase):
             path.write_text("abf62sl\n", encoding="utf-8")
             self.assertEqual(read_hardware_identity(root)["serial"], "ABF62SL")
 
+    @unittest.skipUnless(__import__("os").name == "posix", "Linux sysfs path semantics; exercised in CI")
     def test_fingerprint_uses_cpu_and_emmc_when_available(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -113,7 +114,7 @@ class RegistryLifecycleTests(unittest.TestCase):
                 result = engine.mutate("update", "demo")
                 self.assertEqual(result["final_status"], "failed")
                 self.assertIn("CONTROLLER_", result["error"])
-                self.assertFalse((Path(tmp) / "mnt/data/var/lib/neiro/nli").exists())
+                self.assertFalse((Path(tmp) / "mnt/data/var/lib/neirolinks/nst").exists())
 
     def test_all_mutation_entry_points_are_blocked_for_unknown_controller(self):
         context = registry({}).resolve(identity("ZZZZ999"))
@@ -124,7 +125,7 @@ class RegistryLifecycleTests(unittest.TestCase):
             self.assertIn("CONTROLLER_NOT_REGISTERED", engine.mutate("rollback", "demo")["error"])
             self.assertIn("CONTROLLER_NOT_REGISTERED", Firmware(engine).execute("update")["error"])
             self.assertIn("CONTROLLER_NOT_REGISTERED", SelfUpdate(engine).execute()["error"])
-            self.assertFalse((Path(tmp) / "mnt/data/var/lib/neiro/nli").exists())
+            self.assertFalse((Path(tmp) / "mnt/data/var/lib/neirolinks/nst").exists())
 
     def test_active_assignment_allows_guard_and_does_not_depend_on_hostname(self):
         context = registry({"ABF62SL": entry("active")}).resolve(identity())

@@ -209,8 +209,10 @@ class ControllerRegistry:
 
 
 def load_controller_context(root="/", registry_path=None):
+    from .layout import CONFIG_DIR, target
     identity = read_hardware_identity(root)
-    logical = registry_path or REGISTRY_PATH
+    saved = CONFIG_DIR + '/controller-registry.json'
+    logical = registry_path or (saved if target(root, saved).is_file() else REGISTRY_PATH)
     path = _fixed(root, logical) if str(logical).startswith("/") else Path(logical)
     try:
         registry = ControllerRegistry.from_path(path)

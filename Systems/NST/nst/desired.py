@@ -36,6 +36,7 @@ class PlatformReleases:
 
     def latest(self, serial):
         candidates = []
+        published = []
         for page in range(1, 11):
             rows = decode(self.releases.fetch(API + "/releases?per_page=100&page=" + str(page)))
             require(type(rows) is list, "Invalid GitHub releases response")
@@ -44,14 +45,23 @@ class PlatformReleases:
                         or not release.get("published_at")
                         or not str(release.get("tag_name", "")).startswith(self.PREFIX)):
                     continue
+                published.append(release)
+            if len(rows) < 100:
+                break
+        else:
+            require(False, 'Platform release pagination bound exceeded')
+        require(published, 'No approved platform release')
+        newest = max(r['published_at'] for r in published)
+        for release in published:
+                if release['published_at'] != newest:
+                    continue
                 assets = release.get("assets")
                 require(type(assets) is list, "Invalid platform release assets")
                 registry_assets = [a for a in assets if a.get("name") == self.REGISTRY_ASSET]
                 deployment_name = "nst-deployment-" + serial + ".json"
                 deployment_assets = [a for a in assets if a.get("name") == deployment_name]
                 require(len(registry_assets) == 1, "Approved platform release requires one controller registry")
-                if not deployment_assets:
-                    continue
+                require(deployment_assets, 'Latest approved platform has no deployment for controller ' + serial)
                 require(len(deployment_assets) == 1, "Duplicate controller deployment asset")
                 registry_raw = self.releases.asset(registry_assets[0], MAX_METADATA)
                 deployment_raw = self.releases.asset(deployment_assets[0], MAX_METADATA)
@@ -72,8 +82,6 @@ class PlatformReleases:
                     "deployment": deployment,
                     "deployment_sha256": digest(deployment_raw),
                 })
-            if len(rows) < 100:
-                break
         require(candidates, "No approved platform deployment for controller " + serial)
         candidates.sort(key=lambda x: (x["published_at"], x["tag"]), reverse=True)
         latest = candidates[0]
@@ -94,6 +102,24 @@ class PlatformReleases:
         require(manifest["files"] == deployment_component["files"], "Desired component file set mismatch")
         require(manifest["services"] == deployment_component["services"], "Desired component service set mismatch")
         return raw, manifest
+
+    def verify_profile(self, approved):
+        from .controller import validate_profile
+        deployment = approved['deployment']
+        refs = {}
+        for key in ('profile', 'diagnostics_profile'):
+            ref = deployment[key]
+            raw = self.releases.fetch(RAW + deployment['source']['commit'] + '/' + ref['path'])
+            require(digest(raw) == ref['sha256'], key + ' checksum mismatch')
+            refs[key] = decode(raw)
+        profile = validate_profile(refs['profile'], deployment['controller_serial'])
+        require((profile['node'], profile['role'], profile['state']) ==
+                (deployment['node'], deployment['role'], deployment['state']), 'Profile assignment mismatch')
+        require(set(profile.get('components', {})) == {c['component'] for c in deployment['components']},
+                'Profile component set mismatch')
+        require(sorted(profile.get('object_files', []), key=lambda f: f['target']) ==
+                sorted([{k: f[k] for k in ('source', 'target')} for f in deployment['object_files']],
+                       key=lambda f: f['target']), 'Profile object files mismatch')
 
 
 class DesiredState:
@@ -215,11 +241,22 @@ class DesiredState:
         require(version(__version__) >= version(deployment["minimum_nst"]),
                 "Требуется NST " + deployment["minimum_nst"] + ": nst self-update")
         controller = self.engine.controller or {}
-        assignment = controller.get("assignment")
-        require(assignment is not None, controller.get("reason") or "CONTROLLER_NOT_REGISTERED")
+        require(controller.get("state") not in ("planned", "retired"),
+                controller.get("reason") or "CONTROLLER_NOT_ACTIVE")
+        resolved = ControllerRegistry(approved["registry"]).resolve(controller.get("identity") or {})
+        require(resolved["mutation_allowed"], resolved.get("reason") or "CONTROLLER_NOT_ACTIVE")
+        assignment = resolved["assignment"]
         require((assignment["object"], assignment["node"], assignment["role"], assignment["state"]) ==
                 (deployment["object"], deployment["node"], deployment["role"], "active"),
                 "CONTROLLER_DEPLOYMENT_MISMATCH")
+        require(deployment["controller_serial"] == serial, "Deployment serial mismatch")
+        config = self.engine.config
+        require((config["object"], config["role"]) in
+                (("unconfigured", "unconfigured"), (deployment["object"], deployment["role"])),
+                "CONTROLLER_CONFIG_MISMATCH")
+        approved["resolved_controller"] = resolved
+        if isinstance(self.source, PlatformReleases):
+            self.source.verify_profile(approved)
         return approved
 
     def check(self):
@@ -227,8 +264,6 @@ class DesiredState:
         snapshot = None
         try:
             controller = self.engine.controller or {}
-            require(controller.get("state") == "active" and controller.get("mutation_allowed") is True,
-                    controller.get("reason") or "CONTROLLER_NOT_ACTIVE")
             approved = self._approved()
             plan = self._plan(approved["deployment"])
             record.update(
@@ -249,83 +284,24 @@ class DesiredState:
             record.update(final_status="failed", error=str(exc))
         return record
 
-    def _install_component(self, desired, approved):
-        raw, manifest = self.source.component_manifest(desired)
-        pin_path = CONFIG_DIR + "/releases/nst-desired-" + self._serial() + "-" + desired["component"] + ".json"
-        atomic(self.engine.target(pin_path), raw)
-        config = copy.deepcopy(self.engine.config)
-        config["release_source"] = "pinned"
-        registration = config["components"].get(desired["component"])
-        require(registration is not None, "Desired component is not registered locally: " + desired["component"])
-        registration["target"] = {"path": pin_path, "sha256": digest(raw)}
-        registration.pop("payload_dir", None)
-        registration["remote_payload"] = True
-        child = Engine(config, self.engine.root, self.engine.system, self.engine.releases, self.engine.controller)
-        result = child.mutate("update", desired["component"])
-        require(result["final_status"] == "ok", "Component sync failed: " + desired["component"] + ": "
-                + str(result.get("error") or result["final_status"]))
-        require(child.current(desired["component"])["version"] == manifest["version"],
-                "Installed component version does not match desired deployment")
-        return result
-
     def sync(self):
         record = self.engine.record("sync")
-        # Lifecycle/identity refusal is intentionally before any persistent
-        # mutation or audit, matching the controller guard contract.
         try:
-            self.engine.require_controller_mutation("sync")
-        except (Error, OSError, ValueError, KeyError, TypeError) as exc:
-            record.update(final_status="failed", error=str(exc))
-            return record
-        try:
-            require(not self.engine.pending(), "Recovery required before desired-state sync")
             approved = self._approved()
-            deployment = approved["deployment"]
-            plan = self._plan(deployment)
-            record["approved_platform"] = {
-                "tag": approved["tag"],
-                "published_at": approved["published_at"],
-                "registry_sha256": approved["registry_sha256"],
-                "deployment_sha256": approved["deployment_sha256"],
-            }
-            record["plan"] = plan
-            require(not plan["object_files"],
-                    "Object payload changes require reviewed object-file transaction support")
-            operations = []
-            desired_by_name = {c["component"]: c for c in deployment["components"]}
-            for item in plan["components"]:
-                if item["action"] == "sync":
-                    operations.append(self._install_component(desired_by_name[item["component"]], approved))
-            final_plan = self._plan(deployment)
-            require(final_plan["status"] == "exact", "Desired deployment is not exact after sync")
-            platform = load_platform_state(self.engine)
-            platform["controller"] = {
-                "serial": self._serial(),
-                "object": deployment["object"],
-                "node": deployment["node"],
-                "role": deployment["role"],
-            }
-            platform["registry"] = {
-                "tag": approved["tag"],
-                "sha256": approved["registry_sha256"],
-                "published_at": approved["published_at"],
-            }
-            platform["deployment"] = {
-                "tag": approved["tag"],
-                "sha256": approved["deployment_sha256"],
-                "published_at": approved["published_at"],
-                "manifest": deployment,
-            }
-            platform["desired_state"] = {"status": "exact", "checked_at": now()}
-            save_platform_state(self.engine, platform)
-            record.update(operations=operations, deployment_state=final_plan, final_status="ok")
-            self.engine.audit(record)
+            self.engine.controller = approved["resolved_controller"]
+            plan = self._plan(approved['deployment'])
+            local = load_platform_state(self.engine)
+            if (plan['status'] == 'exact' and not self.engine.pending()
+                    and (local.get('deployment') or {}).get('manifest') == approved['deployment']):
+                record.update(final_status='ok', install='not_needed', plan=plan, deployment_state=plan)
+                return record
+            from .transaction import DeploymentTransaction
+            result = DeploymentTransaction(self.engine).apply(approved["deployment"], self.source, approved)
+            result["plan"] = self._plan(approved["deployment"])
+            result["deployment_state"] = result["plan"]
+            return result
         except TransportError as exc:
             record.update(final_status="unavailable", error=str(exc))
-        except BaseException as exc:
-            record.update(final_status="failed", error=str(exc) or type(exc).__name__)
-            try:
-                self.engine.audit(record)
-            except BaseException:
-                pass
+        except (Error, OSError, ValueError, KeyError, TypeError) as exc:
+            record.update(final_status="failed", error=str(exc))
         return record

@@ -10,7 +10,7 @@ import os
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from nli.cli import BANNER, main
+from nst.cli import BANNER, main
 
 
 class TTYBuffer(io.StringIO):
@@ -66,12 +66,12 @@ class CliUiTests(unittest.TestCase):
         code, output = self.capture(["--version"])
         self.assertEqual(code, 0)
         self.assertIn(BANNER, output)
-        self.assertIn("NEIROLINKS Service Tool 1.0.0", output)
+        self.assertIn("NEIROLINKS Service Tool 2.0", output)
 
     def test_version_json_is_machine_clean(self):
         code, output = self.capture(["--json", "--version"], tty=True)
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(output), {"version": "1.0.0"})
+        self.assertEqual(json.loads(output), {"version": "2.0"})
         self.assertNotIn("\x1b[", output)
         self.assertNotIn(BANNER, output)
 

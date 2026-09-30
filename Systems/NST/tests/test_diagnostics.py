@@ -10,9 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-import test_nli as fixtures
-from nli.diagnostics import Diagnostics, parse_since, validate_profile
-from nli.util import Error, digest
+import test_core as fixtures
+from nst.diagnostics import Diagnostics, parse_since, validate_profile
+from nst.util import Error, digest
 
 
 def profile():
@@ -59,7 +59,7 @@ class DiagnosticSystem(fixtures.FakeSystem):
         return {
             "os": {"ID": "debian"},
             "uptime_seconds": 123.0,
-            "packages": {"neiro-nst": "1.0.0"},
+            "packages": {"nst": "1.0.0"},
             "resources": {"status": "ok"},
         }
 
@@ -87,8 +87,8 @@ class DiagnosticsTests(fixtures.Fixture):
         self.assertIn("journals/wb-mqtt-db.log", files)
         self.assertIn("history/mqtt.csv", files)
         self.assertIn("current-controls.json", files)
-        self.assertIn("sources/etc/neiro/components/demo/data.json", files)
-        self.assertEqual(files["sources/etc/neiro/components/demo/data.json"], b"old")
+        self.assertIn("sources/etc/neirolinks/components/demo/data.json", files)
+        self.assertEqual(files["sources/etc/neirolinks/components/demo/data.json"], b"old")
         self.assertIn("checksums.sha256", files)
         controls = json.loads(files["current-controls.json"])
         self.assertEqual([c["kind"] for c in controls], ["command", "readback"])
@@ -108,7 +108,7 @@ class DiagnosticsTests(fixtures.Fixture):
     def test_common_bundle_requires_no_component_profile_and_includes_managed_source(self):
         result = Diagnostics(self.engine, {}).collect(None, "1h")
         files = self.members(result)
-        self.assertIn("sources/etc/neiro/components/demo/data.json", files)
+        self.assertIn("sources/etc/neirolinks/components/demo/data.json", files)
         self.assertNotIn("history/mqtt.csv", files)
         self.assertEqual(self.system.actions, [])
 

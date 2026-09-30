@@ -9,10 +9,10 @@ import uuid
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, '/usr/lib/neiro-nli')
-from nli.layout import DEFAULT_CONFIG, DATA_DIR, STATE_DIR, target
-from nli.manifest import MAKEUP_TARGET, validate
-from nli.plugins import PressureMakeup
-from nli.util import Error, atomic, digest, read_json, require
+from nst.layout import DEFAULT_CONFIG, DATA_DIR, STATE_DIR, target
+from nst.manifest import MAKEUP_TARGET, validate
+from nst.plugins import PressureMakeup
+from nst.util import Error, atomic, digest, read_json, require
 
 
 def register(root='/'):

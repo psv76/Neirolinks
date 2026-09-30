@@ -48,7 +48,7 @@ class System:
         except (OSError, ValueError, IndexError):
             pass
         packages = {}
-        for package in ("neiro-nst", "neiro-nli", "wb-rules", "wb-mqtt-db", "wb-mqtt-serial"):
+        for package in ("nst", "neiro-nli", "wb-rules", "wb-mqtt-db", "wb-mqtt-serial"):
             try:
                 packages[package] = self.run(["/usr/bin/dpkg-query", "-W", "-f=${Version}", package])
             except Error:

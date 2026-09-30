@@ -1,17 +1,12 @@
-"""WB persistent data layout and narrowly scoped logical rule roots.
-
-NST 1.0 intentionally preserves the accepted NLI 0.1.9 durable paths under
-/mnt/data. They are storage-schema identifiers, not package/CLI branding.
-Keeping them in place makes upgrade/FIT/recovery byte-preserving.
-"""
+"""Canonical NST persistent layout; old NLI stores require explicit migration."""
 import os
 from .util import beneath, read_json, require, safe_relative
 
-CONFIG_DIR = "/mnt/data/etc/neiro/nli"
+CONFIG_DIR = "/mnt/data/etc/neirolinks/nst"
 DEFAULT_CONFIG = CONFIG_DIR + "/config.json"
-STATE_DIR = "/mnt/data/var/lib/neiro/nli"
-LOG_DIR = "/mnt/data/var/log/neiro/nli"
-DATA_DIR = "/usr/share/neiro-nst"
+STATE_DIR = "/mnt/data/var/lib/neirolinks/nst"
+LOG_DIR = "/mnt/data/var/log/neirolinks/nst"
+DATA_DIR = "/usr/share/nst"
 WB_ROOTS = {
     "/etc/wb-rules": "/mnt/data/etc/wb-rules",
     "/etc/wb-rules-modules": "/mnt/data/etc/wb-rules-modules",
@@ -52,6 +47,8 @@ def legacy_data_present(root):
 
 def load_config(path=None, root="/"):
     """Read-only. Never bootstrap or silently discard legacy/partially lost data."""
+    from .migration import present, complete
+    require(not present(root) or complete(root), 'LEGACY_MIGRATION_REQUIRED: run nst migrate-nli')
     path = path or DEFAULT_CONFIG
     require(path.startswith(CONFIG_DIR + "/"), "Config must be under " + CONFIG_DIR)
     config = target(root, path)

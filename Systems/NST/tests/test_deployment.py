@@ -11,8 +11,8 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
 from build_deployment import encode, resolve
-from nli.deployment import validate_deployment, verify_offline
-from nli.util import Error
+from nst.deployment import validate_deployment, verify_offline
+from nst.util import Error
 
 
 def sha(data):

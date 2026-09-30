@@ -11,11 +11,11 @@ ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ROOT.parents[1]
 sys.path.insert(0, str(ROOT))
 
-from nli.controller import validate_profile
-from nli.deployment import validate_deployment
-from nli.manifest import validate as validate_component_manifest
-from nli.releases import REPO, version
-from nli.util import decode, digest, require, safe_relative
+from nst.controller import validate_profile
+from nst.deployment import validate_deployment
+from nst.manifest import validate as validate_component_manifest
+from nst.releases import REPO, version
+from nst.util import decode, digest, require, safe_relative
 
 APPROVALS_PATH = "Systems/NST/deployment/approved-components.json"
 
@@ -55,7 +55,7 @@ def _validate_approval_entry(item):
         "kind", "tag", "published_at", "catalog_sha256", "release_commit"
     }, "Invalid approved component provenance")
     require(approval["kind"] == "github_release", "Invalid approved component provenance kind")
-    require(isinstance(approval["tag"], str) and approval["tag"].startswith("nli-approved-"),
+    require(isinstance(approval["tag"], str) and approval["tag"].startswith(("nli-approved-", "nst-approved-components-")),
             "Invalid approved release tag")
     require(isinstance(approval["published_at"], str) and approval["published_at"], "Missing approval timestamp")
     require(len(approval["catalog_sha256"]) == 64, "Invalid approved catalog SHA256")

@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
 sys.path.insert(0, str(ROOT))
 
-from nli.controller import ControllerRegistry
+from nst.controller import ControllerRegistry
 
 
 class IvolgaPilotTests(unittest.TestCase):
