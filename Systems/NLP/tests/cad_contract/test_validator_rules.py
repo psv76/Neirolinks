@@ -526,6 +526,7 @@ def test_invalid_conduit_type_is_rejected_in_both_networks(
         for issue in result.issues
     )
 
+
 def test_timber_route_is_validated_and_preserved_for_ordinary_and_bus(
     block_contract, make_observation
 ):
