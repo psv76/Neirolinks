@@ -134,6 +134,7 @@ def test_upgrade_from_real_pre_conduit_contract_shape_adds_columns_and_index(tmp
     assert {"conduit_number", "color", "product_definition_id"} <= columns
     assert "uq_conduit_project_number" in indexes
 
+
 def test_upgrade_011_to_012_allows_timber_mount_way(tmp_path) -> None:
     path = tmp_path / "pre-timber.sqlite"
     downgrade_backup = tmp_path / "downgrade-backup"
