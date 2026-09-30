@@ -565,7 +565,11 @@ def test_timber_mount_way_rejects_missing_or_non_ppl_conduit(
     result = CadContractValidator(block_contract).validate(
         CadObservationBatch("doc", (observation,))
     )
-    expected_code = f"{prefix}GOFRA_TYPE_REQUIRED" if not conduit_type else f"{prefix}GOFRA_TYPE_FORMAT"
+    expected_code = (
+        f"{prefix}GOFRA_TYPE_REQUIRED"
+        if not conduit_type
+        else f"{prefix}GOFRA_TYPE_FORMAT"
+    )
     assert any(
         issue.code == expected_code
         and issue.field == f"{prefix}GOFRA_TYPE"
