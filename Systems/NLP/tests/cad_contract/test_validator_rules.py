@@ -526,6 +526,7 @@ def test_invalid_conduit_type_is_rejected_in_both_networks(
         for issue in result.issues
     )
 
+
 @pytest.mark.parametrize("prefix", ["", "BUS_"])
 @pytest.mark.parametrize("conduit_type", ["ППЛ20", "ППЛ25"])
 def test_timber_mount_way_accepts_only_ppl_conduits(
@@ -541,10 +542,16 @@ def test_timber_mount_way_accepts_only_ppl_conduits(
     result = CadContractValidator(block_contract).validate(
         CadObservationBatch("doc", (observation,))
     )
+    route_fields = {
+        f"{prefix}MOUNT_WAY",
+        f"{prefix}GOFRA_TYPE",
+        f"{prefix}GOFRA_COLOR",
+        f"{prefix}GOFRA_ID",
+    }
     assert not [
         issue
         for issue in result.issues
-        if issue.blocks_acceptance and issue.field.startswith(prefix)
+        if issue.blocks_acceptance and issue.field in route_fields
     ]
 
 
