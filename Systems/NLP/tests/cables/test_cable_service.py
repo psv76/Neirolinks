@@ -176,6 +176,35 @@ def test_lengths_manual_priority_auto_conduit_and_reopen(database):
         reopened.close()
 
 
+def test_timber_service_adds_cable_reserve_but_not_conduit_reserve(database):
+    project_id, *rooms = _project(database)
+    line_id = _line_with_points(database, project_id, rooms)
+    service = CableService(database.engine)
+    service.update_line_fields(
+        project_id=project_id,
+        cable_line_id=line_id,
+        cable_type="NYM",
+        board_designation="B.01",
+        mount_way="В брусе",
+        gofra_type="ППЛ25",
+        gofra_color="синий",
+        gofra_id="",
+    )
+    result = service.calculate_and_save_length(
+        project_id=project_id,
+        cable_line_id=line_id,
+        route_method=RouteMethod.TIMBER,
+    )
+    assert result.automatic_m == Decimal("3.5")
+    with database.engine.connect() as connection:
+        segment = connection.execute(select(cable_segment)).mappings().one()
+        tube = connection.execute(select(conduit)).mappings().one()
+    assert segment["mount_way"] == "В брусе"
+    assert segment["gofra_type"] == "ППЛ25"
+    assert Decimal(segment["calculated_length_m_decimal"]) == Decimal("3.5")
+    assert Decimal(tube["length_m_decimal"]) == Decimal("3")
+
+
 def test_conduit_merge_user_empty_bulk_edit_and_rollback(database):
     project_id, *rooms = _project(database)
     service = CableService(database.engine)
