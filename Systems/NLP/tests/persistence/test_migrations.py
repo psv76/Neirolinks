@@ -15,6 +15,8 @@ from nl_project_2.persistence.migration import (
     DALI_GROUP_REVISION,
     FOUNDATION_REVISION,
     HEAD_REVISION,
+    TIMBER_MOUNT_WAY_REVISION,
+    TOPOLOGY_AUTOCAD_CONTRACT_REVISION,
     current_revision_read_only,
     initialize_database,
     upgrade_database,
@@ -130,3 +132,29 @@ def test_upgrade_from_real_pre_conduit_contract_shape_adds_columns_and_index(tmp
         indexes = {row[1] for row in connection.execute("PRAGMA index_list(conduit)")}
     assert {"conduit_number", "color", "product_definition_id"} <= columns
     assert "uq_conduit_project_number" in indexes
+
+def test_upgrade_011_to_012_allows_timber_mount_way(tmp_path) -> None:
+    path = tmp_path / "pre-timber.sqlite"
+    backup_directory = tmp_path / "backup"
+
+    assert (
+        initialize_database(path, target=TOPOLOGY_AUTOCAD_CONTRACT_REVISION)
+        == TOPOLOGY_AUTOCAD_CONTRACT_REVISION
+    )
+    with sqlite3.connect(path) as connection:
+        before_sql = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='cable_segment'"
+        ).fetchone()[0]
+    assert "В брусе" not in before_sql
+
+    receipt = upgrade_database(path, backup_directory)
+
+    assert receipt.source_revision == TOPOLOGY_AUTOCAD_CONTRACT_REVISION
+    assert current_revision_read_only(path) == TIMBER_MOUNT_WAY_REVISION == HEAD_REVISION
+    assert current_revision_read_only(receipt.path) == TOPOLOGY_AUTOCAD_CONTRACT_REVISION
+    with sqlite3.connect(path) as connection:
+        after_sql = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='cable_segment'"
+        ).fetchone()[0]
+    assert "В брусе" in after_sql
+
