@@ -81,7 +81,7 @@ Object payload changes require reviewed object-file transaction support
 
 Generated deployment ABF62SL пересобран от нового immutable source commit после relocation:
 
-- HHM 3.5;
+- HHM 3.6;
 - четыре object files из controller profile;
 - специализированный `Systems/NST/diagnostics/ivolga-boiler-hhm-v1.json`.
 
@@ -89,7 +89,7 @@ CI проверяет deterministic rebuild и offline verification.
 
 ### 3. Approved components
 
-Approved component snapshot синхронизирован с опубликованными HHM Releases 3.2–3.5. Для ABF62SL stable resolver выбирает HHM 3.5.
+Approved component snapshot синхронизирован с опубликованными HHM Releases 3.2–3.6. Для ABF62SL stable resolver выбирает HHM 3.6.
 
 ### 4. Pressure makeup
 
