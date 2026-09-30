@@ -12,6 +12,7 @@
     "attribute_profiles",
     "conditional_attributes",
     "forbidden_attributes",
+    "route_rules",
     "functional_groups",
     "block_families",
     "logical_blocks",
