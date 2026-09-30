@@ -48,6 +48,7 @@ def test_pp_id_keeps_material_code_instead_of_russian_prefix_transliteration():
     with pytest.raises(ConduitContractError, match="suffix must be PP25"):
         parse_conduit_id("001.PPL25", "ППЛ25")
 
+
 @pytest.mark.parametrize("conduit_type", ["ППЛ20", "ППЛ25"])
 def test_timber_requires_approved_pp_conduit(conduit_type):
     assert validate_line_conduit_fields(
