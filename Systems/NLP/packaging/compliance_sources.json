@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "component": "Qt Base",
+      "version": "6.11.1",
+      "filename": "qtbase-everywhere-src-6.11.1.tar.xz",
+      "official_url": "https://download.qt.io/official_releases/qt/6.11/6.11.1/submodules/qtbase-everywhere-src-6.11.1.tar.xz",
+      "download_url": "https://ftp.fau.de/qtproject/archive/qt/6.11/6.11.1/submodules/qtbase-everywhere-src-6.11.1.tar.xz",
+      "bytes": 50648500,
+      "sha256": "d9594a31228aa23ad6b531719a29b45f0f3989fe6c136d45767ea179f233c1ac"
+    },
+    {
+      "component": "Qt for Python (PySide6 and Shiboken6)",
+      "version": "6.11.1",
+      "filename": "pyside-setup-everywhere-src-6.11.1.tar.xz",
+      "official_url": "https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.11.1-src/pyside-setup-everywhere-src-6.11.1.tar.xz",
+      "download_url": "https://ftp.fau.de/qtproject/official_releases/QtForPython/pyside6/PySide6-6.11.1-src/pyside-setup-everywhere-src-6.11.1.tar.xz",
+      "bytes": 17963432,
+      "sha256": "6ffd9835bb0dd2c56f061d62f1616bb1707cfc0202b80e3165d6be087f3965e2"
+    }
+  ]
+}

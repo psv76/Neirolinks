@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nl-project-2/autocad/block-contract.schema.json",
+  "title": "NL Project 2.0 AutoCAD plan-block contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "source_documents",
+    "approved_block_names",
+    "block_name_pattern",
+    "attribute_profiles",
+    "conditional_attributes",
+    "forbidden_attributes",
+    "functional_groups",
+    "block_families",
+    "logical_blocks",
+    "load_types",
+    "board_rules",
+    "av_rules"
+  ],
+  "properties": {
+    "contract_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "source_documents": {
+      "type": "array",
+      "minItems": 2,
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "approved_block_names": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "block_name_pattern": {"type": "string", "minLength": 1},
+    "attribute_profiles": {"type": "object", "minProperties": 1},
+    "conditional_attributes": {"type": "array", "items": {"type": "string"}},
+    "forbidden_attributes": {"type": "array", "items": {"type": "string"}},
+    "numeric_attributes": {"type": "object"},
+    "functional_groups": {"type": "object", "minProperties": 10},
+    "block_families": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["names", "class", "device_type", "attribute_profile"],
+        "properties": {
+          "names": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+          "class": {"enum": ["MOUNTING", "FUNCTIONAL"]},
+          "device_type": {"type": "string"},
+          "attribute_profile": {"type": "string"},
+          "optional_attributes": {"type": "array", "items": {"type": "string"}},
+          "key_counts": {"type": "object"},
+          "posts": {"type": "object"}
+        }
+      }
+    },
+    "logical_blocks": {"type": "object", "minProperties": 2},
+    "load_types": {"type": "object"},
+    "board_rules": {"type": "object"},
+    "av_rules": {"type": "object"}
+  }
+}
