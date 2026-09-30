@@ -7,7 +7,7 @@
 Текущие подтверждённые факты:
 
 - NL Project: `2.0` development state;
-- schema head: `000000000011_topology_autocad_contract`;
+- schema head: `000000000012_timber_mount_way`;
 - AutoCAD machine contract: `3.0.0`, 71 canonical block definitions / 10 groups;
 - equipment catalog release: `nlp2.mvp.equipment.2026-08-24.repair-05`;
 - equipment catalog: 18 passports / 31 products;
