@@ -97,6 +97,30 @@
         "path": "NLI/releases/hhm-boiler-3.5.json",
         "sha256": "12d7946643ca2307bf0cf92fd582d33de19e83fa60c9a3c0c6b79c1f7e1f4be9"
       }
+    },
+    {
+      "component": "hhm",
+      "object": "05_31_Ivolga_13",
+      "role": "boiler",
+      "track": "stable",
+      "version": "3.6",
+      "approved": true,
+      "release_state": "stable",
+      "draft": false,
+      "prerelease": false,
+      "minimum_nst": "1.0.0",
+      "approval": {
+        "kind": "github_release",
+        "tag": "nli-approved-hhm-3.6",
+        "published_at": "2026-09-30T04:38:30Z",
+        "catalog_sha256": "3f63278fc123fa727b9f5b7cb629f3004c2db9eaabb9f4603fa9f88a3ceb12e1",
+        "release_commit": "93f67430cc7c3528a5e7258bb43986afe775ba6c"
+      },
+      "manifest": {
+        "commit": "12e5805d22e365bdbe049245fefccdc005e960fa",
+        "path": "NLI/releases/hhm-boiler-3.6.json",
+        "sha256": "9469bf5c4d62555b62adcc033fde62a151156392cd64004ebaaae075f6eb37ab"
+      }
     }
   ]
 }

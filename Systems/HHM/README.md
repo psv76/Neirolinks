@@ -4,9 +4,9 @@
 
 ## Текущий статус
 
-- последняя approved версия: **HHM 3.5**;
-- GitHub Release: `nli-approved-hhm-3.5`;
-- HHM 3.6: **release-ready, но ещё не approved**, пока не опубликован `nli-approved-hhm-3.6`;
+- последняя approved версия: **HHM 3.6**;
+- GitHub Release: `nli-approved-hhm-3.6`;
+- publication commit: `93f67430cc7c3528a5e7258bb43986afe775ba6c`;
 - проверенный runtime commit HHM 3.6: `f4673abbe52f1a89db5c84dd4c8cd391bc9ee0ef`;
 - проверенный manifest commit HHM 3.6: `12e5805d22e365bdbe049245fefccdc005e960fa`;
 - manifest SHA256: boiler `9469bf5c...`, gazebo `df1efa30...`.

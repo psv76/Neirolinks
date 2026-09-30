@@ -2,11 +2,11 @@
   "components": [
     {
       "approval": {
-        "catalog_sha256": "512611dac72450a9333517af5f1cada2032ec429606d3dd2accf36b57f8353f5",
+        "catalog_sha256": "3f63278fc123fa727b9f5b7cb629f3004c2db9eaabb9f4603fa9f88a3ceb12e1",
         "kind": "github_release",
-        "published_at": "2026-09-29T16:18:18Z",
-        "release_commit": "05bdaec7d0bd82615b7c0247df0d0737c59df71e",
-        "tag": "nli-approved-hhm-3.5"
+        "published_at": "2026-09-30T04:38:30Z",
+        "release_commit": "93f67430cc7c3528a5e7258bb43986afe775ba6c",
+        "tag": "nli-approved-hhm-3.6"
       },
       "component": "hhm",
       "files": [
@@ -16,7 +16,7 @@
           "target": "/etc/wb-rules-modules/HHM3Circuit.js"
         },
         {
-          "sha256": "0ae548cef5985594898224625fe3596b553783205f6c87a86f726f9106b94377",
+          "sha256": "586529204cb2e9e3b46b0de9b64afc5a3d367cdb8c34c02f53a32b361e3ca592",
           "source": "objects/05_31_Ivolga_13/HHM3_FSE/modules/HHM3Config.js",
           "target": "/etc/wb-rules-modules/HHM3Config.js"
         },
@@ -41,7 +41,7 @@
           "target": "/etc/wb-rules-modules/HHM3Wire.js"
         },
         {
-          "sha256": "b2f6450eae2c1edb7fc225b04a3693ea3283818be86423d8e06f89b791a38ffd",
+          "sha256": "149929fc491c67163780f668199f6d625d202e26c8df156c230c56b51a127a08",
           "source": "objects/05_31_Ivolga_13/HHM3_FSE/boiler/wb-rules/500_HHM3_FSE.js",
           "target": "/etc/wb-rules/500_HHM3_FSE.js"
         },
@@ -57,13 +57,13 @@
         }
       ],
       "manifest": {
-        "commit": "05bdaec7d0bd82615b7c0247df0d0737c59df71e",
-        "path": "NLI/releases/hhm-boiler-3.5.json",
-        "sha256": "12d7946643ca2307bf0cf92fd582d33de19e83fa60c9a3c0c6b79c1f7e1f4be9"
+        "commit": "12e5805d22e365bdbe049245fefccdc005e960fa",
+        "path": "NLI/releases/hhm-boiler-3.6.json",
+        "sha256": "9469bf5c4d62555b62adcc033fde62a151156392cd64004ebaaae075f6eb37ab"
       },
       "minimum_nst": "1.0.0",
       "release": {
-        "commit": "48408e6f1649ad17d0b3253f1b7cade258cd4fb3",
+        "commit": "f4673abbe52f1a89db5c84dd4c8cd391bc9ee0ef",
         "repository": "psv76/Neirolinks"
       },
       "services": {
@@ -75,7 +75,7 @@
         ]
       },
       "track": "stable",
-      "version": "3.5"
+      "version": "3.6"
     }
   ],
   "controller_serial": "ABF62SL",
@@ -124,7 +124,7 @@
   },
   "signatures": [],
   "source": {
-    "commit": "c09ebcedd32e27ba23abefb7800de8cfa66b5083",
+    "commit": "262ea7cfba987374afe6a15b66143c7898a0cbc9",
     "repository": "psv76/Neirolinks"
   },
   "state": "active"
