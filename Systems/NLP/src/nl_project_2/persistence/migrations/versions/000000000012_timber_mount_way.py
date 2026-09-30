@@ -47,7 +47,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     timber_count = bind.exec_driver_sql(
-        'SELECT COUNT(*) FROM cable_segment WHERE mount_way = "В брусе"'
+        "SELECT COUNT(*) FROM cable_segment WHERE mount_way = ?",
+        ("В брусе",),
     ).scalar_one()
     if timber_count:
         raise RuntimeError(
