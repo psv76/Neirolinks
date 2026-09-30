@@ -200,9 +200,7 @@ def test_selected_dkc_11525_conduit_enters_specification_by_article(database):
         diameter_mm=25,
         length_m=50,
     )
-    product = cables.conduit_product_candidates(
-        project_id=project_id, conduit_id=conduit_id
-    )[0]
+    product = cables.conduit_product_candidates(project_id=project_id, conduit_id=conduit_id)[0]
     cables.select_conduit_product(
         project_id=project_id,
         conduit_id=conduit_id,

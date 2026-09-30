@@ -124,8 +124,7 @@ class GuidedActionService:
                 canonical_records,
                 key=lambda item: (
                     0
-                    if item.dto.selectable
-                    and preferred_identity == item.preference_identity
+                    if item.dto.selectable and preferred_identity == item.preference_identity
                     else 1
                     if item.dto.selectable
                     else 2
@@ -206,9 +205,7 @@ class GuidedActionService:
             token,
         )
 
-    def confirm(
-        self, preview: GuidedActionPreview, *, confirmed: bool
-    ) -> GuidedActionReceipt:
+    def confirm(self, preview: GuidedActionPreview, *, confirmed: bool) -> GuidedActionReceipt:
         if not confirmed:
             raise ConfirmationRequired("Назначение выполняется только после явного подтверждения")
         if preview.fingerprint != self._fingerprint(
@@ -223,9 +220,7 @@ class GuidedActionService:
             raise GuidedActionError("PREVIEW_ACTION_MISMATCH")
         actual_revision = self._project_revision(project_id)
         if actual_revision != preview.project_revision:
-            raise StalePreview(
-                "Проект изменился после preview; сформируйте preview заново"
-            )
+            raise StalePreview("Проект изменился после preview; сформируйте preview заново")
         owner, records = self._records(action, project_id, owner_id)
         record = next(
             (item for item in records if item.dto.candidate_id == payload["candidate_id"]),
@@ -255,9 +250,7 @@ class GuidedActionService:
                 self._preference_profile.update(action.value, record.preference_identity)
                 preference_updated = True
             except Exception as exc:  # optional local profile must not reverse Project commit
-                preference_diagnostic = (
-                    f"LOCAL_PREFERENCE_UPDATE_FAILED:{type(exc).__name__}"
-                )
+                preference_diagnostic = f"LOCAL_PREFERENCE_UPDATE_FAILED:{type(exc).__name__}"
         return GuidedActionReceipt(
             action,
             action.label,
@@ -295,11 +288,7 @@ class GuidedActionService:
         ]
         owner = _Owner(
             target["user_label"],
-            (
-                ("Назначение отсутствует",)
-                if not existing
-                else ("Назначение уже существует",)
-            ),
+            (("Назначение отсутствует",) if not existing else ("Назначение уже существует",)),
         )
         reserved = self._reserved_resource_ids(project_id, resources)
         relation_edges = tuple(
@@ -379,27 +368,26 @@ class GuidedActionService:
                 .mappings()
                 .one_or_none()
             )
-            line_assigned = connection.scalar(
-                select(cable_line_assignment.c.id).where(
-                    cable_line_assignment.c.project_id == project_id,
-                    cable_line_assignment.c.cable_line_id == cable_line_id,
+            line_assigned = (
+                connection.scalar(
+                    select(cable_line_assignment.c.id).where(
+                        cable_line_assignment.c.project_id == project_id,
+                        cable_line_assignment.c.cable_line_id == cable_line_id,
+                    )
                 )
-            ) is not None
+                is not None
+            )
         if line is None:
             raise GuidedActionError("Кабельная линия не найдена в выбранном проекте")
         facts = dict(line["cable_facts_json"] or {})
         load_name = facts.get("LOAD_NAME") or facts.get("load_name")
-        owner_label = f"Линия {line['designation']}" + (
-            "" if not load_name else f" — {load_name}"
-        )
+        owner_label = f"Линия {line['designation']}" + ("" if not load_name else f" — {load_name}")
         owner = _Owner(
             owner_label,
             ("Выход не назначен",) if not line_assigned else ("Выход уже назначен",),
         )
         if profile is not None:
-            return owner, self._led_output_records(
-                project_id, line, profile, line_assigned
-            )
+            return owner, self._led_output_records(project_id, line, profile, line_assigned)
         resources = self.constructor.list_resources(project_id)
         reserved = self._reserved_resource_ids(project_id, resources)
         records: list[_CandidateRecord] = []
@@ -407,9 +395,7 @@ class GuidedActionService:
             reasons: list[str] = []
             if line_assigned:
                 reasons.append("OWNER_ALREADY_ASSIGNED")
-            if resource["direction"] not in {"OUT", "BIDIRECTIONAL"} or not resource[
-                "assignable"
-            ]:
+            if resource["direction"] not in {"OUT", "BIDIRECTIONAL"} or not resource["assignable"]:
                 reasons.append("INCOMPATIBLE_KIND_DIRECTION")
             if resource["occupied"]:
                 reasons.append("OCCUPIED")
@@ -520,12 +506,8 @@ class GuidedActionService:
                     status, trace = assess_pwm_capacity(
                         calculation.load,
                         selected_channel_count=len(bundle),
-                        maximum_current_a_per_channel=params.get(
-                            "maximum_current_a_per_channel"
-                        ),
-                        maximum_combined_current_a=params.get(
-                            "maximum_combined_current_a"
-                        ),
+                        maximum_current_a_per_channel=params.get("maximum_current_a_per_channel"),
+                        maximum_combined_current_a=params.get("maximum_combined_current_a"),
                     )
                     voltage_limit = _number(params.get("maximum_load_voltage_v_dc"))
                     line_voltage = _number(profile["voltage_decimal"])
@@ -541,9 +523,7 @@ class GuidedActionService:
                         if item.get("result") not in {"PASS", "VERIFIED"}
                     )
                 instance_label = bundle[0]["instance_designation"]
-                channel_labels = [
-                    item["user_label"].split(" / ", 1)[-1] for item in bundle
-                ]
+                channel_labels = [item["user_label"].split(" / ", 1)[-1] for item in bundle]
                 label = f"{instance_label} / {' + '.join(channel_labels)}"
                 ids = tuple(item["id"] for item in bundle)
                 dto = self._candidate(
@@ -587,15 +567,12 @@ class GuidedActionService:
         if key is None:
             raise GuidedActionError("Физическая клавиша не найдена в выбранном проекте")
         key_label = (
-            f"{key['physical_identity']} — "
-            f"{key['functional_target_text'] or 'цель не указана'}"
+            f"{key['physical_identity']} — {key['functional_target_text'] or 'цель не указана'}"
         )
         assigned = key["status"] == "ASSIGNED"
         owner = _Owner(
             key_label,
-            ("Вход не назначен",)
-            if not assigned
-            else (f"Назначен вход: {key['input_label']}",),
+            ("Вход не назначен",) if not assigned else (f"Назначен вход: {key['input_label']}",),
         )
         records: list[_CandidateRecord] = []
         resources = self.constructor.list_resources(project_id)
@@ -610,9 +587,10 @@ class GuidedActionService:
                 reasons.append("OCCUPIED")
             if item["id"] in effective_reserved:
                 reasons.append("USER_RESERVE")
-            if item["direction"] not in {"IN", "BIDIRECTIONAL"} or item[
-                "resource_kind"
-            ] not in {"DRY_CONTACT_INPUT", "DIGITAL_INPUT"}:
+            if item["direction"] not in {"IN", "BIDIRECTIONAL"} or item["resource_kind"] not in {
+                "DRY_CONTACT_INPUT",
+                "DIGITAL_INPUT",
+            }:
                 reasons.append("INCOMPATIBLE_KIND_DIRECTION")
             dto = self._candidate(
                 GuidedAction.INPUT,
@@ -768,9 +746,7 @@ class GuidedActionService:
                 )
             )
         reserved_resources = {
-            row.instance_resource_id
-            for row in rows
-            if row.target_kind == "INSTANCE_RESOURCE"
+            row.instance_resource_id for row in rows if row.target_kind == "INSTANCE_RESOURCE"
         }
         reserved_instances = {
             row.project_instance_id for row in rows if row.target_kind == "PROJECT_INSTANCE"
@@ -799,10 +775,7 @@ class GuidedActionService:
         if resource["direction"] not in {"OUT", "BIDIRECTIONAL"}:
             return False
         kind = str(resource.get("resource_kind", "")).upper()
-        return any(
-            token in kind
-            for token in ("POWER", "VOUT", "PROTECTED", "LIMITED", "BUSBAR")
-        )
+        return any(token in kind for token in ("POWER", "VOUT", "PROTECTED", "LIMITED", "BUSBAR"))
 
     @staticmethod
     def _relation_reasons(action, results):

@@ -27,20 +27,28 @@ def _seed(database) -> dict[str, str]:
     release = CatalogInstaller(database.engine).install(load_packaged_payload())
     ids = {name: new_id() for name in ("project", "building", "room", "line", "device1", "device2")}
     with database.engine.begin() as connection:
-        product = connection.execute(
-            select(product_definition).where(
-                product_definition.c.catalog_release_id == release.release_id,
-                product_definition.c.product_key == "product.wirenboard.wb_mcm8",
+        product = (
+            connection.execute(
+                select(product_definition).where(
+                    product_definition.c.catalog_release_id == release.release_id,
+                    product_definition.c.product_key == "product.wirenboard.wb_mcm8",
+                )
             )
-        ).mappings().first()
-        resource = connection.execute(
-            select(passport_resource_definition).where(
-                passport_resource_definition.c.passport_definition_id
-                == product["passport_definition_id"],
-                passport_resource_definition.c.resource_kind == "DRY_CONTACT_INPUT",
-                passport_resource_definition.c.direction.in_(("IN", "BIDIRECTIONAL")),
+            .mappings()
+            .first()
+        )
+        resource = (
+            connection.execute(
+                select(passport_resource_definition).where(
+                    passport_resource_definition.c.passport_definition_id
+                    == product["passport_definition_id"],
+                    passport_resource_definition.c.resource_kind == "DRY_CONTACT_INPUT",
+                    passport_resource_definition.c.direction.in_(("IN", "BIDIRECTIONAL")),
+                )
             )
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
         assert product is not None and resource is not None
         ids.update(product=product["id"], passport=product["passport_definition_id"])
         ids.update(instance=new_id(), input1=new_id(), input2=new_id(), input3=new_id())
@@ -110,9 +118,7 @@ def _seed(database) -> dict[str, str]:
                 parameters_json={},
             )
         )
-        for ordinal, input_id in enumerate(
-            (ids["input1"], ids["input2"], ids["input3"])
-        ):
+        for ordinal, input_id in enumerate((ids["input1"], ids["input2"], ids["input3"])):
             connection.execute(
                 instance_resource.insert().values(
                     id=input_id,

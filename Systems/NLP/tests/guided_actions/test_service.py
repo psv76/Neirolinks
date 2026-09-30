@@ -212,11 +212,14 @@ def test_protection_and_power_candidates_reuse_constructor_rules_and_psu_branche
     service.confirm(second_preview, confirmed=True)
     with database.engine.connect() as connection:
         output = _resource(database, psu24.instance_id, "DC24_OUTPUT")
-        assert connection.scalar(
-            select(func.count()).select_from(functional_relation).where(
-                functional_relation.c.source_resource_id == output["id"]
+        assert (
+            connection.scalar(
+                select(func.count())
+                .select_from(functional_relation)
+                .where(functional_relation.c.source_resource_id == output["id"])
             )
-        ) == 2
+            == 2
+        )
 
     protected_out = _resource(database, breaker.instance_id, "PROTECTED_OUT")
     ConstructorService(database.engine).create_relation(
@@ -226,9 +229,7 @@ def test_protection_and_power_candidates_reuse_constructor_rules_and_psu_branche
         target_resource_id=_resource(database, psu24.instance_id, "AC_INPUT")["id"],
     )
     occupied = service.power_candidates(project_id=project_id, target_resource_id=target2["id"])
-    protected_candidate = next(
-        item for item in occupied.candidates if "QF.1" in item.target_label
-    )
+    protected_candidate = next(item for item in occupied.candidates if "QF.1" in item.target_label)
     assert "OCCUPIED" in protected_candidate.reason_codes
 
 
@@ -284,9 +285,7 @@ def test_ordinary_and_field_output_preview_confirm_canonical_facts_and_reopen(da
     service = GuidedActionService(database.engine)
     query = service.output_candidates(project_id=project_id, cable_line_id=ordinary_line)
     compatible = _selectable(query, "MR6C.1 / K1")
-    assert any(
-        "INCOMPATIBLE_KIND_DIRECTION" in item.reason_codes for item in query.candidates
-    )
+    assert any("INCOMPATIBLE_KIND_DIRECTION" in item.reason_codes for item in query.candidates)
     before_revision = _revision(database)
     preview = service.preview(
         GuidedAction.OUTPUT, project_id, ordinary_line, compatible.candidate_id
@@ -363,11 +362,14 @@ def test_led_bundle_candidate_and_commit_for_every_canonical_layout(
     receipt = service.confirm(preview, confirmed=True)
     assert receipt.canonical_fact_count == channel_count
     with database.engine.connect() as connection:
-        assert connection.scalar(
-            select(func.count()).select_from(cable_line_assignment).where(
-                cable_line_assignment.c.cable_line_id == line
+        assert (
+            connection.scalar(
+                select(func.count())
+                .select_from(cable_line_assignment)
+                .where(cable_line_assignment.c.cable_line_id == line)
             )
-        ) == channel_count
+            == channel_count
+        )
     assert pwm.instance_id not in candidate.target_label
 
 
@@ -417,8 +419,7 @@ def test_led_occupied_and_reserved_channels_only_disable_affected_bundles(databa
     free = [item for item in query.candidates if item.selectable]
     assert free
     assert all(
-        "Channel1" not in item.target_label and "Channel2" not in item.target_label
-        for item in free
+        "Channel1" not in item.target_label and "Channel2" not in item.target_label for item in free
     )
 
 
@@ -445,9 +446,12 @@ def test_key_inputs_are_exact_distinct_explained_and_field_port_assignable(datab
         confirmed=True,
     )
     second = service.input_candidates(project_id=project_id, field_control_key_id=keys[1])
-    assert "OCCUPIED" in next(
-        item for item in second.candidates if item.target_label == "MCM8.1 / Input 1"
-    ).reason_codes
+    assert (
+        "OCCUPIED"
+        in next(
+            item for item in second.candidates if item.target_label == "MCM8.1 / Input 1"
+        ).reason_codes
+    )
     input2 = _selectable(second, "MCM8.1 / Input 2")
     service.confirm(
         service.preview(GuidedAction.INPUT, project_id, keys[1], input2.candidate_id),
@@ -469,9 +473,12 @@ def test_key_inputs_are_exact_distinct_explained_and_field_port_assignable(datab
         confirmed=True,
     )
     fourth = service.input_candidates(project_id=project_id, field_control_key_id=keys[3])
-    assert "OCCUPIED" in next(
-        item for item in fourth.candidates if item.technical_identity == "KEYS1:IN_1"
-    ).reason_codes
+    assert (
+        "OCCUPIED"
+        in next(
+            item for item in fourth.candidates if item.technical_identity == "KEYS1:IN_1"
+        ).reason_codes
+    )
     model = field.control_key_read_model(project_id)
     assert len({row["input_id"] for row in model if row["status"] == "ASSIGNED"}) == 3
     assert any(row["input_id"] == port1 for row in model)
@@ -503,13 +510,19 @@ def test_stale_preview_rolls_back_and_preview_contains_no_write(database):
         service.confirm(preview, confirmed=True)
     assert len(service.automation.list_assignments(project_id)) == before_assignments
     with database.engine.connect() as connection:
-        assert connection.scalar(
-            select(func.count()).select_from(cable_line_assignment).where(
-                cable_line_assignment.c.cable_line_id == line
+        assert (
+            connection.scalar(
+                select(func.count())
+                .select_from(cable_line_assignment)
+                .where(cable_line_assignment.c.cable_line_id == line)
             )
-        ) == 0
-        assert connection.scalar(
-            select(func.count()).select_from(instance_resource).where(
-                instance_resource.c.project_id == project_id
+            == 0
+        )
+        assert (
+            connection.scalar(
+                select(func.count())
+                .select_from(instance_resource)
+                .where(instance_resource.c.project_id == project_id)
             )
-        ) == 17
+            == 17
+        )

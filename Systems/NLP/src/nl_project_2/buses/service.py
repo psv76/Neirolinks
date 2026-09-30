@@ -169,9 +169,7 @@ class BusService:
             point={"field_device_id": field_device_id, "cable_id": cable_id},
         )
 
-    def _add_rs485_typed_endpoint(
-        self, *, project_id: str, bus_id: str, point: dict
-    ) -> BusReceipt:
+    def _add_rs485_typed_endpoint(self, *, project_id: str, bus_id: str, point: dict) -> BusReceipt:
         owner_id = self._point_owner_id(point)
         cable_id = str(point["cable_id"])
 

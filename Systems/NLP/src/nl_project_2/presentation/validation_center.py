@@ -240,9 +240,7 @@ def _blocking(item) -> bool:
 
 
 def _required_action(item) -> str:
-    return str(
-        getattr(item, "required_action", None) or "Перейдите к источнику и исправьте данные"
-    )
+    return str(getattr(item, "required_action", None) or "Перейдите к источнику и исправьте данные")
 
 
 def _engineering_tooltip(item) -> str:

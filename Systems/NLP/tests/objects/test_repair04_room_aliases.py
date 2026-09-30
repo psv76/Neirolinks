@@ -38,19 +38,12 @@ def test_explicit_alias_merge_reassigns_every_reference_then_retires_aliases(dat
         ProjectCard(name="05 44 Богданович", project_code="ПСВ.05.44.01")
     )
     building_id = service.add_building(project_id, "Дом")
-    targets = {
-        name: _add_room(service, project_id, building_id, name)
-        for name in ALIASES.values()
-    }
-    sources = {
-        name: _add_room(service, project_id, building_id, name) for name in ALIASES
-    }
+    targets = {name: _add_room(service, project_id, building_id, name) for name in ALIASES.values()}
+    sources = {name: _add_room(service, project_id, building_id, name) for name in ALIASES}
     street_id = _add_room(service, project_id, building_id, "Улица")
 
     with UnitOfWork(database.engine) as uow:
-        passport_id = uow.execute(
-            select(passport_definition.c.id).limit(1)
-        ).scalar_one()
+        passport_id = uow.execute(select(passport_definition.c.id).limit(1)).scalar_one()
         board_id = new_id()
         instance_id = new_id()
         device_id = new_id()
@@ -87,9 +80,7 @@ def test_explicit_alias_merge_reassigns_every_reference_then_retires_aliases(dat
     preview = service.preview_room_alias_merge(
         project_id=project_id, building_id=building_id, aliases=ALIASES
     )
-    assert [(a.source_name, a.target_name) for a in preview.actions] == list(
-        ALIASES.items()
-    )
+    assert [(a.source_name, a.target_name) for a in preview.actions] == list(ALIASES.items())
     assert [a.reference_count for a in preview.actions] == [1, 1, 1]
     assert preview.actions[0].board_reassignments == 1
     assert preview.actions[1].project_instance_reassignments == 1
@@ -114,16 +105,12 @@ def test_explicit_alias_merge_reassigns_every_reference_then_retires_aliases(dat
         )
         assert (
             connection.scalar(
-                select(project_instance.c.room_id).where(
-                    project_instance.c.id == instance_id
-                )
+                select(project_instance.c.room_id).where(project_instance.c.id == instance_id)
             )
             == targets["5. Кухня-ниша"]
         )
         assert (
-            connection.scalar(
-                select(field_device.c.room_id).where(field_device.c.id == device_id)
-            )
+            connection.scalar(select(field_device.c.room_id).where(field_device.c.id == device_id))
             == targets["21. Тех. помещения"]
         )
         for source_id in sources.values():

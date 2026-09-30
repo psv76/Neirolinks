@@ -143,9 +143,7 @@ def load_contract(path: Path | None = None) -> BlockContractCatalog:
                 )
             )
             required_definitions.update(key_attributes)
-            forbidden = set(
-                _strings(profile.get("forbidden", []), f"{profile_name}.forbidden")
-            )
+            forbidden = set(_strings(profile.get("forbidden", []), f"{profile_name}.forbidden"))
             blocks[name] = BlockRule(
                 name=name,
                 block_class=str(family.get("class")),
@@ -196,9 +194,7 @@ def load_contract(path: Path | None = None) -> BlockContractCatalog:
             ignored_project_data=bool(logical.get("ignored_project_data")),
         )
 
-    approved_name_items = _strings(
-        data.get("approved_block_names"), "approved_block_names"
-    )
+    approved_name_items = _strings(data.get("approved_block_names"), "approved_block_names")
     approved_names = frozenset(approved_name_items)
     if len(approved_names) != len(approved_name_items):
         raise ContractCatalogError("approved_block_names contains duplicates")

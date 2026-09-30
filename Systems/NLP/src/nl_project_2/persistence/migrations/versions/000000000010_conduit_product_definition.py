@@ -32,8 +32,7 @@ def downgrade() -> None:
         tables = set(sa.inspect(bind).get_table_names())
         dependent_rows = {
             table_name: [
-                dict(row)
-                for row in bind.execute(sa.text(f"SELECT * FROM {table_name}")).mappings()
+                dict(row) for row in bind.execute(sa.text(f"SELECT * FROM {table_name}")).mappings()
             ]
             for table_name in ("conduit_cable_assignment", "conduit_segment_assignment")
             if table_name in tables

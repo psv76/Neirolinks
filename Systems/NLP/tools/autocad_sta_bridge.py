@@ -195,9 +195,7 @@ def _write_attributes(document, identity: str, changes: list[dict[str, str]]) ->
         readback = []
         for _attribute, change in written:
             try:
-                _entity, attribute = _find_attribute(
-                    document, change["handle"], change["tag"]
-                )
+                _entity, attribute = _find_attribute(document, change["handle"], change["tag"])
                 value = str(attribute.TextString)
             except Exception as exc:
                 failures.append(

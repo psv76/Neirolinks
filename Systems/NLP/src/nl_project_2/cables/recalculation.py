@@ -74,11 +74,7 @@ def recalculate_segments(
         selected = selected.where(cable_segment.c.cable_line_id.in_(line_ids))
     rows = [dict(row) for row in uow.execute(selected).mappings()]
     if room_ids is not None:
-        rows = [
-            row
-            for row in rows
-            if _segment_room_ids(uow, project_id, row) & room_ids
-        ]
+        rows = [row for row in rows if _segment_room_ids(uow, project_id, row) & room_ids]
     affected_segments = {row["id"] for row in rows}
     affected_lines = {row["cable_line_id"] for row in rows}
 
@@ -327,8 +323,14 @@ def _recalculate_line_fact(uow, project_id: str, line_id: str, now: datetime) ->
     )
     additional = "0" if existing is None else existing["additional_length_m_decimal"] or "0"
     manual = None if existing is None else existing["manual_full_length_m_decimal"]
-    complete = bool(segments) and all(row["calculated_length_m_decimal"] is not None for row in segments)
-    automatic = str(sum((Decimal(row["calculated_length_m_decimal"]) for row in segments), Decimal(0))) if complete else None
+    complete = bool(segments) and all(
+        row["calculated_length_m_decimal"] is not None for row in segments
+    )
+    automatic = (
+        str(sum((Decimal(row["calculated_length_m_decimal"]) for row in segments), Decimal(0)))
+        if complete
+        else None
+    )
     status = "KNOWN" if complete or manual is not None else "INCOMPLETE"
     values = {
         "calculated_length_m_decimal": automatic,
@@ -362,8 +364,7 @@ def board_reserve_for_line(uow, project_id: str, line_id: str) -> Decimal:
     )
     roots = list(
         uow.execute(
-            select(cable_topology_endpoint.c.instance_resource_id)
-            .where(
+            select(cable_topology_endpoint.c.instance_resource_id).where(
                 cable_topology_endpoint.c.project_id == project_id,
                 cable_topology_endpoint.c.cable_line_id == line_id,
                 cable_topology_endpoint.c.endpoint_kind == "INSTANCE_RESOURCE",
@@ -397,21 +398,23 @@ def _reconcile_segment_conduit(uow, project_id: str, segment_row: dict, now: dat
         present = conduit_is_present(mount_way, conduit_type)
     except ConduitContractError as exc:
         raise RecalculationError(str(exc)) from exc
-    assignment = (
-        uow.execute(
-            select(conduit_segment_assignment.c.conduit_id)
-            .where(
-                conduit_segment_assignment.c.project_id == project_id,
-                conduit_segment_assignment.c.cable_segment_id == segment_row["id"],
-            )
-        ).scalar_one_or_none()
-    )
+    assignment = uow.execute(
+        select(conduit_segment_assignment.c.conduit_id).where(
+            conduit_segment_assignment.c.project_id == project_id,
+            conduit_segment_assignment.c.cable_segment_id == segment_row["id"],
+        )
+    ).scalar_one_or_none()
     if not present:
         if assignment:
             _remove_assignment_and_empty_auto(uow, project_id, segment_row["id"], assignment)
         return
     if assignment is None:
-        number = (uow.execute(select(func.max(conduit.c.conduit_number)).where(conduit.c.project_id == project_id)).scalar_one() or 0) + 1
+        number = (
+            uow.execute(
+                select(func.max(conduit.c.conduit_number)).where(conduit.c.project_id == project_id)
+            ).scalar_one()
+            or 0
+        ) + 1
         if number > 999:
             raise RecalculationError("No automatic conduit number remains")
         designation = format_conduit_id(number, conduit_type)
@@ -434,7 +437,9 @@ def _reconcile_segment_conduit(uow, project_id: str, segment_row: dict, now: dat
         )
         uow.execute(
             conduit_segment_assignment.insert().values(
-                id=new_id(), project_id=project_id, conduit_id=conduit_id,
+                id=new_id(),
+                project_id=project_id,
+                conduit_id=conduit_id,
                 cable_segment_id=segment_row["id"],
             )
         )
@@ -480,7 +485,9 @@ def refresh_conduit_length(uow, project_id: str, conduit_id: str) -> None:
     _refresh_conduit_length(uow, project_id, conduit_id, datetime.now(UTC))
 
 
-def _remove_assignment_and_empty_auto(uow, project_id: str, segment_id: str, conduit_id: str) -> None:
+def _remove_assignment_and_empty_auto(
+    uow, project_id: str, segment_id: str, conduit_id: str
+) -> None:
     uow.execute(
         delete(conduit_segment_assignment).where(
             conduit_segment_assignment.c.project_id == project_id,
@@ -488,11 +495,13 @@ def _remove_assignment_and_empty_auto(uow, project_id: str, segment_id: str, con
         )
     )
     count = uow.execute(
-        select(func.count()).select_from(conduit_segment_assignment).where(
-            conduit_segment_assignment.c.conduit_id == conduit_id
-        )
+        select(func.count())
+        .select_from(conduit_segment_assignment)
+        .where(conduit_segment_assignment.c.conduit_id == conduit_id)
     ).scalar_one()
-    path = uow.execute(select(conduit.c.path_json).where(conduit.c.id == conduit_id)).scalar_one_or_none()
+    path = uow.execute(
+        select(conduit.c.path_json).where(conduit.c.id == conduit_id)
+    ).scalar_one_or_none()
     if count == 0 and (path or {}).get("origin") in {"AUTO_LINE", "AUTO_SEGMENT"}:
         uow.execute(delete(conduit).where(conduit.c.id == conduit_id))
     elif count:
@@ -505,19 +514,27 @@ def _set_target_gofra_id(uow, segment_id: str, designation: str, now: datetime) 
             select(cable_point_field_device.c.field_device_id)
             .join(
                 cable_topology_endpoint,
-                cable_topology_endpoint.c.cable_point_id == cable_point_field_device.c.cable_point_id,
+                cable_topology_endpoint.c.cable_point_id
+                == cable_point_field_device.c.cable_point_id,
             )
             .join(cable_segment, cable_segment.c.target_endpoint_id == cable_topology_endpoint.c.id)
             .where(cable_segment.c.id == segment_id)
         ).scalars()
     )
     for device_id in device_ids:
-        fields = dict(uow.execute(select(field_device.c.normalized_fields_json).where(field_device.c.id == device_id)).scalar_one() or {})
+        fields = dict(
+            uow.execute(
+                select(field_device.c.normalized_fields_json).where(field_device.c.id == device_id)
+            ).scalar_one()
+            or {}
+        )
         if fields.get("GOFRA_ID") == designation:
             continue
         fields["GOFRA_ID"] = designation
         uow.execute(
-            update(field_device).where(field_device.c.id == device_id).values(
+            update(field_device)
+            .where(field_device.c.id == device_id)
+            .values(
                 normalized_fields_json=fields,
                 row_version=field_device.c.row_version + 1,
                 updated_at_utc=now,

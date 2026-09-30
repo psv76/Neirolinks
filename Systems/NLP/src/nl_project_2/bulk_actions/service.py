@@ -140,23 +140,17 @@ class BulkActionService:
             except Exception:
                 label = f"Недоступный owner {owner_id}"
                 context = "UNKNOWN"
-                reasons = tuple(
-                    dict.fromkeys((*reasons, "OWNER_NOT_FOUND_OR_INACTIVE"))
-                )
+                reasons = tuple(dict.fromkeys((*reasons, "OWNER_NOT_FOUND_OR_INACTIVE")))
             owners.append(BulkOwner(owner_id, label, context, reasons))
         owners.sort(key=lambda item: (_natural_key(item.label), item.owner_id))
         if not owners:
-            owners.append(
-                BulkOwner("", "Selection пуст", "UNKNOWN", ("SELECTION_REQUIRED",))
-            )
+            owners.append(BulkOwner("", "Selection пуст", "UNKNOWN", ("SELECTION_REQUIRED",)))
         contexts = {item.context_kind for item in owners if item.valid}
         if len(contexts) > 1:
             owners = [
                 replace(
                     item,
-                    reason_codes=tuple(
-                        dict.fromkeys((*item.reason_codes, "MIXED_SELECTION"))
-                    ),
+                    reason_codes=tuple(dict.fromkeys((*item.reason_codes, "MIXED_SELECTION"))),
                 )
                 for item in owners
             ]
@@ -165,9 +159,7 @@ class BulkActionService:
             "project_id": project_id,
             "project_revision": revision,
             "action": action.value,
-            "owners": [
-                (item.owner_id, item.context_kind, item.reason_codes) for item in owners
-            ],
+            "owners": [(item.owner_id, item.context_kind, item.reason_codes) for item in owners],
         }
         return BulkSelectionSnapshot(
             project_id,
@@ -200,9 +192,7 @@ class BulkActionService:
         preferred = None
         if self._profile is not None:
             try:
-                preferred = self._profile.preference(
-                    snapshot.action.value
-                ).stable_identity
+                preferred = self._profile.preference(snapshot.action.value).stable_identity
             except OSError:
                 preferred = None
         variants = []
@@ -228,9 +218,7 @@ class BulkActionService:
                 }
                 if engineering:
                     reasons.extend(sorted(engineering))
-                selectable_records.extend(
-                    record for record in matches if record.dto.selectable
-                )
+                selectable_records.extend(record for record in matches if record.dto.selectable)
             contract = self._variant_contract(snapshot.project_id, identity)
             resource_key = identity.rsplit(":", 1)[-1]
             label = (
@@ -259,20 +247,12 @@ class BulkActionService:
             )
         variants.sort(
             key=lambda item: (
-                0
-                if item.selectable and item.preferred
-                else 1
-                if item.selectable
-                else 2,
+                0 if item.selectable and item.preferred else 1 if item.selectable else 2,
                 _natural_key(item.label),
                 item.stable_identity,
             )
         )
-        status = (
-            "READY"
-            if any(item.selectable for item in variants)
-            else "NO_COMMON_VARIANT"
-        )
+        status = "READY" if any(item.selectable for item in variants) else "NO_COMMON_VARIANT"
         return BulkVariantQuery(
             snapshot.action,
             snapshot.action_label,
@@ -295,9 +275,7 @@ class BulkActionService:
             tuple(str(value).strip() for value in proposed_designations),
         ).preview
 
-    def confirm(
-        self, preview: BulkActionPreview, *, confirmed: bool
-    ) -> BulkActionReceipt:
+    def confirm(self, preview: BulkActionPreview, *, confirmed: bool) -> BulkActionReceipt:
         if not confirmed:
             raise BulkConfirmationRequired(
                 "Массовая операция выполняется только после явного подтверждения"
@@ -379,9 +357,7 @@ class BulkActionService:
                         project_id=preview.project_id,
                         command_id=command_id,
                         action_type=preview.action.value,
-                        selected_owner_ids_json=[
-                            item.owner.owner_id for item in plan.mappings
-                        ],
+                        selected_owner_ids_json=[item.owner.owner_id for item in plan.mappings],
                         preview_fingerprint=preview.fingerprint,
                         project_revision_before=preview.project_revision,
                         project_revision_after=after,
@@ -413,9 +389,7 @@ class BulkActionService:
         diagnostic = None
         if self._profile is not None:
             try:
-                self._profile.update(
-                    preview.action.value, preview.chosen_variant_identity
-                )
+                self._profile.update(preview.action.value, preview.chosen_variant_identity)
                 preference_updated = True
             except Exception as exc:
                 diagnostic = f"LOCAL_PREFERENCE_UPDATE_FAILED:{type(exc).__name__}"
@@ -441,9 +415,7 @@ class BulkActionService:
             rows = connection.execute(
                 select(bulk_operation_receipt)
                 .where(bulk_operation_receipt.c.project_id == project_id)
-                .order_by(
-                    bulk_operation_receipt.c.created_at_utc, bulk_operation_receipt.c.id
-                )
+                .order_by(bulk_operation_receipt.c.created_at_utc, bulk_operation_receipt.c.id)
             ).mappings()
             return tuple(self._receipt_dto(row) for row in rows)
 
@@ -526,9 +498,7 @@ class BulkActionService:
                 and not any(item.owner_id == owner.owner_id for item in unavailable)
             ]
             new_index = 0
-            while (
-                shortage and contract is not None and new_index < len(snapshot.owners)
-            ):
+            while shortage and contract is not None and new_index < len(snapshot.owners):
                 new_index += 1
                 units = self._new_units(
                     contract,
@@ -554,13 +524,9 @@ class BulkActionService:
                     break
         if shortage:
             reason = (
-                "FIELD_DEVICE_AUTO_CREATE_FORBIDDEN"
-                if contract is None
-                else "SHORTAGE_UNRESOLVED"
+                "FIELD_DEVICE_AUTO_CREATE_FORBIDDEN" if contract is None else "SHORTAGE_UNRESOLVED"
             )
-            unavailable.extend(
-                replace(owner, reason_codes=(reason,)) for owner in shortage
-            )
+            unavailable.extend(replace(owner, reason_codes=(reason,)) for owner in shortage)
         new_count = max(
             (item.unit.new_index or 0 for item in planned),
             default=0,
@@ -582,9 +548,7 @@ class BulkActionService:
                     item.proposed_designation for item in designation_plan.proposed
                 )
                 conflicts.extend(
-                    code
-                    for item in designation_plan.proposed
-                    for code in item.conflict_codes
+                    code for item in designation_plan.proposed for code in item.conflict_codes
                 )
         mapped = []
         public_mappings = []
@@ -592,9 +556,7 @@ class BulkActionService:
             unit = item.unit
             if unit.new_index is not None and len(designations) == new_count:
                 designation = designations[unit.new_index - 1]
-                labels = tuple(
-                    f"{designation} / {label}" for label in unit.resource_labels
-                )
+                labels = tuple(f"{designation} / {label}" for label in unit.resource_labels)
                 unit = replace(unit, instance_designation=designation)
             else:
                 designation = unit.instance_designation
@@ -780,24 +742,19 @@ class BulkActionService:
                             instance_resource.c.project_instance_id
                             == command["module_instance_id"],
                             instance_resource.c.resource_key == "PWM_OUTPUT",
-                            instance_resource.c.ordinal.in_(
-                                command["channel_ordinals"]
-                            ),
+                            instance_resource.c.ordinal.in_(command["channel_ordinals"]),
                         )
                         .order_by(instance_resource.c.ordinal)
                     ).scalars()
                 )
         labels = tuple(
-            part.strip()
-            for part in record.dto.target_label.split(" / ")[-1].split(" + ")
+            part.strip() for part in record.dto.target_label.split(" / ")[-1].split(" + ")
         )
         instance = record.dto.instance_label or "Полевое устройство"
         key = f"{kind}:{'|'.join(refs)}"
         return _Unit(key, kind, instance, instance, refs, labels, None)
 
-    def _new_units(
-        self, contract: _Contract, command, new_index: int
-    ) -> tuple[_Unit, ...]:
+    def _new_units(self, contract: _Contract, command, new_index: int) -> tuple[_Unit, ...]:
         resources: list[tuple[str, int, str, Any]] = []
         product = (
             {
@@ -813,8 +770,7 @@ class BulkActionService:
             count = _product_count(template, product)
             ordinals = (
                 range(count)
-                if (template["display_json"] or {}).get("materialization")
-                == "PRODUCT_DEFINED"
+                if (template["display_json"] or {}).get("materialization") == "PRODUCT_DEFINED"
                 else (template["ordinal"],)
             )
             for ordinal in ordinals:
@@ -842,8 +798,7 @@ class BulkActionService:
         if kind == "LED_BUNDLE":
             required = len(command["channel_ordinals"])
             chunks = [
-                resources[index : index + required]
-                for index in range(0, len(resources), required)
+                resources[index : index + required] for index in range(0, len(resources), required)
             ]
             chunks = [chunk for chunk in chunks if len(chunk) == required]
         else:
@@ -862,17 +817,13 @@ class BulkActionService:
             for index, chunk in enumerate(chunks)
         )
 
-    def _relation_available(
-        self, connection, project_id, source_id, target_id, planned
-    ):
+    def _relation_available(self, connection, project_id, source_id, target_id, planned):
         source = self.constructor._load_facts(connection, project_id, source_id)
         return self._relation_facts_available(
             connection, project_id, source, source_id, target_id, planned
         )
 
-    def _new_relation_available(
-        self, connection, project_id, source, target_id, planned
-    ):
+    def _new_relation_available(self, connection, project_id, source, target_id, planned):
         return self._relation_facts_available(
             connection,
             project_id,
@@ -992,8 +943,7 @@ class BulkActionService:
                 count = _product_count(template, product)
                 ordinals = (
                     range(count)
-                    if (template["display_json"] or {}).get("materialization")
-                    == "PRODUCT_DEFINED"
+                    if (template["display_json"] or {}).get("materialization") == "PRODUCT_DEFINED"
                     else (template["ordinal"],)
                 )
                 for ordinal in ordinals:
@@ -1013,14 +963,10 @@ class BulkActionService:
                             active=True,
                         )
                     )
-                    resource_ids[
-                        f"new:{index}:{template['resource_key']}:{ordinal}"
-                    ] = identifier
+                    resource_ids[f"new:{index}:{template['resource_key']}:{ordinal}"] = identifier
         return resource_ids
 
-    def _execute_mapping(
-        self, uow, preview, mapping, new_ids, command_id, _index, now
-    ) -> int:
+    def _execute_mapping(self, uow, preview, mapping, new_ids, command_id, _index, now) -> int:
         refs = tuple(new_ids.get(item, item) for item in mapping.unit.resource_refs)
         kind = mapping.command["kind"]
         if kind == "RELATION":
@@ -1049,9 +995,7 @@ class BulkActionService:
                 uow, preview.project_id, mapping.owner.owner_id, refs[0]
             )
         if kind == "KEY_FIELD_INPUT":
-            return self._execute_key_field(
-                uow, preview.project_id, mapping.owner.owner_id, refs[0]
-            )
+            return self._execute_key_field(uow, preview.project_id, mapping.owner.owner_id, refs[0])
         raise BulkActionError(f"Unsupported bulk command: {kind}")
 
     def _execute_relation(self, uow, project_id, source_id, target_id, command_id, now):
@@ -1062,9 +1006,7 @@ class BulkActionService:
         )
         if not preview.allowed:
             raise StaleBulkPreview("RELATION_NO_LONGER_ALLOWED")
-        cycle = self.constructor._cycle_result(
-            uow, project_id, definition, source_id, target_id
-        )
+        cycle = self.constructor._cycle_result(uow, project_id, definition, source_id, target_id)
         if cycle and cycle.outcome == "ERROR":
             raise StaleBulkPreview("POWER_CYCLE_AFTER_PREVIEW")
         relation_id = new_id()
@@ -1134,9 +1076,7 @@ class BulkActionService:
             raise StaleBulkPreview("OWNER_OR_RESOURCE_RETIRED")
         if any(row["direction"] not in {"OUT", "BIDIRECTIONAL"} for row in rows):
             raise StaleBulkPreview("OUTPUT_RESOURCE_INCOMPATIBLE")
-        if led and any(
-            row["resource_kind"] != "OPEN_COLLECTOR_PWM_OUTPUT" for row in rows
-        ):
+        if led and any(row["resource_kind"] != "OPEN_COLLECTOR_PWM_OUTPUT" for row in rows):
             raise StaleBulkPreview("PWM_CHANNEL_INCOMPATIBLE_RESOURCE_KIND")
         for ref in refs:
             self._require_not_reserved(uow, project_id, ref)
@@ -1256,9 +1196,7 @@ class BulkActionService:
             )
         ).first()
         resource = uow.execute(
-            select(
-                instance_resource.c.direction, instance_resource.c.resource_kind
-            ).where(
+            select(instance_resource.c.direction, instance_resource.c.resource_kind).where(
                 instance_resource.c.id == resource_id,
                 instance_resource.c.project_id == project_id,
                 instance_resource.c.active.is_(True),
@@ -1367,17 +1305,14 @@ class BulkActionService:
                 user_reserve.c.lifecycle == "ACTIVE",
                 or_(
                     user_reserve.c.instance_resource_id == resource_id,
-                    user_reserve.c.project_instance_id
-                    == instance_resource.c.project_instance_id,
+                    user_reserve.c.project_instance_id == instance_resource.c.project_instance_id,
                 ),
             )
         ).first()
         if row:
             raise StaleBulkPreview("USER_RESERVE_ADDED_AFTER_PREVIEW")
 
-    def _variant_contract(
-        self, project_id, identity, connection=None
-    ) -> _Contract | None:
+    def _variant_contract(self, project_id, identity, connection=None) -> _Contract | None:
         if not identity.startswith("catalog:"):
             return None
         _prefix, variant_key, resource_key = identity.split(":", 2)
@@ -1397,8 +1332,7 @@ class BulkActionService:
                     )
                     .join(
                         product_definition,
-                        product_definition.c.passport_definition_id
-                        == passport_definition.c.id,
+                        product_definition.c.passport_definition_id == passport_definition.c.id,
                     )
                     .join(
                         project,
@@ -1460,16 +1394,13 @@ class BulkActionService:
                     select(project_instance.c.supply_scope)
                     .join(
                         instance_resource,
-                        instance_resource.c.project_instance_id
-                        == project_instance.c.id,
+                        instance_resource.c.project_instance_id == project_instance.c.id,
                     )
                     .where(
                         project_instance.c.project_id == project_id,
                         project_instance.c.lifecycle == "ACTIVE",
-                        project_instance.c.passport_definition_id
-                        == product_row["passport_id"],
-                        project_instance.c.product_definition_id
-                        == product_row.get("product_id"),
+                        project_instance.c.passport_definition_id == product_row["passport_id"],
+                        project_instance.c.product_definition_id == product_row.get("product_id"),
                         instance_resource.c.resource_key == resource_key,
                     )
                     .order_by(project_instance.c.designation)
@@ -1583,9 +1514,7 @@ class BulkActionService:
 
 def _hash(value) -> str:
     return hashlib.sha256(
-        json.dumps(
-            value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        ).encode()
+        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
 
 
@@ -1595,6 +1524,5 @@ def _uuid_from_hash(value: str) -> str:
 
 def _natural_key(value: str):
     return tuple(
-        int(part) if part.isdigit() else part.casefold()
-        for part in re.split(r"(\d+)", str(value))
+        int(part) if part.isdigit() else part.casefold() for part in re.split(r"(\d+)", str(value))
     )

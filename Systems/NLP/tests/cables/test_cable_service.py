@@ -290,9 +290,13 @@ def test_route_edit_updates_shared_line_and_device_facts(database):
     )
     with database.engine.connect() as connection:
         updated = connection.execute(select(conduit)).mappings().one()
-        segment_facts = connection.execute(
-            select(cable_segment).where(cable_segment.c.cable_line_id == line_id)
-        ).mappings().one()
+        segment_facts = (
+            connection.execute(
+                select(cable_segment).where(cable_segment.c.cable_line_id == line_id)
+            )
+            .mappings()
+            .one()
+        )
         device_facts = list(
             connection.execute(select(field_device.c.normalized_fields_json)).scalars()
         )
@@ -330,9 +334,13 @@ def test_line_editor_contract_can_clear_optional_conduit(database):
         route_method=RouteMethod.CABLE_CHANNEL,
     )
     with database.engine.connect() as connection:
-        segment_facts = connection.execute(
-            select(cable_segment).where(cable_segment.c.cable_line_id == line_id)
-        ).mappings().one()
+        segment_facts = (
+            connection.execute(
+                select(cable_segment).where(cable_segment.c.cable_line_id == line_id)
+            )
+            .mappings()
+            .one()
+        )
         conduit_count = connection.scalar(select(func.count()).select_from(conduit))
     assert segment_facts["mount_way"] == "В кабель-канале"
     assert segment_facts["gofra_type"] is None
@@ -350,9 +358,7 @@ def test_pp25_dkc_11525_catalog_selection_and_legacy_conduit_ids(database):
         diameter_mm=25,
         length_m=12,
     )
-    candidates = service.conduit_product_candidates(
-        project_id=project_id, conduit_id=pp_id
-    )
+    candidates = service.conduit_product_candidates(project_id=project_id, conduit_id=pp_id)
     assert [(row["product_key"], row["article"]) for row in candidates] == [
         ("product.dkc.11525", "11525")
     ]

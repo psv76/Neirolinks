@@ -31,17 +31,14 @@ def atomic_line_import_groups(
         attributes = {item.tag: item.value for item in observation.raw_attributes}
         cable_id = str(attributes.get("CABLE_ID", "")).strip()
         if cable_id:
-            handles_by_line.setdefault(cable_id.split(".", 1)[0], set()).add(
-                observation.handle
-            )
+            handles_by_line.setdefault(cable_id.split(".", 1)[0], set()).add(observation.handle)
     changes_by_path = {change.field_path: change for change in proposal.changes}
     groups = []
     for line_number, handles in sorted(handles_by_line.items()):
         required = frozenset(f"{handle}:$" for handle in handles)
         changes = [changes_by_path.get(path) for path in required]
         if not any(
-            change is not None
-            and change.change_class is ChangeClass.NEW_DWG_INSERTION
+            change is not None and change.change_class is ChangeClass.NEW_DWG_INSERTION
             for change in changes
         ):
             continue

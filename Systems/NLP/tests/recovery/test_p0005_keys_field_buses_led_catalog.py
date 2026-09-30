@@ -114,9 +114,7 @@ def test_packaged_catalog_exact_repair05_18_31_and_mcm8_materialization(p0005_da
     assert payload.passports == json.loads(
         (root / "equipment_passports.json").read_text(encoding="utf-8-sig")
     )
-    assert payload.products == json.loads(
-        (root / "products.json").read_text(encoding="utf-8-sig")
-    )
+    assert payload.products == json.loads((root / "products.json").read_text(encoding="utf-8-sig"))
 
     receipt, resources = _mcm8(p0005_database)
     assert receipt.resource_count == 10
@@ -124,9 +122,9 @@ def test_packaged_catalog_exact_repair05_18_31_and_mcm8_materialization(p0005_da
     assert kinds.count("DC_POWER_INPUT") == 1
     assert kinds.count("RS485_INTERFACE") == 1
     assert kinds.count("DRY_CONTACT_INPUT") == 8
-    candidates = TopologyPersistenceService(
-        p0005_database.engine
-    ).list_control_input_candidates(p0005_database.test_project_id)
+    candidates = TopologyPersistenceService(p0005_database.engine).list_control_input_candidates(
+        p0005_database.test_project_id
+    )
     assert [row["label"] for row in candidates] == [f"MCM8.1 / Input {n}" for n in range(1, 9)]
 
 
@@ -195,9 +193,10 @@ def test_key_level_assignment_reserve_exclusivity_unassign_and_reopen(p0005_data
             project_id=project_id, field_control_key_id=key1
         )
         with reopened.engine.connect() as connection:
-            assert connection.scalar(
-                select(func.count()).select_from(control_key_input_assignment)
-            ) == 1
+            assert (
+                connection.scalar(select(func.count()).select_from(control_key_input_assignment))
+                == 1
+            )
     finally:
         reopened.close()
 
@@ -220,6 +219,7 @@ def test_grouped_utp_numeric_order_and_distinct_shortages(p0005_database):
         service.add_field_device_to_point(
             project_id=project_id, cable_point_id=point, field_device_id=device
         )
+
     def add_key(device, key_number):
         service.create_control_key(
             project_id=project_id,
@@ -265,17 +265,13 @@ def test_grouped_utp_numeric_order_and_distinct_shortages(p0005_database):
     assert unknown_result["available_conductors"] is None
 
 
-def test_field_ports_independent_links_reopen_and_downgrade_guard(
-    p0005_database, tmp_path
-):
+def test_field_ports_independent_links_reopen_and_downgrade_guard(p0005_database, tmp_path):
     project_id = p0005_database.test_project_id
     service = TopologyPersistenceService(p0005_database.engine)
     output_line = _line(p0005_database, "301", "RELAYS")
     target_line = _line(p0005_database, "201", "SWITCHES")
     mrm = _field_device(p0005_database, cable_id="901.01", handle="M1")
-    sensor = _field_device(
-        p0005_database, cable_id="501.01", handle="S1", block_kind="WB_M1W2"
-    )
+    sensor = _field_device(p0005_database, cable_id="501.01", handle="S1", block_kind="WB_M1W2")
     ports = {
         name: service.create_field_port(
             project_id=project_id, field_device_id=device, port_tag=name
@@ -348,11 +344,14 @@ def test_rs485_typed_field_endpoints_numeric_order_and_no_relations(p0005_databa
     stored = service.get_bus(project_id, bus_receipt.bus_id)
     assert [row["address"] for row in stored["endpoints"]] == ["901.001", "901.003"]
     assert {row["endpoint_kind"] for row in stored["endpoints"]} == {"FIELD_DEVICE"}
-    assert service.topology(
-        project_id=project_id,
-        bus_id=bus_receipt.bus_id,
-        coordinates={root: (0, 0), device_01: (1, 0), device_03: (3, 0)},
-    ).status == "VERIFIED"
+    assert (
+        service.topology(
+            project_id=project_id,
+            bus_id=bus_receipt.bus_id,
+            coordinates={root: (0, 0), device_01: (1, 0), device_03: (3, 0)},
+        ).status
+        == "VERIFIED"
+    )
     with p0005_database.engine.connect() as connection:
         assert connection.scalar(select(func.count()).select_from(functional_relation)) == 0
     with pytest.raises(BusError, match="WRONG_BUS"):

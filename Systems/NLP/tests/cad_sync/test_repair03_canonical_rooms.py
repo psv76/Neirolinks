@@ -32,21 +32,23 @@ def _socket(
     rule = load_contract().block("SOCKET_IN")
     assert rule is not None
     attributes = {tag: "" for tag in rule.required_definition_attributes}
-    attributes.update({
-        "DEVICE_NAME": "Розетка",
-        "BUILDING": "Дом",
-        "ROOM": room_name,
-        "MOUNT_HEIGHT": "300",
-        "CABLE_ID": "101.01",
-        "CABLE_TYPE": "3x1,5",
-        "BOARD": "B.01",
-        "LOAD_TYPE": "SOCKET_LIVING_LOW",
-        "LOAD_NAME": load_name,
-        "MOUNT_WAY": "По полу",
-        "GOFRA_TYPE": "ПНД25",
-        "GOFRA_COLOR": "Черный",
-        "GOFRA_ID": gofra_id,
-    })
+    attributes.update(
+        {
+            "DEVICE_NAME": "Розетка",
+            "BUILDING": "Дом",
+            "ROOM": room_name,
+            "MOUNT_HEIGHT": "300",
+            "CABLE_ID": "101.01",
+            "CABLE_TYPE": "3x1,5",
+            "BOARD": "B.01",
+            "LOAD_TYPE": "SOCKET_LIVING_LOW",
+            "LOAD_NAME": load_name,
+            "MOUNT_WAY": "По полу",
+            "GOFRA_TYPE": "ПНД25",
+            "GOFRA_COLOR": "Черный",
+            "GOFRA_ID": gofra_id,
+        }
+    )
     return CadObservation.from_mapping(
         effective_name="SOCKET_IN",
         layer="POWER",
@@ -87,9 +89,7 @@ def test_room_relation_is_canonical_for_lines_and_three_way_rename(database):
     )
     sync = DwgSyncService(database.engine)
     initial = sync.preview(project_id=project_id, batch=_batch(_socket()))
-    sync.apply_dwg_to_project(
-        initial, selected_paths=_applicable(initial), confirmed=True
-    )
+    sync.apply_dwg_to_project(initial, selected_paths=_applicable(initial), confirmed=True)
 
     with database.engine.connect() as connection:
         device = connection.execute(select(field_device)).mappings().one()
@@ -99,9 +99,7 @@ def test_room_relation_is_canonical_for_lines_and_three_way_rename(database):
 
     card = CableService(database.engine).line_cards(project_id)[0]
     assert card["room_names"] == "1. Прихожая"
-    assert card["room_markers"] == (
-        {"id": room_id, "name": "1. Прихожая", "color": "#D7E3FC"},
-    )
+    assert card["room_markers"] == ({"id": room_id, "name": "1. Прихожая", "color": "#D7E3FC"},)
 
     objects.update_room(
         project_id=project_id,
@@ -112,10 +110,7 @@ def test_room_relation_is_canonical_for_lines_and_three_way_rename(database):
         height_m=None,
         marking_color="#D7E3FC",
     )
-    assert (
-        CableService(database.engine).line_cards(project_id)[0]["room_names"]
-        == "1. Холл"
-    )
+    assert CableService(database.engine).line_cards(project_id)[0]["room_names"] == "1. Холл"
 
     renamed = sync.preview(project_id=project_id, batch=_batch(_socket()))
     room_change = next(item for item in renamed.changes if item.field == "ROOM")
@@ -123,9 +118,7 @@ def test_room_relation_is_canonical_for_lines_and_three_way_rename(database):
     assert room_change.dwg_value == "1. Прихожая"
     assert room_change.change_class == ChangeClass.PROJECT_CHANGED
 
-    both = sync.preview(
-        project_id=project_id, batch=_batch(_socket(room_name="1. Фойе"))
-    )
+    both = sync.preview(project_id=project_id, batch=_batch(_socket(room_name="1. Фойе")))
     conflict = next(item for item in both.changes if item.field == "ROOM")
     assert conflict.change_class == ChangeClass.BOTH_CHANGED_CONFLICT
 
@@ -135,9 +128,7 @@ def test_unresolved_dwg_room_does_not_create_project_structure(database):
     project_id = objects.create_project(ProjectCard(name="Empty", project_code="EMPTY"))
     sync = DwgSyncService(database.engine)
     proposal = sync.preview(project_id=project_id, batch=_batch(_socket()))
-    sync.apply_dwg_to_project(
-        proposal, selected_paths=_applicable(proposal), confirmed=True
-    )
+    sync.apply_dwg_to_project(proposal, selected_paths=_applicable(proposal), confirmed=True)
     with database.engine.connect() as connection:
         assert connection.scalar(select(func.count()).select_from(room)) == 0
         assert connection.scalar(select(field_device.c.room_id)) is None
@@ -163,9 +154,7 @@ def test_preview_resolves_raw_room_to_canonical_name_without_fuzzy_matching(data
         "room_name": "5. Кухня-ниша",
         "raw_room": "5. Старое название",
     }
-    unresolved = sync.preview(
-        project_id=project_id, batch=_batch(_socket(room_name="Чердак"))
-    )
+    unresolved = sync.preview(project_id=project_id, batch=_batch(_socket(room_name="Чердак")))
     assert unresolved.changes[0].display_context == {
         "room_name": "Не разрешено: Чердак",
         "raw_room": "Чердак",
@@ -177,9 +166,7 @@ def test_load_name_only_apply_does_not_materialize_unselected_conduit_change(dat
     project_id = objects.create_project(ProjectCard(name="Load", project_code="LOAD"))
     sync = DwgSyncService(database.engine)
     initial = sync.preview(project_id=project_id, batch=_batch(_socket()))
-    sync.apply_dwg_to_project(
-        initial, selected_paths=_applicable(initial), confirmed=True
-    )
+    sync.apply_dwg_to_project(initial, selected_paths=_applicable(initial), confirmed=True)
     with UnitOfWork(database.engine) as uow:
         uow.execute(
             conduit.insert().values(
@@ -227,17 +214,13 @@ def test_existing_line_can_adopt_only_load_name_from_a_new_document_binding(data
         project_id=project_id,
         batch=_batch(_socket(load_name="Старое назначение"), "C:/fixture/source-a.dwg"),
     )
-    sync.apply_dwg_to_project(
-        initial, selected_paths=_applicable(initial), confirmed=True
-    )
+    sync.apply_dwg_to_project(initial, selected_paths=_applicable(initial), confirmed=True)
     with UnitOfWork(database.engine) as uow:
         row = uow.execute(select(cable_line)).mappings().one()
         facts = dict(row["cable_facts_json"])
         facts["LOAD_NAME"] = ""
         uow.execute(
-            update(cable_line)
-            .where(cable_line.c.id == row["id"])
-            .values(cable_facts_json=facts)
+            update(cable_line).where(cable_line.c.id == row["id"]).values(cable_facts_json=facts)
         )
         uow.commit()
 

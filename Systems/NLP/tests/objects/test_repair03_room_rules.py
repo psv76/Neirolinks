@@ -50,8 +50,7 @@ def test_room_colors_are_deterministic_persist_only_defaults_and_do_not_rebalanc
     assert len(set(first.values())) == 2
 
     persisted = tuple(
-        Candidate(item.id, item.name, first.get(item.id, item.marking_color))
-        for item in rooms
+        Candidate(item.id, item.name, first.get(item.id, item.marking_color)) for item in rooms
     )
     assert assign_default_room_colors(persisted) == {}
     assert contrast_text_color(first["a"]) in {"#202124", "#FFFFFF"}

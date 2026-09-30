@@ -85,9 +85,7 @@ class RoomChipDelegate(QStyledItemDelegate):
         shown = 0
         for marker in markers:
             remaining = len(markers) - shown - 1
-            reserve = (
-                metrics.horizontalAdvance(f"+{remaining}") + 18 if remaining else 0
-            )
+            reserve = metrics.horizontalAdvance(f"+{remaining}") + 18 if remaining else 0
             width = min(126, metrics.horizontalAdvance(str(marker["name"])) + 18)
             if left + width + reserve > right and shown:
                 break
@@ -99,9 +97,7 @@ class RoomChipDelegate(QStyledItemDelegate):
                 break
         hidden = len(markers) - shown
         if hidden:
-            width = min(
-                metrics.horizontalAdvance(f"+{hidden}") + 16, max(20, right - left)
-            )
+            width = min(metrics.horizontalAdvance(f"+{hidden}") + 16, max(20, right - left))
             self._draw_chip(
                 painter,
                 QRect(left, top, width, height),
@@ -127,9 +123,7 @@ class RoomChipDelegate(QStyledItemDelegate):
         return QSize(size.width(), max(28, size.height()))
 
     @staticmethod
-    def _paint_base_without_text(
-        painter: QPainter, option: QStyleOptionViewItem
-    ) -> None:
+    def _paint_base_without_text(painter: QPainter, option: QStyleOptionViewItem) -> None:
         _paint_base_without_text(painter, option)
 
 

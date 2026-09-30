@@ -36,9 +36,7 @@ def test_el_box_uses_ordinary_cable_id_source_and_rejects_legacy_fields(
         cable_id="301.RK0",
         attributes={"IN": "301.01"},
     )
-    wrong_device = make_observation(
-        "LIGHT_IN", handle="L1", cable_id="301.RK1"
-    )
+    wrong_device = make_observation("LIGHT_IN", handle="L1", cable_id="301.RK1")
     result = _validate(block_contract, valid, invalid_zero, wrong_device)
     codes = issue_codes(result.issues)
     assert "CABLE_ID_FORMAT" in codes
@@ -165,9 +163,7 @@ def test_cross_line_out_is_local_and_does_not_join_same_base_graph(
         cable_id="301.RK1",
         attributes={"OUT_1": "901.01"},
     )
-    bus_target = make_observation(
-        "SENSOR_1WIRE", handle="S1", layer="BUS", cable_id="901.01"
-    )
+    bus_target = make_observation("SENSOR_1WIRE", handle="S1", layer="BUS", cable_id="901.01")
     result = _validate(block_contract, box, bus_target)
     codes = issue_codes(result.issues)
     assert "EL_BOX_CROSS_LINE_TARGET_NOT_FOUND" not in codes
@@ -295,9 +291,7 @@ def test_grouped_switch_order_keys_and_machine_capacity(block_contract, make_obs
     assert "SWITCH_CONDUCTOR_CAPACITY_EXCEEDED" in issue_codes(too_many.issues)
     unknown = _validate(block_contract, earlier)
     issue = next(
-        item
-        for item in unknown.issues
-        if item.code == "SWITCH_CONDUCTOR_CAPACITY_UNKNOWN"
+        item for item in unknown.issues if item.code == "SWITCH_CONDUCTOR_CAPACITY_UNKNOWN"
     )
     assert not issue.blocks_acceptance
 
@@ -321,18 +315,24 @@ def test_mrm2_m1w2_references_and_bus_endpoint_payload(block_contract, make_obse
     )
     result = _validate(block_contract, key_source, output, wire_target, mrm, sensor)
     codes = issue_codes(result.issues)
-    assert not {
-        "MRM2_OUTPUT_TARGET_NOT_FOUND",
-        "MRM2_INPUT_KEY_NOT_FOUND",
-        "M1W2_CHANNEL_TARGET_NOT_FOUND",
-    } & codes
+    assert (
+        not {
+            "MRM2_OUTPUT_TARGET_NOT_FOUND",
+            "MRM2_INPUT_KEY_NOT_FOUND",
+            "M1W2_CHANNEL_TARGET_NOT_FOUND",
+        }
+        & codes
+    )
     mrm_payload = next(
-        item.read_payload
-        for item in result.observations
-        if item.observation.handle == "M1"
+        item.read_payload for item in result.observations if item.observation.handle == "M1"
     )
     assert [fact.tag for fact in mrm_payload.field_ports] == [
-        "COM1", "COM2", "K1", "K2", "IN_1", "IN_2"
+        "COM1",
+        "COM2",
+        "K1",
+        "K2",
+        "IN_1",
+        "IN_2",
     ]
 
     bad = make_observation(
@@ -360,9 +360,7 @@ def test_mrm2_m1w2_references_and_bus_endpoint_payload(block_contract, make_obse
         cable_id="503.01",
         attributes={"W1": "599.01"},
     )
-    missing_codes = issue_codes(
-        _validate(block_contract, missing, missing_sensor).issues
-    )
+    missing_codes = issue_codes(_validate(block_contract, missing, missing_sensor).issues)
     assert "FIELD_PORT_REFERENCE_FORMAT" not in missing_codes
 
 
@@ -395,11 +393,7 @@ def test_frame_mechanism_ip44_issues_are_project_level_nonblocking(
     excess = _validate(
         block_contract,
         make_observation("FRAME_2", handle="F3"),
-        make_observation(
-            "SOCKET_IN", handle="S5", layer="POWER", cable_id="103.01"
-        ),
+        make_observation("SOCKET_IN", handle="S5", layer="POWER", cable_id="103.01"),
     )
-    excess_issue = next(
-        issue for issue in excess.issues if issue.code == "FRAME_POSTS_EXCESS"
-    )
+    excess_issue = next(issue for issue in excess.issues if issue.code == "FRAME_POSTS_EXCESS")
     assert not excess_issue.blocks_acceptance
