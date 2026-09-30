@@ -98,9 +98,7 @@ def conduit_is_present(mount_way: str, conduit_type: str) -> bool:
         if not conduit_type:
             raise ConduitContractError("GOFRA_TYPE is required for MOUNT_WAY=В брусе")
         if conduit_type not in {"ППЛ20", "ППЛ25"}:
-            raise ConduitContractError(
-                "GOFRA_TYPE must be ППЛ20 or ППЛ25 for MOUNT_WAY=В брусе"
-            )
+            raise ConduitContractError("GOFRA_TYPE must be ППЛ20 or ППЛ25 for MOUNT_WAY=В брусе")
         return True
     if mount_way == "В кабель-канале":
         if conduit_type:

@@ -549,9 +549,7 @@ def test_timber_mount_way_accepts_only_ppl_conduits(
         f"{prefix}GOFRA_ID",
     }
     assert not [
-        issue
-        for issue in result.issues
-        if issue.blocks_acceptance and issue.field in route_fields
+        issue for issue in result.issues if issue.blocks_acceptance and issue.field in route_fields
     ]
 
 
@@ -573,9 +571,7 @@ def test_timber_mount_way_rejects_missing_or_non_ppl_conduit(
         CadObservationBatch("doc", (observation,))
     )
     expected_code = (
-        f"{prefix}GOFRA_TYPE_REQUIRED"
-        if not conduit_type
-        else f"{prefix}GOFRA_TYPE_FORMAT"
+        f"{prefix}GOFRA_TYPE_REQUIRED" if not conduit_type else f"{prefix}GOFRA_TYPE_FORMAT"
     )
     assert any(
         issue.code == expected_code
@@ -583,4 +579,3 @@ def test_timber_mount_way_rejects_missing_or_non_ppl_conduit(
         and issue.blocks_acceptance
         for issue in result.issues
     )
-
