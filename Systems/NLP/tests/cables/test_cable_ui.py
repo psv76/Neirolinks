@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 
-from nl_project_2.cables import CableService
+from nl_project_2.cables import CableService, RouteMethod
 from nl_project_2.objects.models import ProjectCard
 from nl_project_2.objects.runtime import ApplicationRuntime
 from nl_project_2.objects.service import ObjectService
@@ -103,6 +103,9 @@ def test_cable_workspace_filters_av_and_is_reachable_from_open_project(database,
     assert dialog.routes_tree.topLevelItemCount() == 1
     assert dialog.routes_tree.topLevelItem(0).text(0) == "010.PND25"
     assert dialog.routes_tree.topLevelItem(0).text(4) == "Не выбран"
+    timber_index = dialog.route_combo.findData(RouteMethod.TIMBER)
+    assert timber_index >= 0
+    assert dialog.route_combo.itemText(timber_index) == "В брусе"
 
     runtime = ApplicationRuntime(
         database,
