@@ -46,7 +46,7 @@ TOPOLOGY_POINT_KINDS = (
 TOPOLOGY_ENDPOINT_KINDS = ("TOPOLOGY_POINT", "INSTANCE_RESOURCE", "FIELD_PORT")
 TOPOLOGY_MIGRATION_STATES = ("CONFIRMED", "MIGRATION_REVIEW_REQUIRED")
 TOPOLOGY_ORIGINS = ("MIGRATION", "PROJECT")
-MOUNT_WAYS = ("По полу", "По потолку", "В стене", "В кабель-канале")
+MOUNT_WAYS = ("По полу", "По потолку", "В стене", "В брусе", "В кабель-канале")
 FIELD_PORT_KINDS = (
     "RELAY_COMMON",
     "RELAY_OUTPUT",

@@ -525,3 +525,57 @@ def test_invalid_conduit_type_is_rejected_in_both_networks(
         and issue.blocks_acceptance
         for issue in result.issues
     )
+
+
+@pytest.mark.parametrize("prefix", ["", "BUS_"])
+@pytest.mark.parametrize("conduit_type", ["ППЛ20", "ППЛ25"])
+def test_timber_mount_way_accepts_only_ppl_conduits(
+    block_contract, make_observation, prefix, conduit_type
+):
+    route = {
+        f"{prefix}MOUNT_WAY": "В брусе",
+        f"{prefix}GOFRA_TYPE": conduit_type,
+        f"{prefix}GOFRA_COLOR": "",
+        f"{prefix}GOFRA_ID": "",
+    }
+    observation = make_observation("LIGHT_OUT_DALI_230V", attributes=route)
+    result = CadContractValidator(block_contract).validate(
+        CadObservationBatch("doc", (observation,))
+    )
+    route_fields = {
+        f"{prefix}MOUNT_WAY",
+        f"{prefix}GOFRA_TYPE",
+        f"{prefix}GOFRA_COLOR",
+        f"{prefix}GOFRA_ID",
+    }
+    assert not [
+        issue for issue in result.issues if issue.blocks_acceptance and issue.field in route_fields
+    ]
+
+
+@pytest.mark.parametrize("prefix", ["", "BUS_"])
+@pytest.mark.parametrize("conduit_type", ["", "ПНД25", "ПВХ20", "МПТ16"])
+def test_timber_mount_way_rejects_missing_or_non_ppl_conduit(
+    block_contract, make_observation, prefix, conduit_type
+):
+    observation = make_observation(
+        "LIGHT_OUT_DALI_230V",
+        attributes={
+            f"{prefix}MOUNT_WAY": "В брусе",
+            f"{prefix}GOFRA_TYPE": conduit_type,
+            f"{prefix}GOFRA_COLOR": "",
+            f"{prefix}GOFRA_ID": "",
+        },
+    )
+    result = CadContractValidator(block_contract).validate(
+        CadObservationBatch("doc", (observation,))
+    )
+    expected_code = (
+        f"{prefix}GOFRA_TYPE_REQUIRED" if not conduit_type else f"{prefix}GOFRA_TYPE_FORMAT"
+    )
+    assert any(
+        issue.code == expected_code
+        and issue.field == f"{prefix}GOFRA_TYPE"
+        and issue.blocks_acceptance
+        for issue in result.issues
+    )

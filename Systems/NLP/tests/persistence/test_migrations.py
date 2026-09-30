@@ -15,6 +15,7 @@ from nl_project_2.persistence.migration import (
     DALI_GROUP_REVISION,
     FOUNDATION_REVISION,
     HEAD_REVISION,
+    TOPOLOGY_AUTOCAD_CONTRACT_REVISION,
     current_revision_read_only,
     initialize_database,
     upgrade_database,
@@ -30,6 +31,20 @@ def table_names(path) -> set[str]:
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
             )
         }
+
+
+def conduit_parent_key_indexes(connection: sqlite3.Connection) -> list[str]:
+    matches = []
+    for row in connection.execute("PRAGMA index_list(conduit)"):
+        if not row[2]:
+            continue
+        index_name = row[1]
+        columns = tuple(
+            item[2] for item in connection.execute(f'PRAGMA index_info("{index_name}")')
+        )
+        if columns == ("id", "project_id"):
+            matches.append(index_name)
+    return matches
 
 
 def test_two_sequential_revisions_and_verified_backup(tmp_path) -> None:
@@ -128,5 +143,32 @@ def test_upgrade_from_real_pre_conduit_contract_shape_adds_columns_and_index(tmp
     with sqlite3.connect(path) as connection:
         columns = {row[1] for row in connection.execute("PRAGMA table_info(conduit)")}
         indexes = {row[1] for row in connection.execute("PRAGMA index_list(conduit)")}
+        foreign_key_violations = list(connection.execute("PRAGMA foreign_key_check"))
+        parent_indexes = conduit_parent_key_indexes(connection)
     assert {"conduit_number", "color", "product_definition_id"} <= columns
     assert "uq_conduit_project_number" in indexes
+    assert foreign_key_violations == []
+    assert parent_indexes == ["uq_conduit_id_project_id"]
+
+
+def test_upgrade_from_topology_contract_allows_timber_mount_way(tmp_path) -> None:
+    path = tmp_path / "pre-timber.sqlite"
+    backup_directory = tmp_path / "backup"
+
+    assert (
+        initialize_database(path, target=TOPOLOGY_AUTOCAD_CONTRACT_REVISION)
+        == TOPOLOGY_AUTOCAD_CONTRACT_REVISION
+    )
+    receipt = upgrade_database(path, backup_directory)
+
+    assert receipt.source_revision == TOPOLOGY_AUTOCAD_CONTRACT_REVISION
+    assert current_revision_read_only(path) == HEAD_REVISION
+    with sqlite3.connect(path) as connection:
+        cable_segment_sql = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='cable_segment'"
+        ).fetchone()[0]
+        foreign_key_violations = list(connection.execute("PRAGMA foreign_key_check"))
+        parent_indexes = conduit_parent_key_indexes(connection)
+    assert "В брусе" in cable_segment_sql
+    assert foreign_key_violations == []
+    assert len(parent_indexes) == 1

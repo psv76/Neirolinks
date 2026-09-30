@@ -19,6 +19,7 @@ from nl_project_2.persistence.schema import (
     cable_line,
     cable_point,
     cable_point_field_device,
+    cable_segment,
     conduit,
     conduit_segment_assignment,
     dwg_baseline,
@@ -106,6 +107,37 @@ def _unmanaged(name: str, handle: str, attributes=None) -> CadObservation:
         handle=handle,
         definition=BlockDefinitionMetadata(tuple(values), False),
     )
+
+
+def test_timber_route_is_accepted_and_persisted_as_segment_data(database):
+    project_id = _project(database)
+    service = DwgSyncService(database.engine)
+    proposal = service.preview(
+        project_id=project_id,
+        batch=_batch(
+            _socket(
+                mount_way="В брусе",
+                gofra_type="ППЛ25",
+                gofra_color="синий",
+                gofra_id="001.PP25",
+            )
+        ),
+    )
+
+    assert proposal.summary.invalid == 0
+    service.apply_dwg_to_project(
+        proposal,
+        selected_paths=_applicable(proposal),
+        confirmed=True,
+    )
+
+    with database.engine.connect() as connection:
+        segment = connection.execute(select(cable_segment)).mappings().one()
+        tube = connection.execute(select(conduit)).mappings().one()
+    assert segment["mount_way"] == "В брусе"
+    assert segment["gofra_type"] == "ППЛ25"
+    assert tube["designation"] == "001.PP25"
+    assert tube["conduit_type"] == "ППЛ25"
 
 
 def test_preview_excludes_unmanaged_blocks_but_keeps_nl_claimant_error(database):

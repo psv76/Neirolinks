@@ -1,6 +1,6 @@
 # Логическая модель данных MVP NL Project 2.0
 
-## Актуализация Repair 08 — schema head `000000000011`
+## Актуализация — schema head `000000000012`
 
 Ordinary cable truth остаётся в `cable_line` / `cable_point` / `cable_segment`. Concrete field endpoint хранится typed reference на `field_port`; `CABLE_SOURCE` и port occupancy — две reconciled projections одного edge, а `ROOT_ENDPOINT` — derived read-model field. Bus truth хранится отдельно: `bus.cable_type`, physical `bus_segment` и `bus_segment_conduit_assignment`. DALI/RS-485 `bus_segment` не дублируется в ordinary `cable_segment`. Канонический RS-485 point ID — `9YY.ZZZ`; `.000` зарезервирован для root.
 
