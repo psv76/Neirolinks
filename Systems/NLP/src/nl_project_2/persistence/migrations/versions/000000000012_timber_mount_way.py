@@ -28,30 +28,50 @@ def _check_sql(values: tuple[str, ...]) -> str:
     return f"mount_way IS NULL OR mount_way IN ({quoted})"
 
 
-def _replace_mount_way_check(values: tuple[str, ...]) -> None:
+def _replace_mount_way_check(table_name: str, values: tuple[str, ...]) -> None:
     bind = op.get_bind()
+    constraint_name = f"ck_{table_name}_mount_way"
     checks = {
         item.get("name")
-        for item in sa.inspect(bind).get_check_constraints("cable_segment")
+        for item in sa.inspect(bind).get_check_constraints(table_name)
     }
-    with op.batch_alter_table("cable_segment", recreate="always") as batch:
-        if "ck_cable_segment_mount_way" in checks:
-            batch.drop_constraint("ck_cable_segment_mount_way", type_="check")
+    with op.batch_alter_table(table_name, recreate="always") as batch:
+        if constraint_name in checks:
+            batch.drop_constraint(constraint_name, type_="check")
         batch.create_check_constraint("mount_way", _check_sql(values))
 
 
+def _drop_mount_way_check(table_name: str) -> None:
+    bind = op.get_bind()
+    constraint_name = f"ck_{table_name}_mount_way"
+    checks = {
+        item.get("name")
+        for item in sa.inspect(bind).get_check_constraints(table_name)
+    }
+    if constraint_name not in checks:
+        return
+    with op.batch_alter_table(table_name, recreate="always") as batch:
+        batch.drop_constraint(constraint_name, type_="check")
+
+
 def upgrade() -> None:
-    _replace_mount_way_check(_NEW_MOUNT_WAYS)
+    _replace_mount_way_check("cable_segment", _NEW_MOUNT_WAYS)
+    _replace_mount_way_check("bus_segment", _NEW_MOUNT_WAYS)
 
 
 def downgrade() -> None:
     bind = op.get_bind()
-    timber_count = bind.exec_driver_sql(
+    cable_timber_count = bind.exec_driver_sql(
         "SELECT COUNT(*) FROM cable_segment WHERE mount_way = ?",
         ("В брусе",),
     ).scalar_one()
-    if timber_count:
+    bus_timber_count = bind.exec_driver_sql(
+        "SELECT COUNT(*) FROM bus_segment WHERE mount_way = ?",
+        ("В брусе",),
+    ).scalar_one()
+    if cable_timber_count or bus_timber_count:
         raise RuntimeError(
-            "Cannot downgrade while cable_segment rows use MOUNT_WAY=В брусе"
+            "Cannot downgrade while cable or bus segments use MOUNT_WAY=В брусе"
         )
-    _replace_mount_way_check(_OLD_MOUNT_WAYS)
+    _replace_mount_way_check("cable_segment", _OLD_MOUNT_WAYS)
+    _drop_mount_way_check("bus_segment")
