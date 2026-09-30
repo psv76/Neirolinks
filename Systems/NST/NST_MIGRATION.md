@@ -2,6 +2,8 @@
 
 Scope: GitHub Issue #88.
 
+> Historical migration implementation: the names, paths and three-component versions below describe the existing NLI → NST migration baseline, not the naming rules for new installations or releases. New work must follow the [NEIROLINKS software naming and versioning standard](../../EIM/Standards/Software_naming_and_versioning_standard.md): package `nst`, version `X.Y`, and the canonical NST paths. Adapting the implementation requires a separate change and migration/clean-install verification.
+
 ## Identity
 
 - Debian package: `neiro-nst` version `1.0.0`.

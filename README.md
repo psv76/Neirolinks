@@ -13,6 +13,7 @@
 - [Pipeline разработки системы автоматизации](EIM/Pipeline.md)
 - [Принципы работы с ChatGPT](EIM/AI/AI_workflow.md)
 - [Инструкция для ИИ-ассистента](EIM/AI/AI_instruction.md)
+- [Стандарт именования ПО NEIROLINKS и нумерации версий](EIM/Standards/Software_naming_and_versioning_standard.md)
 - [Wiren Board coding standard](EIM/Standards/WB_coding_standard.md)
 - [WB-rules logging standard](EIM/Standards/WB_logging_standard.md)
 - [Стандарт развития, версионирования и накопления инженерного опыта](EIM/Standards/Development_lifecycle_standard.md)
