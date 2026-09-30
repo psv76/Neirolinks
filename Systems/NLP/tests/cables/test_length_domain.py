@@ -29,6 +29,7 @@ def test_ac_033_exact_floor_ceiling_and_channel_formulas():
     assert floor_trace[0]["xy_mm"] == "3000"
     assert floor_trace[0]["level_change_mm"] == "100"
 
+
 def test_timber_segment_adds_half_meter_only_to_cable_length():
     points = (
         CablePointInput.from_values(
