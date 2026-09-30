@@ -173,6 +173,7 @@ def _rows(database):
         (RouteMethod.FLOOR, "4.1"),
         (RouteMethod.CEILING, "8.4"),
         (RouteMethod.WALL, "3"),
+        (RouteMethod.TIMBER, "3.5"),
         (RouteMethod.CABLE_CHANNEL, "3"),
     ],
 )
@@ -345,11 +346,29 @@ def test_board_reserve_depends_on_physical_source(database, board_owned, reserve
         ("По потолку", "ПНД25", True),
         ("В стене", "", False),
         ("В стене", "ПНД25", True),
+        ("В брусе", "ППЛ20", True),
+        ("В брусе", "ППЛ25", True),
         ("В кабель-канале", "", False),
     ],
 )
 def test_conduit_presence_matrix(mount_way, tube, present):
     assert conduit_is_present(mount_way, tube) is present
+
+
+def test_timber_segment_adds_cable_reserve_but_not_conduit_reserve(database):
+    _objects, project_id, room_a, room_b, _building = _project(database)
+    line_id, segments, _ = _graph(
+        database, project_id, (room_a, room_b), routes=[(0, 1, "В брусе", "ППЛ25")]
+    )
+    service = CableService(database.engine)
+    service.recalculate(project_id=project_id, segment_ids=segments)
+
+    segment_rows, _facts, tubes, _assignments = _rows(database)
+    assert Decimal(segment_rows[0]["calculated_length_m_decimal"]) == Decimal("3.5")
+    assert service.effective_length(project_id, line_id).automatic_m == Decimal("3.5")
+    assert len(tubes) == 1
+    assert tubes[0]["conduit_type"] == "ППЛ25"
+    assert Decimal(tubes[0]["length_m_decimal"]) == Decimal("3")
 
 
 def test_manual_precedence_and_geometry_independence(database):
