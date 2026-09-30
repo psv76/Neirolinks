@@ -150,7 +150,11 @@ def test_upgrade_011_to_012_allows_timber_mount_way(tmp_path) -> None:
         before_sql = connection.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='cable_segment'"
         ).fetchone()[0]
+        before_bus_sql = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='bus_segment'"
+        ).fetchone()[0]
     assert "В брусе" not in before_sql
+    assert "ck_bus_segment_mount_way" not in before_bus_sql
 
     receipt = upgrade_database(path, upgrade_backup)
 
@@ -161,5 +165,9 @@ def test_upgrade_011_to_012_allows_timber_mount_way(tmp_path) -> None:
         after_sql = connection.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='cable_segment'"
         ).fetchone()[0]
+        after_bus_sql = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='bus_segment'"
+        ).fetchone()[0]
     assert "В брусе" in after_sql
+    assert "В брусе" in after_bus_sql
 
