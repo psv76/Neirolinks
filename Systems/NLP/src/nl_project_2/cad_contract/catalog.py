@@ -58,6 +58,7 @@ class BlockContractCatalog:
     forbidden_attributes: frozenset[str]
     forbidden_prefixes: tuple[str, ...]
     numeric_attributes: Mapping[str, str]
+    route_rules: Mapping[str, Any]
     load_types: Mapping[str, frozenset[str]]
     board_rules: Mapping[str, Any]
     av_rules: Mapping[str, Any]
@@ -221,6 +222,14 @@ def load_contract(path: Path | None = None) -> BlockContractCatalog:
         key: str(value)
         for key, value in _mapping(data.get("numeric_attributes", {}), "numeric_attributes").items()
     }
+    route_rules = _mapping(data.get("route_rules"), "route_rules")
+    timber = _mapping(route_rules.get("timber"), "route_rules.timber")
+    _strings(route_rules.get("mount_ways"), "route_rules.mount_ways")
+    _strings(timber.get("allowed_conduit_types"), "route_rules.timber.allowed_conduit_types")
+    for field in ("mount_way", "cable_reserve_m", "conduit_reserve_m"):
+        if not isinstance(timber.get(field), str) or not timber[field]:
+            raise ContractCatalogError(f"route_rules.timber.{field} must be a non-empty string")
+
     load_types = {
         key: frozenset(_strings(value, f"load_types.{key}"))
         for key, value in _mapping(data.get("load_types"), "load_types").items()
@@ -235,6 +244,7 @@ def load_contract(path: Path | None = None) -> BlockContractCatalog:
         forbidden_attributes=frozenset(forbidden_exact),
         forbidden_prefixes=tuple(forbidden_prefixes),
         numeric_attributes=MappingProxyType(numeric),
+        route_rules=MappingProxyType(route_rules),
         load_types=MappingProxyType(load_types),
         board_rules=MappingProxyType(_mapping(data.get("board_rules"), "board_rules")),
         av_rules=MappingProxyType(_mapping(data.get("av_rules"), "av_rules")),
