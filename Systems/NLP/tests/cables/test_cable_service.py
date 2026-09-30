@@ -345,7 +345,7 @@ def test_pp25_dkc_11525_catalog_selection_and_legacy_conduit_ids(database):
     pp_id = service.create_empty_conduit(
         project_id=project_id,
         designation="001.PP25",
-        conduit_type="ПП25",
+        conduit_type="ППЛ25",
         color="синий",
         diameter_mm=25,
         length_m=12,
@@ -514,3 +514,21 @@ def test_speaker_product_versioned_catalog_and_equipment_catalog_is_unchanged(da
     ]
     assert len(copied) == 1
     assert copied[0]["version"] == 2
+
+
+def test_mpt16_conduit_without_passport_or_product(database):
+    project_id, *_rooms = _project(database)
+    service = CableService(database.engine)
+    conduit_id = service.create_empty_conduit(
+        project_id=project_id,
+        designation="003.MPT16",
+        conduit_type="МПТ16",
+        diameter_mm=16,
+    )
+    row = next(item for item in service.list_conduits(project_id) if item["id"] == conduit_id)
+    assert row["designation"] == "003.MPT16"
+    assert row["conduit_type"] == "МПТ16"
+    assert service.conduit_product_candidates(project_id=project_id, conduit_id=conduit_id) == []
+    with database.engine.connect() as connection:
+        assert connection.scalar(select(func.count()).select_from(passport_definition)) == 18
+        assert connection.scalar(select(func.count()).select_from(product_definition)) == 31

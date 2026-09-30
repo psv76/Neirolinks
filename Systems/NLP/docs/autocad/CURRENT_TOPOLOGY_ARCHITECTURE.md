@@ -725,6 +725,9 @@ Legacy canonical names `SENSOR_M1W2` и `SENSOR_MAI2` заменены на `WB_
 
 ## 15. Связанный документ
 
+Для ordinary `GOFRA_TYPE/GOFRA_ID` и bus `BUS_GOFRA_TYPE/BUS_GOFRA_ID` применяется общий [conduit contract, раздел 8](../product/22_CABLE_LENGTHS_AND_CONDUITS.md#8-тип-цвет-и-обозначение-трубы), включая валидацию suffix. Это не смешивает владельцев ordinary CableSegment и BusSegment и не добавляет новые ATTDEF или catalog entries.
+
+
 Точный target ATTDEF set каждого известного canonical block определяется в:
 
 [AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md).
