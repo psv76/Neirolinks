@@ -16,6 +16,7 @@ class RouteMethod(StrEnum):
     FLOOR = "FLOOR"
     CEILING = "CEILING"
     WALL = "WALL"
+    TIMBER = "TIMBER"
     CABLE_CHANNEL = "CABLE_CHANNEL"
 
 
@@ -23,10 +24,13 @@ MOUNT_WAY_BY_ROUTE_METHOD = {
     RouteMethod.FLOOR: "По полу",
     RouteMethod.CEILING: "По потолку",
     RouteMethod.WALL: "В стене",
+    RouteMethod.TIMBER: "В брусе",
     RouteMethod.CABLE_CHANNEL: "В кабель-канале",
 }
 ROUTE_METHOD_BY_MOUNT_WAY = {value: key for key, value in MOUNT_WAY_BY_ROUTE_METHOD.items()}
 LINE_CONDUIT_ATTRIBUTES = ("MOUNT_WAY", "GOFRA_TYPE", "GOFRA_COLOR", "GOFRA_ID")
+TIMBER_CONDUIT_TYPES = frozenset({"ППЛ20", "ППЛ25"})
+TIMBER_CABLE_RESERVE_M = Decimal("0.5")
 CONDUIT_TYPE_CODES = {
     "ПНД": "PND",
     "ПВХ": "PVH",
@@ -92,11 +96,22 @@ def conduit_is_present(mount_way: str, conduit_type: str) -> bool:
             conduit_type_suffix(conduit_type)
             return True
         return False
+    if mount_way == "В брусе":
+        if not conduit_type:
+            raise ConduitContractError("GOFRA_TYPE is required for MOUNT_WAY=В брусе")
+        if conduit_type not in TIMBER_CONDUIT_TYPES:
+            raise ConduitContractError(
+                "GOFRA_TYPE must be ППЛ20 or ППЛ25 for MOUNT_WAY=В брусе"
+            )
+        conduit_type_suffix(conduit_type)
+        return True
     if mount_way == "В кабель-канале":
         if conduit_type:
             raise ConduitContractError("GOFRA_TYPE must be empty for MOUNT_WAY=В кабель-канале")
         return False
-    raise ConduitContractError("MOUNT_WAY must be По полу, По потолку, В стене or В кабель-канале")
+    raise ConduitContractError(
+        "MOUNT_WAY must be По полу, По потолку, В стене, В брусе or В кабель-канале"
+    )
 
 
 def validate_line_conduit_fields(
@@ -163,7 +178,7 @@ def calculate_segment_length(
         vertical_first = abs(first_ceiling - first.mount_height_mm)
         level_change = abs(second_ceiling - first_ceiling)
         vertical_second = abs(second_ceiling - second.mount_height_mm)
-    elif route_method is RouteMethod.WALL:
+    elif route_method in {RouteMethod.WALL, RouteMethod.TIMBER}:
         vertical_first = Decimal(0)
         level_change = abs(second.mount_height_mm - first.mount_height_mm)
         vertical_second = Decimal(0)
@@ -173,13 +188,17 @@ def calculate_segment_length(
         vertical_second = Decimal(0)
     else:  # pragma: no cover - StrEnum protects public callers
         raise CableCalculationError(f"Unsupported route method: {route_method}")
-    length = (xy + vertical_first + level_change + vertical_second) / 1000
+    geometry_length = (xy + vertical_first + level_change + vertical_second) / 1000
+    cable_reserve = TIMBER_CABLE_RESERVE_M if route_method is RouteMethod.TIMBER else Decimal(0)
+    length = geometry_length + cable_reserve
     return length, {
         "route_method": str(route_method),
         "xy_mm": str(xy),
         "vertical_first_mm": str(vertical_first),
         "level_change_mm": str(level_change),
         "vertical_second_mm": str(vertical_second),
+        "geometry_length_m": str(geometry_length),
+        "cable_reserve_m": str(cable_reserve),
         "length_m": str(length),
     }
 
