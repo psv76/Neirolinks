@@ -47,3 +47,24 @@ def test_noncanonical_or_malformed_conduit_type_is_rejected(value):
 def test_pp_id_keeps_material_code_instead_of_russian_prefix_transliteration():
     with pytest.raises(ConduitContractError, match="suffix must be PP25"):
         parse_conduit_id("001.PPL25", "ППЛ25")
+
+@pytest.mark.parametrize("conduit_type", ["ППЛ20", "ППЛ25"])
+def test_timber_requires_approved_pp_conduit(conduit_type):
+    assert validate_line_conduit_fields(
+        mount_way="В брусе",
+        conduit_type=conduit_type,
+        conduit_color="",
+        conduit_id="",
+    )
+
+
+@pytest.mark.parametrize("conduit_type", ["", "ПНД25", "ПВХ20", "Металлорукав25", "МПТ16"])
+def test_timber_rejects_missing_or_other_conduit_types(conduit_type):
+    with pytest.raises(ConduitContractError):
+        validate_line_conduit_fields(
+            mount_way="В брусе",
+            conduit_type=conduit_type,
+            conduit_color="",
+            conduit_id="",
+        )
+
