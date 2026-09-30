@@ -24,7 +24,7 @@ def _constraint(values: tuple[str, ...]) -> str:
 
 def _replace_mount_way_check(values: tuple[str, ...]) -> None:
     with op.batch_alter_table("cable_segment", recreate="always") as batch:
-        batch.drop_constraint("ck_cable_segment_mount_way", type_="check")
+        batch.drop_constraint(op.f("ck_cable_segment_mount_way"), type_="check")
         batch.create_check_constraint("mount_way", _constraint(values))
 
 
