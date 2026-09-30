@@ -1,4 +1,4 @@
-# Контур разработки TASK_006
+# Контур разработки NL Project 2.0
 
 Runtime зафиксирован в runtime.lock.json, зависимости — в requirements.lock.
 

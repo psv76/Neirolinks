@@ -1,7 +1,7 @@
 # NL Project 2.0 — архитектура физической топологии AutoCAD ↔ Project
 
 **Дата:** 2026-08-30  
-**Статус:** принятый источник topology для Repair 08; техническая реализация подтверждена Repair 08 report. Общая пользовательская приёмка остаётся незавершённой, см. `docs/STATUS.md`.
+**Статус:** принятый источник topology для Repair 08; техническая реализация подтверждена Repair 08 report. Общая пользовательская приёмка остаётся незавершённой, см. [STATUS.md](../STATUS.md).
 
 ## 1. Назначение
 
@@ -20,7 +20,7 @@
 - минимальный planning-DWG contract без потери исходных инженерных данных;
 - расчёт PoE-бюджета Ethernet-коммутаторов как Project/catalog-owned расчёт.
 
-Точный набор ATTDEF каждого известного блока определяется отдельным документом `AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md`.
+Точный набор ATTDEF каждого известного блока определяется отдельным документом [AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md).
 
 ### 1.1. Canonical block name и `DEVICE_NAME`
 
@@ -727,4 +727,4 @@ Legacy canonical names `SENSOR_M1W2` и `SENSOR_MAI2` заменены на `WB_
 
 Точный target ATTDEF set каждого известного canonical block определяется в:
 
-`AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md`.
+[AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md).

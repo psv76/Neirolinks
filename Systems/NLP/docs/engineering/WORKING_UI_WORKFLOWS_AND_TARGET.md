@@ -1,7 +1,8 @@
 # Рабочие сценарии и целевая архитектура UI 2.0
 
 **Статус:** `APPROVED TARGET — UI-DR-A…G RECORDED`  
-**Нормативные обязательства:** `docs/product\14_WORKING_USER_INTERFACE.md`  
+**Нормативные обязательства:** [14_WORKING_USER_INTERFACE.md](../product/14_WORKING_USER_INTERFACE.md)
+
 **Предметная архитектура:** без изменений
 
 ## 1. Назначение
@@ -319,7 +320,7 @@
 - центр проверок;
 - журнал операций приложения и DWG.
 
-Минимальный состав данных кабельного журнала определён `docs/product/14_WORKING_USER_INTERFACE.md`. Только exact file-export format остаётся scoped `GATE-UI-002-CABLE-JOURNAL-EXPORT-FORMAT`.
+Минимальный состав данных кабельного журнала определён [14_WORKING_USER_INTERFACE.md](../product/14_WORKING_USER_INTERFACE.md). Только exact file-export format остаётся scoped `GATE-UI-002-CABLE-JOURNAL-EXPORT-FORMAT`.
 
 ## 5. Граница с ядром
 
@@ -339,4 +340,4 @@ Missing application API для task-oriented действия является �
 
 `GATE-UI-001-WORKING-INTERFACE` закрыт решениями `UI-DR-A…G`. Открыт только `GATE-UI-002-CABLE-JOURNAL-EXPORT-FORMAT`: нужен ли обязательный file export в 2.0 и, если нужен, какой точный формат. Этот вопрос не блокирует in-app журнал и остальные UI phases.
 
-Документ фиксирует target, но сам по себе не запускает production implementation и не разрешает TASK_025.
+Документ фиксирует target, но сам по себе не запускает production implementation и не разрешает Release.

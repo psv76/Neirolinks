@@ -55,7 +55,7 @@
 
 ## 5. Вкладка `Время работы`
 
-Вкладка `Время работы`, предусмотренная документом `11_OBJECT_AND_ROOM_MODEL.md`, должна содержать только:
+Вкладка `Время работы`, предусмотренная документом [11_OBJECT_AND_ROOM_MODEL.md](11_OBJECT_AND_ROOM_MODEL.md), должна содержать только:
 
 - время текущего объекта за текущий день;
 - общее время текущего объекта;
@@ -76,5 +76,5 @@
 
 ## 7. Связанные документы
 
-- `00_ARCHITECTURE_COMPASS.md`
-- `11_OBJECT_AND_ROOM_MODEL.md`
+- [00_ARCHITECTURE_COMPASS.md](00_ARCHITECTURE_COMPASS.md)
+- [11_OBJECT_AND_ROOM_MODEL.md](11_OBJECT_AND_ROOM_MODEL.md)

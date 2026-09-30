@@ -2,7 +2,7 @@
 
 ## Active Repair08 contract (normative)
 
-Текущий machine contract: `3.0.0`, ровно 71 canonical definition. Exact canonical names, ATTDEF sets и `LOAD_TYPE` allow-lists определяет `docs/autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md`; topology/ownership определяет соседний `CURRENT_TOPOLOGY_ARCHITECTURE.md`. Machine projection — `resources/autocad/block_contract.json`; расхождение с exact reference является ошибкой parity.
+Текущий machine contract: `3.0.0`, ровно 71 canonical definition. Exact canonical names, ATTDEF sets и `LOAD_TYPE` allow-lists определяет [AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](../autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md); topology/ownership определяет соседний [CURRENT_TOPOLOGY_ARCHITECTURE.md](../autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md). Machine projection — [resources/autocad/block_contract.json](../../resources/autocad/block_contract.json); расхождение с exact reference является ошибкой parity.
 
 Target planning ATTDEF не содержат `DEVICE_TYPE`, `POSTS`, global `SOURCE`, исходящие box fields, `CABLE_LINK`, `BUS_LINK`, `LINE_ROLE`, `ROOT_ENDPOINT`, `BUS_ID`, `BUS_TYPE`. Эти значения Project-owned/derived. `DEVICE_NAME` остаётся пользовательским planning fact.
 
@@ -15,3 +15,13 @@ Bus identity: `BUS_POINT_ID=9YY.ZZZ`, reserved root `9YY.000`; `BUS_ID/BUS_TYPE`
 Exact canonical successors include `LIGHT_*_230V`, `WB_M1W2`, `WB_MAI2` and four ordinary/DALI cable-outlet variants. Retired generic light/sensor names are input-only explicit aliases and never emitted. Ordinary lights/outlets have no bus fields; DALI 230 V variants have independent ordinary+bus networks; track lights contain no route facts for internal track links. Socket/phase/PoE boundaries follow exact reference.
 
 Project-to-DWG intersects its closed allow-list with the exact ATTDEF set, performs exact read-back and never saves DWG automatically.
+
+## Единицы координат и длины
+
+Для DWG, используемого NL Project 2.0, одна единица координат `X` и `Y` должна соответствовать `1 мм`. NL Project должен интерпретировать считанные значения `X` и `Y` как миллиметры.
+
+Системная переменная AutoCAD `INSUNITS` не должна использоваться NL Project как коэффициент пересчёта координат. Значение `INSUNITS=0` само по себе не запрещает обработку DWG. Если фактическая геометрия DWG выполнена в другом масштабе, DWG должен быть приведён к масштабу `1 drawing unit = 1 мм` до использования в NL Project.
+
+Вертикальное положение устройства задаётся атрибутом `MOUNT_HEIGHT` в миллиметрах от чистого пола. Для расчётов NL Project использует `MOUNT_HEIGHT` как координату по высоте.
+
+`LENGTH` линейного изделия в DWG задаётся в миллиметрах; значение не пересчитывается по эвристике масштаба.

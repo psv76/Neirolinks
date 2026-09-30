@@ -5,7 +5,8 @@
 Ordinary cable truth остаётся в `cable_line` / `cable_point` / `cable_segment`. Concrete field endpoint хранится typed reference на `field_port`; `CABLE_SOURCE` и port occupancy — две reconciled projections одного edge, а `ROOT_ENDPOINT` — derived read-model field. Bus truth хранится отдельно: `bus.cable_type`, physical `bus_segment` и `bus_segment_conduit_assignment`. DALI/RS-485 `bus_segment` не дублируется в ordinary `cable_segment`. Канонический RS-485 point ID — `9YY.ZZZ`; `.000` зарезервирован для root.
 
 **Статус:** `APPROVED`  
-**Основание:** TASK_003, ADR-002/004/005, TASK_004  
+**Основание:** принятые архитектурные решения ADR-002/004/005
+
 **Дата фиксации:** 2026-08-04
 
 ## 1. Граница и общие правила
@@ -73,7 +74,7 @@ Unique `(product_key, version)`, exact passport version FK. Fields: manufacturer
 
 ### 3.7. Version rules
 
-Published rows are immutable. Correction creates a version. Active catalog change does not mutate old projects. Runtime catalog contains exactly the approved 17 passports/30 products, including WB-DALI3, WBE2-I-KNX and WB-MCM8. Research data must be explicitly transformed and validated before becoming a catalog release.
+Published rows are immutable. Correction creates a version. Active catalog change does not mutate old projects. Runtime catalog contains exactly the approved identities declared by [resources/catalogs/catalog_manifest.json](../../resources/catalogs/catalog_manifest.json) and its payload. Research data must be explicitly transformed and validated before becoming a catalog release.
 
 ## 4. Project and organization
 
@@ -182,11 +183,11 @@ A field device may additionally have `field_device_product_selection` (or equiva
 
 `cable_line`: project technical ID, system kind, approved designation/base `CABLE_ID`, line-owned `CABLE_TYPE`/`BOARD`, lifecycle and source identity. Natural identity follows product documents; internal FK uses UUID. A line may be linear or branching.
 
-`cable_point` is a physical topology/install point of one `cable_line`, not a synonym for one DWG insertion. It has stable technical ID, point kind, location/height and optional logical identity (`XYY.ZZ`, `BOX_ID=XYY.ZZ` or internal endpoint identity). One point may contain several physical `field_device` rows, for example several `SOCKET` mechanisms with the same allowed `XYY.ZZ`. Membership is represented explicitly (`cable_point_field_device` or equivalent join); one physical insertion is never merged or deleted because it shares the same installation point.
+`cable_point` is a physical topology/install point of one `cable_line`, not a synonym for one DWG insertion. It has stable technical ID, point kind, location/height and optional logical identity (`XYY.ZZ`, `BOX_ID=BOX.NNN` or internal endpoint identity). One point may contain several physical `field_device` rows, for example several `SOCKET` mechanisms with the same allowed `XYY.ZZ`. Membership is represented explicitly (`cable_point_field_device` or equivalent join); one physical insertion is never merged or deleted because it shares the same installation point.
 
 `cable_segment` is an internal physical edge of one base line between two adjacent topology points/endpoints. It has stable technical ID, `cable_line_id`, source/target endpoint references, segment route facts and calculation revision. It has no user-facing `CABLE_ID`. The same physical edge is counted once even when it is traversed by more than one logical path in a branching line.
 
-Segment-owned route facts are `MOUNT_WAY`, `GOFRA_TYPE`, `GOFRA_COLOR` and visible `GOFRA_ID`/conduit binding according to `22_CABLE_LENGTHS_AND_CONDUITS.md`. `CABLE_TYPE` and `BOARD` remain line-owned.
+Segment-owned route facts are `MOUNT_WAY`, `GOFRA_TYPE`, `GOFRA_COLOR` and visible `GOFRA_ID`/conduit binding according to [22_CABLE_LENGTHS_AND_CONDUITS.md](../product/22_CABLE_LENGTHS_AND_CONDUITS.md). `CABLE_TYPE` and `BOARD` remain line-owned.
 
 ### 7.6. `field_port` and `cable_line_assignment`
 
@@ -213,21 +214,21 @@ Baseline changes only after successful apply/read-back. Missing DWG data does no
 
 ### 8.1. `cable_length_fact`
 
-One per base line: calculated length with source/revision, additional length, optional full manual override and rounding policy. Automatic calculated length is the sum of unique `cable_segment` lengths. Effective/final cable length follows `22_CABLE_LENGTHS_AND_CONDUITS.md`: `manual_full` when present; otherwise calculated segment sum + additional length + applicable source/project cable reserve; otherwise `INCOMPLETE`. Cable reserve/additional/manual full length do not change geometric conduit length.
+One per base line: calculated length with source/revision, additional length, optional full manual override and rounding policy. Automatic calculated length is the sum of unique `cable_segment` lengths. Effective/final cable length follows [22_CABLE_LENGTHS_AND_CONDUITS.md](../product/22_CABLE_LENGTHS_AND_CONDUITS.md): `manual_full` when present; otherwise calculated segment sum + additional length + applicable source/project cable reserve; otherwise `INCOMPLETE`. Cable reserve/additional/manual full length do not change geometric conduit length.
 
 ### 8.2. `conduit` / `conduit_segment_assignment`
 
-`conduit` owner project: immutable technical ID, unique visible `GOFRA_ID`, numeric project number, Russian type with catalog/nominal size, color, independent nullable stored length, optional exact product selection, supply scope and creation provenance. The visible suffix is derived from type by the centralized mapping in `22_CABLE_LENGTHS_AND_CONDUITS.md`; it is not an independent editable value.
+`conduit` owner project: immutable technical ID, unique visible `GOFRA_ID`, numeric project number, Russian type with catalog/nominal size, color, independent nullable stored length, optional exact product selection, supply scope and creation provenance. The visible suffix is derived from type by the centralized mapping in [22_CABLE_LENGTHS_AND_CONDUITS.md](../product/22_CABLE_LENGTHS_AND_CONDUITS.md); it is not an independent editable value.
 
 `conduit_segment_assignment` connects one `cable_segment` to zero or one conduit; one conduit may contain multiple segments from one or several lines. A branching line may therefore use different conduits on different segments. Pre-existing shared `GOFRA_ID` denotes one physical conduit and is not duplicated per line/segment.
 
-For a dedicated automatically created conduit, geometric length is derived from the assigned physical segment(s) without cable reserve, additional cable length or full manual cable override. A shared/pre-existing conduit may retain an explicit independent nullable length according to `22_CABLE_LENGTHS_AND_CONDUITS.md`. Bulk edits are all-or-none. One physical conduit remains one specification instance regardless of the number of contained segments/lines.
+For a dedicated automatically created conduit, geometric length is derived from the assigned physical segment(s) without cable reserve, additional cable length or full manual cable override. A shared/pre-existing conduit may retain an explicit independent nullable length according to [22_CABLE_LENGTHS_AND_CONDUITS.md](../product/22_CABLE_LENGTHS_AND_CONDUITS.md). Bulk edits are all-or-none. One physical conduit remains one specification instance regardless of the number of contained segments/lines.
 
 `MOUNT_WAY`, `GOFRA_TYPE`, `GOFRA_COLOR` and `GOFRA_ID` are segment-owned facts and are preserved in owner-aware DWG baseline/reconciliation. A line-wide duplicate of these facts is forbidden as a second source of truth.
 
 ### 8.3. Cable/HDMI catalog
 
-Кабельный и HDMI-каталог является отдельным versioned catalog и **не входит** в equipment catalog `17 passports / 30 products`.
+Кабельный и HDMI-каталог является отдельным versioned catalog и **не входит** в equipment release, объявленный в [resources/catalogs/catalog_manifest.json](../../resources/catalogs/catalog_manifest.json).
 
 Минимальные сущности:
 
@@ -250,7 +251,7 @@ Exactly one typed owner: cable line or project instance. Power/current/voltage f
 
 ### 9.2. `led_line_profile` / `led_segment`
 
-Profile one-to-one with cable line: `MONO|CCT|RGB|RGBW`, voltage, channels, power/metre, exact tape product version and supply scope. `LED_TYPE` хранит Project value, DWG baseline/origin и sync state по `25_DWG_SYNCHRONIZATION.md`; `MIX` не является допустимым Project/DWG значением. Segment has stable ID, requested length, order/zone and explicit user split. Long segment is never auto-split.
+Profile one-to-one with cable line: `MONO|CCT|RGB|RGBW`, voltage, channels, power/metre, exact tape product version and supply scope. `LED_TYPE` хранит Project value, DWG baseline/origin и sync state по [25_DWG_SYNCHRONIZATION.md](../product/25_DWG_SYNCHRONIZATION.md); `MIX` не является допустимым Project/DWG значением. Segment has stable ID, requested length, order/zone and explicit user split. Long segment is never auto-split.
 
 Cut rounding, FFD bins, remainders and purchase coils are deterministic output from segments plus exact cut/coil facts and calculator version. Missing facts yield `INCOMPLETE`.
 
@@ -335,6 +336,6 @@ Specification and cost rows are derived and grouped by exact product version/sup
 
 ## 16. Migration contract
 
-TASK_007 materializes the initial schema. Каждый последующий schema change для действующих IN-MVP функций требует Alembic revision, impact statement, backup, clean-upgrade test, upgrade from previous revision, integrity checks and reopen. Feature-local JSON/SQLite fallback is forbidden.
+Физическую schema определяет последовательность Alembic migrations. Каждый последующий schema change для действующих IN-MVP функций требует Alembic revision, impact statement, backup, clean-upgrade test, upgrade from previous revision, integrity checks and reopen. Feature-local JSON/SQLite fallback is forbidden.
 
-This logical model becomes physical only after TASK_005 passes and TASK_007 is separately launched.
+Current physical storage is defined by [src/nl_project_2/persistence/migrations/versions](../../src/nl_project_2/persistence/migrations/versions) and schema tests. Schema changes follow the repository Issue → branch → PR → review → merge lifecycle.

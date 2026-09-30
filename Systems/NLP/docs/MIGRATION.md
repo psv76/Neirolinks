@@ -2,19 +2,19 @@
 
 Перенос выполняется по Issue #118 в Draft PR #119. Исходники взяты из текущего `D:\NLP_2`; документация сверена с `D:\NLP_2_DOCS_19.zip` и принятым Repair 08. Продуктовые правила не изменены. До merge ветка остаётся кандидатом на принятие.
 
-Все 20 product Markdown-файлов, два normative catalog JSON, два approved topology/ATTDEF source и Repair 08 report в архиве побайтно совпадают с локальным комплектом документации. При переносе заменены локальные ссылки; из `20_AUTOCAD_BLOCK_CONTRACT.md` и `25_DWG_SYNCHRONIZATION.md` удалены явно non-normative legacy appendices. Устаревшие build plans/recovery history не перенесены как действующие требования.
+Все 20 product Markdown-файлов, два normative catalog JSON, два approved topology/ATTDEF source и Repair 08 report в архиве побайтно совпадают с локальным комплектом документации. При переносе заменены локальные ссылки; из [20_AUTOCAD_BLOCK_CONTRACT.md](product/20_AUTOCAD_BLOCK_CONTRACT.md) и [25_DWG_SYNCHRONIZATION.md](product/25_DWG_SYNCHRONIZATION.md) удалены явно non-normative legacy appendices. Устаревшие build plans/recovery history не перенесены как действующие требования.
 
-273 программных/ресурсных/каталожных файлов перенесены побайтно. В `tools/catalog_check.py` и одном recovery test изменён только путь к нормативному каталогу: теперь `docs/product/catalogs`, без зависимости от соседнего `NLP_2_DOCS`. Дополнен `.gitignore`. Рабочие SQLite, DWG, cache, venv, build, dist и runtime artifacts не включены.
+273 программных/ресурсных/каталожных файлов перенесены побайтно. В [tools/catalog_check.py](../tools/catalog_check.py) и одном recovery test изменён только путь к нормативному каталогу: теперь [docs/product/catalogs](product/catalogs), без зависимости от соседнего `NLP_2_DOCS`. Дополнен `.gitignore`. Рабочие SQLite, DWG, cache, venv, build, dist и runtime artifacts не включены.
 
 ## Канонические successors
 
 | Старый материал | Действующий источник |
 |---|---|
-| `EIM/AutoCAD/Doc/Blocks.md` | `docs/product/20_AUTOCAD_BLOCK_CONTRACT.md`, `docs/autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md` |
-| `EIM/AutoCAD/Doc/Parsing.md` | `docs/product/25_DWG_SYNCHRONIZATION.md`, `docs/autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md`, `src/nl_project_2/cad_contract/`, `src/nl_project_2/cad_sync/` |
-| `EIM/AutoCAD/Doc/NL_Cloud_Desktop_v1.0.md` | `README.md`, `docs/product/00_ARCHITECTURE_COMPASS.md`, `docs/engineering/TECHNICAL_ARCHITECTURE.md`, `docs/product/01_VERSION_SEPARATION.md` |
+| `EIM/AutoCAD/Doc/Blocks.md` | [20_AUTOCAD_BLOCK_CONTRACT.md](product/20_AUTOCAD_BLOCK_CONTRACT.md), [AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md) |
+| `EIM/AutoCAD/Doc/Parsing.md` | [25_DWG_SYNCHRONIZATION.md](product/25_DWG_SYNCHRONIZATION.md), [CURRENT_TOPOLOGY_ARCHITECTURE.md](autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md), [src/nl_project_2/cad_contract/](../src/nl_project_2/cad_contract), [src/nl_project_2/cad_sync/](../src/nl_project_2/cad_sync) |
+| `EIM/AutoCAD/Doc/NL_Cloud_Desktop_v1.0.md` | [README.md](../README.md), [00_ARCHITECTURE_COMPASS.md](product/00_ARCHITECTURE_COMPASS.md), [TECHNICAL_ARCHITECTURE.md](engineering/TECHNICAL_ARCHITECTURE.md), [01_VERSION_SEPARATION.md](product/01_VERSION_SEPARATION.md) |
 
-Machine `source_documents` сохраняет исходные provenance-имена: `01_CURRENT_TOPOLOGY_ARCHITECTURE_2026-08-30.md` соответствует `docs/autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md`; `02_AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE_2026-08-30.md` — `docs/autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md`.
+Machine `source_documents` сохраняет исходные provenance-имена: `01_CURRENT_TOPOLOGY_ARCHITECTURE_2026-08-30.md` соответствует [CURRENT_TOPOLOGY_ARCHITECTURE.md](autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md); `02_AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE_2026-08-30.md` — [AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md).
 
 ## Проверки и ограничения
 
@@ -27,3 +27,7 @@ Machine `source_documents` сохраняет исходные provenance-име
 Format check обнаружил 52 файла, требующих форматирования. Тот же результат воспроизведён на исходном `D:\NLP_2`; массовое переформатирование не включено в перенос. Замечание остаётся для отдельной правки.
 
 Live AutoCAD, DWG writeback, рабочая БД, NL Project 1.0 и пользовательская приёмка не выполнялись. Перенос не создаёт Release и не закрывает `USER_ACCEPTANCE_PENDING`.
+
+## Documentation review repair
+
+В рамках того же Issue #118 / Draft PR #119 устранены устаревшие BOX/port identifiers, конкурирующая модель шин, ограничения состава каталога и обязательные execution/recovery зависимости. Все 39 принятых UI acceptance criteria восстановлены в [ACCEPTANCE_CRITERIA.md](engineering/ACCEPTANCE_CRITERIA.md) без истории выполнения. Ссылки ведут на канонические successors. Код, migrations, machine contract и catalog payload не изменены. Technical PASS не означает user acceptance или Release.

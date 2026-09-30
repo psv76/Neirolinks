@@ -27,7 +27,7 @@ MVP не является демонстрационным прототипом,
 6. сравнение и двусторонняя синхронизация разрешённых полей Project ↔ DWG, явное разрешение конфликтов и отсутствие автоматического сохранения DWG;
 7. кабельные линии, расчётная длина, дополнительная длина и полная ручная длина;
 8. защитные трубы на уровне физических `CableSegment`, объединение сегментов/линий в одну физическую трубу и массовое изменение типа и диаметра;
-9. канонический каталог из 17 паспортов и 30 товаров раздела 5, включая WB-MCM8;
+9. канонический equipment release, объявленный manifest раздела 5;
 10. цепочка сущностей `EquipmentPassport → Product → ProjectInstance`;
 11. материализация полного набора функциональных ресурсов паспорта у экземпляра;
 12. ручное создание экземпляров, выбор совместимых товаров и выбор ресурсов;
@@ -38,7 +38,7 @@ MVP не является демонстрационным прототипом,
 17. распределительные узлы, защитные и коммутационные аппараты;
 18. блоки питания, ручной выбор товара, расчёт нагрузки по имеющимся паспортным данным и объяснимая неполнота;
 19. LED-линии `MONO`, `CCT`, `RGB` и `RGBW`, двусторонний `LED_TYPE`, каналы, мощность, токи, кратность реза, раскладка отрезов, остатки и закупочные катушки;
-20. ICL как вручную добавляемый аппарат и универсальная проверка по `32_INRUSH_CURRENT_LIMITERS.md`;
+20. ICL как вручную добавляемый аппарат и универсальная проверка по [32_INRUSH_CURRENT_LIMITERS.md](../product/32_INRUSH_CURRENT_LIMITERS.md);
 21. линейная RS-485 без ответвлений;
 22. разветвлённые DALI и KNX по перечням ветвей;
 23. производная графическая схема топологии, которая не является самостоятельным источником данных;
@@ -46,10 +46,10 @@ MVP не является демонстрационным прототипом,
 25. кабельная система AV и `BOARD_AV` в установленных границах;
 26. спецификация внутри программы с учётом товаров, областей поставки и внутренних материалов;
 27. сохранение, закрытие и повторное открытие проекта без потери смысла данных, связей и разрешённого локального UI-контекста;
-28. spreadsheet-функции таблицы `Линии`, карточка снизу, сохранение вида, поиск/сортировка/фильтр и редактирование по `14_WORKING_USER_INTERFACE.md`;
+28. spreadsheet-функции таблицы `Линии`, карточка снизу, сохранение вида, поиск/сортировка/фильтр и редактирование по [14_WORKING_USER_INTERFACE.md](../product/14_WORKING_USER_INTERFACE.md);
 29. отдельный кабельный журнал, центр проверок, пользовательский журнал операций и четыре утверждённых пользовательских статуса;
 30. guided действия из контекста линии/устройства; generic constructor и technical trace только в `Инженерных подробностях`;
-31. согласованные массовые операции защиты, питания, выхода/канала и входа по `15_CONTROLLED_BULK_OPERATIONS.md`;
+31. согласованные массовые операции защиты, питания, выхода/канала и входа по [15_CONTROLLED_BULK_OPERATIONS.md](../product/15_CONTROLLED_BULK_OPERATIONS.md);
 32. полноценная key-level модель: каждая физическая клавиша — отдельный источник и занимает отдельный вход;
 33. пользовательский `РЕЗЕРВ`, безопасное копирование, нумерация только новых экземпляров и глобальный last-used preference;
 34. проверка рамок/механизмов и IP44 по функциональному результату NL Project 1.0, адаптированная к точным вставкам 2.0.
@@ -70,7 +70,7 @@ MVP не является демонстрационным прототипом,
 10. пусконаладочные функции;
 11. коммерческий раздел;
 12. файловый экспорт результатов, кроме отдельно утверждённых выходов; формат экспорта кабельного журнала определяется scoped gate `GATE-UI-002-CABLE-JOURNAL-EXPORT-FORMAT`;
-13. новые **equipment** passports/products вне канонического набора раздела 5; отдельный cable/HDMI catalog из функции AV не считается расширением equipment 17/30;
+13. новые **equipment** passports/products вне канонического набора раздела 5; отдельный cable/HDMI catalog из функции AV не считается расширением equipment release;
 14. проверка оконечных резисторов RS-485 без отдельного принятого правила;
 15. ограничение числа устройств RS-485, отсутствующее в паспорте или продуктовом документе;
 16. перенос конкретной универсальной таблицы, общей правой карточки и фильтра NL Project 1.0 как обязательного UI-паттерна;
@@ -78,67 +78,16 @@ MVP не является демонстрационным прототипом,
 18. отдельные legacy-сводки `ЭУИ`, `Датчики`, `Освещение` и `Другое` как обязательные самостоятельные экраны;
 19. произвольное паспортless-устройство компоновки, обходящее `EquipmentPassport → Product → ProjectInstance`;
 20. перенос файловых диагностических артефактов, потоковой оркестрации и тестов 1.0 как готовых решений 2.0;
-21. отдельная реализация полного контура `30_SITE_POWER_AND_RESERVE.md` (генератор, АВР, стабилизаторы, site reserve) до отдельного расширения каталога и приёмки;
-22. отдельная реализация полного контура `40_HEATING_AND_BOILER_CONTROL.md` и `41_LEAK_PROTECTION.md` до отдельного расширения каталога и приёмки.
+21. отдельная реализация полного контура [30_SITE_POWER_AND_RESERVE.md](../product/30_SITE_POWER_AND_RESERVE.md) (генератор, АВР, стабилизаторы, site reserve) до отдельного расширения каталога и приёмки;
+22. отдельная реализация полного контура [40_HEATING_AND_BOILER_CONTROL.md](../product/40_HEATING_AND_BOILER_CONTROL.md) и [41_LEAK_PROTECTION.md](../product/41_LEAK_PROTECTION.md) до отдельного расширения каталога и приёмки.
 
-Пункты 21–22 не отменяют продуктовые документы и не делают их недействующими: они сохраняются как утверждённые предметные правила для будущего этапа. В текущую execution chain MVP задачи TASK_017 и TASK_018 не входят. Это не уменьшает функции `IN MVP` и не отменяет 60 технических критериев вместе с обязательными UI acceptance criteria: всё явно перечисленное в разделах 3 и 7 остаётся обязательным.
+Пункты 21–22 не отменяют продуктовые документы и не делают их недействующими: они сохраняются как утверждённые предметные правила для будущего этапа. Полные site/heating/leak contours остаются отложенными до отдельного решения о каталоге и приёмке. Это не уменьшает функции `IN MVP` и не отменяет 60 технических критериев вместе с обязательными UI acceptance criteria: всё явно перечисленное в разделах 3 и 7 остаётся обязательным.
 
 ## 5. Канонический каталог MVP
 
-Единственные нормативные машиночитаемые источники **equipment catalog** — `docs/product/catalogs/equipment_passports.json` и `docs/product/catalogs/products.json`. Перечень ниже фиксирует их состав на момент утверждения MVP. Отдельный cable/HDMI catalog для AV не является equipment catalog и определяется `DATA_MODEL.md`/`24_AV_CABLE_SYSTEM.md`.
+Единственные нормативные машиночитаемые источники **equipment catalog** — [docs/product/catalogs/equipment_passports.json](../product/catalogs/equipment_passports.json) и [docs/product/catalogs/products.json](../product/catalogs/products.json). Перечень ниже фиксирует их состав на момент утверждения MVP. Отдельный cable/HDMI catalog для AV не является equipment catalog и определяется [DATA_MODEL.md](DATA_MODEL.md)/[24_AV_CABLE_SYSTEM.md](../product/24_AV_CABLE_SYSTEM.md).
 
-### 5.1. Паспорта — 17
-
-1. `protection.circuit_breaker.1p`
-2. `protection.rcbo.1pn`
-3. `distribution.cross_module.3l_pen`
-4. `switching.modular_contactor.2no.230vac`
-5. `protection.inrush_current_limiter.1ph`
-6. `led_tape.constant_voltage.mono.24v`
-7. `led_tape.constant_voltage.cct.24v`
-8. `led_tape.constant_voltage.rgbw.24v`
-9. `power.acdc.24v.din`
-10. `power.acdc.48v.din`
-11. `controller.wb_mr6c_v2`
-12. `controller.wb_led_v1`
-13. `power.wb_ups_v3`
-14. `gateway.wirenboard.wb_dali3`
-15. `module.wirenboard.wbe2_i_knx`
-16. `module.wirenboard.wb_mcm8`
-17. `controller.wiren_board_8_5`
-
-### 5.2. Товары — 30
-
-1. `product.schneider.a9f84116`
-2. `product.schneider.a9f84106`
-3. `product.schneider.a9f84102`
-4. `product.schneider.a9d11816`
-5. `product.iek.ynd10_4_11_125`
-6. `product.iek.ynd10_4_07_100`
-7. `product.schneider.a9c20732`
-8. `product.meanwell.icl_16r`
-9. `product.arlight.048822`
-10. `product.arlight.044515`
-11. `product.arlight.049060`
-12. `product.arlight.044196`
-13. `product.arlight.045179`
-14. `product.arlight.046937`
-15. `product.meanwell.hdr_60_24`
-16. `product.meanwell.hdr_100_24`
-17. `product.meanwell.hdr_30_24`
-18. `product.meanwell.hdr_150_24`
-19. `product.meanwell.ndr_240_24`
-20. `product.meanwell.sdr_240_24`
-21. `product.meanwell.sdr_240_48`
-22. `product.meanwell.sdr_480_24`
-23. `product.meanwell.sdr_480_48`
-24. `product.wirenboard.wb_mr6c_v2`
-25. `product.wirenboard.wb_led_v1`
-26. `product.wirenboard.wb_ups_v3`
-27. `product.wirenboard.wb_dali3`
-28. `product.wirenboard.wbe2_i_knx`
-29. `product.wirenboard.wb_mcm8`
-30. `product.wirenboard.wb8_4g_64g_ind`
+Фактический состав и identities действующего release задаёт [resources/catalogs/catalog_manifest.json](../../resources/catalogs/catalog_manifest.json) и связанные payload [resources/catalogs/equipment_passports.json](../../resources/catalogs/equipment_passports.json), [resources/catalogs/products.json](../../resources/catalogs/products.json). Нормативные JSON в [docs/product/catalogs](../product/catalogs) должны соответствовать packaged payload. Проверяемый числовой baseline Repair 05 закреплён в [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md) (`AC-009`); отдельный параллельный список оборудования здесь не поддерживается.
 
 Основной товар `XT.01` — `product.iek.ynd10_4_11_125`. `product.iek.ynd10_4_07_100` остаётся допустимой ручной альтернативой того же паспорта. Legrand 400408 в активный каталог не входит.
 
@@ -153,7 +102,7 @@ MVP не является демонстрационным прототипом,
 - `DWG`;
 - отдельные `Сервис` и `Инженерные подробности` вне основной строки.
 
-Точный обязательный паттерн, язык, таблицы, карточки, статусы и граница expert/service определены `docs/product/14_WORKING_USER_INTERFACE.md`. Массовые действия определены `docs/product/15_CONTROLLED_BULK_OPERATIONS.md`. Technical toolkit этим документом не выбирается.
+Точный обязательный паттерн, язык, таблицы, карточки, статусы и граница expert/service определены [14_WORKING_USER_INTERFACE.md](../product/14_WORKING_USER_INTERFACE.md). Массовые действия определены [15_CONTROLLED_BULK_OPERATIONS.md](../product/15_CONTROLLED_BULK_OPERATIONS.md). Technical toolkit этим документом не выбирается.
 
 ## 7. Сквозные механизмы
 
@@ -173,7 +122,7 @@ MVP не является демонстрационным прототипом,
 14. user-facing labels и четыре статуса с причиной, влиянием, действием и переходом.
 15. сохранение проверки рамок/механизмов/IP44 по помещениям, производного расчёта подрозетников и конфигурируемого `SENSOR_MSW` как обязательных рабочих результатов, перенесённых из 1.0 без legacy-эвристик и неподтверждённых товарных данных.
 
-Внутренняя функциональная связь соединяет конкретные функциональные ресурсы конкретных экземпляров, однозначно сохраняется, восстанавливается, проверяется и удаляется. Она отличается от назначения импортированной кабельной линии ресурсу. `CABLE_ID` не является идентификатором внутренней связи. Технический первичный ключ и структура хранения определяются действующими `DATA_MODEL.md` и `TECHNICAL_ARCHITECTURE.md`; архивные proposal-файлы TASK_003 не являются нормативным источником.
+Внутренняя функциональная связь соединяет конкретные функциональные ресурсы конкретных экземпляров, однозначно сохраняется, восстанавливается, проверяется и удаляется. Она отличается от назначения импортированной кабельной линии ресурсу. `CABLE_ID` не является идентификатором внутренней связи. Технический первичный ключ и структура хранения определяются действующими [DATA_MODEL.md](DATA_MODEL.md) и [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md).
 
 ## 8. Обязательные проверки
 
@@ -202,10 +151,10 @@ MVP должен применять проверки действующих па
 
 ## 10. Граница AutoCAD / NL Project / AutoCAD Electrical
 
-- AutoCAD хранит планировку, полевые блоки, их координаты и разрешённые атрибуты по `20_AUTOCAD_BLOCK_CONTRACT.md`.
+- AutoCAD хранит планировку, полевые блоки, их координаты и разрешённые атрибуты по [20_AUTOCAD_BLOCK_CONTRACT.md](../product/20_AUTOCAD_BLOCK_CONTRACT.md).
 - NL Project хранит связанную модель, паспорта, товары, экземпляры, внутренние ресурсы и связи, назначения, проверки и спецификацию.
 - AutoCAD Electrical предназначен для подробной монтажной схемы с физическими контактами, проводниками, жилами, клеммами, перемычками и маркировкой.
-- Project не записывает в блоки планировки товарные атрибуты и внутренние обозначения щита. Запись в DWG ограничена allow-list документа `25_DWG_SYNCHRONIZATION.md` и не вызывает автоматический Save.
+- Project не записывает в блоки планировки товарные атрибуты и внутренние обозначения щита. Запись в DWG ограничена allow-list документа [25_DWG_SYNCHRONIZATION.md](../product/25_DWG_SYNCHRONIZATION.md) и не вызывает автоматический Save.
 
 ## 11. Продуктовое требование и способ реализации
 
@@ -215,57 +164,57 @@ MVP должен применять проверки действующих па
 
 | Предметная область | Источник истины |
 |---|---|
-| Миссия, единая модель и граница CAD | `docs/product/00_ARCHITECTURE_COMPASS.md` |
-| Независимость версий | `docs/product/01_VERSION_SEPARATION.md` |
-| Паспорт, товар, экземпляр, ресурсы | `docs/product/10_EQUIPMENT_MODEL.md` |
-| Объект, помещения и настройки | `docs/product/11_OBJECT_AND_ROOM_MODEL.md` |
-| Интерфейс объекта и таймер | `docs/product/12_OBJECT_INTERFACE_AND_WORK_TIME.md` |
-| Канонический каталог | `docs/product/13_EQUIPMENT_CATALOG.md` и `docs/product/catalogs/*.json` |
-| Рабочий UI | `docs/product/14_WORKING_USER_INTERFACE.md` |
-| Массовые операции | `docs/product/15_CONTROLLED_BULK_OPERATIONS.md` |
-| Блоки планировки | `docs/product/20_AUTOCAD_BLOCK_CONTRACT.md` |
-| LED | `docs/product/21_LED_LINES_AND_PWM_EQUIPMENT.md` |
-| Длины и ПНД | `docs/product/22_CABLE_LENGTHS_AND_CONDUITS.md` |
-| RS-485, DALI, KNX | `docs/product/23_DATA_BUS_TOPOLOGY.md` |
-| AV | `docs/product/24_AV_CABLE_SYSTEM.md` |
-| DWG-синхронизация | `docs/product/25_DWG_SYNCHRONIZATION.md` |
-| Электроснабжение и резерв | `docs/product/30_SITE_POWER_AND_RESERVE.md` |
-| Распределение в щите | `docs/product/31_PANEL_POWER_DISTRIBUTION.md` |
-| ICL | `docs/product/32_INRUSH_CURRENT_LIMITERS.md` |
-| Отопление | `docs/product/40_HEATING_AND_BOILER_CONTROL.md` |
-| Протечки | `docs/product/41_LEAK_PROTECTION.md` |
-| Поставка и спецификация | `docs/product/50_SPECIFICATION_AND_COSTING.md` |
-| Граница MVP и тестовый сценарий | настоящий документ, `TEST_OBJECT.md`, `ACCEPTANCE_CRITERIA.md` |
+| Миссия, единая модель и граница CAD | [00_ARCHITECTURE_COMPASS.md](../product/00_ARCHITECTURE_COMPASS.md) |
+| Независимость версий | [01_VERSION_SEPARATION.md](../product/01_VERSION_SEPARATION.md) |
+| Паспорт, товар, экземпляр, ресурсы | [10_EQUIPMENT_MODEL.md](../product/10_EQUIPMENT_MODEL.md) |
+| Объект, помещения и настройки | [11_OBJECT_AND_ROOM_MODEL.md](../product/11_OBJECT_AND_ROOM_MODEL.md) |
+| Интерфейс объекта и таймер | [12_OBJECT_INTERFACE_AND_WORK_TIME.md](../product/12_OBJECT_INTERFACE_AND_WORK_TIME.md) |
+| Канонический каталог | [13_EQUIPMENT_CATALOG.md](../product/13_EQUIPMENT_CATALOG.md) и `docs/product/catalogs/*.json` |
+| Рабочий UI | [14_WORKING_USER_INTERFACE.md](../product/14_WORKING_USER_INTERFACE.md) |
+| Массовые операции | [15_CONTROLLED_BULK_OPERATIONS.md](../product/15_CONTROLLED_BULK_OPERATIONS.md) |
+| Блоки планировки | [20_AUTOCAD_BLOCK_CONTRACT.md](../product/20_AUTOCAD_BLOCK_CONTRACT.md) |
+| LED | [21_LED_LINES_AND_PWM_EQUIPMENT.md](../product/21_LED_LINES_AND_PWM_EQUIPMENT.md) |
+| Длины и ПНД | [22_CABLE_LENGTHS_AND_CONDUITS.md](../product/22_CABLE_LENGTHS_AND_CONDUITS.md) |
+| RS-485, DALI, KNX | [23_DATA_BUS_TOPOLOGY.md](../product/23_DATA_BUS_TOPOLOGY.md) |
+| AV | [24_AV_CABLE_SYSTEM.md](../product/24_AV_CABLE_SYSTEM.md) |
+| DWG-синхронизация | [25_DWG_SYNCHRONIZATION.md](../product/25_DWG_SYNCHRONIZATION.md) |
+| Электроснабжение и резерв | [30_SITE_POWER_AND_RESERVE.md](../product/30_SITE_POWER_AND_RESERVE.md) |
+| Распределение в щите | [31_PANEL_POWER_DISTRIBUTION.md](../product/31_PANEL_POWER_DISTRIBUTION.md) |
+| ICL | [32_INRUSH_CURRENT_LIMITERS.md](../product/32_INRUSH_CURRENT_LIMITERS.md) |
+| Отопление | [40_HEATING_AND_BOILER_CONTROL.md](../product/40_HEATING_AND_BOILER_CONTROL.md) |
+| Протечки | [41_LEAK_PROTECTION.md](../product/41_LEAK_PROTECTION.md) |
+| Поставка и спецификация | [50_SPECIFICATION_AND_COSTING.md](../product/50_SPECIFICATION_AND_COSTING.md) |
+| Граница MVP и тестовый сценарий | настоящий документ, [TEST_OBJECT.md](TEST_OBJECT.md), [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md) |
 
 ## 13. Окончательная обработка 24 позиций аудита
 
 Колонка `Решение` относится к функции или компоненту аудита, а не отменяет общее предметное поведение 2.0. `IN MVP` означает обязательное продуктовое поведение; `OUT OF MVP` — отсутствие обязательства переносить конкретный legacy-компонент или отложенную функцию.
 
-| AUDIT_ID | Решение | Требуемое поведение 2.0 | Источник | Отношение к реализации 1.0 | Техническое решение позже |
+| AUDIT_ID | Решение | Требуемое поведение 2.0 | Источник | Отношение к реализации 1.0 | Технический источник |
 |---|---|---|---|---|---|
-| `UI-002` | OUT OF MVP / REPLACED | Legacy универсальная таблица, общий фильтр и правая карточка не переносятся; утверждён новый контракт `Линии`: широкая таблица сверху, компактная карточка снизу, spreadsheet behavior. | Разделы 3, 6; `14_WORKING_USER_INTERFACE.md` | Использовать legacy только как evidence функций, не как layout contract. | Реализация следует утверждённому UI-stage plan. |
-| `UI-003` | IN MVP / ADAPT | Сохраняются выбранная строка, filter/sort/scroll, ширина/порядок колонок, вид и splitter; legacy QSettings/ключи не наследуются. | Разделы 3, 6, 9; `14_WORKING_USER_INTERFACE.md`; `TECHNICAL_ARCHITECTURE.md` | Перенести пользовательский результат, реализовать новым versioned local profile 2.0. | Точный schema versioning — техническая реализация UI-stage. |
-| `CAD-004` | IN MVP | Повторный скан формирует сравнение Project ↔ DWG с baseline, статусами и объяснимыми расхождениями. | `25_DWG_SYNCHRONIZATION.md`, TASK 002B | Legacy compare требует новой реализации по утверждённой матрице полей. | Хранение baseline и транзакции — `TASK_003`. |
-| `CAD-005` | IN MVP | Пользователь явно принимает только разрешённые значения DWG в Project; Project-only данные сохраняются. | `25_DWG_SYNCHRONIZATION.md`, TASK 002B | Legacy sync/override не переносится как контракт. | Команды и атомарность — `TASK_003`. |
-| `CAD-006` | IN MVP | Project записывает только закрытый allow-list, проверяет цель и обратное чтение, не сохраняет DWG автоматически. | `25_DWG_SYNCHRONIZATION.md`, TASK 002B | Legacy allow-list с товарными и контактными полями отвергнут. | AutoCAD-adapter и компенсация ошибок — `TASK_003`. |
-| `EQUIP-001` | OUT OF MVP | Монтажные изделия учитываются как экземпляры/товары в общей модели; отдельная legacy-сводка `ЭУИ` не обязательна. | `10_EQUIPMENT_MODEL.md`, раздел 6 | Не переносить отдельную агрегированную таблицу как источник данных. | Состав представлений — `TASK_003`. |
-| `EQUIP-002` | OUT OF MVP | Датчики поддерживаются через паспорта, экземпляры и тематические связи; отдельная legacy-сводка не обязательна. | `10_EQUIPMENT_MODEL.md`, `40_HEATING_AND_BOILER_CONTROL.md`, `41_LEAK_PROTECTION.md` | Не переносить legacy-категорию как сущность. | Фильтры и представления — `TASK_003`. |
-| `EQUIP-003` | OUT OF MVP | Освещение и LED входят через общую модель и LED-раздел; самостоятельная legacy-сводка не обязательна. | `10_EQUIPMENT_MODEL.md`, `21_LED_LINES_AND_PWM_EQUIPMENT.md` | Не переносить смешанную агрегацию `LIGHT/LIGHT_LED`. | Представление освещения — `TASK_003`. |
-| `EQUIP-004` | OUT OF MVP | Экземпляр должен иметь определённый паспорт; общая корзина `Другое` не является обязательной функцией. | `10_EQUIPMENT_MODEL.md` | Legacy-категорию не переносить. | Классификация UI — `TASK_003`. |
-| `LED-004` | IN MVP | Округление по кратности реза, запрет автоделения длинного участка, FFD-раскладка, остатки и закупка целыми катушками. | `21_LED_LINES_AND_PWM_EQUIPMENT.md`, `LED_COIL_TEST_CASES.md`, TASK 002C | Legacy fallback и эвристики запрещены; нужна реализация по новому правилу. | Структуры расчёта — `TASK_003`. |
-| `PSU-003` | IN MVP | ICL добавляется вручную; проверка выдаёт один из пяти статусов и объяснимую трассу без автоматического выбора БП. | `32_INRUSH_CURRENT_LIMITERS.md`, TASK 002C | Специальная логика по `FI.01` запрещена; legacy helpers не являются контрактом. | Модель проверок — `TASK_003`. |
-| `LOAD-001` | OUT OF MVP | Отдельные паспортные проверки тока и мощности входят; полное legacy-ядро расчёта объекта не входит. | Разделы 3–4; `30_SITE_POWER_AND_RESERVE.md`, `31_PANEL_POWER_DISTRIBUTION.md` | Не переносить общие legacy-формулы без отдельного правила. | Полный расчёт — будущая продуктовая задача. |
+| `UI-002` | OUT OF MVP / REPLACED | Legacy универсальная таблица, общий фильтр и правая карточка не переносятся; утверждён новый контракт `Линии`: широкая таблица сверху, компактная карточка снизу, spreadsheet behavior. | Разделы 3, 6; [14_WORKING_USER_INTERFACE.md](../product/14_WORKING_USER_INTERFACE.md) | Использовать legacy только как evidence функций, не как layout contract. | Реализация следует утверждённому UI-stage plan. |
+| `UI-003` | IN MVP / ADAPT | Сохраняются выбранная строка, filter/sort/scroll, ширина/порядок колонок, вид и splitter; legacy QSettings/ключи не наследуются. | Разделы 3, 6, 9; [14_WORKING_USER_INTERFACE.md](../product/14_WORKING_USER_INTERFACE.md); [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md) | Перенести пользовательский результат, реализовать новым versioned local profile 2.0. | Точный schema versioning — техническая реализация UI-stage. |
+| `CAD-004` | IN MVP | Повторный скан формирует сравнение Project ↔ DWG с baseline, статусами и объяснимыми расхождениями. | [25_DWG_SYNCHRONIZATION.md](../product/25_DWG_SYNCHRONIZATION.md) | Legacy compare требует новой реализации по утверждённой матрице полей. | Хранение baseline и транзакции — [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md). |
+| `CAD-005` | IN MVP | Пользователь явно принимает только разрешённые значения DWG в Project; Project-only данные сохраняются. | [25_DWG_SYNCHRONIZATION.md](../product/25_DWG_SYNCHRONIZATION.md) | Legacy sync/override не переносится как контракт. | Команды и атомарность — [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md). |
+| `CAD-006` | IN MVP | Project записывает только закрытый allow-list, проверяет цель и обратное чтение, не сохраняет DWG автоматически. | [25_DWG_SYNCHRONIZATION.md](../product/25_DWG_SYNCHRONIZATION.md) | Legacy allow-list с товарными и контактными полями отвергнут. | AutoCAD-adapter и компенсация ошибок — [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md). |
+| `EQUIP-001` | OUT OF MVP | Монтажные изделия учитываются как экземпляры/товары в общей модели; отдельная legacy-сводка `ЭУИ` не обязательна. | [10_EQUIPMENT_MODEL.md](../product/10_EQUIPMENT_MODEL.md), раздел 6 | Не переносить отдельную агрегированную таблицу как источник данных. | Состав представлений — [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md). |
+| `EQUIP-002` | OUT OF MVP | Датчики поддерживаются через паспорта, экземпляры и тематические связи; отдельная legacy-сводка не обязательна. | [10_EQUIPMENT_MODEL.md](../product/10_EQUIPMENT_MODEL.md), [40_HEATING_AND_BOILER_CONTROL.md](../product/40_HEATING_AND_BOILER_CONTROL.md), [41_LEAK_PROTECTION.md](../product/41_LEAK_PROTECTION.md) | Не переносить legacy-категорию как сущность. | Фильтры и представления — [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md). |
+| `EQUIP-003` | OUT OF MVP | Освещение и LED входят через общую модель и LED-раздел; самостоятельная legacy-сводка не обязательна. | [10_EQUIPMENT_MODEL.md](../product/10_EQUIPMENT_MODEL.md), [21_LED_LINES_AND_PWM_EQUIPMENT.md](../product/21_LED_LINES_AND_PWM_EQUIPMENT.md) | Не переносить смешанную агрегацию `LIGHT/LIGHT_LED`. | Представление освещения — [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md). |
+| `EQUIP-004` | OUT OF MVP | Экземпляр должен иметь определённый паспорт; общая корзина `Другое` не является обязательной функцией. | [10_EQUIPMENT_MODEL.md](../product/10_EQUIPMENT_MODEL.md) | Legacy-категорию не переносить. | Классификация UI — [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md). |
+| `LED-004` | IN MVP | Округление по кратности реза, запрет автоделения длинного участка, FFD-раскладка, остатки и закупка целыми катушками. | [21_LED_LINES_AND_PWM_EQUIPMENT.md](../product/21_LED_LINES_AND_PWM_EQUIPMENT.md), [LED_COIL_TEST_CASES.md](LED_COIL_TEST_CASES.md) | Legacy fallback и эвристики запрещены; нужна реализация по новому правилу. | Структуры расчёта — [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md). |
+| `PSU-003` | IN MVP | ICL добавляется вручную; проверка выдаёт один из пяти статусов и объяснимую трассу без автоматического выбора БП. | [32_INRUSH_CURRENT_LIMITERS.md](../product/32_INRUSH_CURRENT_LIMITERS.md) | Специальная логика по `FI.01` запрещена; legacy helpers не являются контрактом. | Модель проверок — [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md). |
+| `LOAD-001` | OUT OF MVP | Отдельные паспортные проверки тока и мощности входят; полное legacy-ядро расчёта объекта не входит. | Разделы 3–4; [30_SITE_POWER_AND_RESERVE.md](../product/30_SITE_POWER_AND_RESERVE.md), [31_PANEL_POWER_DISTRIBUTION.md](../product/31_PANEL_POWER_DISTRIBUTION.md) | Не переносить общие legacy-формулы без отдельного правила. | Полный расчёт — будущая продуктовая задача. |
 | `LOAD-002` | OUT OF MVP | Набор режимов и коэффициентов общего расчёта нагрузки не утверждён для MVP. | Раздел 4 | Не наследовать legacy-сценарии. | Отдельное продуктовое решение после MVP. |
-| `LOAD-003` | IN MVP | Пользователь вводит и изменяет мощность нагрузки; для 301/401 она может прийти из DWG и редактироваться в Project. | `TASK_002_APPROVE_MVP_BOUNDARIES.md` §8.7 | Поведение нужно, но legacy CRUD и таблица не переносятся как модель. | Сущность и UI ввода — `TASK_003`. |
-| `LOAD-004` | OUT OF MVP | Бюджеты розеточных нагрузок и их формулы не входят без отдельного правила. | Раздел 4; `20_AUTOCAD_BLOCK_CONTRACT.md` §15.1 | Legacy defaults не наследуются. | Отдельное продуктовое решение. |
-| `LOAD-005` | OUT OF MVP | Автоматическая балансировка фаз не входит. | Раздел 4; `TASK_002_APPROVE_MVP_BOUNDARIES.md` §8.11 | Legacy-алгоритм не переносится. | Отдельное продуктовое решение. |
+| `LOAD-003` | IN MVP | Пользователь вводит и изменяет мощность нагрузки; для 301/401 она может прийти из DWG и редактироваться в Project. | Раздел 7; [14_WORKING_USER_INTERFACE.md](../product/14_WORKING_USER_INTERFACE.md) | Поведение нужно, но legacy CRUD и таблица не переносятся как модель. | Сущность и UI ввода — [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md). |
+| `LOAD-004` | OUT OF MVP | Бюджеты розеточных нагрузок и их формулы не входят без отдельного правила. | Раздел 4; [20_AUTOCAD_BLOCK_CONTRACT.md](../product/20_AUTOCAD_BLOCK_CONTRACT.md)| Legacy defaults не наследуются. | Отдельное продуктовое решение. |
+| `LOAD-005` | OUT OF MVP | Автоматическая балансировка фаз не входит. | Раздел 4; Раздел 4 | Legacy-алгоритм не переносится. | Отдельное продуктовое решение. |
 | `LOAD-006` | OUT OF MVP | Полный расчёт вводной мощности всего объекта не входит. | Раздел 4 | Legacy-формулы и коэффициенты не наследуются. | Отдельное продуктовое решение. |
 | `LOAD-007` | OUT OF MVP | Отдельный legacy-экран расчёта нагрузок не является обязательным разделом MVP. | Разделы 4, 6 | Не переносить UI раньше предметного решения. | Будущая UI-задача после принятия расчёта. |
-| `SHIELD-003` | OUT OF MVP | Ручное создание валидного экземпляра по паспорту/товару входит; произвольное устройство без паспорта не входит. | `10_EQUIPMENT_MODEL.md`, разделы 3, 6 | Legacy escape hatch не переносится. | UX ручного создания — `TASK_003`. |
+| `SHIELD-003` | OUT OF MVP | Ручное создание валидного экземпляра по паспорту/товару входит; произвольное устройство без паспорта не входит. | [10_EQUIPMENT_MODEL.md](../product/10_EQUIPMENT_MODEL.md), разделы 3, 6 | Legacy escape hatch не переносится. | UX ручного создания — [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md). |
 | `SHIELD-004` | OUT OF MVP | DIN-компоновка доступна в приложении; PDF компоновки не входит. | Разделы 3–4 | Legacy PDF-шаблон и путь не переносятся. | Выходной PDF — будущая задача. |
 | `SHIELD-005` | OUT OF MVP | Генерация выходного DWG щита, включая модель-специальный генератор, не входит. | Раздел 4 | Не переносить WB-MR6C-специальный генератор как архитектуру. | Общий контракт выходных DWG — будущая задача. |
-| `OPS-002` | OUT OF MVP | Диагностика реализации необходима, но конкретные legacy-файлы, пути и отчёты не являются продуктовой функцией MVP. | `01_VERSION_SEPARATION.md`, раздел 11 | Не писать артефакты рядом с кодом и не наследовать fallback-пути. | Logging/artifact policy — `TASK_003`. |
-| `OPS-003` | OUT OF MVP | Операции MVP должны быть работоспособны; конкретная QThread-оркестрация 1.0 не обязательна. | Раздел 11 | Не переносить threading без выбранной архитектуры и транзакций. | Concurrency/cancellation — `TASK_003`. |
-| `TEST-001` | OUT OF MVP | Критерии MVP обязательны, но перенос набора legacy-тестов как части продукта не требуется. | `ACCEPTANCE_CRITERIA.md`, `docs/DOCUMENTATION_REGULATION.md` | Legacy-тесты могут служить доказательством, но не нормативным поведением. | Стратегия автоматических тестов — `TASK_003` и отдельные задачи реализации. |
+| `OPS-002` | OUT OF MVP | Диагностика реализации необходима, но конкретные legacy-файлы, пути и отчёты не являются продуктовой функцией MVP. | [01_VERSION_SEPARATION.md](../product/01_VERSION_SEPARATION.md); [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md) | Не писать артефакты рядом с кодом и не наследовать fallback-пути. | Logging/artifact policy — [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md). |
+| `OPS-003` | OUT OF MVP | Операции MVP должны быть работоспособны; конкретная QThread-оркестрация 1.0 не обязательна. | Раздел 11 | Не переносить threading без выбранной архитектуры и транзакций. | Concurrency/cancellation — [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md). |
+| `TEST-001` | OUT OF MVP | Критерии MVP обязательны, но перенос набора legacy-тестов как части продукта не требуется. | [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md), [DOCUMENTATION_REGULATION.md](../DOCUMENTATION_REGULATION.md) | Legacy-тесты могут служить доказательством, но не нормативным поведением. | Стратегия автоматических тестов — [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md) и отдельные задачи реализации. |
 
 Итог по 24 позициям: `IN MVP` — 7; `OUT OF MVP` — 17. Открытых продуктовых решений среди них нет.

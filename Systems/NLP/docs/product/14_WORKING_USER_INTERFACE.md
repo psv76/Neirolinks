@@ -47,7 +47,7 @@ Spreadsheet-функции обязательны уже в 2.0:
 
 `Вид` и `Фильтр` — разные понятия: вид определяет набор/порядок представленных данных, фильтр временно ограничивает строки. Скрытая сортировка или фильтрация не должна менять Project facts.
 
-Идентичность обычной кабельной линии в пользовательском контексте — сочетание `CABLE_ID + LOAD_NAME`; технический primary key не заменяет эти поля. Для AV действует отдельная идентичность `BOARD + CABLE_ID` по `24_AV_CABLE_SYSTEM.md`.
+Идентичность обычной кабельной линии в пользовательском контексте — сочетание `CABLE_ID + LOAD_NAME`; технический primary key не заменяет эти поля. Для AV действует отдельная идентичность `BOARD + CABLE_ID` по [24_AV_CABLE_SYSTEM.md](24_AV_CABLE_SYSTEM.md).
 
 ### 4.1 Помещения в Lines и Project
 
@@ -55,13 +55,13 @@ Spreadsheet-функции обязательны уже в 2.0:
 
 В таблице Lines помещения показаны компактными цветными маркерами/chips, а не заливкой всей ячейки. Для нескольких помещений показываются разные маркеры; при нехватке ширины используется индикатор `+N`, а tooltip перечисляет все помещения. Текстовое значение ячейки сохраняет полные текущие имена для поиска, фильтра, сортировки и копирования. Маркеры остаются читаемыми на выбранной строке.
 
-В Project Rooms цвет показывается компактным образцом, а выбор выполняется из фиксированной палитры. Raw hex не является основным элементом интерфейса и доступен только в tooltip или инженерных подробностях. Автоматическое назначение, сохранение ручных цветов и отсутствие перебалансировки определены в `11_OBJECT_AND_ROOM_MODEL.md`.
+В Project Rooms цвет показывается компактным образцом, а выбор выполняется из фиксированной палитры. Raw hex не является основным элементом интерфейса и доступен только в tooltip или инженерных подробностях. Автоматическое назначение, сохранение ручных цветов и отсутствие перебалансировки определены в [11_OBJECT_AND_ROOM_MODEL.md](11_OBJECT_AND_ROOM_MODEL.md).
 
 ## 5. Пользовательский язык и имена ресурсов
 
 Основной UI использует инженерные названия и действия. `FunctionalRelation`, `CableLineAssignment`, `ProjectInstance`, `InstanceResource`, `resource_kind`, `direction`, `ordinal`, `parameters_json`, UUID и raw enum-коды доступны только в инженерных подробностях.
 
-User-facing имя ресурса определяется `10_EQUIPMENT_MODEL.md` §6.1: доказанный label, а для Wiren Board — принятое официальное MQTT/control naming. Internal ordinal остаётся machine identity и не является основной подписью. Неподтверждённый label не выдумывается правилом `ordinal + 1`.
+User-facing имя ресурса определяется [10_EQUIPMENT_MODEL.md](10_EQUIPMENT_MODEL.md) §6.1: доказанный label, а для Wiren Board — принятое официальное MQTT/control naming. Internal ordinal остаётся machine identity и не является основной подписью. Неподтверждённый label не выдумывается правилом `ordinal + 1`.
 
 ## 6. Карточка выбранной линии или устройства
 
@@ -81,7 +81,7 @@ Generic constructor и полная technical trace сохраняются то�
 
 Одиночное действие начинается из выбранной линии, устройства или незавершённого шага. UI формулирует задачу человеческим языком, показывает только совместимые цели, объясняет занятость/резерв/недоступность, показывает preview и после подтверждения обновляет все связанные представления.
 
-Согласованные массовые операции защиты, питания, выхода/канала и входа входят в обязательный scope 2.0. Их предметный контракт, last-used preference, preview, нумерация и атомарность определены только в `15_CONTROLLED_BULK_OPERATIONS.md`.
+Согласованные массовые операции защиты, питания, выхода/канала и входа входят в обязательный scope 2.0. Их предметный контракт, last-used preference, preview, нумерация и атомарность определены только в [15_CONTROLLED_BULK_OPERATIONS.md](15_CONTROLLED_BULK_OPERATIONS.md).
 
 ## 8. Пользовательские статусы
 
@@ -118,13 +118,13 @@ Machine statuses (`VERIFIED`, `INCOMPLETE`, `DATA_INCOMPLETE`, `ERROR` и дру
 
 Числовые критерии скорости интерфейса определяются после появления рабочего UI-прототипа на representative dataset: сначала фиксируются измеряемые сценарии и baseline, затем пользователь утверждает пороги. До этого запрещено выдумывать числовые SLA; отсутствие порогов не отменяет требование отсутствия зависаний и потери данных.
 
-Интерфейс принят только после representative workflow на реальном новом объекте без подсказок по навигации и терминологии. Технические PASS, наличие экранов и `VERIFIED` сами по себе этого не доказывают. До пользовательской приёмки текущее состояние не называется выпущенным MVP, а TASK_025 не запускается.
+Интерфейс принят только после representative workflow на реальном новом объекте без подсказок по навигации и терминологии. Технические PASS, наличие экранов и `VERIFIED` сами по себе этого не доказывают. До пользовательской приёмки текущее состояние не называется выпущенным MVP, и Release не создаётся.
 
 ## 11. Связанные документы
 
-- `10_EQUIPMENT_MODEL.md` — ресурсы, labels, копирование, нумерация и `РЕЗЕРВ`;
-- `15_CONTROLLED_BULK_OPERATIONS.md` — массовые действия и last-used preference;
-- `20_AUTOCAD_BLOCK_CONTRACT.md`, `21_LED_LINES_AND_PWM_EQUIPMENT.md`, `25_DWG_SYNCHRONIZATION.md` — DWG/key/LED contracts;
-- `22_CABLE_LENGTHS_AND_CONDUITS.md`, `23_DATA_BUS_TOPOLOGY.md`, `24_AV_CABLE_SYSTEM.md` — трассы, шины и AV;
-- `docs/engineering/WORKING_UI_WORKFLOWS_AND_TARGET.md` — рабочие сценарии;
-- `docs/engineering/ACCEPTANCE_CRITERIA.md` — критерии пользовательской приёмки; текущий статус — `docs/STATUS.md`.
+- [10_EQUIPMENT_MODEL.md](10_EQUIPMENT_MODEL.md) — ресурсы, labels, копирование, нумерация и `РЕЗЕРВ`;
+- [15_CONTROLLED_BULK_OPERATIONS.md](15_CONTROLLED_BULK_OPERATIONS.md) — массовые действия и last-used preference;
+- [20_AUTOCAD_BLOCK_CONTRACT.md](20_AUTOCAD_BLOCK_CONTRACT.md), [21_LED_LINES_AND_PWM_EQUIPMENT.md](21_LED_LINES_AND_PWM_EQUIPMENT.md), [25_DWG_SYNCHRONIZATION.md](25_DWG_SYNCHRONIZATION.md) — DWG/key/LED contracts;
+- [22_CABLE_LENGTHS_AND_CONDUITS.md](22_CABLE_LENGTHS_AND_CONDUITS.md), [23_DATA_BUS_TOPOLOGY.md](23_DATA_BUS_TOPOLOGY.md), [24_AV_CABLE_SYSTEM.md](24_AV_CABLE_SYSTEM.md) — трассы, шины и AV;
+- [WORKING_UI_WORKFLOWS_AND_TARGET.md](../engineering/WORKING_UI_WORKFLOWS_AND_TARGET.md) — рабочие сценарии;
+- [ACCEPTANCE_CRITERIA.md](../engineering/ACCEPTANCE_CRITERIA.md) — критерии пользовательской приёмки; текущий статус — [STATUS.md](../STATUS.md).

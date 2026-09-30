@@ -89,10 +89,10 @@
 - `Начальный номер страниц`;
 - `Запас кабеля у щита`.
 
-Значение `Запас кабеля у щита` применяется по правилам документа `22_CABLE_LENGTHS_AND_CONDUITS.md`.
+Значение `Запас кабеля у щита` применяется по правилам документа [22_CABLE_LENGTHS_AND_CONDUITS.md](22_CABLE_LENGTHS_AND_CONDUITS.md).
 
 ## 6. Связанные документы
 
-- `20_AUTOCAD_BLOCK_CONTRACT.md`
-- `22_CABLE_LENGTHS_AND_CONDUITS.md`
-- `12_OBJECT_INTERFACE_AND_WORK_TIME.md`
+- [20_AUTOCAD_BLOCK_CONTRACT.md](20_AUTOCAD_BLOCK_CONTRACT.md)
+- [22_CABLE_LENGTHS_AND_CONDUITS.md](22_CABLE_LENGTHS_AND_CONDUITS.md)
+- [12_OBJECT_INTERFACE_AND_WORK_TIME.md](12_OBJECT_INTERFACE_AND_WORK_TIME.md)

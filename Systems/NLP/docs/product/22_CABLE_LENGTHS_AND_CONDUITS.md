@@ -2,7 +2,7 @@
 
 ## Актуализация Repair 08
 
-Корень ordinary line задаётся `CABLE_SOURCE` и представляется derived `ROOT_ENDPOINT`; для источника на полевом реле применяется concrete syntax `XYY.ZZ/K1|K2`. `EL_BOX` — обычная topology point с `BOX_ID=XYY.ZZ`; её связи выводятся из `CABLE_SOURCE` дочерних точек, а retired `OUT_*` не является target ATTDEF. DALI/RS-485 route facts хранятся как отдельные physical `BusSegment`; их conduit assignment учитывается ровно один раз и не смешивается с ordinary `CableSegment`.
+Корень ordinary line задаётся `CABLE_SOURCE` и представляется derived `ROOT_ENDPOINT`; для источника на полевом реле применяется concrete reference `<BUS_POINT_ID>/<PORT>`, например `902.003/K1` или `902.003/K2`. `EL_BOX` — обычная topology point с `BOX_ID=BOX.NNN`, например `BOX.010`; её связи выводятся из `CABLE_SOURCE` дочерних точек, а retired `OUT_*` не является target ATTDEF. DALI/RS-485 route facts хранятся как отдельные physical `BusSegment`; их conduit assignment учитывается ровно один раз и не смешивается с ordinary `CableSegment`.
 
 ## 1. Назначение
 
@@ -33,13 +33,13 @@
 
 Для обычной ветвящейся линии:
 
-- `EL_BOX` имеет `BOX_ID=XYY.ZZ`, а исходящие связи определяются `CABLE_SOURCE` дочерних точек;
+- `EL_BOX` имеет `BOX_ID=BOX.NNN`, а исходящие связи определяются `CABLE_SOURCE` дочерних точек;
 - ссылка на точку той же базовой линии создаёт один `CableSegment`;
 - цикл, двойной родитель, отсутствующая цель и неоднозначный корень запрещены.
 
 Для общей линии выключателей `2YY` с несколькими физическими выключателями порядок `2YY.01 → 2YY.02 → ...` задаётся числовым порядком `.ZZ` от щита.
 
-Для шин используются отдельные правила `23_DATA_BUS_TOPOLOGY.md`.
+Для шин используются отдельные правила [23_DATA_BUS_TOPOLOGY.md](23_DATA_BUS_TOPOLOGY.md).
 
 Для простой линии без ветвления и с одной конечной точкой существует один сегмент между физическим источником линии и этой точкой.
 
@@ -47,7 +47,7 @@
 
 ## 4. Расчёт расстояния и высоты одного сегмента
 
-Координаты `X/Y` и `MOUNT_HEIGHT` используются в миллиметрах по `20_AUTOCAD_BLOCK_CONTRACT.md`.
+Координаты `X/Y` и `MOUNT_HEIGHT` используются в миллиметрах по [20_AUTOCAD_BLOCK_CONTRACT.md](20_AUTOCAD_BLOCK_CONTRACT.md).
 
 Горизонтальное расстояние рассчитывается параллельно осям:
 
@@ -219,9 +219,9 @@ Project присваивает номер только когда труба т�
 
 ## 14. Связанные документы
 
-- `11_OBJECT_AND_ROOM_MODEL.md`
-- `20_AUTOCAD_BLOCK_CONTRACT.md`
-- `23_DATA_BUS_TOPOLOGY.md`
-- `24_AV_CABLE_SYSTEM.md`
-- `50_SPECIFICATION_AND_COSTING.md`
-- `25_DWG_SYNCHRONIZATION.md`
+- [11_OBJECT_AND_ROOM_MODEL.md](11_OBJECT_AND_ROOM_MODEL.md)
+- [20_AUTOCAD_BLOCK_CONTRACT.md](20_AUTOCAD_BLOCK_CONTRACT.md)
+- [23_DATA_BUS_TOPOLOGY.md](23_DATA_BUS_TOPOLOGY.md)
+- [24_AV_CABLE_SYSTEM.md](24_AV_CABLE_SYSTEM.md)
+- [50_SPECIFICATION_AND_COSTING.md](50_SPECIFICATION_AND_COSTING.md)
+- [25_DWG_SYNCHRONIZATION.md](25_DWG_SYNCHRONIZATION.md)

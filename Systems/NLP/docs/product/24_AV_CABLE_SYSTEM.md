@@ -36,7 +36,7 @@ NL Project не должен моделировать мультимедийну
 - `LOAD_TYPE`;
 - `CABLE_TYPE`.
 
-Общие правила блоков и атрибутов, не заменённые этим документом, определяются документом `20_AUTOCAD_BLOCK_CONTRACT.md`.
+Общие правила блоков и атрибутов, не заменённые этим документом, определяются документом [20_AUTOCAD_BLOCK_CONTRACT.md](20_AUTOCAD_BLOCK_CONTRACT.md).
 
 ## 3. Щит `BOARD_AV`
 
@@ -101,7 +101,7 @@ NL Project должен разрешать временное сохранени
 
 Длина AV-линии должна рассчитываться от координаты назначенного `BOARD_AV` до координаты соответствующего блока `CABLE_OUTLET`.
 
-Для AV-линий должны применяться общие правила ортогонального расчёта по координатам `X` и `Y`, учёта высоты точки, способа прокладки, запаса у щита, дополнительной длины и полной ручной длины, установленные документом `22_CABLE_LENGTHS_AND_CONDUITS.md`.
+Для AV-линий должны применяться общие правила ортогонального расчёта по координатам `X` и `Y`, учёта высоты точки, способа прокладки, запаса у щита, дополнительной длины и полной ручной длины, установленные документом [22_CABLE_LENGTHS_AND_CONDUITS.md](22_CABLE_LENGTHS_AND_CONDUITS.md).
 
 Если указана полная ручная длина, она является итоговой длиной AV-линии и заменяет автоматический расчёт.
 
@@ -207,7 +207,7 @@ AV-линии должны также отображаться внутри со
 
 ## 14. Связанные документы
 
-- `10_EQUIPMENT_MODEL.md`
-- `20_AUTOCAD_BLOCK_CONTRACT.md`
-- `22_CABLE_LENGTHS_AND_CONDUITS.md`
-- `50_SPECIFICATION_AND_COSTING.md`
+- [10_EQUIPMENT_MODEL.md](10_EQUIPMENT_MODEL.md)
+- [20_AUTOCAD_BLOCK_CONTRACT.md](20_AUTOCAD_BLOCK_CONTRACT.md)
+- [22_CABLE_LENGTHS_AND_CONDUITS.md](22_CABLE_LENGTHS_AND_CONDUITS.md)
+- [50_SPECIFICATION_AND_COSTING.md](50_SPECIFICATION_AND_COSTING.md)

@@ -1,12 +1,13 @@
 # Техническая архитектура NL Project 2.0
 
 **Статус:** `APPROVED`  
-**Основание:** TASK_003, решения пользователя ADR-001…ADR-007, TASK_004  
+**Основание:** принятые архитектурные решения ADR-001…ADR-007
+
 **Дата фиксации:** 2026-08-04
 
 ## 1. Область действия
 
-Документ определяет обязательную техническую архитектуру MVP. Предметные правила находятся в `docs/product`, границы — в `MVP_SCOPE.md`, критерии — в `ACCEPTANCE_CRITERIA.md`. Этот документ не разрешает миграцию данных NL Project 1.0 и не делает `D:\NLP` источником для версии 2.0.
+Документ определяет обязательную техническую архитектуру MVP. Предметные правила находятся в [docs/product](../product), границы — в [MVP_SCOPE.md](MVP_SCOPE.md), критерии — в [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md). Этот документ не разрешает миграцию данных NL Project 1.0 и не делает `D:\NLP` источником для версии 2.0.
 
 Обязательные принципы:
 
@@ -23,12 +24,12 @@ NL Project 2.0 — локальное Windows desktop-приложение в ф
 
 | Область | Утверждённое решение |
 |---|---|
-| Runtime | CPython 3.13 x64; точная patch-версия фиксируется TASK_006 |
+| Runtime | CPython 3.13 x64; точная patch-версия фиксируется [runtime.lock.json](../../runtime.lock.json) |
 | UI | PySide6 / Qt 6, Model/View |
 | Persistence | одна локальная SQLite; SQLAlchemy 2.x; явный Unit of Work |
 | Migrations | Alembic, одна линейная production-ветвь |
 | AutoCAD | отдельный Python x64 STA bridge; COM через `pywin32`; versioned JSON-RPC по Windows named pipe |
-| Tests | pytest и pytest-qt; уровни определены в `TEST_STRATEGY.md` |
+| Tests | pytest и pytest-qt; уровни определены в [TEST_STRATEGY.md](TEST_STRATEGY.md) |
 | Packaging | PyInstaller `onedir` + Windows installer |
 | Dependencies | lock-файл с точными версиями и хешами; Windows CI/build runner |
 
@@ -136,9 +137,9 @@ Persisted facts: исходные и явно принятые значения,
 ## 7. Catalog/version policy
 
 - `CatalogRelease`, published passport versions и product versions immutable;
-- canonical `docs/product/catalogs/equipment_passports.json` и `products.json` являются нормативным versioned import payload для equipment catalog;
-- TASK_008 валидирует payload/schema/hash и транзакционно устанавливает release в SQLite; после установки runtime читает equipment catalog только из SQLite, research JSON/XLSX не является runtime source;
-- отдельный versioned cable/HDMI catalog использует собственные definitions/releases и не изменяет лимит equipment `17/30`;
+- canonical [docs/product/catalogs/equipment_passports.json](../product/catalogs/equipment_passports.json) и `products.json` являются нормативным versioned import payload для equipment catalog;
+- Catalog installer валидирует payload/schema/hash и транзакционно устанавливает release в SQLite; после установки runtime читает equipment catalog только из SQLite, research JSON/XLSX не является runtime source;
+- отдельный versioned cable/HDMI catalog использует собственные definitions/releases и не изменяет состав equipment release, объявленный manifest;
 - project/instance хранит точную ссылку на версии;
 - active release используется только для новых выборов;
 - автоматическое обновление старого проекта на latest запрещено;
@@ -146,7 +147,7 @@ Persisted facts: исходные и явно принятые значения,
 - compatible product replacement внутри той же passport version сохраняет `InstanceResource.id` и links;
 - structural passport change блокирует commit, пока occupied/removed resources не сопоставлены или связи не удалены явно.
 
-Production catalog содержит только утверждённые 17 паспортов и 30 товаров, включая WB-DALI3, WBE2-I-KNX и WB-MCM8. Research XLSX/JSON не являются runtime source.
+Production catalog содержит только утверждённые identities release из [resources/catalogs/catalog_manifest.json](../../resources/catalogs/catalog_manifest.json) и его payload. Нормативные JSON в [docs/product/catalogs](../product/catalogs) должны соответствовать этому payload. Research XLSX/JSON не являются runtime source.
 
 ## 8. AutoCAD boundary
 
@@ -154,7 +155,7 @@ Production catalog содержит только утверждённые 17 п�
 
 Bridge — отдельный Python x64 STA process. Он не знает путь SQLite, не использует repositories и не вызывает `Save`/`SaveAs`. Protocol имеет version, correlation ID, deadline, typed request/result/error. Неизвестная protocol version отклоняется.
 
-В начале TASK_011 до основной CAD-реализации обязателен read-only spike:
+При изменении CAD bridge обязателен read-only контур проверки:
 
 1. подключение к AutoCAD;
 2. timeout;
@@ -162,7 +163,7 @@ Bridge — отдельный Python x64 STA process. Он не знает пу�
 4. повторный запуск и reconnect;
 5. доказательство отсутствия записи в DWG и SQLite.
 
-При неуспехе TASK_011 немедленно завершается `BLOCKED`; перенос COM в основной процесс запрещён.
+Неуспех обязательной bridge-проверки блокирует соответствующее изменение PR; перенос COM в основной процесс запрещён.
 
 ### 8.2. Read/sync
 
@@ -187,13 +188,13 @@ Application создаёт closed allow-list write plan. Bridge повторно
 
 Generic constructor и полная technical trace находятся в `Инженерных подробностях`; presentation не удаляет их, но не использует как основной рабочий путь. Drag-and-drop допускается только дополнительно. Навигация должна переходить от cable line к resource и обратно без создания связи.
 
-Оболочка и spreadsheet-контракт определены `docs/product/14_WORKING_USER_INTERFACE.md`. Для таблиц application предоставляет typed read models и команды допустимых изменений; presentation не вычисляет engineering rules и не превращает view/filter state в Project facts.
+Оболочка и spreadsheet-контракт определены [14_WORKING_USER_INTERFACE.md](../product/14_WORKING_USER_INTERFACE.md). Для таблиц application предоставляет typed read models и команды допустимых изменений; presentation не вычисляет engineering rules и не превращает view/filter state в Project facts.
 
-Согласованная массовая операция строится как `selection snapshot → application plan → full validation/preview → один Unit of Work`. Commit применяет весь план либо откатывает его целиком. Last-used preference читается из локального application profile только после domain filtering и не является скрытым auto-selection. Предметные правила принадлежат `docs/product/15_CONTROLLED_BULK_OPERATIONS.md`.
+Согласованная массовая операция строится как `selection snapshot → application plan → full validation/preview → один Unit of Work`. Commit применяет весь план либо откатывает его целиком. Last-used preference читается из локального application profile только после domain filtering и не является скрытым auto-selection. Предметные правила принадлежат [15_CONTROLLED_BULK_OPERATIONS.md](../product/15_CONTROLLED_BULK_OPERATIONS.md).
 
 Граф read-only для структуры модели, selection-aware и зависит от `TopologyRendererPort`. Позиции/свёртка узлов могут храниться как UI layout metadata; узлы и рёбра всегда производны.
 
-В начале TASK_016 до production renderer выполняется одинаковый prototype на полном `TEST_OBJECT` для Qt-native graphics scene и WebView. Сравниваются время типовой связи, число действий, читаемость, keyboard path, startup time, package size и полный объект. Результат фиксируется в отчёте TASK_016. Qt-native является базовым вариантом; переход к WebView допускается только при доказанном преимуществе и отдельном явном подтверждении пользователя. До этого структура renderer остаётся за port.
+При предложении сменить renderer выполняется одинаковый prototype на полном `TEST_OBJECT` для Qt-native graphics scene и WebView. Сравниваются время типовой связи, число действий, читаемость, keyboard path, startup time, package size и полный объект. Результат фиксируется в связанном Issue/PR. Qt-native является базовым вариантом; переход к WebView допускается только при доказанном преимуществе и отдельном явном подтверждении пользователя. До этого структура renderer остаётся за port.
 
 ## 10. Config, logs, background и backup
 
@@ -202,7 +203,7 @@ Generic constructor и полная technical trace находятся в `Ин�
 - глобальный last-used preference хранится там же как versioned user/app setting, действует между проектами и никогда не записывается в Project как инженерное решение;
 - logs — structured JSONL с rotation, correlation ID, operation, duration, result и redaction;
 - пользователь видит operation log без stack trace; crash data находятся только в собственном каталоге 2.0;
-- temp/log/backup/generated не пишутся рядом с кодом, в `docs/product` или `D:\NLP`;
+- temp/log/backup/generated не пишутся рядом с кодом, в [docs/product](../product) или `D:\NLP`;
 - cancellation не оставляет partial project write; stale background result отбрасывается по revision.
 
 Backup policy:
@@ -231,30 +232,30 @@ Data migration должна быть детерминированной и им�
 
 ## 12. Packaging и распространение
 
-TASK_006 создаёт reproducible `onedir` build skeleton. Windows installer pipeline должен поддерживать цифровую подпись. Внутренний MVP допускается без подписи; внешнее распространение запрещено до подписи installer. Автоматическое сетевое обновление в MVP отсутствует; upgrade versioned и явный.
+Текущий [tools/build.ps1](../../tools/build.ps1) задаёт reproducible `onedir` build contour. Windows installer pipeline должен поддерживать цифровую подпись. Внутренний MVP допускается без подписи; внешнее распространение запрещено до подписи installer. Автоматическое сетевое обновление в MVP отсутствует; upgrade versioned и явный.
 
 ## 13. Трассировка IN MVP
 
-| № | Область | Module / authoritative data | Application / view | Основной task |
-|---:|---|---|---|---|
-| 1 | независимое приложение/SQLite | shell, persistence | bootstrap/shell | 006–007 |
-| 2–4 | object lifecycle, card, rooms, time | objects/project hierarchy/work sessions | registry/cards/timer | 009 |
-| 5–6 | DWG scan/sync | cad_sync scans/baselines; field_model | sync/conflict review | 010–011 |
-| 7–8 | lengths/conduits | cables facts/assignments | cable/conduit views | 012 |
-| 9–12 | catalog→instance/resources | catalog/constructor | catalog/instance/resource views | 008, 013 |
-| 13 | internal relations | constructor relations/reservations | link picker/trace | 013 |
-| 14 | cable assignment | field_model assignment | assignment panel | 013–015 |
-| 15–16 | domain sections/checks | all domain facts | specialized views/validation center | 013–021 |
-| 17–18 | distribution/PSU | distribution instances/relations/load facts | distribution/PSU views | 014 |
-| 19 | LED | automation line/segments/selections | LED workspace | 015 |
-| 20 | ICL | ordinary instances/relations/parameters | ICL trace | 014 |
-| 21–23 | RS-485, DALI/KNX, graph | buses/endpoints/branches; layout metadata only | topology editor/renderer | 016 |
-| 24 | DIN | panels/rails/placements | panel layout | 019 |
-| 25 | AV/BOARD_AV | boards/cable AV extensions | AV workspace | 012 |
-| 26 | specification/cost | supply/price/input facts | derived specification | 020 |
-| 27 | save/close/reopen | all authoritative tables | lifecycle coordinator | 007–023 |
+| № | Область | Module / authoritative data | Application / view  |
+|---:|---|---|--- |
+| 1 | независимое приложение/SQLite | shell, persistence | bootstrap/shell  |
+| 2–4 | object lifecycle, card, rooms, time | objects/project hierarchy/work sessions | registry/cards/timer  |
+| 5–6 | DWG scan/sync | cad_sync scans/baselines; field_model | sync/conflict review  |
+| 7–8 | lengths/conduits | cables facts/assignments | cable/conduit views  |
+| 9–12 | catalog→instance/resources | catalog/constructor | catalog/instance/resource views  |
+| 13 | internal relations | constructor relations/reservations | link picker/trace  |
+| 14 | cable assignment | field_model assignment | assignment panel  |
+| 15–16 | domain sections/checks | all domain facts | specialized views/validation center  |
+| 17–18 | distribution/PSU | distribution instances/relations/load facts | distribution/PSU views  |
+| 19 | LED | automation line/segments/selections | LED workspace  |
+| 20 | ICL | ordinary instances/relations/parameters | ICL trace  |
+| 21–23 | RS-485, DALI/KNX, graph | buses/endpoints/branches; layout metadata only | topology editor/renderer  |
+| 24 | DIN | panels/rails/placements | panel layout  |
+| 25 | AV/BOARD_AV | boards/cable AV extensions | AV workspace  |
+| 26 | specification/cost | supply/price/input facts | derived specification  |
+| 27 | save/close/reopen | all authoritative tables | lifecycle coordinator  |
 
-Детальные тесты и критерии находятся в `TEST_STRATEGY.md`; точные входы/выходы задач — в `IMPLEMENTATION_PLAN.md`.
+Проверки определяет [TEST_STRATEGY.md](TEST_STRATEGY.md), acceptance — [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md); точный объём изменения и доказательства фиксируются в связанном Issue/PR.
 
 ## 14. Запреты архитектуры
 
@@ -269,8 +270,8 @@ TASK_006 создаёт reproducible `onedir` build skeleton. Windows installer 
 - arbitrary executable catalog rules;
 - silent defaults для неизвестных инженерных значений;
 - автоподбор PSU/ICL и special-case для тестовых обозначений;
-- самостоятельный переход между файлами задач.
+- самостоятельное расширение согласованного объёма Issue.
 
 Числовые UI performance thresholds не задаются архитектурой до рабочего прототипа. После прототипа фиксируются сценарии измерения и baseline, а exact thresholds принимаются пользователем до final UI acceptance.
 
-Архитектура стала основанием реализации после `TASK_005_REPORT.md = PASSED`. Переход между task files выполняется только по прямому указанию пользователя либо по конкретной цепочке, явно разрешённой пользователем в текущем запуске; исторические одноразовые разрешения не являются постоянным правилом.
+Изменения выполняются по [Development_lifecycle_standard.md](../../../../EIM/Standards/Development_lifecycle_standard.md): Issue → branch → implementation/docs/tests → PR → review → merge. Рабочая ветка и незамерженный PR — кандидат; текущее принятое интегрированное состояние находится в main/Systems/NLP. Migration PR не создаёт Release и не подтверждает пользовательскую приёмку.

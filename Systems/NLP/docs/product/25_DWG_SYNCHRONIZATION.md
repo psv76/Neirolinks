@@ -12,4 +12,4 @@ Ordinary topology uses `CABLE_SOURCE=<empty>|BOX.NNN|XYY.ZZ|9YY.ZZZ/PORT`; root 
 
 Project-to-DWG may write only a Project-originated/resolved value that is both in the closed allow-list and present in the exact ATTDEF set of the observed Repair08 canonical block. It never emits retired tags/names or Project-derived type/post/link/root/bus facts. Binding, revision, Handle, name/layer and exact read-back are mandatory.
 
-Exact names/ATTDEF and topology semantics are owned by `docs/autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md` and `docs/autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md`. Machine contract version is `3.0.0` with 71 definitions.
+Exact names/ATTDEF and topology semantics are owned by [AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](../autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md) and [CURRENT_TOPOLOGY_ARCHITECTURE.md](../autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md). Machine contract version is `3.0.0` with 71 definitions.

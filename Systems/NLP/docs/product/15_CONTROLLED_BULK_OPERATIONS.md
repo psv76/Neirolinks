@@ -43,7 +43,7 @@ Controlled bulk automation входит в обязательный объём N
 - удовлетворяют действующим инженерным правилам;
 - применимы к текущему действию;
 - свободны с учётом exclusivity/capacity;
-- не имеют пользовательского состояния `РЕЗЕРВ` по `10_EQUIPMENT_MODEL.md`.
+- не имеют пользовательского состояния `РЕЗЕРВ` по [10_EQUIPMENT_MODEL.md](10_EQUIPMENT_MODEL.md).
 
 Занятый или зарезервированный ресурс не участвует в автоматическом распределении. Он может быть показан отдельно с понятной причиной недоступности.
 
@@ -55,7 +55,7 @@ Last-used preference может изменять только порядок у�
 
 Недостающие экземпляры создаются только при подтверждении всей массовой операции. До подтверждения Project model не изменяется.
 
-Создание экземпляра использует правила `EquipmentPassport → Product → ProjectInstance`, копирования, обозначений и materialization из `10_EQUIPMENT_MODEL.md`. Массовая операция не имеет права подменить выбранный паспорт или товар другим вариантом.
+Создание экземпляра использует правила `EquipmentPassport → Product → ProjectInstance`, копирования, обозначений и materialization из [10_EQUIPMENT_MODEL.md](10_EQUIPMENT_MODEL.md). Массовая операция не имеет права подменить выбранный паспорт или товар другим вариантом.
 
 ## 6. Нумерация новых экземпляров
 
@@ -153,10 +153,10 @@ Preference:
 
 ## 12. Связанные документы
 
-- `10_EQUIPMENT_MODEL.md` — экземпляры, ресурсы, копирование, нумерация и `РЕЗЕРВ`;
-- `14_WORKING_USER_INTERFACE.md` — selection, spreadsheet UI, preview и human diagnostics;
-- `21_LED_LINES_AND_PWM_EQUIPMENT.md` — число и совместимость LED/PWM-каналов;
-- `23_DATA_BUS_TOPOLOGY.md` — ресурсы шин;
-- `31_PANEL_POWER_DISTRIBUTION.md` — питание, защита и коммутация;
-- `docs/engineering/TECHNICAL_ARCHITECTURE.md` — orchestration и транзакционная граница;
-- `docs/engineering/DATA_MODEL.md` — логическое хранение facts и пользовательского `РЕЗЕРВ`.
+- [10_EQUIPMENT_MODEL.md](10_EQUIPMENT_MODEL.md) — экземпляры, ресурсы, копирование, нумерация и `РЕЗЕРВ`;
+- [14_WORKING_USER_INTERFACE.md](14_WORKING_USER_INTERFACE.md) — selection, spreadsheet UI, preview и human diagnostics;
+- [21_LED_LINES_AND_PWM_EQUIPMENT.md](21_LED_LINES_AND_PWM_EQUIPMENT.md) — число и совместимость LED/PWM-каналов;
+- [23_DATA_BUS_TOPOLOGY.md](23_DATA_BUS_TOPOLOGY.md) — ресурсы шин;
+- [31_PANEL_POWER_DISTRIBUTION.md](31_PANEL_POWER_DISTRIBUTION.md) — питание, защита и коммутация;
+- [TECHNICAL_ARCHITECTURE.md](../engineering/TECHNICAL_ARCHITECTURE.md) — orchestration и транзакционная граница;
+- [DATA_MODEL.md](../engineering/DATA_MODEL.md) — логическое хранение facts и пользовательского `РЕЗЕРВ`.

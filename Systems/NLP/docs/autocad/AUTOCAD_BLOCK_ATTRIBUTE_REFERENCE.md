@@ -1,7 +1,7 @@
 # NL Project 2.0 — справочник атрибутов блоков AutoCAD
 **Дата:** 2026-08-30  
 **Редакция:** после полного аудита и принятых сокращений  
-**Статус:** принятый exact reference для Repair 08, machine contract `3.0.0` / 71 definitions; статус пользовательской приёмки указан в `docs/STATUS.md`.
+**Статус:** принятый exact reference для Repair 08, machine contract `3.0.0` / 71 definitions; статус пользовательской приёмки указан в [STATUS.md](../STATUS.md).
 ## 1. Назначение
 Документ является рабочим справочником для редактирования canonical block definitions AutoCAD.
 Правило использования:
@@ -2320,4 +2320,4 @@ DALI_GROUP_ID
 
 ## 7. Связанный документ
 
-Архитектурный смысл этих полей и parser reconciliation определены в `CURRENT_TOPOLOGY_ARCHITECTURE.md`.
+Архитектурный смысл этих полей и parser reconciliation определены в [CURRENT_TOPOLOGY_ARCHITECTURE.md](CURRENT_TOPOLOGY_ARCHITECTURE.md).

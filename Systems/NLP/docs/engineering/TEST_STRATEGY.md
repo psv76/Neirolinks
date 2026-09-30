@@ -5,13 +5,12 @@
 Обязательный contour включает exact parity всех 71 canonical definitions и ATTDEF sets; rejected names/removed tags; `DEVICE_NAME`; ordinary roots и concrete `CABLE_SOURCE`; three-way dual-projection cases с real conflict; MRM2/M1W2; DALI `.000` branch и RS-485 `.ZZZ` order; physical `BusSegment`/conduit once; track links без fake length; exact `LOAD_TYPE` allow-lists; migration clean/current/reopen/integrity; predecessor regression и один финальный default-marker full regression. Required skips для Repair 08 — `0`.
 
 **Статус:** `APPROVED`  
-**Основание:** TASK_004  
 **Дата фиксации:** 2026-08-04  
 **Evidence policy update:** 2026-08-13
 
 ## 1. Цель
 
-Стратегия определяет обязательные доказательства для задач 006–025. Нормативное ожидаемое поведение задают `docs/product`, `MVP_SCOPE.md`, `TEST_OBJECT.md` и 60 пунктов `ACCEPTANCE_CRITERIA.md`. Legacy-тесты не переносятся как product contract.
+Стратегия определяет обязательные доказательства для изменений по текущему жизненному циклу репозитория. Нормативное ожидаемое поведение задают [docs/product](../product), [MVP_SCOPE.md](MVP_SCOPE.md), [TEST_OBJECT.md](TEST_OBJECT.md) и все 60 технических + 39 UI критериев [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md). Legacy-тесты не переносятся как product contract.
 
 ## 2. Инварианты тестового контура
 
@@ -25,9 +24,9 @@
 - любой test, проверяющий write failure, подтверждает rollback и отсутствие orphan rows;
 - derived outputs проверяются по inputs + calculator version и могут быть пересчитаны после удаления cache.
 
-## 2.1. Политика evidence после начала реальной TASK_023
+## 2.1. Политика evidence
 
-Исторические `AC-001…AC-053` остаются обязательными и не ослабляются. Successor-критерии `AC-054…AC-060` обязательны для исправленной физической topology/LED/DWG-модели и не считаются закрытыми историческим `53/53 PASS`. Колонка `Действие пользователя` в `ACCEPTANCE_CRITERIA.md` описывает сценарий и public behavior, но не означает, что каждый критерий обязан быть физически выполнен пользователем вручную.
+Все `AC-001…AC-060` и `UI-AC-001…UI-AC-039` обязательны. Предыдущий PASS не закрывает изменённые или ещё не проверенные требования. Колонка `Действие пользователя` в [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md) описывает сценарий и public behavior, но не означает, что каждый критерий обязан быть физически выполнен пользователем вручную.
 
 Для каждого AC определяется один тип evidence:
 
@@ -35,9 +34,9 @@
 - `MANUAL_REQUIRED` — требуется реальный внешний application/user interaction, которое нельзя достоверно заменить fixture/mock;
 - `MIXED` — automated proof закрывает deterministic часть, manual smoke подтверждает внешний/UX слой.
 
-Действующий evidence plan хранит карту исторических `AC-001…AC-053` и отдельные pending successor rows `AC-054…AC-060` и concrete evidence. Ни один критерий не получает PASS только потому, что «похожий тест существует»: automated test должен воспроизводить тот же meaning/result. Mock-success не заменяет live CAD, когда критерий проверяет реальный AutoCAD behavior.
+Для каждого критерия в связанном Issue/PR фиксируются evidence type и concrete evidence. Ни один критерий не получает PASS только потому, что «похожий тест существует»: automated test должен воспроизводить тот же meaning/result. Mock-success не заменяет live CAD, когда критерий проверяет реальный AutoCAD behavior.
 
-Manual acceptance — representative smoke рабочего процесса, а не интерактивный debugger и не отдельный ручной клик для каждого технического AC. Минимальный human contour задан `MVP_RECOVERY_PLAN.md`.
+Manual acceptance — representative smoke рабочего процесса, а не интерактивный debugger и не отдельный ручной клик для каждого технического AC. Минимальный human contour задан [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md) (раздел 4).
 
 ## 3. Уровни
 
@@ -81,7 +80,7 @@ Real temporary SQLite + SQLAlchemy/Alembic:
 
 ### 3.4. Catalog contract
 
-- exact 17 passport/30 product identities, including WB-DALI3, WBE2-I-KNX and WB-MCM8;
+- exact identities/counts/release hash from [resources/catalogs/catalog_manifest.json](../../resources/catalogs/catalog_manifest.json), full payload parity with [docs/product/catalogs](../product/catalogs) and `AC-009` baseline;
 - schema/content hashes and immutable release rules;
 - full materialization for each passport;
 - every product references exact compatible passport version;
@@ -100,7 +99,7 @@ Three contours:
 
 Test DWG geometry may be deliberately simple/arbitrary. It validates the CAD protocol and 2.0 machine-readable block contract and is not a canonical UGO library or source of product rules.
 
-Mandatory TASK_011 spike precedes main bridge implementation: connect, timeout, kill, restart/reconnect, zero DWG/SQLite writes. A failed spike blocks the task.
+Changes to the CAD bridge require a read-only robustness contour: connect, timeout, kill, restart/reconnect, zero DWG/SQLite writes. A failed required check blocks the corresponding PR change.
 
 CAD test matrix covers malformed block/layer/attributes, document identity, idempotent scan, three-way diff, explicit DWG→Project apply, closed Project→DWG allow-list, line-wide `CABLE_TYPE`/`BOARD`/base `CABLE_ID`/`LED_TYPE`, segment-owned `MOUNT_WAY`/`GOFRA_*`, rejection of `MIX`, `EL_BOX`/`CABLE_SOURCE` graph validation, shared multi-mechanism `SOCKET` point, grouped `2YY` physical-key order/wire capacity, WB-MRM2/WB-M1W2 field ports, conduit creation/grouping, key-level identity, frame/mechanism/IP44 checks, target preconditions, owner-aware write-back/read-back, partial external failure and no autosave.
 
@@ -129,7 +128,7 @@ pytest-qt and controlled UI fixtures cover:
 
 ### 3.7. Renderer comparison
 
-TASK_016 uses identical `TopologyReadModel` and full TEST_OBJECT for Qt-native and WebView prototypes. Record:
+A proposed renderer change compares identical `TopologyReadModel` and full TEST_OBJECT for Qt-native and WebView prototypes. Record:
 
 - median time and actions for typical link/navigation task;
 - readability at overview/detail scales;
@@ -143,7 +142,7 @@ Qt-native is base. WebView requires documented advantage and explicit user appro
 
 ### 3.8. End-to-end and acceptance
 
-TASK_023 доказал технический contour нового реального объекта по совокупности automated + manual evidence, но не заменяет отдельную UI acceptance после реализации решений `UI-DR-A…G`. Codex не должен pre-seed finished chains в реальный пользовательский Project и не должен редактировать production DB напрямую. Перед пользовательской приёмкой проходят full automatic suite, `AC-001`…`AC-060` и все обязательные `UI-AC-*`; затем пользователь без сопровождения выполняет representative workflow.
+Технический automated contour не заменяет отдельную UI acceptance. Codex не должен pre-seed finished chains в реальный пользовательский Project и не должен редактировать production DB напрямую. Перед пользовательской приёмкой проходят full automatic suite, `AC-001`…`AC-060` и все обязательные `UI-AC-*`; затем пользователь без сопровождения выполняет representative workflow.
 
 Real-user smoke обязан подтвердить representative workflows, где fixture недостаточна: live DWG reconciliation/no-autosave/conflict, одна AC/control chain, одна DC/LED chain, одна physical bus topology, semantic reopen и чтение итоговой trace/specification. Остальные deterministic критерии могут быть закрыты автоматикой при полном соответствии их ожидаемому результату.
 
@@ -153,14 +152,14 @@ Real-user smoke обязан подтвердить representative workflows, г
 |---|---|---|
 | app/independence | integration, packaging, smoke | clean launch; no `D:\NLP` access |
 | object/rooms/time | unit, app, DB, UI | create/edit/switch/reopen/time |
-| catalog/instances/resources | contract, app, DB | 17/30, full resources, replacement |
+| catalog/instances/resources | contract, app, DB | manifest/payload parity, full resources, replacement |
 | DWG/field sync | validator, fake bridge, live CAD, DB, UI | CAD-004..006, no autosave |
 | cables/lengths/PND/AV | unit, DB, UI | length precedence, bulk rollback, AV identity |
 | constructor/checks | unit, app, DB | universal chains, blocking violations, trace |
 | distribution/PSU/ICL | unit, app, UI | AC/DC paths, capacity, five statuses |
 | automation/LED | unit, app, DB, UI | channels, cut/FFD/coils, power/current |
 | buses/graph | unit, DB, renderer, UI | topology rules and graph equivalence |
-| site/heating/leak | post-MVP deferred | TASK_017/018 не входят в текущий release gate; future activation требует отдельного catalog/acceptance decision |
+| site/heating/leak | post-MVP deferred | future activation требует отдельного catalog/acceptance decision |
 | DIN | unit, DB, UI | overlap/width/external/unknown |
 | specification/cost | unit, query, UI | source trace, grouping, supply, unknown cost, physical mechanisms, mounting-box demand, configurable WB-MSW |
 | operations | fault, performance, backup/restore | cancel/recovery/retention/self-check |
@@ -182,7 +181,7 @@ Separate tests prove that incomplete but otherwise valid draft with errors/warni
 
 ## 6. Universal chain matrix
 
-Before using TEST_OBJECT codes, TASK_013 tests synthetic instances for:
+Before using TEST_OBJECT codes, tests verify universal rules on synthetic instances for:
 
 - AC power through passive/switching resources;
 - DC power through PSU;
@@ -226,11 +225,11 @@ Test database only:
 
 Measurements use recorded dataset size and hardware/runtime metadata. Required measurements: cold/warm startup, object open, full validation, graph rebuild, fixture scan/diff, main view switch, spreadsheet edit/bulk preview/commit, backup/restore, package cold start. Числовые UI thresholds устанавливаются только после рабочего прототипа: сначала измеряется baseline на representative dataset, затем пользователь принимает exact criteria до final UI acceptance. Оптимизации требуют profiler/query evidence.
 
-Run full suite repeatedly in TASK_022 to detect flaky failures. Any nondeterministic failure is a failure, not a retry-success.
+Investigate nondeterministic failures and repeat the full suite when needed to verify their cause. Any nondeterministic failure is a failure, not a retry-success.
 
 ## 10. Canonical commands
 
-TASK_006 must expose repository wrappers that resolve the locked interpreter. Underlying canonical commands:
+Repository wrappers in `tools` resolve the interpreter declared by [runtime.lock.json](../../runtime.lock.json). Underlying canonical commands:
 
 ```powershell
 python -m compileall src tests tools
@@ -239,11 +238,11 @@ python -m pytest -m "not live_cad and not manual_acceptance"
 python -m pytest -m live_cad
 ```
 
-Wrapper names and exact locked interpreter path are recorded in TASK_006 report. Production tasks run compile/static architecture checks, applicable focused tests, then the full non-manual suite. Live CAD and manual acceptance run only when explicitly required and permitted.
+Wrapper names, environment setup and locked runtime are documented in [DEVELOPMENT.md](../DEVELOPMENT.md), [runtime.lock.json](../../runtime.lock.json) and [tools/_common.ps1](../../tools/_common.ps1). Production tasks run compile/static architecture checks, applicable focused tests, then the full non-manual suite. Live CAD and manual acceptance run only when explicitly required and permitted.
 
 ## 11. Reporting
 
-Every task report records:
+Verification evidence in the related PR records:
 
 - exact commands and environment/runtime versions;
 - passed/failed/skipped counts per contour;
@@ -254,14 +253,13 @@ Every task report records:
 - evidence IDs/paths;
 - `D:\NLP`/SQLite invariant.
 
-No test may report fabricated success. A failed required test makes task `FAILED` or `BLOCKED` according to cause and stops the queue.
+No test may report fabricated success. A failed required test prevents readiness of the corresponding PR until its cause is resolved.
 
 ## 12. Release gates
 
-- TASK_005: read-only completeness audit of this strategy.
-- Active MVP tasks 006–016 and 019–022: task-specific + full regression suite. TASK_017/018 are post-MVP deferred and are not current release gates.
-- TASK_023: all 53 acceptance criteria PASS по допустимому `AUTOMATED/MANUAL_REQUIRED/MIXED` evidence, automated whole-MVP contour PASS и compact representative manual smoke PASS.
-- TASK_024: independent clean-environment re-run without fixes.
-- TASK_025: smoke from immutable release directory, manifest/hash and installer checks.
+Жизненный цикл определяется [Development_lifecycle_standard.md](../../../../EIM/Standards/Development_lifecycle_standard.md): Issue → branch → implementation/docs/tests → PR → review → merge. Незамерженный PR является кандидатом. Migration PR не создаёт Release.
 
-This strategy becomes executable only after the repeated TASK_005 final `PASSED`. User pre-authorized the single transition TASK_005→TASK_006 on 2026-08-08; after TASK_006 normal separate-launch rules resume.
+- Для изменения обязательны applicable focused tests и полный non-live/non-manual regression; обязательные failures/skips исключают `PASSED`.
+- Для пользовательского MVP обязательны все 60 технических и 39 UI acceptance criteria, допустимое evidence и representative manual acceptance раздела 4 [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md).
+- Перед Release обязательна независимая проверка в clean environment без исправлений, smoke из immutable release directory, manifest/hash и installer checks.
+- Approved Release публикуется отдельно по lifecycle standard; технический PASS и merge сами по себе не объявляют выполненную user acceptance и не разрешают выпуск.
