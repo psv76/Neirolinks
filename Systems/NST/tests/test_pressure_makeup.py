@@ -42,7 +42,7 @@ class PressureFixture(fixtures.Fixture):
         self.config['components']['hhm'] = dict(plugin='hhm',
             baseline=self.pin(CONFIG_DIR + '/hhm-base.json', self.hhm),
             target=self.pin(CONFIG_DIR + '/hhm-target.json', self.hhm), payload_dir='/opt/payload', unmanaged_rules={})
-        self.base = json.loads((ROOT / 'examples/pressure-makeup-boiler-1.0.json').read_bytes())
+        self.base = json.loads((ROOT / 'releases/pressure_makeup/1.0/pressure-makeup-boiler-1.0.json').read_bytes())
         self.old_bytes = (ROOT / 'releases/pressure_makeup/1.0/507_Pressure_makeup.js').read_bytes()
         self.new = copy.deepcopy(self.base)
         self.new.update(version='1.1')
