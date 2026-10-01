@@ -123,6 +123,12 @@ if mode == 'prepare_nli':
     subprocess.run(['/usr/bin/python3', '-B', DATA_DIR + '/register_pressure_makeup.py'], check=True)
     config = load_config()
     config['release_source'] = 'pinned'
+    # Historical NLI migration smoke must be deterministic and offline: use the
+    # reviewed pinned manifests/payload already prepared in this disposable rootfs,
+    # never the live GitHub Releases API (which is rate-limited and unrelated to
+    # the migration contract being tested here).
+    write_json(Path(DEFAULT_CONFIG), config)
+    assert load_config().get('release_source') == 'pinned'
     assert config['components']['pressure_makeup'] == makeup
     r = config['components']['hhm']
     assert f['target'] not in r['unmanaged_rules']
