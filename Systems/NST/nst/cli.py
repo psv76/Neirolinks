@@ -185,9 +185,13 @@ def render_status(result, color):
             print()
             print("  Следующее действие:")
             command = 'nst firmware recover' if component == 'firmware' else 'nst rollback ' + component
+            if component == 'deployment':
+                command = 'nst recover-deployment'
             print("    " + paint(command, "yellow", color))
     elif result.get('self_update_pending'):
         print('  Требуется завершить обновление пакета: nst self-update')
+    elif result.get('bootstrap_required'):
+        print('  NST ещё не настроен: nst check, затем явный nst sync')
     elif result.get('final_status') != 'ok':
         print('  Установка не подтверждена: unknown/drift')
     else:

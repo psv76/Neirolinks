@@ -8,7 +8,7 @@
 
 ## Check
 
-`nli firmware check` определяет supported version/CLI без ручных pins, читает наличие `/usr/bin/wb-mcu-fw-updater`, package version через dpkg-query, hash script и наличие известных command names; проверяет `/proc` на текущий updater/flasher. Не запускает и не импортирует updater, даже для help. В исследованном CLI нет inventory/dry-run. Library `probe_all_devices` обращается к Modbus; поиск UART settings и firmware helpers не имеют достаточного чистого read-only контракта для NLI. Поэтому результат **unavailable**, exit 3, compatibility=supported при прошедшей policy: список доступных обновлений неизвестен. Это не «все устройства актуальны» и не ошибка отопления. Новый доказуемо read-only API требует отдельного audited adapter.
+`nst firmware check` определяет supported version/CLI без ручных pins, читает наличие `/usr/bin/wb-mcu-fw-updater`, package version через dpkg-query, hash script и наличие известных command names; проверяет `/proc` на текущий updater/flasher. Не запускает и не импортирует updater, даже для help. В исследованном CLI нет inventory/dry-run. Library `probe_all_devices` обращается к Modbus; поиск UART settings и firmware helpers не имеют достаточного чистого read-only контракта для NLI. Поэтому результат **unavailable**, exit 3, compatibility=supported при прошедшей policy: список доступных обновлений неизвестен. Это не «все устройства актуальны» и не ошибка отопления. Новый доказуемо read-only API требует отдельного audited adapter.
 
 ## Update / recover
 
@@ -27,7 +27,7 @@ source-equivalent identity. Проверяются dpkg package ownership и run
 Object pins approved_executable_sha256 / approved_package_version больше не нужны
 и не используются; старые поля config можно оставить до отдельного review config.
 Неизвестная новая/старая version блокируется: поддержку добавляют выпуском NLI,
-оператор получает `nli self-update`, а не требование вручную вписать hash.
+оператор получает `nst self-update`, а не требование вручную вписать hash.
 
 Проверка совместимости не доказывает функциональную пригодность firmware для
 конкретного объекта. Поддерживается только reviewed CLI `update-all` / `recover-all`

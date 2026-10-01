@@ -1,8 +1,5 @@
 """Explicit, restartable NLI 0.1.9 migration; originals remain recovery evidence."""
-import copy
 import os
-from pathlib import Path
-import shutil
 import stat
 
 from .layout import CONFIG_DIR, STATE_DIR, LOG_DIR, target
@@ -102,6 +99,13 @@ def migrate(root='/', legacy_version=None):
             for index, (old, new) in enumerate(zip(LEGACY, CANONICAL)):
                 dst = target(root, new)
                 if index in journal['installed']:
+                    actual = inventory(dst)
+                    expected = sources[index]
+                    if index == 0 and journal['phase'] == 'configuring':
+                        actual.pop('legacy-nli-0.1.9-config.json', None)
+                        actual.pop('config.json', None)
+                        expected = {k: v for k, v in expected.items() if k != 'config.json'}
+                    require(actual == expected, 'Migrated data changed before completion')
                     continue
                 # A crash after rename but before journal update is recognized by hashes.
                 if dst.exists():
@@ -120,9 +124,16 @@ def migrate(root='/', legacy_version=None):
                 journal['installed'].append(index)
                 write_json(marker, journal)
             # Config only: keep byte-exact original, rewrite operational path references.
+            journal['phase'] = 'configuring'
+            write_json(marker, journal)
             original = config_path.read_bytes()
             atomic(target(root, CONFIG_DIR + '/legacy-nli-0.1.9-config.json'), original)
-            write_json(target(root, CONFIG_DIR + '/config.json'), rewrite_config(config))
+            operational = rewrite_config(config)
+            for registration in operational['components'].values():
+                if registration.get('plugin') == 'files' and any(
+                        p.startswith('/etc/neiro/components/') for p in registration.get('allowed_targets', [])):
+                    registration['legacy_nli_0_1_9'] = True
+            write_json(target(root, CONFIG_DIR + '/config.json'), operational)
             journal['phase'] = 'complete'
             journal['original_config_sha256'] = digest(original)
             write_json(marker, journal)

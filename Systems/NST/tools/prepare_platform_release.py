@@ -9,11 +9,12 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from nst.controller import ControllerRegistry
+from nst.controller import ControllerRegistry, validate_profile
 from nst.deployment import verify_offline
 from nst.releases import software_version
 from nst.util import decode, require
 from tools.build_deployment import git_blob, resolve, encode, APPROVALS_PATH
+from tools.verify_approved_components import verify_data
 
 
 def build(repo, commit, release_version, output):
@@ -23,12 +24,15 @@ def build(repo, commit, release_version, output):
     registry_raw = git_blob(repo, commit, 'Systems/NST/generated/controller-registry.json')
     registry = ControllerRegistry(decode(registry_raw))
     approvals = git_blob(repo, commit, APPROVALS_PATH)
+    verify_data(decode(approvals))
     assets = {'nst-controller-registry.json': registry_raw}
     for serial, entry in registry.data['controllers'].items():
         if entry['state'] != 'active':
             continue
         raw = git_blob(repo, commit, entry['profile'])
-        profile = decode(raw)
+        profile = validate_profile(decode(raw), serial)
+        for key in ('name', 'node', 'role', 'state', 'capabilities', 'diagnostics_profile', 'fingerprint_sha256'):
+            require(entry.get(key) == profile.get(key), 'Registry/profile mismatch: ' + key)
         required = set(profile['capabilities']) & {'hhm', 'pressure_makeup'}
         require(required <= set(profile.get('components', {})),
                 'Missing approved desired components for ' + serial + ': ' + ', '.join(sorted(required-set(profile.get('components', {})))))

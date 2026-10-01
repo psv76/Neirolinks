@@ -7,6 +7,7 @@ DEFAULT_CONFIG = CONFIG_DIR + "/config.json"
 STATE_DIR = "/mnt/data/var/lib/neirolinks/nst"
 LOG_DIR = "/mnt/data/var/log/neirolinks/nst"
 DATA_DIR = "/usr/share/nst"
+BOOTSTRAP_STATE = STATE_DIR + '/bootstrap.json'
 WB_ROOTS = {
     "/etc/wb-rules": "/mnt/data/etc/wb-rules",
     "/etc/wb-rules-modules": "/mnt/data/etc/wb-rules-modules",
@@ -56,6 +57,18 @@ def load_config(path=None, root="/"):
         return read_json(config)
     require(path == DEFAULT_CONFIG, "Explicit config does not exist: " + path)
     require(not legacy_data_present(root), "LEGACY_MIGRATION_REQUIRED: reviewed persistent config migration is required")
+    bootstrap = target(root, BOOTSTRAP_STATE)
+    if bootstrap.exists():
+        initial = read_json(bootstrap)
+        require(initial == dict(object='unconfigured', role='unconfigured', hostname='unconfigured', components={}),
+                'Invalid bootstrap marker')
+        pending = target(root, STATE_DIR + '/pending.json')
+        if pending.exists():
+            require(read_json(pending).get('component') == 'deployment', 'Unexpected pending without config')
+        else:
+            require(not any(p.name not in ('bootstrap.json',) for p in target(root, STATE_DIR).glob('*.json')),
+                    'Installed NST state exists but config is missing')
+        return initial
     for folder in (CONFIG_DIR, STATE_DIR, LOG_DIR):
         p = target(root, folder)
         require(not p.exists() or not any(p.iterdir()), "Persistent data exists but config is missing: " + folder)

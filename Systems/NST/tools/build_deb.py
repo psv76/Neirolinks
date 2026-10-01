@@ -7,6 +7,7 @@ import io
 import os
 from pathlib import Path, PurePosixPath
 import tarfile
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -32,6 +33,13 @@ def archive(entries, epoch):
 
 
 def build(output, epoch=0):
+    control_text = (ROOT / 'debian/control').read_text(encoding='utf-8')
+    version = re.search(r'^Version: (.+)$', control_text, re.M).group(1)
+    if not re.fullmatch(r'(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)', version):
+        raise ValueError('NST version must be X.Y')
+    runtime_version = re.search(r'__version__ = "([^"]+)"', (ROOT / 'nst/__init__.py').read_text()).group(1)
+    if version != runtime_version or not re.search(r'^Package: nst$', control_text, re.M):
+        raise ValueError('NST package/runtime identity mismatch')
     control = [("control", (ROOT / "debian/control").read_bytes().replace(b"\r\n", b"\n"), 0o644)]
     data = [
             ("usr/bin/nst", (ROOT / "bin/nst").read_bytes().replace(b"\r\n", b"\n"), 0o755),

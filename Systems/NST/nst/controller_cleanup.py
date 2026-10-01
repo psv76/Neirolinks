@@ -43,7 +43,7 @@ class ControllerCleanup:
         return sorted(result, key=lambda p: (p.stat().st_mtime_ns, p.name), reverse=True)
 
     def _known_state_names(self):
-        names = {"backups", "diagnostics", "platform.json", "pending.json", "self-update.json", "mutation.lock"}
+        names = {"backups", "deployment-backups", "bootstrap.json", "diagnostics", "platform.json", "pending.json", "self-update.json", "mutation.lock"}
         names.update(name + ".json" for name in self.engine.config.get("components", {}))
         return names
 

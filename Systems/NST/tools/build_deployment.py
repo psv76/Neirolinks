@@ -139,6 +139,8 @@ def resolve(serial, source_commit, profile_path, profile_raw, approvals_raw, rea
         action: sorted({service for component in resolved for service in component["services"][action]})
         for action in ("stop", "start")
     }
+    if object_files:
+        services = {action: sorted(set(values) | {'wb-rules'}) for action, values in services.items()}
     deployment = {
         "schema": 1,
         "controller_serial": serial,

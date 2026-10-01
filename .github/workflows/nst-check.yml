@@ -2,9 +2,9 @@ name: NST install and compatibility
 on:
   push:
     branches: ['main', 'system/nst/**']
-    paths: ['Systems/NST/**', 'objects/**/controllers/**', 'Objects/**/controllers/**', '.github/workflows/nli-check.yml']
+    paths: ['Systems/NST/**', 'objects/**/controllers/**', 'Objects/**/controllers/**', '.github/workflows/nst-check.yml']
   pull_request:
-    paths: ['Systems/NST/**', 'objects/**/controllers/**', '.github/workflows/nli-check.yml']
+    paths: ['Systems/NST/**', 'objects/**/controllers/**', '.github/workflows/nst-check.yml']
 permissions:
   contents: read
 jobs:

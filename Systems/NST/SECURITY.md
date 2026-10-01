@@ -5,7 +5,8 @@ NST package и maintainer approved Releases в psv76/Neirolinks. Компром�
 GitHub maintainer или пакета вне этого threat model. Initial adoption не auto-trust:
 неизвестные writers/bytes требуют отдельного review, автоматического allowlisting нет.
 
-Discovery принимает stable published nli-approved-* с SHA256 metadata asset,
+Discovery принимает stable published nst-approved-platform/package/components-*;
+исторические nli-approved-* читаются только для legacy component approvals. Проверяются SHA256 metadata asset,
 approved component/object/role/version, immutable 40-char manifest/payload commits
 и SHA каждого файла. Нет payload mutable main, redirect в произвольный host,
 непроверенного network cache. Transport имеет size/time/page/catalog bounds и

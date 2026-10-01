@@ -1,3 +1,5 @@
+> Историческая инструкция NLI 0.1.8, сохранённая для аудита. Для NST 2.0 использовать [README](README.md), [миграцию](NST_MIGRATION.md) и approved platform deployment; команды установки ниже не являются процедурой NST.
+
 > NLI 0.1.8: этот документ описывает первичную adoption. Обычные updates используют approved discovery (README.md); verify проверяет установку, без application controls/startup markers/readiness. Актуальная recovery-процедура — RECOVERY.md.
 
 # pressure_makeup 1.0 — отдельный компонент NLI 0.1.8

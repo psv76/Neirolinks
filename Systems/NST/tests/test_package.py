@@ -24,6 +24,25 @@ def load_tool(name):
 
 
 class PackageTests(unittest.TestCase):
+    def test_canonical_runtime_names_and_version(self):
+        from nst import __version__
+        from nst.releases import software_version
+        from nst.util import Error
+        self.assertEqual(software_version(__version__), (2, 0, 0))
+        self.assertGreater(software_version('2.10'), software_version('2.9'))
+        for invalid in ('2.0.1', '2', '02.0', '2.01', '2.0-rc1', '2.0+build'):
+            with self.assertRaises(Error):
+                software_version(invalid)
+        self.assertFalse((ROOT / 'nli').exists())
+        for path in (ROOT / 'nst').glob('*.py'):
+            text = path.read_text(encoding='utf-8')
+            self.assertNotIn('neiro-nst', text, str(path))
+            self.assertNotIn('from nli', text, str(path))
+            if path.name != 'migration.py':
+                self.assertNotIn('/mnt/data/etc/neiro/nli', text, str(path))
+                self.assertNotIn('/mnt/data/var/lib/neiro/nli', text, str(path))
+                self.assertNotIn('/mnt/data/var/log/neiro/nli', text, str(path))
+        self.assertIn('nst_2.0_all.deb', (ROOT / 'tools/build_deb.py').read_text())
     def test_pressure_baseline_exact_live_evidence_immutable_pin_and_two_components(self):
         raw = (ROOT / 'examples/pressure-makeup-boiler-1.0.json').read_bytes()
         m = validate(json.loads(raw))

@@ -12,7 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'tests'))
 from test_core import FakeSystem
-from test_desired_state import DesiredStateTests, Source, registry
+import test_desired_state as desired_fixtures
+from test_desired_state import Source, registry
 from nst.controller import ControllerRegistry, read_hardware_identity
 from nst.core import Engine
 from nst.desired import DesiredState
@@ -40,7 +41,7 @@ class CleanInstallTests(unittest.TestCase):
             files=[dict(source='demo/data.json', target='/etc/neirolinks/components/demo/data.json', sha256=digest(b'new'))],
             services=dict(stop=[], start=[]), preflight=['identity', 'drift'],
             verify=dict(controls=[], runtime_version='2.0', health_contract='none'), rollback='previous-managed-release')
-        self.deployment = DesiredStateTests.deployment(self, self.manifest)
+        self.deployment = desired_fixtures.DesiredStateTests.deployment(self, self.manifest)
         self.deployment['minimum_nst'] = '2.0'
         self.deployment['object_files'] = [dict(source='Objects/test/hello.js', target='/etc/wb-rules/hello.js',
                                                  sha256=digest(b'// reviewed rule\n'))]
@@ -90,6 +91,27 @@ class CleanInstallTests(unittest.TestCase):
         self.assertEqual(result['final_status'], 'failed', result)
         self.assertFalse(self.system.actions)
 
+    def test_managed_object_update_and_foreign_drift_refusal(self):
+        self.assertEqual(self.sync()['final_status'], 'ok')
+        self.deployment['object_files'][0]['sha256'] = digest(b'// next reviewed rule\n')
+        original_fetch = self.fetch
+        self.fetch = lambda url, *a: b'// next reviewed rule\n' if url.endswith('hello.js') else original_fetch(url, *a)
+        self.assertEqual(self.sync()['final_status'], 'ok')
+        p = self.engine.target('/etc/wb-rules/hello.js')
+        self.assertEqual(p.read_bytes(), b'// next reviewed rule\n')
+        p.write_bytes(b'// foreign edit')
+        self.system.actions.clear()
+        result = self.sync()
+        self.assertEqual(result['final_status'], 'failed', result)
+        self.assertFalse(self.system.actions)
+        self.assertEqual(p.read_bytes(), b'// foreign edit')
+
+    def test_protected_object_target_refused(self):
+        self.deployment['object_files'][0]['target'] = '/etc/wb-rules/507_Pressure_makeup.js'
+        result = self.sync()
+        self.assertEqual(result['final_status'], 'failed')
+        self.assertFalse(self.engine.state_dir.exists())
+
     def test_service_failure_rolls_back_new_files_and_config(self):
         self.system.failures = ['start']
         result = self.sync()
@@ -97,6 +119,35 @@ class CleanInstallTests(unittest.TestCase):
         for p in (DEFAULT_CONFIG, '/etc/wb-rules/hello.js', self.manifest['files'][0]['target']):
             self.assertFalse(self.engine.target(p).exists(), p)
         self.assertFalse(self.engine.pending())
+        # A new CLI process can retry after the failed first install.
+        self.engine.config = load_config(root=self.root)
+        self.assertEqual(self.sync()['final_status'], 'ok')
+
+    def test_missing_config_after_success_is_not_mistaken_for_clean_install(self):
+        self.assertEqual(self.sync()['final_status'], 'ok')
+        self.engine.target(DEFAULT_CONFIG).unlink()
+        with self.assertRaisesRegex(Error, 'Installed NST state exists'):
+            load_config(root=self.root)
+
+    def test_exact_sync_does_not_restart_services(self):
+        self.assertEqual(self.sync()['final_status'], 'ok')
+        self.system.actions.clear()
+        self.assertEqual(self.sync()['install'], 'not_needed')
+        self.assertFalse(self.system.actions)
+
+    def test_clean_physical_interlock_remains_mandatory_without_virtual_device(self):
+        from nst.plugins import makeup_interlock
+        self.engine.initial_deployment = True
+        self.system.controls.pop('pressure_makeup/active')
+        makeup_interlock(self.engine, 'clean')
+        for state in ('1', '', None):
+            self.system.controls['A04/K1'] = state
+            with self.assertRaises(Error):
+                makeup_interlock(self.engine, 'clean')
+        self.system.controls['A04/K1'] = '0'
+        self.engine.initial_deployment = False
+        with self.assertRaises(Error):
+            makeup_interlock(self.engine, 'existing')
 
     def test_object_runtime_error_rolls_back(self):
         self.system.logs = 'SyntaxError in hello.js'
@@ -115,6 +166,36 @@ class CleanInstallTests(unittest.TestCase):
         self.assertEqual(recovered['final_status'], 'ok')
         self.assertFalse(self.engine.pending())
         self.assertFalse(self.engine.target(DEFAULT_CONFIG).exists())
+
+    def test_reboot_recovery_before_registry_and_config_are_written(self):
+        original_services = self.engine.services
+        def interrupt(manifest, action, record):
+            if action == 'stop':
+                raise OSError('power loss before first file write')
+            return original_services(manifest, action, record)
+        with patch.object(self.engine, 'services', side_effect=interrupt), patch.object(
+                DeploymentTransaction, '_restore', side_effect=OSError('power remains off')):
+            self.assertEqual(self.sync()['final_status'], 'recovery_required')
+        self.assertFalse(self.engine.target(DEFAULT_CONFIG).exists())
+        controller = ControllerRegistry({'schema': 1, 'controllers': {}}).resolve(read_hardware_identity(self.root))
+        restarted = Engine(load_config(root=self.root), self.root, self.system, self, controller)
+        self.assertFalse(restarted.controller['mutation_allowed'])
+        self.assertEqual(DeploymentTransaction(restarted).recover()['final_status'], 'ok')
+        self.assertFalse(restarted.pending())
+        self.assertEqual(self.sync()['final_status'], 'ok')
+
+    def test_corrupt_backup_keeps_pending_and_blocks_recovery(self):
+        self.system.failures = ['start']
+        with patch.object(DeploymentTransaction, '_restore', side_effect=OSError('interrupted')):
+            self.assertEqual(self.sync()['final_status'], 'recovery_required')
+        pending = self.engine.pending()
+        p = self.engine.target(pending['deployment_backup']['path'] + '/metadata.json')
+        p.write_bytes(b'corrupted')
+        self.system.actions.clear()
+        with self.assertRaisesRegex(Error, 'Corrupted deployment backup'):
+            DeploymentTransaction(self.engine).recover()
+        self.assertEqual(self.engine.pending(), pending)
+        self.assertFalse(self.system.actions)
 
     def test_fingerprint_mismatch_is_readonly(self):
         original = self.source.latest
