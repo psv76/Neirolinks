@@ -59,7 +59,7 @@ class Releases:
         self.fetch = transport
 
     def catalogs(self):
-        """Publishing a stable nli-approved-* Release is the maintainer approval act."""
+        """Stable published NST releases approve new software; NLI catalogs are historical."""
         catalogs = []
         for page in range(1, 11):
             releases = decode(self.fetch(API + '/releases?per_page=100&page=' + str(page)))
@@ -157,4 +157,4 @@ class Releases:
                     for r, k, p, a, n in candidates if r == rank),
                 'Conflicting approved service-tool packages')
         return dict(package, asset=asset, metadata_key=key, package_name=package_name,
-                    executable='/usr/bin/nst' if key == 'nst' else '/usr/bin/nli')
+                    executable='/usr/bin/nst')

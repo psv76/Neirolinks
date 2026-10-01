@@ -8,7 +8,7 @@ import sys
 import uuid
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, '/usr/lib/neiro-nli')
+sys.path.insert(0, '/usr/lib/nst')
 from nst.layout import DEFAULT_CONFIG, DATA_DIR, STATE_DIR, target
 from nst.manifest import MAKEUP_TARGET, validate
 from nst.plugins import PressureMakeup
@@ -44,7 +44,7 @@ def register(root='/'):
     require(not pin_path.exists() or pin_path.read_bytes() == raw, 'Existing manifest differs')
     config['components']['pressure_makeup'] = registration
     # All guards precede writes; the original config is the last file replaced.
-    # Run with other NLI/config editors idle. Recheck before committing the edit.
+    # Run with other NST/config editors idle. Recheck before committing the edit.
     require(config_path.read_bytes() == config_bytes, 'Config changed during adoption')
     backup = config_path.with_name('config.before-pressure-makeup-' + uuid.uuid4().hex + '.json')
     meta = config_path.stat()
@@ -58,7 +58,7 @@ def register(root='/'):
 if __name__ == '__main__':
     try:
         print('Config backup: ' + str(register()))
-        print('Registered pressure_makeup 1.0; run nli check hhm, then nli check pressure_makeup')
+        print('Registered pressure_makeup 1.0; run nst check hhm, then nst check pressure_makeup')
     except (Error, OSError, ValueError, KeyError, TypeError) as exc:
         print('FAILED: ' + str(exc), file=sys.stderr)
         sys.exit(1)

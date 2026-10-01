@@ -77,6 +77,12 @@ class PackageTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(blob).hexdigest(), entry["sha256"])
         validate(json.loads((ROOT / "examples/notifications.json").read_bytes()))
 
+    def test_packaged_adoption_helper_imports_canonical_runtime(self):
+        helper = (ROOT / 'tools/register_pressure_makeup.py').read_text()
+        self.assertIn("sys.path.insert(0, '/usr/lib/nst')", helper)
+        self.assertNotIn('/usr/lib/neiro-nli', helper)
+        self.assertNotIn('run nli', helper)
+
     def test_deb_reproducible_layout_modes_no_service_hooks(self):
         tool = load_tool("build_deb")
         with tempfile.TemporaryDirectory() as folder:
