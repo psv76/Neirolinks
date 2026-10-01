@@ -33,9 +33,14 @@ def atomic_line_import_groups(
         if cable_id:
             handles_by_line.setdefault(cable_id.split(".", 1)[0], set()).add(observation.handle)
     changes_by_path = {change.field_path: change for change in proposal.changes}
+    existing_handles = {change.handle for change in proposal.changes if change.field != "$"}
     groups = []
     for line_number, handles in sorted(handles_by_line.items()):
-        required = frozenset(f"{handle}:$" for handle in handles)
+        required = frozenset(
+            f"{handle}:$"
+            for handle in handles
+            if handle not in existing_handles or f"{handle}:$" in changes_by_path
+        )
         changes = [changes_by_path.get(path) for path in required]
         if not any(
             change is not None and change.change_class is ChangeClass.NEW_DWG_INSERTION

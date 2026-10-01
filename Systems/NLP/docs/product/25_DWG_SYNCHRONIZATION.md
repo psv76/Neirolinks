@@ -13,3 +13,13 @@ Ordinary topology uses `CABLE_SOURCE=<empty>|BOX.NNN|XYY.ZZ|9YY.ZZZ/PORT`; root 
 Project-to-DWG may write only a Project-originated/resolved value that is both in the closed allow-list and present in the exact ATTDEF set of the observed Repair08 canonical block. It never emits retired tags/names or Project-derived type/post/link/root/bus facts. Binding, revision, Handle, name/layer and exact read-back are mandatory.
 
 Exact names/ATTDEF and topology semantics are owned by [AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](../autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md) and [CURRENT_TOPOLOGY_ARCHITECTURE.md](../autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md). Machine contract version is `3.0.0` with 71 definitions.
+
+## Selective apply и identity коробок
+
+Identity физических коробок определяется [topology contract, §6](../autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md). При base-only `CABLE_ID` normalization должна различать box points по `BOX_ID`, включая owners входящих сегментов и source references. Существующие suffixed point identities и их accepted baselines сохраняются. Однозначная ранее сохранённая base-only box point переиспользуется при явном apply; неоднозначную объединённую точку нельзя автоматически разделять с угадыванием принадлежности старых edges.
+
+Selective apply должен разрешать source dependency из полного validated snapshot и существующей topology Project, сохраняя выбор пользователя. Уже принятый source endpoint можно переиспользовать без изменения невыбранной source point. Невыбранные новые insertions, CableLine и их topology не должны импортироваться автоматически ради dependency. Если нужного endpoint/physical port ещё нет в Project, apply завершается явной доменной ошибкой с идентификатором источника и предложением сначала принять источник или выбрать его вместе с downstream point. Уже принятые insertions не входят в набор новых insertions для atomic line import; неразрешённые новые строки продолжают блокировать частичный импорт этой группы.
+
+Самостоятельная линия из щита имеет пустой `CABLE_SOURCE`; ordinary box/point не создаёт новый независимый кабель другой CableLine. Межлинейный выход через реальный physical port использует line-owned `FIELD_PORT` endpoint принимающей CableLine со ссылкой на project-owned порт источника. Это существующее typed endpoint representation сохраняет FK без требования одинакового `CABLE_ID` у source device и downstream point.
+
+Apply остаётся одной UnitOfWork: commit только после успешной materialization и всех записей, исключение — полный rollback. Presentation должна показывать явную ошибку apply и не выполнять ветку успеха/refresh. Неожиданное исключение записывается в журнал с техническими подробностями, а основной UI-текст содержит понятное сообщение без Python traceback.

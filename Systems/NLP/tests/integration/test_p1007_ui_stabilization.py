@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+import pytest
 from PySide6.QtCore import QRect
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QGroupBox, QMessageBox
 
@@ -13,7 +14,7 @@ from nl_project_2.cad_contract import (
     CadObservation,
     CadObservationBatch,
 )
-from nl_project_2.cad_sync import DwgSyncService
+from nl_project_2.cad_sync import DwgSyncError, DwgSyncService
 from nl_project_2.config import PathConfig
 from nl_project_2.integration import IntegratedUiService
 from nl_project_2.local_state import UiStateStore
@@ -192,6 +193,61 @@ def test_successful_dwg_import_refreshes_lines_and_uses_plain_success_message(
     assert widget.lines_workspace.table.item(visible[0], designation_column).text() == "120"
     assert messages[-1] == ("Синхронизация DWG", "Изменения приняты в Project.")
     assert "транзакционно" not in messages[-1][1]
+    widget.close()
+    runtime.close()
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        DwgSyncError("Источник BOX.021 ещё не принят в Project."),
+        KeyError("111/111"),
+        RuntimeError("internal materialization failure"),
+    ],
+)
+def test_failed_dwg_apply_is_visible_without_success_or_refresh(
+    qtbot, tmp_path, monkeypatch, caplog, error
+):
+    runtime = ApplicationRuntime.open(_paths(tmp_path))
+    pid = runtime.objects.create_project(ProjectCard(name="Failed sync", project_code="SYNC-ERROR"))
+    widget = ObjectWorkspace(runtime)
+    qtbot.addWidget(widget)
+    widget.open_project(pid)
+
+    class FakeDialog:
+        def __init__(self, _proposal, _parent):
+            self.direction = SimpleNamespace(currentData=lambda: "DWG_TO_PROJECT")
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+        def selected_paths(self):
+            return {"E2:$"}
+
+    def fail(_proposal, **_kwargs):
+        raise error
+
+    warnings, successes, refreshes = [], [], []
+    monkeypatch.setattr(object_workspace_module, "DwgSyncPreviewDialog", FakeDialog)
+    monkeypatch.setattr(runtime.dwg_sync, "apply_dwg_to_project", fail)
+    monkeypatch.setattr(
+        QMessageBox, "warning", lambda _parent, title, text: warnings.append((title, text))
+    )
+    monkeypatch.setattr(QMessageBox, "information", lambda *_args: successes.append(_args))
+    monkeypatch.setattr(widget, "_load_detail", lambda: refreshes.append("detail"))
+    monkeypatch.setattr(widget.lines_workspace, "refresh", lambda: refreshes.append("lines"))
+    widget._review_sync_proposal(SimpleNamespace(project_id=pid))
+    assert len(warnings) == 1
+    assert warnings[0][0] == "Синхронизация DWG не выполнена"
+    assert "Traceback" not in warnings[0][1]
+    if isinstance(error, DwgSyncError):
+        assert warnings[0][1] == str(error)
+    else:
+        assert "Изменения не применены" in warnings[0][1]
+        assert str(error) not in warnings[0][1]
+    assert successes == []
+    assert refreshes == []
+    assert any(record.exc_info for record in caplog.records if record.message == "DWG apply failed")
     widget.close()
     runtime.close()
 

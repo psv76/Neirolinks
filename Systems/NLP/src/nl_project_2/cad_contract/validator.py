@@ -754,7 +754,8 @@ class CadContractValidator:
                 )
             )
         elif source:
-            facts.source_rows.append((observation.handle, cable_id, source))
+            target = box_id if rule.device_type == "EL_BOX" and box_id else cable_id
+            facts.source_rows.append((observation.handle, target, source))
 
         bus_point_id = attributes.get("BUS_POINT_ID", "").strip()
         bus_source = attributes.get("BUS_SOURCE", "").strip()
@@ -1204,8 +1205,23 @@ class CadContractValidator:
         issues: list[ValidationIssue] = []
         cable_nodes = set(facts.identity_handles)
         box_nodes = set(facts.box_handles)
+        for box_id, handles in sorted(facts.box_handles.items()):
+            if len(handles) > 1:
+                handles = sorted(handles)
+                issues.append(
+                    self._issue(
+                        "DUPLICATE_BOX_ID",
+                        f"BOX_ID {box_id} occurs at handles {tuple(handles)}",
+                        handle=handles[0],
+                        field="BOX_ID",
+                        related_handles=tuple(handles),
+                    )
+                )
         parents: dict[str, str] = {}
         adjacency: dict[str, set[str]] = defaultdict(set)
+        box_by_handle = {
+            handle: box_id for box_id, handles in facts.box_handles.items() for handle in handles
+        }
         for handle, target, source in facts.source_rows:
             if source.startswith("BOX."):
                 known = source in box_nodes
@@ -1223,6 +1239,10 @@ class CadContractValidator:
                     )
                 )
                 continue
+            source_handles = set(facts.identity_handles.get(source, ()))
+            if len(source_handles) == 1:
+                source_handle = next(iter(source_handles))
+                source = box_by_handle.get(source_handle, source)
             if target:
                 previous = parents.get(target)
                 if previous is not None and previous != source:
