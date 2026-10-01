@@ -1,55 +1,31 @@
-# Публикация approved releases для NLI 0.1.8
+# Публикация NST 2.0
 
-Это maintainer workflow, не инструкция оператору WB. Полевая сторона выполняет
-`nli check/update` и `nli self-update`; никаких path/SHA copy-paste в object config.
+Версия собственного ПО только `X.Y`; [нормативный стандарт](../../EIM/Standards/Software_naming_and_versioning_standard.md). Новые package/component catalogs используют `nst-catalog.json`; исторические `nli-catalog.json` читаются только для immutable component approvals и rollback.
 
-1. Проверить компонент, выбрать immutable runtime commit, подготовить manifest с
-   exact files SHA и повышенной числовой version. Функциональное одобрение release
-   принадлежит автору компонента/ПНР; NLI не определяет готовность алгоритмов.
-2. После code review/green CI зафиксировать immutable commit самого manifest.
-3. Собрать каталог (команда только читает Git blobs и создаёт metadata):
+## Package и components
 
-   ```sh
-   python3 -B NLI/tools/release_catalog.py --commit <40-char-manifest-commit> \
-     --manifest <repo-path-to-approved-manifest> \
-     --package NLI/dist/neiro-nli_0.1.8_all.deb --package-version 0.1.8 \
-     --minimum-nli 0.1.8 --output nli-catalog.json
-   ```
+`tools/build_deb.py` создаёт `dist/nst_2.0_all.deb` и SHA256. Проверяются package `nst`, version `2.0`, architecture `all`, отсутствие hooks и записи persistent данных.
 
-   --manifest можно повторять для разных object/role/component; для release только
-   NLI package его можно не указывать. Для component-only release не указывать package.
-4. Создать **draft** GitHub Release в psv76/Neirolinks с tag nli-approved-<unique-id>,
-   приложить nli-catalog.json, deb с указанным именем и его .sha256. Проверить GitHub
-   asset digest SHA256 (API должен предоставлять digest, иначе NLI fails closed).
-5. После review явно publish stable release. Только этот шаг разрешает discovery.
-   Draft/prerelease не выбираются. Release metadata immutable по соглашению:
-   не заменять approved asset/manifest, новый release получает новую version/tag.
+`tools/release_catalog.py` готовит catalog из immutable manifest commit и пакета. Пример после принятия соответствующего commit в main:
 
-Catalog schema=1: repository, approved=true, components[]; каждый entry имеет
-component/object/role/version/approved/minimum_nli и manifest {commit,path,sha256}.
-Optional nli={version,approved,sha256}; deb asset name neiro-nli_<version>_all.deb.
-Поля application readiness в каталоге отсутствуют. Manifest schema 1 сохранён;
-verify.controls/runtime_version/health_contract — legacy metadata без install gates.
+```sh
+python3 -B Systems/NST/tools/release_catalog.py --commit <COMMIT> --package Systems/NST/dist/nst_2.0_all.deb --package-version 2.0 --minimum-nst 2.0 --output nst-catalog.json
+```
 
-NLI ограничивает чтение 1000 GitHub releases / 32 approved catalogs; maintainer
-консолидирует старые каталоги, если достигнут bound. Failed request/invalid metadata
-не обходится fallback на mutable main. Контроллер использует public GitHub API;
-private/rate-limited endpoint даст явную transport ошибку.
+Maintainer отдельно проверяет и публикует stable `nst-approved-package-2.0` с catalog и `.deb`. Новые component approvals используют `nst-approved-components-*`. `install.py` и `nst self-update` выбирают только canonical NST package releases, никогда `neiro-nli` или исторический `neiro-nst 1.0.0`.
 
-**Этот PR не публикует approved release и не делает draft #73 deployable.**
-Known 3.1 manifests в package нужны для распознавания уже вручную установленных bytes
-согласно #74, а не для автоматической установки заблокированного runtime.
+## Platform
 
+`nst-approved-platform-<X.Y>` должен содержать registry и deployment для каждого active controller. Registry/profile/source, manifests и payload привязаны к immutable commit/SHA256.
 
-## Автоматическая публикация approved NLI
+```sh
+python3 -B Systems/NST/tools/prepare_platform_release.py --commit <MAIN_COMMIT> --version 2.0 --output platform-assets
+```
 
-После merge проверенного PR maintainer создаёт ветку
-`publish/nli-approved-<version>` ровно от принятого commit. Workflow
-`.github/workflows/nli-publish.yml` повторно запускает NLI tests, собирает
-reproducible `.deb`, строит catalog из immutable manifest commit, добавляет
-`install-nli.py` и публикует stable GitHub Release `nli-approved-<version>`.
-Если release с таким tag уже существует, workflow fail closed и не заменяет assets.
+Инструмент проверяет принадлежность source commit истории `origin/main`, capabilities/desired components и все referenced bytes. Создаёт `nst-controller-registry.json`, `nst-deployment-<SERIAL>.json`, `nst-platform-metadata.json` с исходным commit и checksums.
 
-Bootstrap asset является способом **первичной установки самого NLI**. Component
-release discovery и `nli self-update` после установки по-прежнему используют
-тот же approved catalog и не доверяют Actions artifact или mutable main.
+Workflow **Prepare NST platform assets** запускается только вручную, имеет `contents: read` и загружает CI artifact. Он не создаёт tags/Releases и не выполняет deploy. Перед отдельной публикацией maintainer проверяет completeness и approved component provenance; `verify_approved_components.py` проверяет snapshot против опубликованных Releases.
+
+Сейчас ABF62SL заявляет `pressure_makeup`, которого нет в desired components/approved snapshot. Подготовка полного platform release должна завершиться явным отказом до появления reviewed profile и approved pressure_makeup.
+
+Merge PR только обновляет код/проверки. Для установки на объект нужны отдельные package и platform Releases и явная команда оператора. Immutable historical Releases не удаляются и не переписываются.

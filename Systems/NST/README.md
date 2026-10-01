@@ -1,171 +1,45 @@
 # NST — NEIROLINKS Service Tool
 
-NST — общая сервисная система NEIROLINKS для контроллеров Wiren Board.
+NST 2.0 — сервисный инструмент для установки approved desired state и обслуживания контроллеров Wiren Board.
 
-## Именование и версии
+Нормативный источник: [стандарт именования и версий](../../EIM/Standards/Software_naming_and_versioning_standard.md).
 
-Нормативный источник: [стандарт именования ПО NEIROLINKS и нумерации версий](../../EIM/Standards/Software_naming_and_versioning_standard.md).
+## Версия и состав
 
-Канонический пакет — `nst`, артефакт — `nst_<X.Y>_all.deb`, версия ПО — только `X.Y`. Упоминания `neiro-nst 1.0.0`, внутреннего `nli` и старых persistent paths ниже описывают прежнюю реализацию и migration compatibility; они не задают имена новых установок. Приведение реализации к стандарту требует отдельного изменения и проверок.
+Выбрана **2.0**: чистая установка по registry/deployment, транзакция компонентов вместе с object files и перенос persistent storage меняют архитектуру и существенно расширяют функциональность. Это изменение X; начальная ревизия Y равна 0.
 
-## Статус
+Пакет `nst`, артефакт `nst_2.0_all.deb`, CLI `/usr/bin/nst`, Python package `nst` в `/usr/lib/nst`, данные `/usr/share/nst`, документация `/usr/share/doc/nst`.
 
-На момент этой фиксации:
+Persistent config/state/logs: `/mnt/data/etc/neirolinks/nst`, `/mnt/data/var/lib/neirolinks/nst`, `/mnt/data/var/log/neirolinks/nst`.
 
-- принятый production baseline: **NLI 0.1.9**;
-- approved Release baseline: `nli-approved-0.1.9`;
-- immutable commit baseline: `df484b8bf22835001d69ddb2dd18e3eafd3792b0`;
-- NST 1.0 развивается как эволюция NLI 0.1.9;
-- общая задача: GitHub Issue #85;
-- текущая development-ветка: `system/nst/85-consolidation`;
-- текущий development PR: #113 → `main`;
-- исторический stack #98–#105 закрыт как superseded и больше не используется для разработки;
-- live-пилот NST 1.0 на Иволге пока не выполнен.
+## Чистая установка
 
-Наличие более нового кода в development-ветке не делает его production baseline.
+Установить reviewed пакет `nst_2.0_all.deb` с зависимостями обычным пакетным менеджером. Установка пакета не запускает сервисы инженерной автоматики и не пишет persistent config. Предварительная установка NLI не нужна; `/usr/bin/nli` не поставляется.
 
-## Назначение NST
+1. `nst status` — локальные identity и состояние; первоначальный профиль unconfigured.
+2. `nst check` — получить последний approved platform release, проверить hardware serial/fingerprint, registry/profile, deployment и показать план без записи данных.
+3. `nst sync` — явно выполнить bootstrap и транзакцию. Config, registry и state создаются из проверенного deployment; локальная регистрация компонентов заранее не нужна.
+4. `nst status` и `nst check` — подтвердить exact desired state.
 
-NST должен обеспечивать:
+`nst sync` не заменяет ПНР: контроллер должен иметь исправные WB services и подтверждённые аппаратные interlocks. Неизвестные writers, drift, неполные профили и отсутствующие approvals блокируют применение.
 
-- hardware identity контроллера;
-- controller registry;
-- approved desired deployment;
-- `status / check / sync`;
-- backup / rollback / recovery;
-- diagnostics bundle;
-- firmware wrapper;
-- cleanup;
-- self-update.
+## Миграция
 
-NST не является runtime-зависимостью инженерной автоматики и не управляет отоплением, освещением или другими прикладными функциями как automation engine.
+После замены NLI 0.1.9 пакетом NST выполнить `nst migrate-nli`. Это явная операция копирования с проверкой, журналом возобновления и сохранением исторических оригиналов. При наличии старого хранилища остальные команды до миграции отказывают, а не создают новое пустое состояние.
 
-## Миграция NLI → NST
+Порядок и восстановление: [NST_MIGRATION.md](NST_MIGRATION.md), [RECOVERY.md](RECOVERY.md).
 
-NST 1.0 сохраняет проверенный transaction engine NLI 0.1.9.
+## Deployment и публикация
 
-В текущей development-реализации:
+[DEPLOYMENT.md](DEPLOYMENT.md) описывает транзакцию и ограничения; [RELEASES.md](RELEASES.md) — подготовку package/component/platform assets.
 
-- пакет переименован в `neiro-nst 1.0.0`;
-- основной CLI: `nst`;
-- временный compatibility CLI: `nli`;
-- внутренний Python package пока остаётся `nli`;
-- persistent paths NLI намеренно сохраняются, чтобы не ломать backup/rollback/pending/audit history.
+Исторические approved component releases и `neiro-nst 1.0.0` сохраняют исходные имена, номера и байты. Они не являются новыми пакетами NST и не выбираются установщиком NST 2.0.
 
-Это migration-совместимость, а не признак того, что NLI остаётся отдельной новой системой.
+## Что остаётся отдельной работой
 
-## Что уже разработано в NST 1.0 branch stack
+- Для ABF62SL профиль содержит capability `pressure_makeup`, но desired components содержит только HHM. Нужны reviewed profile и опубликованный approved компонент подпитки; подготовка полного platform release до этого блокируется.
+- Публикация NST package release и полного platform release выполняется отдельно после merge; один package release не заменяет registry/deployment assets.
+- Удаление ранее управляемых файлов/компонентов требует отдельного decommissioning plan и сейчас блокируется.
+- Реальная установка, firmware и ПНР на WB в этой задаче не выполняются. Результаты проверок: [TEST_RESULTS.md](TEST_RESULTS.md).
 
-Цепочка development PR:
-
-- #98 — controller identity, registry и lifecycle;
-- #99 — approved deployment manifest;
-- #100 — миграция NLI 0.1.9 → NST;
-- #101 — status / check / sync;
-- #102 — diagnostics;
-- #103 — cleanup;
-- #104 — firmware / self-update;
-- #105 — пилот 05 31 Иволга / ABF62SL.
-
-Эта цепочка исторически построена stacked branches и должна быть свернута в одну понятную development-ветку от актуального `main`.
-
-До завершения consolidation ни один отдельный branch из этой цепочки не считается канонической production-версией NST.
-
-## Проверенные текущие блокеры принятия NST 1.0
-
-### 1. Object files
-
-Текущий `nst sync` умеет сравнивать object files, но намеренно прекращает mutation, если object payload отличается:
-
-```text
-Object payload changes require reviewed object-file transaction support
-```
-
-То есть полный desired-state sync объекта ещё не реализован.
-
-### 2. Deployment ABF62SL
-
-Generated deployment ABF62SL пересобран от нового immutable source commit после relocation:
-
-- HHM 3.6;
-- четыре object files из controller profile;
-- специализированный `Systems/NST/diagnostics/ivolga-boiler-hhm-v1.json`.
-
-CI проверяет deterministic rebuild и offline verification.
-
-### 3. Approved components
-
-Approved component snapshot синхронизирован с опубликованными HHM Releases 3.2–3.6. Для ABF62SL stable resolver выбирает HHM 3.6.
-
-### 4. Pressure makeup
-
-Controller profile ABF62SL заявляет capability `pressure_makeup`, но в новом approved component catalog этот компонент пока не опубликован как approved desired component.
-
-Нельзя молча подменять его object file или придумывать release metadata.
-
-### 5. Platform Release и live pilot
-
-NST 1.0 platform Release для ABF62SL не опубликован.
-
-Read-only pilot на live-контроллере ещё не выполнен.
-
-До этого NST 1.0 не считается принятой production-системой.
-
-## Consolidation #85
-
-Stacked PR #98–#105 свёрнут в единственную development-ветку:
-
-`system/nst/85-consolidation`
-
-Ветка создана от актуального `main`. В неё перенесён cumulative snapshot head #105 без подтягивания всей старой `fix/...`-базы:
-
-- полный каталог `NLI/` из head #105 как технический migration baseline;
-- `.github/workflows/nli-check.yml` из head #105;
-- `objects/05_31_Ivolga_13/controllers/ABF62SL.json` из head #105.
-
-Первый consolidation commit сохраняет эти bytes без смысловой переработки. Это контрольная точка против потери накопленного результата.
-
-Исторический корневой каталог `NLI/` удалён из development-ветки. Реализация перенесена в `Systems/NST/`; repo-relative paths и CI переведены на каноническую структуру. Исторический implementation README NLI сохранён отдельно в `docs/NLI_IMPLEMENTATION_README.md`.
-
-Старые stacked PR после создания единого PR считаются superseded и не являются местом дальнейшей разработки.
-
-## Источники истины
-
-Для принятой версии NST:
-
-1. `main/Systems/NST/`;
-2. approved GitHub Release;
-3. immutable tag/commit;
-4. release assets/checksums.
-
-Для незавершённой разработки:
-
-- конкретный Issue;
-- одна явно указанная development-ветка;
-- один PR в `main`.
-
-После consolidation stacked PR #98–#105 должны стать историей разработки, а не навигационным механизмом.
-
-## Целевая development-модель
-
-```text
-main/Systems/NST/
-        ↓
-system/nst/<issue>-<topic>
-        ↓
-development
-        ↓
-PR → main
-        ↓
-merge
-        ↓
-конкретный commit main
-        ↓
-tag + approved Release
-```
-
-## Важное правило
-
-NST не должен искать production payload в случайной рабочей ветке.
-
-Production deployment должен разрешаться только через approved immutable Releases/manifests с точными commit и SHA256.
+Merge меняет исходники и CI в main. Он не публикует Release и не обновляет контроллеры.

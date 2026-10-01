@@ -145,7 +145,7 @@ class DeploymentTransaction:
                 e.services(deployment, 'stop', record)
                 for path, raw in payload.items():
                     p = e.target(path)
-                    owner = (p.stat().st_uid, p.stat().st_gid) if p.exists() else (0, 0)
+                    owner = (p.stat().st_uid, p.stat().st_gid) if p.exists() else None
                     atomic(p, raw, 0o644, owner)
                 write_json(e.target(DEFAULT_CONFIG), config)
                 write_json(e.target(CONFIG_DIR + '/controller-registry.json'), approved['registry'])
