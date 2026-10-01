@@ -156,7 +156,7 @@ def normalize_validated_snapshot(
         identity = payload.cable_identity
         if identity is not None:
             by_base.setdefault(identity.base, []).append(item)
-            point_rows.setdefault((identity.base, identity.raw), []).append(item)
+            point_rows.setdefault((identity.base, _point_identity(item)), []).append(item)
 
     # Insertion and exact tagged owners.
     for item in rows:
@@ -164,7 +164,8 @@ def normalize_validated_snapshot(
         assert payload is not None
         handle = item.observation.handle
         identity = payload.cable_identity
-        point_key = None if identity is None else _point_key(identity.base, identity.raw)
+        point_identity = _point_identity(item) if identity is not None else None
+        point_key = None if identity is None else _point_key(identity.base, point_identity)
         excluded = LINE_FIELDS | set(ROUTE_FIELDS) | SPECIAL_FIELDS | {"CABLE_ID", "CABLE_SOURCE"}
         insertion_values: dict[str, Any] = {
             "BLOCK_NAME": item.observation.effective_name,
@@ -202,7 +203,15 @@ def normalize_validated_snapshot(
             owner_key = identity.base if owner_kind is SyncOwnerKind.BASE_LINE else point_key
             owner_path = f"{owner_kind.value.lower()}:{owner_key}:CABLE_ID"
             group_handles = tuple(
-                sorted(row.observation.handle for row in point_rows[(identity.base, identity.raw)])
+                sorted(
+                    row.observation.handle
+                    for row in (
+                        by_base[identity.base]
+                        if owner_kind is SyncOwnerKind.BASE_LINE
+                        else point_rows[(identity.base, point_identity)]
+                    )
+                    if row.read_payload.cable_identity.raw == identity.raw
+                )
             )
             if not any(fact.owner_path == owner_path for fact in facts):
                 facts.append(
@@ -222,7 +231,7 @@ def normalize_validated_snapshot(
                 OwnerFact(
                     SyncOwnerKind.SEGMENT,
                     point_key or identity.raw,
-                    f"edge:{identity.raw}:CABLE_SOURCE",
+                    f"edge:{point_identity}:CABLE_SOURCE",
                     "CABLE_SOURCE",
                     payload.cable_source or "",
                     handle,
@@ -368,7 +377,7 @@ def normalize_validated_snapshot(
     points_by_identity = {point.logical_identity: point for point in points}
     box_points = {
         item.read_payload.box_id: points_by_key[
-            _point_key(item.read_payload.cable_identity.base, item.read_payload.cable_identity.raw)
+            _point_key(item.read_payload.cable_identity.base, _point_identity(item))
         ]
         for item in rows
         if item.read_payload is not None
@@ -527,6 +536,16 @@ def reconcile_snapshot_edge_projections(
 
 def _point_key(base: str, logical_identity: str) -> str:
     return f"{base}/{logical_identity}"
+
+
+def _point_identity(item: ValidatedObservation) -> str:
+    payload = item.read_payload
+    assert payload is not None and payload.cable_identity is not None
+    # A base-only CABLE_ID names the line, not a physical box on that line.
+    # Keep existing suffixed point identities and their accepted owner baselines.
+    if payload.box_id and payload.cable_identity.suffix_kind is CableSuffixKind.BASE:
+        return payload.box_id
+    return payload.cable_identity.raw
 
 
 def _segment(

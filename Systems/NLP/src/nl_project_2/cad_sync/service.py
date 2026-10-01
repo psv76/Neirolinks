@@ -236,6 +236,12 @@ class DwgSyncService:
                         )
                     ).mappings()
                 }
+            for fact in snapshot.facts:
+                legacy_path = _legacy_box_owner_path(
+                    fact.owner_key, fact.field, devices.get(fact.primary_handle, {})
+                )
+                if legacy_path in baselines and fact.owner_path not in baselines:
+                    baselines[fact.owner_path] = baselines[legacy_path]
             project_owner_values = _load_project_owner_values(
                 connection,
                 project_id=project_id,
@@ -1358,26 +1364,22 @@ class DwgSyncService:
             active_handles=active_handles,
         )
 
-        point_ids: dict[str, str] = {}
         endpoint_ids: dict[str, str] = {}
         points_by_base: dict[str, list] = defaultdict(list)
-        active_bases = {
-            point.base for point in snapshot.points if set(point.handles) & active_handles
-        }
         for point in snapshot.points:
-            if point.base in active_bases:
+            if set(point.handles) & active_handles:
                 points_by_base[point.base].append(point)
         for base, plans in sorted(points_by_base.items()):
             line_id = line_ids[base]
-            for ordinal, plan in enumerate(sorted(plans, key=lambda item: item.logical_identity)):
-                point_id = uow.execute(
-                    select(cable_point.c.id).where(
-                        cable_point.c.project_id == project_id,
-                        cable_point.c.logical_identity == plan.logical_identity,
-                    )
-                ).scalar_one_or_none()
+            for plan in sorted(plans, key=lambda item: item.logical_identity):
+                point_id = self._find_snapshot_point(uow, project_id, line_id, plan, adopt=True)
                 if point_id is None:
                     point_id = new_id()
+                    maximum = uow.execute(
+                        select(func.max(cable_point.c.ordinal)).where(
+                            cable_point.c.cable_line_id == line_id
+                        )
+                    ).scalar_one()
                     uow.execute(
                         cable_point.insert().values(
                             id=point_id,
@@ -1385,7 +1387,7 @@ class DwgSyncService:
                             cable_line_id=line_id,
                             field_device_id=None,
                             point_kind=plan.point_kind,
-                            ordinal=ordinal,
+                            ordinal=0 if maximum is None else maximum + 1,
                             logical_identity=plan.logical_identity,
                             origin_kind="PROJECT",
                             migration_state="CONFIRMED",
@@ -1406,7 +1408,6 @@ class DwgSyncService:
                             updated_at_utc=datetime.now(UTC),
                         )
                     )
-                point_ids[plan.key] = point_id
                 endpoint_id = uow.execute(
                     select(cable_topology_endpoint.c.id).where(
                         cable_topology_endpoint.c.project_id == project_id,
@@ -1471,8 +1472,9 @@ class DwgSyncService:
         active_segments = [
             plan
             for plan in snapshot.segments
-            if plan.base in active_bases and plan.base in line_ids
+            if plan.target_point_key in endpoint_ids and plan.base in line_ids
         ]
+        points_by_key = {point.key: point for point in snapshot.points}
         for plan in active_segments:
             line_id = line_ids[plan.base]
             if plan.source_point_key is None:
@@ -1488,7 +1490,34 @@ class DwgSyncService:
                         )
                         source_endpoints[plan.base] = source_endpoint
             else:
-                source_endpoint = endpoint_ids[plan.source_point_key]
+                source_plan = points_by_key.get(plan.source_point_key)
+                if source_plan is None:
+                    raise DwgSyncError("Источник участка отсутствует в проверенном снимке DWG.")
+                if source_plan.base != plan.base:
+                    raise DwgSyncError(
+                        f"Источник {plan.source_reference} принадлежит линии {source_plan.base}, "
+                        f"а участок — линии {plan.base}. Независимая линия должна выходить "
+                        "из щита или физического порта устройства."
+                    )
+                source_endpoint = endpoint_ids.get(plan.source_point_key)
+                if source_endpoint is None:
+                    source_point_id = self._find_snapshot_point(
+                        uow, project_id, line_id, source_plan, adopt=False
+                    )
+                    if source_point_id is not None:
+                        source_endpoint = uow.execute(
+                            select(cable_topology_endpoint.c.id).where(
+                                cable_topology_endpoint.c.project_id == project_id,
+                                cable_topology_endpoint.c.cable_line_id == line_id,
+                                cable_topology_endpoint.c.cable_point_id == source_point_id,
+                            )
+                        ).scalar_one_or_none()
+                    if source_endpoint is None:
+                        raise DwgSyncError(
+                            f"Источник {plan.source_reference or source_plan.logical_identity} "
+                            "ещё не принят в Project. Примите его вместе с выбранной точкой "
+                            "или отдельно, затем повторите импорт."
+                        )
             target_endpoint = endpoint_ids[plan.target_point_key]
             route = dict(plan.route)
             segment_id = uow.execute(
@@ -1610,6 +1639,74 @@ class DwgSyncService:
                         review_state="MIGRATION_REVIEW_REQUIRED",
                     )
                 )
+
+    def _find_snapshot_point(self, uow, project_id, line_id, plan, *, adopt):
+        row = (
+            uow.execute(
+                select(cable_point.c.id, cable_point.c.cable_line_id).where(
+                    cable_point.c.project_id == project_id,
+                    cable_point.c.logical_identity == plan.logical_identity,
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row is not None:
+            if row["cable_line_id"] != line_id:
+                raise DwgSyncError(
+                    f"Точка {plan.logical_identity} уже принадлежит другой линии Project."
+                )
+            return row["id"]
+        if plan.point_kind != "EL_BOX" or not plan.logical_identity.startswith("BOX."):
+            return None
+        # Reuse an unambiguous pre-repair box point without changing schema or
+        # importing its owning insertion as a dependency. Never split a collapsed
+        # persisted point by guessing which existing edges belong to which box.
+        point_ids = set(
+            uow.execute(
+                select(cable_point_field_device.c.cable_point_id)
+                .join(field_device, field_device.c.id == cable_point_field_device.c.field_device_id)
+                .where(
+                    cable_point_field_device.c.project_id == project_id,
+                    field_device.c.lifecycle == "ACTIVE",
+                    field_device.c.normalized_fields_json["BOX_ID"].as_string()
+                    == plan.logical_identity,
+                )
+            ).scalars()
+        )
+        if not point_ids:
+            return None
+        if len(point_ids) != 1:
+            raise DwgSyncError(f"Топология коробки {plan.logical_identity} неоднозначна в Project.")
+        point_id = point_ids.pop()
+        fields = list(
+            uow.execute(
+                select(field_device.c.normalized_fields_json)
+                .join(
+                    cable_point_field_device,
+                    cable_point_field_device.c.field_device_id == field_device.c.id,
+                )
+                .where(cable_point_field_device.c.cable_point_id == point_id)
+            ).scalars()
+        )
+        owner_line = uow.execute(
+            select(cable_point.c.cable_line_id).where(cable_point.c.id == point_id)
+        ).scalar_one()
+        if owner_line != line_id or any(
+            (values or {}).get("BOX_ID") != plan.logical_identity for values in fields
+        ):
+            raise DwgSyncError(
+                f"Существующая точка коробки {plan.logical_identity} объединяет разные "
+                "физические объекты или принадлежит другой линии. Требуется восстановление "
+                "топологии Project; изменения не применены."
+            )
+        if adopt:
+            uow.execute(
+                update(cable_point)
+                .where(cable_point.c.id == point_id)
+                .values(logical_identity=plan.logical_identity)
+            )
+        return point_id
 
     def _materialize_bus_snapshot(
         self, uow, *, project_id, snapshot, device_ids, active_handles
@@ -1872,7 +1969,10 @@ class DwgSyncService:
             ).scalars()
         )
         if len(rows) != 1:
-            raise DwgSyncError(f"CABLE_SOURCE {reference} does not resolve to one exact field port")
+            raise DwgSyncError(
+                f"Источник {reference} не разрешается в один физический порт Project. "
+                "Примите устройство-источник и его порт, затем повторите импорт."
+            )
         endpoint_id = uow.execute(
             select(cable_topology_endpoint.c.id).where(
                 cable_topology_endpoint.c.project_id == project_id,
@@ -2178,6 +2278,24 @@ class DwgSyncService:
                 )
             ).scalar_one_or_none()
             if current is None:
+                fields = uow.execute(
+                    select(field_device.c.normalized_fields_json).where(
+                        field_device.c.project_id == proposal.project_id,
+                        field_device.c.dwg_document_binding_id == proposal.binding_id,
+                        field_device.c.entity_handle == change.handle,
+                        field_device.c.lifecycle == "ACTIVE",
+                    )
+                ).scalar_one_or_none()
+                legacy_path = _legacy_box_owner_path(change.owner_key, change.field, fields or {})
+                if legacy_path:
+                    current = uow.execute(
+                        select(dwg_baseline.c.accepted_value_json).where(
+                            dwg_baseline.c.project_id == proposal.project_id,
+                            dwg_baseline.c.dwg_document_binding_id == proposal.binding_id,
+                            dwg_baseline.c.field_path == legacy_path,
+                        )
+                    ).scalar_one_or_none()
+            if current is None:
                 current = uow.execute(
                     select(dwg_baseline.c.accepted_value_json).where(
                         dwg_baseline.c.project_id == proposal.project_id,
@@ -2283,7 +2401,11 @@ class DwgSyncService:
             issue
             for issue in proposal.issues
             if issue.blocks_acceptance
-            and (issue.handle is None or issue.handle in selected_handles)
+            and (
+                issue.handle is None
+                or issue.handle in selected_handles
+                or selected_handles.intersection(issue.related_handles)
+            )
         ]
         if blocking:
             raise DwgSyncError(
@@ -2683,6 +2805,19 @@ def _fields(item: ValidatedObservation) -> dict[str, Any]:
     return values
 
 
+def _legacy_box_owner_path(owner_key: str, field: str, fields: dict) -> str | None:
+    base, _, identity = owner_key.partition("/")
+    if not identity.startswith("BOX.") or fields.get("BOX_ID") != identity:
+        return None
+    if fields.get("CABLE_ID") != base:
+        return None
+    if field == "CABLE_SOURCE":
+        return f"edge:{base}:CABLE_SOURCE"
+    if field in SEGMENT_OWNED_FIELDS:
+        return f"segment:{base}/{base}:{field}"
+    return None
+
+
 def _load_project_owner_values(
     connection,
     *,
@@ -2858,11 +2993,18 @@ def _load_project_owner_values(
             else:
                 result[fact.owner_path] = dict(row["cable_facts_json"] or {}).get(fact.field)
         elif fact.owner_kind is SyncOwnerKind.SEGMENT:
+            legacy_path = _legacy_box_owner_path(
+                fact.owner_key, fact.field, devices.get(fact.primary_handle, {})
+            )
             if fact.field == "CABLE_SOURCE":
                 if fact.owner_path in canonical_sources:
                     result[fact.owner_path] = canonical_sources[fact.owner_path]
+                elif legacy_path in canonical_sources:
+                    result[fact.owner_path] = canonical_sources[legacy_path]
                 continue
             row = segment_rows.get(fact.owner_key)
+            if row is None and legacy_path:
+                row = segment_rows.get(legacy_path.split(":")[1])
             if row is None:
                 continue
             column = {

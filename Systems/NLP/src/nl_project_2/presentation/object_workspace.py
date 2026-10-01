@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from decimal import Decimal, InvalidOperation
 
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -1697,11 +1698,22 @@ class ObjectWorkspace(QWidget):
                 QMessageBox.information(self, "Синхронизация DWG", "Изменения не выбраны")
                 return
             if dialog.direction.currentData() == "DWG_TO_PROJECT":
-                service.apply_dwg_to_project(
-                    proposal,
-                    selected_paths=selected,
-                    confirmed=True,
-                )
+                try:
+                    service.apply_dwg_to_project(
+                        proposal,
+                        selected_paths=selected,
+                        confirmed=True,
+                    )
+                except Exception as exc:
+                    logging.getLogger(__name__).exception("DWG apply failed")
+                    message = (
+                        _localized_sync_error(str(exc))
+                        if isinstance(exc, (BridgeError, DwgSyncError))
+                        else "Не удалось принять изменения DWG в Project. "
+                        "Изменения не применены. Подробности записаны в журнал программы."
+                    )
+                    QMessageBox.warning(self, "Синхронизация DWG не выполнена", message)
+                    return
                 QMessageBox.information(
                     self,
                     "Синхронизация DWG",
