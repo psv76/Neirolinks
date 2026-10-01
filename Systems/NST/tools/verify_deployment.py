@@ -9,8 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ROOT.parents[1]
 sys.path.insert(0, str(ROOT))
 
-from nli.deployment import validate_deployment, verify_offline
-from nli.util import decode, safe_relative
+from nst.deployment import validate_deployment, verify_offline
+from nst.util import decode, safe_relative
 
 
 def read_git(commit, path):

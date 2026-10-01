@@ -11,17 +11,17 @@ import sys
 import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from nli.cli import main
-from nli.core import Engine
-from nli.firmware import Firmware
-from nli.util import digest
-from test_nli import FakeSystem
+from nst.cli import main
+from nst.core import Engine
+from nst.firmware import Firmware
+from nst.util import digest
+from test_core import FakeSystem
 
 REPO = Path(__file__).resolve().parents[3]
 
 
 def run(role):
-    with tempfile.TemporaryDirectory(prefix="nli-sandbox-") as folder:
+    with tempfile.TemporaryDirectory(prefix="nst-sandbox-") as folder:
         root = Path(folder)
         def put(path, data):
             p = root / path.lstrip("/")
@@ -33,8 +33,8 @@ def run(role):
             put(f["target"], data)
             put("/payload/" + f["source"], data)
         raw = json.dumps(manifest).encode()
-        put("/mnt/data/etc/neiro/nli/release.json", raw)
-        ref = dict(path="/mnt/data/etc/neiro/nli/release.json", sha256=digest(raw))
+        put("/mnt/data/etc/neirolinks/nst/release.json", raw)
+        ref = dict(path="/mnt/data/etc/neirolinks/nst/release.json", sha256=digest(raw))
         config = dict(release_source="pinned", object=manifest["object"], role=role, hostname="sandbox-wb", components={
             "hhm": dict(plugin="hhm", baseline=ref, target=ref, payload_dir="/payload", unmanaged_rules={})})
         system = FakeSystem()
@@ -44,19 +44,19 @@ def run(role):
         for command in (["status"], ["check", "hhm"], ["update", "hhm"], ["verify", "hhm"], ["rollback", "hhm"]):
             with contextlib.redirect_stdout(io.StringIO()) as output:
                 rc = main(command, engine=engine)
-            print(role + " nli " + " ".join(command) + ": " + str(rc))
+            print(role + " nst " + " ".join(command) + ": " + str(rc))
             assert rc == 0, output.getvalue()
         source = b"# sandbox only update-all recover-all --debug"
         put("/usr/bin/wb-mcu-fw-updater", source)
         blob = hashlib.sha1(b'blob ' + str(len(source)).encode() + b'\0' + source).hexdigest()
-        compatibility = patch('nli.firmware.SUPPORTED', {
+        compatibility = patch('nst.firmware.SUPPORTED', {
             '1.99-test': {'package_sha256': frozenset({digest(source)}),
                           'upstream_git_blob': blob}
         })
         compatibility.start()
         result = Firmware(engine).execute("check")
         assert result["final_status"] == "unavailable", result
-        print(role + " nli firmware check: unavailable (honest read-only result)")
+        print(role + " nst firmware check: unavailable (honest read-only result)")
         for action, summary in [("update", "1 upgraded, 0 skipped upgrade, 0 bootloader updates available, 0 stuck in bootloader, 0 disconnected, 0 foreign and 0 too old"),
                                 ("recover", "1 recovered, 0 was already working, 0 not recovered and 0 not answered")]:
             result = Firmware(engine, lambda *args: (summary, 0)).execute(action)

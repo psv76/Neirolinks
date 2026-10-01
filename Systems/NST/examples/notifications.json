@@ -11,7 +11,7 @@
   "files": [
     {
       "source": "notifications/config.json",
-      "target": "/etc/neiro/components/notifications/config.json",
+      "target": "/etc/neirolinks/components/notifications/config.json",
       "sha256": "7187d1e8e2a4d61b1dc5dfedb22d703a462df21470e0c145365b20fb3ed467c3"
     }
   ],

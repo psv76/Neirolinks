@@ -4,11 +4,11 @@ import json
 from pathlib import Path
 import subprocess
 from unittest.mock import patch
-import test_nli as fixtures
+import test_core as fixtures
 from test_pressure_makeup import PressureFixture
-from nli.releases import Releases, API, RAW, REPO, TransportError, version
-from nli.layout import DATA_DIR
-from nli.util import Error, digest, write_json
+from nst.releases import Releases, API, RAW, REPO, TransportError, version
+from nst.layout import DATA_DIR
+from nst.util import Error, digest, write_json
 
 
 class VersionTests(fixtures.Fixture):
@@ -81,11 +81,16 @@ class DiscoveryTests(PressureFixture):
     def test_package_discovery_is_metadata_only_and_requires_matching_asset(self):
         self.catalog['nli'] = dict(version='0.1.9', approved=True, sha256='a'*64)
         self.refresh()
-        asset = dict(id=12, name='neiro-nli_0.1.9_all.deb', digest='sha256:'+'a'*64)
+        self.assertIsNone(self.engine.releases.package())
+        self.catalog['nst'] = dict(version='2.0', approved=True, sha256='a'*64)
+        self.release['tag_name'] = 'nst-approved-package-2.0'
+        self.refresh()
+        self.release['assets'][0]['name'] = 'nst-catalog.json'
+        asset = dict(id=12, name='nst_2.0_all.deb', digest='sha256:'+'a'*64)
         self.release['assets'].append(asset)
-        legacy = self.engine.releases.package()
-        self.assertEqual(legacy['version'], '0.1.9')
-        self.assertEqual((legacy['package_name'], legacy['executable']), ('neiro-nli', '/usr/bin/nli'))
+        package = self.engine.releases.package()
+        self.assertEqual((package['version'], package['package_name'], package['executable']),
+                         ('2.0', 'nst', '/usr/bin/nst'))
         self.assertNotIn(API + '/releases/assets/12', self.requests)
         asset['digest'] = 'sha256:'+'b'*64
         with self.assertRaises(Error):

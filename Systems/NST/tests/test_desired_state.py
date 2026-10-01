@@ -9,12 +9,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-import test_nli as fixtures
-from nli.controller import ControllerRegistry
-from nli.desired import DesiredState
-from nli.platform import default_platform_state, save_platform_state
-from nli.releases import RAW, TransportError
-from nli.util import digest
+import test_core as fixtures
+from nst.controller import ControllerRegistry
+from nst.desired import DesiredState
+from nst.platform import default_platform_state, save_platform_state
+from nst.releases import RAW, TransportError
+from nst.util import digest
 
 
 def registry(state="active"):

@@ -167,7 +167,7 @@ class Engine:
 
     def record(self, command, component=None):
         record = dict(id=uuid.uuid4().hex, time=now(), hostname=self.system.hostname(),
-                      object=self.config["object"], role=self.config["role"], nli=__version__,
+                      object=self.config["object"], role=self.config["role"], nst=__version__,
                       command=command, component=component, from_version=None, to_version=None,
                       release=None, preflight="not_run", backup=None, services=[],
                       install="not_run", verify="not_run", rollback="not_run", final_status="running")

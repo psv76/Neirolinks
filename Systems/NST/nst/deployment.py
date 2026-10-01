@@ -24,6 +24,10 @@ def _file_entry(item, object_file=False):
     require(isinstance(item["source"], str), "Invalid deployment source")
     safe_relative(item["source"])
     require(isinstance(item["target"], str) and item["target"].startswith("/"), "Invalid deployment target")
+    safe_relative(item['target'][1:])
+    if object_file:
+        from .transaction import object_target
+        object_target(item['target'])
     _sha(item["sha256"], "deployment file SHA256")
     return item
 
@@ -85,7 +89,7 @@ def validate_deployment(data):
             "kind", "tag", "published_at", "catalog_sha256", "release_commit"
         }, "Invalid component approval")
         require(approval["kind"] == "github_release"
-                and isinstance(approval["tag"], str) and approval["tag"].startswith("nli-approved-"),
+                and isinstance(approval["tag"], str) and approval["tag"].startswith(("nli-approved-", "nst-approved-components-")),
                 "Invalid component approval source")
         require(isinstance(approval["published_at"], str) and approval["published_at"], "Missing approval timestamp")
         _sha(approval["catalog_sha256"], "approved catalog SHA256")
@@ -125,6 +129,8 @@ def validate_deployment(data):
         require(type(services[action]) is list and services[action] == sorted(set(services[action])),
                 "Deployment services must be sorted/unique")
         expected = sorted({service for component in data["components"] for service in component["services"][action]})
+        if data['object_files']:
+            expected = sorted(set(expected) | {'wb-rules'})
         require(services[action] == expected, "Deployment service aggregate mismatch")
 
     require(type(data["signatures"]) is list, "Invalid signatures field")

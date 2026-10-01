@@ -8,9 +8,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-import test_nli as fixtures
-from nli.firmware import Firmware
-from nli.self_update import SelfUpdate
+import test_core as fixtures
+from nst.firmware import Firmware
+from nst.self_update import SelfUpdate
 
 
 class PackageReleases:
@@ -65,11 +65,11 @@ class FirmwareSelfUpdateNSTTests(fixtures.Fixture):
     def test_self_update_check_is_read_only_even_for_unknown_controller(self):
         self.engine.controller = unknown_controller()
         package = {
-            "version": "1.0.1",
+            "version": "2.1",
             "approved": True,
             "sha256": "0" * 64,
             "asset": {"id": 1, "digest": "sha256:" + "0" * 64},
-            "package_name": "neiro-nst",
+            "package_name": "nst",
             "executable": "/usr/bin/nst",
         }
         releases = PackageReleases(package)
@@ -84,11 +84,11 @@ class FirmwareSelfUpdateNSTTests(fixtures.Fixture):
     def test_self_update_mutation_blocks_unknown_controller_before_download_or_state_write(self):
         self.engine.controller = unknown_controller()
         releases = PackageReleases({
-            "version": "1.0.1",
+            "version": "2.1",
             "approved": True,
             "sha256": "0" * 64,
             "asset": {"id": 1, "digest": "sha256:" + "0" * 64},
-            "package_name": "neiro-nst",
+            "package_name": "nst",
             "executable": "/usr/bin/nst",
         })
         self.engine.releases = releases

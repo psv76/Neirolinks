@@ -10,8 +10,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "Systems/NST"))
-from nli.manifest import validate
-from nli.plugins import BOILER, GAZEBO, HHM
+from nst.manifest import validate
+from nst.plugins import BOILER, GAZEBO, HHM
 
 
 def prepare(commit, role, output):

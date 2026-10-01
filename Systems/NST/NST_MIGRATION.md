@@ -1,65 +1,31 @@
-# NST 1.0 migration from NLI 0.1.9
+# Миграция NLI 0.1.9 → NST 2.0
 
-Scope: GitHub Issue #88.
+Нормативный источник: [имена и версии](../../EIM/Standards/Software_naming_and_versioning_standard.md).
 
-> Historical migration implementation: the names, paths and three-component versions below describe the existing NLI → NST migration baseline, not the naming rules for new installations or releases. New work must follow the [NEIROLINKS software naming and versioning standard](../../EIM/Standards/Software_naming_and_versioning_standard.md): package `nst`, version `X.Y`, and the canonical NST paths. Adapting the implementation requires a separate change and migration/clean-install verification.
+## Порядок
 
-## Identity
+1. Сохранить внешнюю резервную копию `/mnt/data`. Исключить параллельные операции NLI, apt и редакторов root.
+2. Установить reviewed `nst_2.0_all.deb`. Пакет конфликтует с `neiro-nli (<= 0.1.9)` и заменяет его runtime; maintainer hooks отсутствуют. Пакет не меняет config, state, logs, backups, pending, audit.
+3. Выполнить `nst migrate-nli`. Поддерживается только подтверждённый NLI 0.1.9: версия читается из записи dpkg либо исторического audit.
+4. Проверить `nst status`. Если есть pending — сначала штатный `nst rollback <component>`; новый sync до восстановления запрещён.
+5. `nst check` сравнивает состояние с approved deployment; `nst sync` выполняется отдельно и явно.
 
-- Debian package: `neiro-nst` version `1.0.0`.
-- Primary CLI: `/usr/bin/nst`.
-- Temporary compatibility CLI: `/usr/bin/nli`; it executes the same NST runtime.
-- Runtime: `/usr/lib/neiro-nst`.
-- Package data: `/usr/share/neiro-nst`.
-- Package documentation: `/usr/share/doc/neiro-nst`.
-- The internal Python package remains named `nli` in NST 1.0 to avoid rewriting the accepted transaction engine.
+CLI `nli` в новом пакете отсутствует. Старые имена используются только для обнаружения/чтения исторических данных, а не для новой установки.
 
-## Durable storage is intentionally not renamed
+## Сохранность
 
-The following accepted NLI 0.1.9 paths remain the NST 1.0 storage schema:
+Три исходных каталога `/mnt/data/{etc,var/lib,var/log}/neiro/nli` копируются в соответствующие каталоги `neirolinks/nst`. Каждый обычный файл проверяется по SHA256, mode, uid/gid; symlink, junction и hardlink не принимаются. Kernel mutation.lock не копируется: новый процесс использует собственный lock.
 
-- `/mnt/data/etc/neiro/nli`
-- `/mnt/data/var/lib/neiro/nli`
-- `/mnt/data/var/log/neiro/nli`
+Исходные каталоги остаются исторической копией и больше не являются рабочим хранилищем NST. Автоматического удаления нет. Backups, pending, audit и rollback metadata сохраняются побайтно; их хешированные ссылки не переписываются.
 
-This is deliberate. Moving backups, pending records, audit or rollback metadata during a package rename would create a larger failure surface and would break the already proven FIT model.
+Рабочий config меняет ссылки на новые persistent paths и путь packaged payload. Его исходные байты дополнительно сохраняются как `legacy-nli-0.1.9-config.json`. Исторические manifest source paths и версии не переименовываются.
 
-The Debian package owns none of these paths. Package install/reinstall therefore cannot silently rewrite them.
+## Прерывание и конфликты
 
-## Debian replacement
+`/mnt/data/var/lib/neirolinks/nst-migration.json` фиксирует исходный inventory и завершённые этапы. Повторный `nst migrate-nli` продолжает прерванное копирование. Завершённая миграция повторно ничего не переносит.
 
-`neiro-nst 1.0.0` declares `Conflicts/Replaces: neiro-nli (<= 0.1.9)` and contains no maintainer scripts, triggers or conffiles.
+Если обнаружены посторонние canonical данные либо изменились исходные файлы во время миграции, операция отказывает. Автоматического объединения двух хранилищ нет. Не удалять marker, staging или оригиналы для обхода отказа: сначала сопоставить inventory и внешнюю резервную копию.
 
-The exact CI migration path is:
+FIT/reinstall сохраняет `/mnt/data`; после установки NST state/pending/backup доступны на новых путях. Восстановление старой component rollback point проверяется отдельным CI-сценарием с установленным историческим NLI 0.1.9.
 
-1. install the historical NLI package chain through exact NLI 0.1.9;
-2. create reviewed component state, backup, rollback point, audit and a real component pending record using NLI 0.1.9 code;
-3. snapshot all persistent bytes and metadata;
-4. install `neiro-nst_1.0.0_all.deb`;
-5. prove old rootfs runtime is gone, `nst` and compatibility `nli` both report 1.0.0, and the persistent snapshot is byte-identical;
-6. load the existing pending/backup using NST;
-7. reinstall NST and prove persistent data remains unchanged;
-8. start from a fresh rootfs with the same `/mnt/data`, install NST and complete rollback using the original NLI rollback point.
-
-No engineering service restart is part of the package rename.
-
-## Platform metadata
-
-NST adds optional platform metadata at the preserved state root:
-
-`/mnt/data/var/lib/neiro/nli/platform.json`
-
-Schema v1 reserves:
-
-- controller identity/assignment;
-- last approved registry metadata;
-- last approved deployment metadata;
-- desired-state metadata.
-
-If the file does not exist, read-only commands return an in-memory empty schema and do not create it. Population belongs to desired-state/status integration in #89.
-
-## Recovery
-
-A component `pending.json` is not cleared by migration. Existing backups and rollback references remain valid.
-
-An old package-level `self-update.json` also remains visible and blocks component mutation. It is not silently discarded by the rename. Package-level recovery/publication is completed in #92.
+Исторический `neiro-nst 1.0.0` остаётся immutable release. Автоматическая миграция его установок не заявлена: поддерживаемый исходный пакет этой задачи — NLI 0.1.9.

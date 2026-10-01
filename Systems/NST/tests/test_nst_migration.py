@@ -7,10 +7,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-import test_nli as fixtures
-from nli.layout import DATA_DIR, STATE_DIR
-from nli.platform import PLATFORM_STATE, default_platform_state, load_platform_state, save_platform_state
-from nli.util import Error
+import test_core as fixtures
+from nst.layout import DATA_DIR, STATE_DIR
+from nst.platform import PLATFORM_STATE, default_platform_state, load_platform_state, save_platform_state
+from nst.util import Error
 
 
 class PlatformStateTests(fixtures.Fixture):
@@ -31,7 +31,7 @@ class PlatformStateTests(fixtures.Fixture):
         }
         save_platform_state(self.engine, value)
         self.assertEqual(load_platform_state(self.engine), value)
-        self.assertTrue(str(self.engine.target(PLATFORM_STATE)).endswith("mnt/data/var/lib/neiro/nli/platform.json"))
+        self.assertTrue(self.engine.target(PLATFORM_STATE).as_posix().endswith("mnt/data/var/lib/neirolinks/nst/platform.json"))
 
     def test_legacy_packaged_payload_dir_resolves_to_nst_data_without_rewriting_config(self):
         registration = self.config["components"][self.component]

@@ -15,12 +15,12 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from nli.cli import main
-from nli.core import Engine
-from nli.firmware import Firmware, parse_result
-from nli.manifest import validate
-from nli.plugins import BOILER, GAZEBO
-from nli.util import Error, Lock, atomic, digest, read_json, write_json
+from nst.cli import main
+from nst.core import Engine
+from nst.firmware import Firmware, parse_result
+from nst.manifest import validate
+from nst.plugins import BOILER, GAZEBO
+from nst.util import Error, Lock, atomic, digest, read_json, write_json
 
 
 class FakeSystem:
@@ -85,7 +85,7 @@ class Fixture(unittest.TestCase):
     def manifest(self, version, content):
         return dict(schema=1, component="demo", version=version, object="test", role="boiler",
                     release=dict(repository="psv76/Neirolinks", commit="a" * 40),
-                    files=[dict(source="demo/data.json", target="/etc/neiro/components/demo/data.json", sha256=digest(content))],
+                    files=[dict(source="demo/data.json", target="/etc/neirolinks/components/demo/data.json", sha256=digest(content))],
                     services=dict(stop=[], start=[]), preflight=["identity", "drift"],
                     verify=dict(controls=[], runtime_version=version, health_contract="none"),
                     rollback="previous-managed-release")
@@ -102,8 +102,8 @@ class Fixture(unittest.TestCase):
         return dict(path=path, sha256=digest(data))
 
     def setup_component(self):
-        r = dict(plugin="files", baseline=self.pin("/mnt/data/etc/neiro/nli/base.json", self.base),
-                 target=self.pin("/mnt/data/etc/neiro/nli/target.json", self.new), payload_dir="/opt/payload",
+        r = dict(plugin="files", baseline=self.pin("/mnt/data/etc/neirolinks/nst/base.json", self.base),
+                 target=self.pin("/mnt/data/etc/neirolinks/nst/target.json", self.new), payload_dir="/opt/payload",
                  allowed_targets=[f["target"] for f in self.new["files"]])
         self.config["components"][self.component] = r
         self.put(self.base["files"][0]["target"], b"old")
@@ -111,7 +111,7 @@ class Fixture(unittest.TestCase):
         self.engine = Engine(self.config, self.root, self.system)
 
     def repin(self):
-        self.config["components"][self.component]["target"] = self.pin("/mnt/data/etc/neiro/nli/target.json", self.new)
+        self.config["components"][self.component]["target"] = self.pin("/mnt/data/etc/neirolinks/nst/target.json", self.new)
 
     def snapshot(self):
         return {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
@@ -155,7 +155,7 @@ class CoreTests(Fixture):
         self.assertEqual(self.engine.mutate("update", "demo")["final_status"], "failed")
 
     def test_manifest_hash_mismatch(self):
-        self.put("/mnt/data/etc/neiro/nli/target.json", b"{}")
+        self.put("/mnt/data/etc/neirolinks/nst/target.json", b"{}")
         self.assertIn("Manifest checksum", self.engine.mutate("update", "demo")["error"])
 
     def test_payload_checksum_mismatch_before_mutation(self):
@@ -218,7 +218,7 @@ class CoreTests(Fixture):
     def test_corrupted_backup_rejected_before_install(self):
         result = self.engine.mutate("update", "demo")
         backup = result["backup"]["id"]
-        self.put("/mnt/data/var/lib/neiro/nli/backups/" + backup + "/0.bin", b"corrupt")
+        self.put("/mnt/data/var/lib/neirolinks/nst/backups/" + backup + "/0.bin", b"corrupt")
         result = self.engine.mutate("rollback", "demo")
         self.assertEqual(result["final_status"], "failed")
         self.assertIn("Corrupted backup", result["error"])
@@ -226,13 +226,13 @@ class CoreTests(Fixture):
 
     def test_corrupted_backup_metadata(self):
         result = self.engine.mutate("update", "demo")
-        self.put("/mnt/data/var/lib/neiro/nli/backups/" + result["backup"]["id"] + "/metadata.json", b"{}")
+        self.put("/mnt/data/var/lib/neirolinks/nst/backups/" + result["backup"]["id"] + "/metadata.json", b"{}")
         self.assertIn("Corrupted backup", self.engine.mutate("rollback", "demo")["error"])
 
     def test_lock_concurrent_update(self):
-        path = self.engine.target("/mnt/data/var/lib/neiro/nli/mutation.lock")
+        path = self.engine.target("/mnt/data/var/lib/neirolinks/nst/mutation.lock")
         with Lock(path):
-            with self.assertRaisesRegex(Error, "NLI_BUSY"):
+            with self.assertRaisesRegex(Error, "NST_BUSY"):
                 self.engine.mutate("update", "demo")
 
     def test_manifest_rejects_unsafe_values(self):
@@ -264,7 +264,7 @@ class CoreTests(Fixture):
         self.assertEqual(self.engine.mutate("update", "demo")["final_status"], "failed")
 
     def test_no_dynamic_file_deletion_in_v01(self):
-        self.new["files"][0]["target"] = "/etc/neiro/components/demo/new.json"
+        self.new["files"][0]["target"] = "/etc/neirolinks/components/demo/new.json"
         self.config["components"]["demo"]["allowed_targets"].append(self.new["files"][0]["target"])
         self.repin()
         self.assertIn("stable managed file set", self.engine.mutate("update", "demo")["error"])
@@ -295,9 +295,9 @@ class CoreTests(Fixture):
         code = """
 import os, sys
 sys.path[:0] = [sys.argv[1], sys.argv[2]]
-from test_nli import FakeSystem
-from nli.core import Engine
-from nli.util import read_json
+from test_core import FakeSystem
+from nst.core import Engine
+from nst.util import read_json
 e = Engine(read_json(sys.argv[3]), sys.argv[4], FakeSystem())
 original = e.install
 def crash(*args):
@@ -314,11 +314,11 @@ e.mutate('update', 'demo')
         self.assertEqual(self.engine.target(self.base["files"][0]["target"]).read_bytes(), b"old")
 
     def test_process_lock_is_exclusive(self):
-        path = self.engine.target("/mnt/data/var/lib/neiro/nli/mutation.lock")
+        path = self.engine.target("/mnt/data/var/lib/neirolinks/nst/mutation.lock")
         code = """
 import sys
 sys.path.insert(0, sys.argv[1])
-from nli.util import Lock, Error
+from nst.util import Lock, Error
 try:
     with Lock(sys.argv[2]):
         sys.exit(7)
@@ -344,7 +344,7 @@ except Error:
         self.assertEqual(self.engine.target(self.base["files"][0]["target"]).read_bytes(), b"old")
 
     def test_duplicate_json_keys_rejected(self):
-        from nli.util import decode
+        from nst.util import decode
         with self.assertRaisesRegex(Error, "Duplicate"):
             decode('{"schema":1,"schema":2}')
 
@@ -364,8 +364,8 @@ class HHMTests(Fixture):
             self.put(f["target"], data)
             self.put("/opt/payload/" + f["source"], data)
         r = self.config["components"]["hhm"]
-        r["baseline"] = self.pin("/mnt/data/etc/neiro/nli/base.json", self.base)
-        r["target"] = self.pin("/mnt/data/etc/neiro/nli/target.json", self.new)
+        r["baseline"] = self.pin("/mnt/data/etc/neirolinks/nst/base.json", self.base)
+        r["target"] = self.pin("/mnt/data/etc/neirolinks/nst/target.json", self.new)
         self.engine = Engine(self.config, self.root, self.system)
 
     def hhm_manifest(self, role):
@@ -467,7 +467,7 @@ class FirmwareTests(Fixture):
         self.source = b"--debug # official fixture commands: update-all recover-all"
         self.put("/usr/bin/wb-mcu-fw-updater", self.source)
         blob = hashlib.sha1(b'blob ' + str(len(self.source)).encode() + b'\0' + self.source).hexdigest()
-        supported = patch('nli.firmware.SUPPORTED', {
+        supported = patch('nst.firmware.SUPPORTED', {
             '1.99-test': {'package_sha256': frozenset({digest(self.source)}),
                           'upstream_git_blob': blob}
         })
@@ -534,7 +534,7 @@ class FirmwareTests(Fixture):
                 return 'missing     /usr/share/doc/wb-mcu-fw-updater/changelog.gz'
             return '1.99-test'
 
-        with patch('nli.firmware.SUPPORTED', {
+        with patch('nst.firmware.SUPPORTED', {
                 '1.99-test': {'package_sha256': frozenset({digest(source)}),
                               'upstream_git_blob': '0' * 40}
              }), patch.object(self.system, 'run', side_effect=run):

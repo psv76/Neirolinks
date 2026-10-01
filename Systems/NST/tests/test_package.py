@@ -12,8 +12,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from nli.manifest import validate
-from nli.plugins import HHM, PressureMakeup
+from nst.manifest import validate
+from nst.plugins import HHM, PressureMakeup
 
 
 def load_tool(name):
@@ -24,6 +24,25 @@ def load_tool(name):
 
 
 class PackageTests(unittest.TestCase):
+    def test_canonical_runtime_names_and_version(self):
+        from nst import __version__
+        from nst.releases import software_version
+        from nst.util import Error
+        self.assertEqual(software_version(__version__), (2, 0, 0))
+        self.assertGreater(software_version('2.10'), software_version('2.9'))
+        for invalid in ('2.0.1', '2', '02.0', '2.01', '2.0-rc1', '2.0+build'):
+            with self.assertRaises(Error):
+                software_version(invalid)
+        self.assertFalse((ROOT / 'nli').exists())
+        for path in (ROOT / 'nst').glob('*.py'):
+            text = path.read_text(encoding='utf-8')
+            self.assertNotIn('neiro-nst', text, str(path))
+            self.assertNotIn('from nli', text, str(path))
+            if path.name != 'migration.py':
+                self.assertNotIn('/mnt/data/etc/neiro/nli', text, str(path))
+                self.assertNotIn('/mnt/data/var/lib/neiro/nli', text, str(path))
+                self.assertNotIn('/mnt/data/var/log/neiro/nli', text, str(path))
+        self.assertIn('nst_2.0_all.deb', (ROOT / 'tools/build_deb.py').read_text())
     def test_pressure_baseline_exact_live_evidence_immutable_pin_and_two_components(self):
         raw = (ROOT / 'examples/pressure-makeup-boiler-1.0.json').read_bytes()
         m = validate(json.loads(raw))
@@ -58,6 +77,12 @@ class PackageTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(blob).hexdigest(), entry["sha256"])
         validate(json.loads((ROOT / "examples/notifications.json").read_bytes()))
 
+    def test_packaged_adoption_helper_imports_canonical_runtime(self):
+        helper = (ROOT / 'tools/register_pressure_makeup.py').read_text()
+        self.assertIn("sys.path.insert(0, '/usr/lib/nst')", helper)
+        self.assertNotIn('/usr/lib/neiro-nli', helper)
+        self.assertNotIn('run nli', helper)
+
     def test_deb_reproducible_layout_modes_no_service_hooks(self):
         tool = load_tool("build_deb")
         with tempfile.TemporaryDirectory() as folder:
@@ -79,8 +104,8 @@ class PackageTests(unittest.TestCase):
             with tarfile.open(fileobj=io.BytesIO(members["control.tar.gz"]), mode="r:gz") as tar:
                 self.assertEqual(set(tar.getnames()), {"./control"})
                 control = tar.extractfile("./control").read().decode()
-                self.assertIn("Package: neiro-nst\n", control)
-                self.assertIn("Version: 1.0.0\n", control)
+                self.assertIn("Package: nst\n", control)
+                self.assertIn("Version: 2.0\n", control)
                 self.assertIn("Conflicts: neiro-nli (<= 0.1.9)\n", control)
                 self.assertIn("Replaces: neiro-nli (<= 0.1.9)\n", control)
             with tarfile.open(fileobj=io.BytesIO(members["data.tar.gz"]), mode="r:gz") as tar:
@@ -89,21 +114,21 @@ class PackageTests(unittest.TestCase):
                         if str(parent) != ".":
                             self.assertTrue(tar.getmember("./" + str(parent)).isdir(), str(parent))
                 self.assertEqual(tar.getmember("./usr/bin/nst").mode, 0o755)
-                self.assertEqual(tar.getmember("./usr/bin/nli").mode, 0o755)
-                self.assertIn("./usr/lib/neiro-nst/nli/core.py", tar.getnames())
+                self.assertNotIn("./usr/bin/nli", tar.getnames())
+                self.assertIn("./usr/lib/nst/nst/core.py", tar.getnames())
                 self.assertNotIn("./usr/lib/neiro-nli/nli/core.py", tar.getnames())
                 for name in ("default-config.json", "manifest.schema.json", "WB_SMOKE.md",
                              "examples/config-boiler.json", "examples/hhm-boiler-3.0.json"):
-                    self.assertIn("./usr/share/neiro-nst/" + name, tar.getnames())
+                    self.assertIn("./usr/share/nst/" + name, tar.getnames())
                 self.assertFalse(any(p.startswith(("./etc", "./mnt", "./var")) for p in tar.getnames()))
-                self.assertIn("./usr/share/neiro-nst/deployments/ABF62SL.json", tar.getnames())
-                self.assertIn("./usr/share/neiro-nst/deployment.schema.json", tar.getnames())
+                self.assertIn("./usr/share/nst/deployments/ABF62SL.json", tar.getnames())
+                self.assertIn("./usr/share/nst/deployment.schema.json", tar.getnames())
                 self.assertFalse(any("systemd" in p for p in tar.getnames()))
                 payload = 'NLI/releases/pressure_makeup/1.0/507_Pressure_makeup.js'
-                self.assertEqual(tar.extractfile('./usr/share/neiro-nst/payload/' + payload).read(),
+                self.assertEqual(tar.extractfile('./usr/share/nst/payload/' + payload).read(),
                                  (ROOT / 'releases/pressure_makeup/1.0/507_Pressure_makeup.js').read_bytes())
-                self.assertIn('./usr/share/neiro-nst/register_pressure_makeup.py', tar.getnames())
-                self.assertIn('./usr/share/neiro-nst/PRESSURE_MAKEUP.md', tar.getnames())
+                self.assertIn('./usr/share/nst/register_pressure_makeup.py', tar.getnames())
+                self.assertIn('./usr/share/nst/PRESSURE_MAKEUP.md', tar.getnames())
 
 
 if __name__ == "__main__":

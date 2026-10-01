@@ -1,62 +1,34 @@
-# NST approved deployment
+# NST 2.0: approved deployment
 
-Scope: GitHub Issue #87.
+## Источник
 
-## Layers
+`nst check/sync` выбирает последний published stable `nst-approved-platform-*` и assets `nst-controller-registry.json`, `nst-deployment-<SERIAL>.json`. Проверяются GitHub asset SHA256, hardware serial/fingerprint, lifecycle, object/node/role, immutable commits, profile и diagnostics profile hashes, component manifests и payload hashes.
 
-```text
-engineering source commit S
-  controller profile
-  object payload declarations
-  approved-components snapshot
-  resolver/schema
-        |
-        v
-deterministic deployment manifest
-        |
-        v
-future NST check/sync
-```
+Отсутствие serial в последнем platform release не разрешает откат к более старому registry. Unknown, planned, retired, fingerprint mismatch и несовпадающий локальный config блокируют mutation. Unconfigured чистая установка получает назначение из approved registry; hostname не заменяет hardware identity.
 
-The deployment manifest is generated **from an immutable source commit S** and is committed afterwards. This avoids a self-referential commit identity: rebuilding from the same S must produce byte-identical JSON.
+Package release и platform release — разные approvals. Установка Debian-пакета не одобряет объектовый payload. Установщик пакета не использует legacy NLI release как запасной вариант.
 
-## Component resolution
+## Транзакция
 
-A controller profile requests a track, currently only `stable`. CI resolves the newest compatible entry from `Systems/NST/deployment/approved-components.json`.
+Все component manifests проверяются встроенными plugin policies; object files допускаются только как `.js` в `/etc/wb-rules` и `/etc/wb-rules-modules`. Protected 507 и PersistentStorage не могут стать обычными object files. Компонент подпитки сохраняет отдельную policy.
 
-The committed snapshot is not trusted merely because it is in Git. CI also verifies each entry against the published stable GitHub Release:
+Перед первым service action:
 
-1. release is published, non-draft and non-prerelease;
-2. tag resolves to the recorded immutable commit;
-3. the single `nli-catalog.json` asset has the recorded GitHub SHA256;
-4. the approved catalog contains the exact component/object/role/version;
-5. the catalog's manifest commit/path/SHA256 equals the snapshot.
+1. Проверить lifecycle, отсутствие pending/self-update, загрузить и проверить все payload bytes.
+2. Проверить ownership, неизвестные writers, drift, interlocks и свободное место под payload/backup.
+3. Сохранить прежние bytes/permissions и отсутствие новых файлов, config, component state, registry и platform state.
+4. Записать durable pending intent; затем остановить требуемые services.
 
-The deployment then embeds the exact component version, immutable manifest reference, immutable payload commit, target file set/SHA256 and required service actions.
+Все файлы заменяются атомарно; config и регистрация компонентов создаются из проверенных metadata. После старта проверяются files/services и технические ошибки загрузки управляемых JS. Только после успеха platform state получает `exact`, audit фиксируется, pending очищается.
 
-## Object files
+Обычная ошибка вызывает rollback всей транзакции, включая удаление только новых файлов этой транзакции. Power loss/SIGKILL оставляет pending. `nst recover-deployment` восстанавливает snapshot; повреждённый backup блокирует восстановление. Остальные mutation-команды отказывают при pending.
 
-Object-specific files are declared in the controller profile as source/target pairs. Their SHA256 is calculated from source commit S. Mutable `main` is never an install source.
+При exact deployment повторный sync не перезапускает services. Исторические component rollback references после миграции сохраняются. Deployment backups хранятся отдельно и автоматически не удаляются.
 
-The pilot #87 profile deliberately has an empty `object_files` list: #87 proves the format/resolver. Completing the full ABF62SL object payload belongs to the field pilot #93.
+## Ограничения
 
-## Offline verification
+Удаление ранее управляемых компонентов/файлов требует отдельного reviewed decommissioning plan. Произвольные system config/object targets, hooks и shell expressions не поддерживаются.
 
-`nli.deployment.verify_offline()` accepts a local byte reader `(commit, path) -> bytes` and verifies:
+Локальные unknown files не становятся approved только из-за нахождения на контроллере. Если новый approved target уже существует, допускаются только точные одобренные bytes либо подтверждённая предыдущая managed version.
 
-- controller profile and diagnostics profile bytes from S;
-- exact object file bytes from S;
-- every component manifest against its pinned SHA256;
-- component identity/version/object/role;
-- immutable component payload commit;
-- every payload SHA256.
-
-No network lookup is required for this verification once the referenced Git objects are locally available.
-
-## Future signatures
-
-Schema v1 contains `signatures[]`. It is empty today. A future NEIROLINKS signing layer can add key ID, algorithm and signature records without changing the deployment's core identity fields or introducing a breaking schema migration.
-
-## Safety boundary
-
-#87 does not install anything, does not change live WB state, and does not make application-runtime health a deployment gate. Actual status/check/sync integration is #89.
+Для ABF62SL approved pressure_makeup отсутствует в desired components: публикация полного platform deployment блокируется до решения этого пробела. Реальные hardware/MQTT interlocks должны быть доступны; CI использует fake backend и не доказывает ПНР на физическом WB.

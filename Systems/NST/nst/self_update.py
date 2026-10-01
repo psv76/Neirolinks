@@ -104,14 +104,11 @@ class SelfUpdate:
                     if key == 'control.tar.gz':
                         require(item.isdir() or name == 'control', 'Package maintainer hooks/config forbidden')
                     elif item.isfile():
-                        require(name in ('usr/bin/nst', 'usr/bin/nli')
-                                or name.startswith(('usr/lib/neiro-nst/', 'usr/share/neiro-nst/',
-                                                    'usr/share/doc/neiro-nst/',
-                                                    'usr/lib/neiro-nli/', 'usr/share/neiro-nli/',
-                                                    'usr/share/doc/neiro-nli/')),
+                        require(name == 'usr/bin/nst'
+                                or name.startswith(('usr/lib/nst/', 'usr/share/nst/',
+                                                    'usr/share/doc/nst/')),
                                 'Package would modify persistent/system data')
                     else:
-                        roots = ('usr/bin', 'usr/lib/neiro-nst', 'usr/share/neiro-nst', 'usr/share/doc/neiro-nst',
-                                 'usr/lib/neiro-nli', 'usr/share/neiro-nli', 'usr/share/doc/neiro-nli')
+                        roots = ('usr/bin', 'usr/lib/nst', 'usr/share/nst', 'usr/share/doc/nst')
                         require(any(root == name or root.startswith(name + '/') or name.startswith(root + '/') for root in roots),
                                 'Package directory outside reviewed service-tool namespaces')

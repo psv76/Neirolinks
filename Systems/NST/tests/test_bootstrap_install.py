@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("nli_bootstrap", ROOT / "install.py")
+SPEC = importlib.util.spec_from_file_location("nst_bootstrap", ROOT / "install.py")
 bootstrap_mod = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(bootstrap_mod)
 
@@ -33,41 +33,41 @@ def release(version, catalog_id, deb_id, catalog, deb, draft=False, prerelease=F
         "draft": draft,
         "prerelease": prerelease,
         "published_at": "2026-09-25T00:00:00Z",
-        "tag_name": "nli-approved-" + version,
+        "tag_name": "nst-approved-package-" + version,
         "assets": [
-            {"id": catalog_id, "name": "nli-catalog.json",
+            {"id": catalog_id, "name": "nst-catalog.json",
              "digest": "sha256:" + hashlib.sha256(c).hexdigest()},
-            {"id": deb_id, "name": "neiro-nli_" + version + "_all.deb",
+            {"id": deb_id, "name": "nst_" + version + "_all.deb",
              "digest": "sha256:" + hashlib.sha256(deb).hexdigest()},
         ],
     }, c
 
 
 class BootstrapTests(unittest.TestCase):
-    def fixture(self, version="0.1.9"):
+    def fixture(self, version="2.0"):
         deb = b"approved deb bytes " + version.encode()
         catalog = {
             "schema": 1,
             "repository": bootstrap_mod.REPO,
             "approved": True,
             "components": [],
-            "nli": {"version": version, "approved": True,
+            "nst": {"version": version, "approved": True,
                     "sha256": hashlib.sha256(deb).hexdigest()},
         }
         rel, cat = release(version, 10, 11, catalog, deb)
         return deb, catalog, rel, cat
 
     def test_check_selects_latest_published_non_draft(self):
-        old_deb, old_catalog, old_rel, old_cat = self.fixture("0.1.8")
-        deb, catalog, rel, cat = self.fixture("0.1.9")
+        old_deb, old_catalog, old_rel, old_cat = self.fixture("1.9")
+        deb, catalog, rel, cat = self.fixture("2.0")
         draft_deb = b"draft"
         draft_catalog = {
             "schema": 1, "repository": bootstrap_mod.REPO, "approved": True,
             "components": [],
-            "nli": {"version": "9.9.9", "approved": True,
+            "nst": {"version": "9.9", "approved": True,
                     "sha256": hashlib.sha256(draft_deb).hexdigest()},
         }
-        draft_rel, draft_cat = release("9.9.9", 20, 21, draft_catalog, draft_deb, draft=True)
+        draft_rel, draft_cat = release("9.9", 20, 21, draft_catalog, draft_deb, draft=True)
         transport = FakeTransport(
             [old_rel, draft_rel, rel],
             {10: old_cat, 11: old_deb, 20: draft_cat, 21: draft_deb,
@@ -77,7 +77,7 @@ class BootstrapTests(unittest.TestCase):
         rel["assets"][0]["id"] = 30
         rel["assets"][1]["id"] = 31
         result = bootstrap_mod.Bootstrap(transport=transport).check()
-        self.assertEqual(result["version"], "0.1.9")
+        self.assertEqual(result["version"], "2.0")
         self.assertEqual(result["sha256"], hashlib.sha256(deb).hexdigest())
 
     def test_catalog_asset_checksum_mismatch_fails(self):
@@ -95,18 +95,18 @@ class BootstrapTests(unittest.TestCase):
             calls.append(list(argv))
             if argv[:2] == ["/usr/bin/dpkg-deb", "-f"]:
                 self.assertEqual(Path(argv[2]).read_bytes(), deb)
-                return {"Package": "neiro-nli", "Version": "0.1.9", "Architecture": "all"}[argv[3]]
+                return {"Package": "nst", "Version": "2.0", "Architecture": "all"}[argv[3]]
             if argv[:2] == ["/usr/bin/dpkg", "--install"]:
                 self.assertEqual(Path(argv[2]).read_bytes(), deb)
                 return ""
-            if argv[:2] == ["/usr/bin/nli", "--json"]:
-                return '{"version":"0.1.9"}'
+            if argv[:2] == ["/usr/bin/nst", "--json"]:
+                return '{"version":"2.0"}'
             raise AssertionError(argv)
 
         result = bootstrap_mod.Bootstrap(
             transport=transport, runner=runner, euid=lambda: 0
         ).install()
-        self.assertEqual(result["version"], "0.1.9")
+        self.assertEqual(result["version"], "2.0")
         self.assertTrue(any(c[:2] == ["/usr/bin/dpkg", "--install"] for c in calls))
 
     def test_non_root_fails_before_network(self):

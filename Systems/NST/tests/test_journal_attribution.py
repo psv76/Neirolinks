@@ -7,11 +7,11 @@ import unittest
 from unittest.mock import patch
 
 from test_pressure_makeup import PressureFixture
-from nli.core import Engine
-from nli.cli import main
-from nli.journal import classify, devices
-from nli.layout import LOG_DIR
-from nli.util import digest
+from nst.core import Engine
+from nst.cli import main
+from nst.journal import classify, devices
+from nst.layout import LOG_DIR
+from nst.util import digest
 
 EXTERNAL = '/etc/wb-rules/vendor.js'
 SOURCE = "var virtual = 'vendor-widget', git = 'https://example.invalid'; defineVirtualDevice(virtual, {});"

@@ -6,10 +6,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import test_nli as fixtures
-from nli.core import Engine
-from nli.layout import CONFIG_DIR, DEFAULT_CONFIG, DATA_DIR, STATE_DIR, LOG_DIR, WB_ROOTS, load_config, target
-from nli.util import Error, digest, read_json
+import test_core as fixtures
+from nst.core import Engine
+from nst.layout import CONFIG_DIR, DEFAULT_CONFIG, DATA_DIR, STATE_DIR, LOG_DIR, WB_ROOTS, load_config, target
+from nst.util import Error, digest, read_json
 
 
 class WBLayoutTests(fixtures.HHMTests):

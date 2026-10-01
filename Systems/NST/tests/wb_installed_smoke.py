@@ -12,17 +12,23 @@ from unittest.mock import patch
 assert os.environ.get('NLI_DISPOSABLE_CI') == '1' and Path('/.dockerenv').exists()
 mode = sys.argv[1]
 legacy_runtime = mode == 'prepare_nli'
-RUNTIME_ROOT = '/usr/lib/neiro-nli' if legacy_runtime else '/usr/lib/neiro-nst'
+RUNTIME_ROOT = '/usr/lib/neiro-nli' if legacy_runtime else '/usr/lib/nst'
 PRIMARY_CLI = '/usr/bin/nli' if legacy_runtime else '/usr/bin/nst'
-EXPECTED_VERSION = '0.1.9' if legacy_runtime else '1.0.0'
+EXPECTED_VERSION = '0.1.9' if legacy_runtime else '2.0'
 sys.dont_write_bytecode = True
 sys.path.insert(0, RUNTIME_ROOT)
-import nli
-from nli.core import Engine
-from nli.layout import CONFIG_DIR, DEFAULT_CONFIG, DATA_DIR, STATE_DIR, LOG_DIR, load_config
-from nli.util import digest, read_json, write_json
-assert nli.__version__ == EXPECTED_VERSION
-assert nli.__file__.startswith(RUNTIME_ROOT + '/')
+import importlib
+package = importlib.import_module('nli' if legacy_runtime else 'nst')
+core = importlib.import_module(package.__name__ + '.core')
+layout = importlib.import_module(package.__name__ + '.layout')
+util = importlib.import_module(package.__name__ + '.util')
+Engine = core.Engine
+CONFIG_DIR, DEFAULT_CONFIG, DATA_DIR, STATE_DIR, LOG_DIR = (getattr(layout, n) for n in
+    ('CONFIG_DIR', 'DEFAULT_CONFIG', 'DATA_DIR', 'STATE_DIR', 'LOG_DIR'))
+load_config = layout.load_config
+digest, read_json, write_json = util.digest, util.read_json, util.write_json
+assert package.__version__ == EXPECTED_VERSION
+assert package.__file__.startswith(RUNTIME_ROOT + '/')
 assert Path(DATA_DIR, 'RECOVERY.md').is_file()
 
 
@@ -75,8 +81,7 @@ def readonly(engine, pending=False):
     assert cli.returncode == (1 if pending else 0), cli.stdout + cli.stderr
     assert json.loads(cli.stdout)['object'] == '05_31_Ivolga_13'
     if not legacy_runtime:
-        alias = subprocess.run(['/usr/bin/nli', '--json', 'status'], capture_output=True, text=True)
-        assert alias.returncode == cli.returncode and json.loads(alias.stdout)['object'] == '05_31_Ivolga_13'
+        assert not Path('/usr/bin/nli').exists()
     assert before == snapshot(), 'Read-only command changed persistent bytes/metadata'
 
 
@@ -118,6 +123,12 @@ if mode == 'prepare_nli':
     subprocess.run(['/usr/bin/python3', '-B', DATA_DIR + '/register_pressure_makeup.py'], check=True)
     config = load_config()
     config['release_source'] = 'pinned'
+    # Historical NLI migration smoke must be deterministic and offline: use the
+    # reviewed pinned manifests/payload already prepared in this disposable rootfs,
+    # never the live GitHub Releases API (which is rate-limited and unrelated to
+    # the migration contract being tested here).
+    write_json(Path(DEFAULT_CONFIG), config)
+    assert load_config().get('release_source') == 'pinned'
     assert config['components']['pressure_makeup'] == makeup
     r = config['components']['hhm']
     assert f['target'] not in r['unmanaged_rules']
@@ -188,7 +199,20 @@ if mode == 'prepare_nli':
     Path('/evidence/persistent.json').write_text(json.dumps(snapshot()), encoding='utf-8')
     print('INSTALLED BOILER: two components, config migration, exact 507, canonical links, read-only, strict inventory, independent update/rollback, pending PASS')
 elif mode in ('migrated', 'reinstall', 'fit'):
-    assert snapshot() == read_json('/evidence/persistent.json'), 'Package migration/reinstall changed durable data'
+    if mode == 'migrated':
+        originals = read_json('/evidence/persistent.json')
+        assert snapshot() == originals, 'Package installation changed NLI persistent bytes'
+        from nst.migration import migrate, LEGACY, CANONICAL
+        migrate(legacy_version='0.1.9')
+        after = snapshot()
+        for path, evidence in originals.items():
+            assert after[path] == evidence, 'Legacy data lost: ' + path
+            for old, new in zip(LEGACY, CANONICAL):
+                if path.startswith(old + '/') and path not in (old + '/config.json', old + '/mutation.lock'):
+                    assert after[new + path[len(old):]] == evidence, 'Migrated data changed: ' + path
+        Path('/evidence/persistent-nst.json').write_text(json.dumps(after), encoding='utf-8')
+    else:
+        assert snapshot() == read_json('/evidence/persistent-nst.json'), 'Reinstall/FIT changed NST persistent data'
     if mode == 'fit':
         for folder in ('wb-rules', 'wb-rules-modules'):
             Path('/etc', folder).symlink_to('/mnt/data/etc/' + folder, target_is_directory=True)
@@ -199,7 +223,7 @@ elif mode in ('migrated', 'reinstall', 'fit'):
         platform = engine.read_operation('status')['platform']
         assert platform == {'schema': 1, 'controller': None, 'registry': None,
                             'deployment': None, 'desired_state': None}
-        assert snapshot() == read_json('/evidence/persistent.json')
+        assert snapshot() == read_json('/evidence/persistent-nst.json')
     status = engine.read_operation('status')
     assert status['components']['hhm']['manifest']['version'].startswith('3.0.0-FSE')
     assert status['last_operations']['hhm']['final_status'] == 'partial_failure'

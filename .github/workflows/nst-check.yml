@@ -1,10 +1,10 @@
-name: NST compatibility
+name: NST install and compatibility
 on:
   push:
     branches: ['main', 'system/nst/**']
-    paths: ['Systems/NST/**', 'objects/**/controllers/**', 'Objects/**/controllers/**', '.github/workflows/nli-check.yml']
+    paths: ['Systems/NST/**', 'objects/**/controllers/**', 'Objects/**/controllers/**', '.github/workflows/nst-check.yml']
   pull_request:
-    paths: ['Systems/NST/**', 'objects/**/controllers/**', '.github/workflows/nli-check.yml']
+    paths: ['Systems/NST/**', 'objects/**/controllers/**', '.github/workflows/nst-check.yml']
 permissions:
   contents: read
 jobs:
@@ -15,7 +15,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Fetch immutable migration and previous NLI package source
-        run: git fetch origin 9f90f17dc91f9d1ff753be66c18506027a5c03b1 d3bc8fcd78c6f4133cb4824ef74a589d90026373
+        run: git fetch origin 9f90f17dc91f9d1ff753be66c18506027a5c03b1 d3bc8fcd78c6f4133cb4824ef74a589d90026373 df484b8bf22835001d69ddb2dd18e3eafd3792b0 d75710dad93906af8869dcce48d26e14673b63fb 14354bcf1e0033c51f02f0b242bea8aa7fa29e4e 12e5805d22e365bdbe049245fefccdc005e960fa f4673abbe52f1a89db5c84dd4c8cd391bc9ee0ef
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -40,13 +40,20 @@ jobs:
           node "$RUNNER_TEMP/hhm35/objects/05_31_Ivolga_13/HHM3_FSE/tests/persistent-storage-regressions.js"
           node "$RUNNER_TEMP/hhm35/objects/05_31_Ivolga_13/HHM3_FSE/tests/manifest.js" --check
       - name: Shell syntax
-        run: sh -n Systems/NST/tests/wb_package_smoke.sh
+        run: |
+          sh -n Systems/NST/tests/wb_package_smoke.sh
+          sh -n Systems/NST/tests/wb_clean_smoke.sh
       - name: Build Debian package
         run: |
           python -B Systems/NST/tools/build_deb.py
-          sha256sum Systems/NST/dist/neiro-nst_1.0.0_all.deb
-          dpkg-deb --info Systems/NST/dist/neiro-nst_1.0.0_all.deb
-          dpkg-deb --contents Systems/NST/dist/neiro-nst_1.0.0_all.deb
+          sha256sum Systems/NST/dist/nst_2.0_all.deb
+          dpkg-deb --info Systems/NST/dist/nst_2.0_all.deb
+          dpkg-deb --contents Systems/NST/dist/nst_2.0_all.deb
+      - name: Clean rootfs install without NLI and desired-state bootstrap
+        run: |
+          docker run --rm -e NST_DISPOSABLE_CI=1 \
+            -v "$PWD/Systems/NST/dist:/packages:ro" -v "$PWD/Systems/NST/tests:/tests:ro" \
+            debian:trixie-slim sh /tests/wb_clean_smoke.sh
       - name: WB nodoc, upgrade, installed boiler bootstrap, reinstall and simulated FIT
         run: |
           mkdir -p "$RUNNER_TEMP/nli-old-source" "$RUNNER_TEMP/nli-old-package" "$RUNNER_TEMP/nli-persistent" "$RUNNER_TEMP/nli-evidence"
@@ -91,6 +98,6 @@ jobs:
             debian:trixie-slim sh /tests/wb_package_smoke.sh fit
       - uses: actions/upload-artifact@v4
         with:
-          name: neiro-nst-1.0.0-deb
-          path: Systems/NST/dist/neiro-nst_1.0.0_all.deb*
+          name: nst-2.0-deb
+          path: Systems/NST/dist/nst_2.0_all.deb*
           if-no-files-found: error

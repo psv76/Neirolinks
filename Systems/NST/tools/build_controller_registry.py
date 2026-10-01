@@ -9,8 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
 sys.path.insert(0, str(ROOT))
 
-from nli.controller import SERIAL_RE, validate_profile
-from nli.util import decode, require, safe_relative
+from nst.controller import SERIAL_RE, validate_profile
+from nst.util import decode, require, safe_relative
 
 
 def build_registry(repo_root=REPO):
@@ -19,7 +19,7 @@ def build_registry(repo_root=REPO):
     active_assignments = {}
     profile_paths = list(repo_root.glob("Objects/*/controllers/*.json"))
     profile_paths += list(repo_root.glob("objects/*/controllers/*.json"))
-    for path in sorted(profile_paths):
+    for path in sorted(set(profile_paths)):
         object_name = path.parents[1].name
         serial = path.stem.upper()
         require(SERIAL_RE.fullmatch(serial) is not None, "Invalid WB serial filename: " + path.as_posix())

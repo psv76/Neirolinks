@@ -12,13 +12,27 @@ BOILER = COMMON | {"/etc/wb-rules-modules/" + name + ".js" for name in
 GAZEBO = COMMON | {"/etc/wb-rules/624_combo_besedka.js"}
 
 
+def makeup_interlock(engine, label):
+    require(engine.system.control('A04/K1') == '0', label + ' blocked: A04/K1 not confirmed OFF')
+    # A pristine approved deployment has no 507 runtime/virtual device yet.
+    # The physical output interlock is still mandatory; existing installations
+    # continue to require both signals, including during rollback.
+    if getattr(engine, 'initial_deployment', False) and not engine.target(MAKEUP_TARGET).exists():
+        return
+    require(engine.system.control('pressure_makeup/active') == '0',
+            label + ' blocked: pressure_makeup/active not confirmed OFF')
+
+
 class Files:
     outputs = frozenset()
 
     def validate(self, m, registration):
         allowed = registration.get("allowed_targets", [])
         require(all(f["target"] in allowed for f in m["files"]), "Target outside local component whitelist")
-        require(all(f["target"].startswith("/etc/neiro/components/" + m["component"] + "/")
+        namespaces = ['/etc/neirolinks/components/' + m['component'] + '/']
+        if registration.get('legacy_nli_0_1_9') is True:
+            namespaces.append('/etc/neiro/components/' + m['component'] + '/')
+        require(all(f["target"].startswith(tuple(namespaces))
                     for f in m["files"]), "Generic component target outside its namespace")
         require(m["services"] == {"stop": [], "start": []}, "Generic files plugin cannot control services")
         require(m["preflight"] == ["identity", "drift"], "Invalid files policy")
@@ -49,8 +63,7 @@ class HHM(Files):
         if not recovery:
             engine.system.active("wb-rules")
         if m["role"] == "boiler":
-            for control in ("pressure_makeup/active", "A04/K1"):
-                require(engine.system.control(control) == "0", "HHM blocked: " + control + " not confirmed OFF")
+            makeup_interlock(engine, 'HHM')
         self.inventory(engine, m)
 
     def verify(self, engine, m, since=None, post_restart=False):
@@ -81,8 +94,7 @@ class PressureMakeup(Files):
         engine.system.active("wb-mqtt-serial")
         if not recovery:
             engine.system.active("wb-rules")
-        for control in ("pressure_makeup/active", "A04/K1"):
-            require(engine.system.control(control) == "0", "pressure_makeup blocked: " + control + " not confirmed OFF")
+        makeup_interlock(engine, 'pressure_makeup')
         engine.rules_inventory(m)
 
     def verify(self, engine, m, since=None, post_restart=False):

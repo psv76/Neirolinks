@@ -185,9 +185,13 @@ def render_status(result, color):
             print()
             print("  Следующее действие:")
             command = 'nst firmware recover' if component == 'firmware' else 'nst rollback ' + component
+            if component == 'deployment':
+                command = 'nst recover-deployment'
             print("    " + paint(command, "yellow", color))
     elif result.get('self_update_pending'):
         print('  Требуется завершить обновление пакета: nst self-update')
+    elif result.get('bootstrap_required'):
+        print('  NST ещё не настроен: nst check, затем явный nst sync')
     elif result.get('final_status') != 'ok':
         print('  Установка не подтверждена: unknown/drift')
     else:
@@ -379,13 +383,15 @@ def render_human(result, color):
 def main(argv=None, engine=None):
     parser = argparse.ArgumentParser(prog="nst", description="NEIROLINKS Service Tool / Updater")
     parser.add_argument("--version", action="store_true", help="Показать версию и выйти")
-    parser.add_argument("--config", help="Persistent config under /mnt/data/etc/neiro/nli/")
+    parser.add_argument("--config", help="Persistent config under /mnt/data/etc/neirolinks/nst/")
     parser.add_argument("--json", action="store_true", help="Emit complete audit record, including read-only operations")
     parser.add_argument("--no-color", action="store_true", help="Отключить ANSI-цвета")
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("status")
     sub.add_parser("check").add_argument("component", nargs="?")
     sub.add_parser("sync")
+    sub.add_parser("recover-deployment")
+    sub.add_parser("migrate-nli", help="Explicit migration of persistent NLI 0.1.9 data")
     for command in ("update", "verify", "rollback"):
         sub.add_parser(command).add_argument("component")
     cleanup = sub.add_parser("cleanup")
@@ -409,6 +415,12 @@ def main(argv=None, engine=None):
         parser.error("the following arguments are required: command")
 
     try:
+        if args.command == 'migrate-nli':
+            from .migration import migrate
+            result = {'command': args.command, 'final_status': 'ok',
+                      'migration': migrate(engine.root if engine else '/')}
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
         production = engine is None
         if production:
             e = Engine(load_config(args.config), controller=load_controller_context())
@@ -423,6 +435,9 @@ def main(argv=None, engine=None):
             result = Firmware(e).execute(args.action)
         elif args.command == 'self-update':
             result = SelfUpdate(e).execute(check=args.action == 'check')
+        elif args.command == 'recover-deployment':
+            from .transaction import DeploymentTransaction
+            result = DeploymentTransaction(e).recover()
         elif args.command == "sync":
             result = DesiredState(e).sync()
         elif args.command == "check" and args.component is None:

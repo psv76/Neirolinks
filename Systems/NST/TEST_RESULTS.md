@@ -1,3 +1,36 @@
+# NST 2.0 — проверки реализации
+
+Версия 2.0 обоснована новой установкой по approved platform deployment и изменением
+архитектуры persistent storage; нормативный формат только X.Y.
+
+Полный Linux CI предыдущего проверенного состояния:
+[run 36899135498](https://github.com/psv76/Neirolinks/actions/runs/36899135498),
+commit fa598f00104c507f7f1afa87b8c77c75599003e9: 248 Python tests без skips,
+regression/security, обе роли, HHM/507 JS, сборка и два независимых rootfs сценария.
+Итоговый CI текущего HEAD и checksum артефакта указываются в PR.
+
+- Clean rootfs: установка nst_2.0_all.deb без NLI, hardware serial, registry/deployment,
+  bootstrap, status/check, exact desired state через установленный runtime.
+- Migration: фактическая цепочка пакетов NLI до 0.1.9, persistent config/state/logs/
+  backups/pending/audit, проверка SHA256/mode/uid/gid, NST migration, reinstall,
+  FIT с сохранённым /mnt/data, rollback старой точки.
+- Дополнительные unit tests: отказ при drift/unknown writer, checksum/profile/fingerprint,
+  повтор после сбоя, прерывание и offline recovery до записи config/registry,
+  повреждённый backup, физический interlock, отсутствие fallback на старый platform release.
+- Package tests: имя nst, artifact nst_<X.Y>_all.deb, версия Python/package/CLI,
+  canonical paths, отсутствие нового nli CLI/Python package и service hooks.
+
+Локальные Windows skips относятся к Linux filesystem/sysfs; полноценный rootfs и
+проверки прав выполняются в Linux CI. Инженерные сервисы, MQTT и hardware backend
+в тестах имитируются. Физический WB, power loss на реальном storage и live не проверялись.
+Ни package Release, ни platform Release этой задачей не публикуются.
+
+Блокер для Иволги ABF62SL: capability pressure_makeup отсутствует в desired
+components/profile и в approved snapshot. Подготовка полного platform release
+останавливается; требуется отдельно reviewed профиль и approved компонент.
+
+Далее сохранены исторические результаты NLI; это не результаты NST 2.0.
+
 # NLI 0.1.8 — Issue #74
 
 Локально: 164 Python tests, OK (35 Windows symlink privilege skips), sandbox обеих

@@ -1,0 +1,34 @@
+name: Prepare NST platform assets
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Full immutable source commit already merged into main
+        required: true
+      version:
+        description: Platform release version X.Y
+        required: true
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify source and prepare immutable assets
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          PLATFORM_VERSION: ${{ inputs.version }}
+        run: |
+          git fetch origin main
+          python -B Systems/NST/tools/prepare_platform_release.py --commit "$SOURCE_COMMIT" --version "$PLATFORM_VERSION" --output platform-assets
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nst-platform-assets
+          path: platform-assets/*
+          if-no-files-found: error

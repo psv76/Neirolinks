@@ -1,17 +1,13 @@
-"""WB persistent data layout and narrowly scoped logical rule roots.
-
-NST 1.0 intentionally preserves the accepted NLI 0.1.9 durable paths under
-/mnt/data. They are storage-schema identifiers, not package/CLI branding.
-Keeping them in place makes upgrade/FIT/recovery byte-preserving.
-"""
+"""Canonical NST persistent layout; old NLI stores require explicit migration."""
 import os
 from .util import beneath, read_json, require, safe_relative
 
-CONFIG_DIR = "/mnt/data/etc/neiro/nli"
+CONFIG_DIR = "/mnt/data/etc/neirolinks/nst"
 DEFAULT_CONFIG = CONFIG_DIR + "/config.json"
-STATE_DIR = "/mnt/data/var/lib/neiro/nli"
-LOG_DIR = "/mnt/data/var/log/neiro/nli"
-DATA_DIR = "/usr/share/neiro-nst"
+STATE_DIR = "/mnt/data/var/lib/neirolinks/nst"
+LOG_DIR = "/mnt/data/var/log/neirolinks/nst"
+DATA_DIR = "/usr/share/nst"
+BOOTSTRAP_STATE = STATE_DIR + '/bootstrap.json'
 WB_ROOTS = {
     "/etc/wb-rules": "/mnt/data/etc/wb-rules",
     "/etc/wb-rules-modules": "/mnt/data/etc/wb-rules-modules",
@@ -52,6 +48,8 @@ def legacy_data_present(root):
 
 def load_config(path=None, root="/"):
     """Read-only. Never bootstrap or silently discard legacy/partially lost data."""
+    from .migration import present, complete
+    require(not present(root) or complete(root), 'LEGACY_MIGRATION_REQUIRED: run nst migrate-nli')
     path = path or DEFAULT_CONFIG
     require(path.startswith(CONFIG_DIR + "/"), "Config must be under " + CONFIG_DIR)
     config = target(root, path)
@@ -59,6 +57,18 @@ def load_config(path=None, root="/"):
         return read_json(config)
     require(path == DEFAULT_CONFIG, "Explicit config does not exist: " + path)
     require(not legacy_data_present(root), "LEGACY_MIGRATION_REQUIRED: reviewed persistent config migration is required")
+    bootstrap = target(root, BOOTSTRAP_STATE)
+    if bootstrap.exists():
+        initial = read_json(bootstrap)
+        require(initial == dict(object='unconfigured', role='unconfigured', hostname='unconfigured', components={}),
+                'Invalid bootstrap marker')
+        pending = target(root, STATE_DIR + '/pending.json')
+        if pending.exists():
+            require(read_json(pending).get('component') == 'deployment', 'Unexpected pending without config')
+        else:
+            require(not any(p.name not in ('bootstrap.json',) for p in target(root, STATE_DIR).glob('*.json')),
+                    'Installed NST state exists but config is missing')
+        return initial
     for folder in (CONFIG_DIR, STATE_DIR, LOG_DIR):
         p = target(root, folder)
         require(not p.exists() or not any(p.iterdir()), "Persistent data exists but config is missing: " + folder)
