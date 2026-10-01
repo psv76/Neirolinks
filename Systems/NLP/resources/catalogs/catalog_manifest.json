@@ -1,0 +1,22 @@
+{
+  "manifest_version": 1,
+  "release_code": "nlp2.mvp.equipment.2026-08-24.repair-05",
+  "additive_predecessors": {
+    "nlp2.mvp.equipment.2026-08-22.p0-005": {
+      "passports": ["conduit.flexible_corrugated.pp"],
+      "products": ["product.dkc.11525"]
+    },
+    "nlp2.mvp.equipment.2026-08-14.psu-fanout": {
+      "passports": ["module.wirenboard.wb_mcm8", "conduit.flexible_corrugated.pp"],
+      "products": ["product.wirenboard.wb_mcm8", "product.dkc.11525"]
+    }
+  },
+  "schema_version": 1,
+  "content_sha256": "f8d27710485e1d1f8b23070e6ffa693ddd304c05150996a3c7eeae455c4af4c5",
+  "files": {
+    "equipment_passports.json": "4b925634324e3fd23f318de019905ea2cd5571a079f4fea2409dc28afdea134f",
+    "products.json": "e28768b138e9396d75bbf3e37bce8bb8818b5f2df7b22b99bfe4abd3f0809a6d"
+  },
+  "expected_counts": {"passports": 18, "products": 31},
+  "forbidden_manufacturers": ["Vendor Alpha", "Vendor Beta", "Vendor Gamma"]
+}

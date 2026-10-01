@@ -1,0 +1,21 @@
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+pythonpath = ["src"]
+testpaths = ["tests"]
+markers = [
+  "live_cad: requires explicitly permitted live AutoCAD",
+  "manual_acceptance: requires user-driven acceptance workflow",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["src", "tests", "tools"]
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "UP"]
+
+[tool.ruff.format]
+line-ending = "lf"
+quote-style = "double"
+

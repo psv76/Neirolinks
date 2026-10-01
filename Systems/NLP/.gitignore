@@ -1,0 +1,16 @@
+.cache/
+.runtime/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+*.spec.bak
+temp/
+.pytest_tmp_*/
+*.sqlite
+*.sqlite-*
+*.db
+*.pyc

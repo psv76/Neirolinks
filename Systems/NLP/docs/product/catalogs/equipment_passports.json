@@ -1,0 +1,372 @@
+{
+  "schema_version": "1.0",
+  "catalog_id": "nlp2.mvp.equipment_passports",
+  "status": "CANONICAL",
+  "published_on": "2026-08-16",
+  "normative_document": "D:\\NLP_2_DOCS\\10_PRODUCT\\13_EQUIPMENT_CATALOG.md",
+  "resource_model_note": "Functional resources only; physical terminals and conductors remain in output DWG/AutoCAD Electrical.",
+  "passports": [
+    {
+      "id": "protection.circuit_breaker.1p",
+      "passport_id": "protection.circuit_breaker.1p",
+      "version": 1,
+      "name": "Однополюсный автоматический выключатель AC",
+      "equipment_class": "CIRCUIT_BREAKER",
+      "functional_role": "One-pole automatic overcurrent protection and isolation of an AC circuit",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/31_PANEL_POWER_DISTRIBUTION.md"],
+      "project_characteristics": {"current_kind": "AC", "nominal_voltage_v": 230, "poles": "1P"},
+      "resources": [
+        {"resource_id": "LINE_IN", "kind": "POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN"},
+        {"resource_id": "PROTECTED_OUT", "kind": "PROTECTED_POWER_OUTPUT", "direction": "OUT", "quantity": 1, "exclusive": true, "branching": "ONLY_THROUGH_DISTRIBUTION_NODE", "propagates": ["current_kind", "voltage_v", "frequency_hz"]}
+      ],
+      "compatibility": {"input_output_pairing": "LINE_IN_TO_PROTECTED_OUT", "signal_type": "POWER_AC"},
+      "validation_parameters": ["rated_current_a", "trip_curve", "breaking_capacity_a", "poles", "voltage_v", "frequency_hz"],
+      "din_layout": {"mounting": "DIN_RAIL_35_MM", "width_modules": "PRODUCT_DEFINED"},
+      "required_product_data": ["rated_current_a", "trip_curve", "breaking_capacity_a", "rated_voltage_v", "dimensions_mm", "din_modules", "official_source"]
+    },
+    {
+      "id": "protection.rcbo.1pn",
+      "passport_id": "protection.rcbo.1pn",
+      "version": 1,
+      "name": "Дифавтомат 1P+N",
+      "equipment_class": "RCBO",
+      "functional_role": "Combined overcurrent and residual-current protection of a single-phase circuit",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/31_PANEL_POWER_DISTRIBUTION.md"],
+      "project_characteristics": {"current_kind": "AC", "nominal_voltage_v": 230, "poles": "1P+N"},
+      "resources": [
+        {"resource_id": "LINE_IN", "kind": "POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN"},
+        {"resource_id": "NEUTRAL_IN", "kind": "NEUTRAL_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN"},
+        {"resource_id": "PROTECTED_LINE_OUT", "kind": "PROTECTED_POWER_OUTPUT", "direction": "OUT", "quantity": 1, "exclusive": true, "branching": "ONLY_THROUGH_DISTRIBUTION_NODE", "propagates": ["current_kind", "voltage_v", "frequency_hz"]},
+        {"resource_id": "PROTECTED_NEUTRAL_OUT", "kind": "PROTECTED_NEUTRAL_OUTPUT", "direction": "OUT", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN"}
+      ],
+      "compatibility": {"paired_resources": ["LINE_IN", "NEUTRAL_IN", "PROTECTED_LINE_OUT", "PROTECTED_NEUTRAL_OUT"], "signal_type": "POWER_AC"},
+      "validation_parameters": ["rated_current_a", "trip_curve", "residual_current_ma", "residual_current_type", "breaking_capacity_a", "poles", "voltage_v"],
+      "din_layout": {"mounting": "DIN_RAIL_35_MM", "width_modules": "PRODUCT_DEFINED"},
+      "required_product_data": ["rated_current_a", "trip_curve", "residual_current_ma", "residual_current_type", "breaking_capacity_a", "rated_voltage_v", "dimensions_mm", "din_modules", "official_source"]
+    },
+    {
+      "id": "distribution.cross_module.3l_pen",
+      "passport_id": "distribution.cross_module.3l_pen",
+      "version": 1,
+      "name": "Распределительный кросс-модуль 3L+PEN",
+      "equipment_class": "DISTRIBUTION_BLOCK",
+      "functional_role": "Four isolated busbars designated 3L+PEN with product-defined connection points and project-assigned source/consumer roles",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/31_PANEL_POWER_DISTRIBUTION.md"],
+      "project_characteristics": {"bus_configuration": "3L+PEN", "phase_poles": 3, "pen_bus_present": true, "physical_bus_count": 4},
+      "resources": [
+        {"resource_id": "BUS_CONNECTION_POINT", "kind": "BUSBAR_CONNECTION_POINT", "direction": "BIDIRECTIONAL", "quantity": "PRODUCT_DEFINED", "exclusive": true, "branching": "WITHIN_SELECTED_BUS_ONLY", "grouping": {"bus_count_field": "physical_bus_count", "points_per_bus_field": "terminals_per_bus"}, "project_role_assignment": ["SOURCE", "CONSUMER"], "propagates": ["current_kind", "voltage_v", "frequency_hz", "conductor_identity", "bus_identity"]}
+      ],
+      "compatibility": {"source_required_per_used_bus": true, "maximum_active_sources_per_used_bus": 1, "independent_sources_on_same_bus": "FORBIDDEN", "consumer_bus_must_match_source_bus": true, "conductor_identity_must_match_bus_identity": true, "physical_input_output_distinction": "NOT_DEFINED_BY_MANUFACTURER", "available_connection_points": "SELECTED_PRODUCT_DEFINED"},
+      "validation_parameters": ["bus_configuration", "phase_poles", "pen_bus_present", "physical_bus_count", "terminals_per_bus", "occupied_connection_points_per_bus", "active_sources_per_bus", "conductor_identity", "rated_current_a", "rated_voltage_v_ac", "conductor_section_mm2", "mounting", "dimensions_mm"],
+      "din_layout": {"mounting": "DIN_RAIL_35_MM", "width_modules": "PRODUCT_DEFINED"},
+      "required_product_data": ["manufacturer", "series", "model", "article", "designation", "bus_configuration", "phase_poles", "pen_bus_present", "physical_bus_count", "terminals_per_bus", "rated_current_a", "rated_voltage_v_ac", "conductor_section_mm2", "mounting", "dimensions_mm", "din_modules", "service_life_years", "warranty_years", "official_source", "lifecycle_status"],
+      "unknown_data_policy": "Officially unpublished values are explicit null; no constructive feature is inferred from another brand or article"
+    },
+    {
+      "id": "switching.modular_contactor.2no.230vac",
+      "passport_id": "switching.modular_contactor.2no.230vac",
+      "version": 1,
+      "name": "Модульный контактор 2NO, катушка 230 В AC",
+      "equipment_class": "CONTACTOR",
+      "functional_role": "Two-pole normally-open modular contactor with 230 V AC control coil",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/31_PANEL_POWER_DISTRIBUTION.md"],
+      "project_characteristics": {"coil_voltage_v": 230, "coil_current_kind": "AC", "power_poles": 2, "contact_form": "2NO"},
+      "resources": [
+        {"resource_id": "COIL_CONTROL", "kind": "CONTROL_POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"current_kind": "AC", "voltage_v": 230}},
+        {"resource_id": "POWER_CONTACT_IN", "kind": "SWITCHED_POWER_INPUT", "direction": "IN", "quantity": 2, "exclusive": true, "branching": "FORBIDDEN"},
+        {"resource_id": "POWER_CONTACT_OUT", "kind": "SWITCHED_POWER_OUTPUT", "direction": "OUT", "quantity": 2, "exclusive": true, "branching": "ONLY_THROUGH_DISTRIBUTION_NODE", "pairing": "one-to-one with POWER_CONTACT_IN", "propagates": ["current_kind", "voltage_v", "frequency_hz"]}
+      ],
+      "compatibility": {"coil_signal_type": "POWER_AC", "power_contacts_independent_from_coil": true},
+      "validation_parameters": ["coil_voltage_v", "coil_current_kind", "coil_hold_va", "coil_inrush_va", "rated_operational_current_a", "utilization_category", "contact_form"],
+      "din_layout": {"mounting": "DIN_RAIL_35_MM", "width_modules": "PRODUCT_DEFINED"},
+      "required_product_data": ["coil_voltage_v", "coil_current_kind", "coil_hold_va", "coil_inrush_va", "rated_operational_current_a", "utilization_category", "contact_form", "dimensions_mm", "din_modules", "official_source"]
+    },
+    {
+      "id": "protection.inrush_current_limiter.1ph",
+      "passport_id": "protection.inrush_current_limiter.1ph",
+      "version": 1,
+      "name": "Однофазный ограничитель пускового тока",
+      "equipment_class": "INRUSH_CURRENT_LIMITER",
+      "functional_role": "Single-phase DIN inrush-current limiter placed in series with an AC load",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/31_PANEL_POWER_DISTRIBUTION.md", "10_PRODUCT/32_INRUSH_CURRENT_LIMITERS.md"],
+      "project_characteristics": {"current_kind": "AC", "nominal_voltage_v": 230, "phases": 1},
+      "resources": [
+        {"resource_id": "LINE_IN", "kind": "POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN"},
+        {"resource_id": "LIMITED_OUT", "kind": "INRUSH_LIMITED_POWER_OUTPUT", "direction": "OUT", "quantity": 1, "exclusive": true, "branching": "ONLY_THROUGH_DISTRIBUTION_NODE", "propagates": ["current_kind", "voltage_v", "frequency_hz"]}
+      ],
+      "compatibility": {"series_connection_required": true, "signal_type": "POWER_AC", "upstream_role": "QF_OR_EQUIVALENT_PROTECTION", "downstream_roles": ["ONE_AC_DC_POWER_SUPPLY", "MULTIPLE_AC_DC_POWER_SUPPLIES_THROUGH_DISTRIBUTION_NODE"], "automatic_insertion": false, "special_project_code_required": false},
+      "validation_parameters": ["input_voltage_range_v_ac", "frequency_range_hz", "continuous_current_a", "rated_load_va", "limited_inrush_current_a", "maximum_capacitive_load_uf", "limiting_time_ms", "permitted_switching_cycles_by_load_setup_time", "relay_release_time_ms", "operating_temperature_range_c", "downstream_aggregate_input_current_a", "downstream_aggregate_input_apparent_power_va", "downstream_aggregate_input_capacitance_uf", "downstream_maximum_startup_time_ms", "compatibility_status"],
+      "din_layout": {"mounting": "DIN_RAIL_35_MM", "width_modules": "PRODUCT_DEFINED"},
+      "required_product_data": ["input_voltage_range_v_ac", "frequency_range_hz", "continuous_current_a", "rated_load_va", "limited_inrush_current_a", "maximum_capacitive_load_uf", "limiting_time_ms", "permitted_switching_cycles_by_load_setup_time", "relay_release_time_ms", "operating_temperature_range_c", "dimensions_mm", "din_modules", "official_source", "lifecycle_status"],
+      "required_downstream_product_data": ["input_voltage_range_v_ac", "input_frequency_range_hz", "input_current_a_typical_at_230_v_ac", "input_apparent_power_va", "input_capacitance_uf", "startup_time_ms_at_230_v_ac", "operating_temperature_range_c"],
+      "compatibility_statuses": ["VERIFIED", "LIMIT_EXCEEDED", "DATA_INCOMPLETE", "INCOMPATIBLE", "NOT_APPLICABLE"],
+      "missing_data_policy": "DATA_INCOMPLETE; product and chain remain saveable; no automatic product replacement"
+    },
+    {
+      "id": "led_tape.constant_voltage.mono.24v",
+      "passport_id": "led_tape.constant_voltage.mono.24v",
+      "version": 1,
+      "name": "Светодиодная лента постоянного напряжения 24 В, MONO",
+      "equipment_class": "LED_TAPE_CONSTANT_VOLTAGE",
+      "functional_role": "One-channel 24 V DC constant-voltage LED tape controlled by PWM",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/21_LED_LINES_AND_PWM_EQUIPMENT.md"],
+      "project_characteristics": {"current_kind": "DC", "nominal_voltage_v": 24, "control_type": "MONO", "channels": 1, "conductors": 2, "power_accounting": "TOTAL_POWER_ONCE"},
+      "resources": [
+        {"resource_id": "DC_COMMON_POSITIVE", "kind": "DC_LED_POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"current_kind": "DC", "nominal_voltage_v": 24}},
+        {"resource_id": "PWM_CHANNEL", "kind": "OPEN_COLLECTOR_PWM_LOAD_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "labels": ["MONO"]}
+      ],
+      "compatibility": {"signal_type": "PWM_CONSTANT_VOLTAGE", "common_conductor": "POSITIVE", "normalized_control_type": "MONO"},
+      "validation_parameters": ["supply_voltage_v_dc", "total_power_w_per_m_max", "channel_current_a", "cut_increment_mm", "reel_length_mm", "sale_mode"],
+      "din_layout": {"mounting": "NOT_APPLICABLE", "width_modules": 0},
+      "required_product_data": ["supply_voltage_v_dc", "total_power_w_per_m_max", "color", "ip_rating", "width_mm", "cut_increment_mm", "reel_length_mm", "sale_mode", "minimum_purchase_increment_mm", "dimensions_mm", "din_modules", "official_source"]
+    },
+    {
+      "id": "led_tape.constant_voltage.cct.24v",
+      "passport_id": "led_tape.constant_voltage.cct.24v",
+      "version": 1,
+      "name": "Светодиодная лента постоянного напряжения 24 В, CCT",
+      "equipment_class": "LED_TAPE_CONSTANT_VOLTAGE",
+      "functional_role": "Two-channel 24 V DC tunable-white LED tape controlled by PWM",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/21_LED_LINES_AND_PWM_EQUIPMENT.md"],
+      "project_characteristics": {"current_kind": "DC", "nominal_voltage_v": 24, "control_type": "CCT", "manufacturer_alias": "MIX", "channels": 2, "conductors": 3, "power_accounting": "TOTAL_POWER_ONCE_CHANNELS_CHECKED_SEPARATELY"},
+      "resources": [
+        {"resource_id": "DC_COMMON_POSITIVE", "kind": "DC_LED_POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"current_kind": "DC", "nominal_voltage_v": 24}},
+        {"resource_id": "PWM_CHANNEL", "kind": "OPEN_COLLECTOR_PWM_LOAD_INPUT", "direction": "IN", "quantity": 2, "exclusive": true, "branching": "FORBIDDEN", "labels": ["WARM", "COOL"]}
+      ],
+      "compatibility": {"signal_type": "PWM_CONSTANT_VOLTAGE", "common_conductor": "POSITIVE", "normalized_control_type": "CCT", "input_aliases": ["CCT", "MIX"]},
+      "validation_parameters": ["supply_voltage_v_dc", "total_power_w_per_m_max", "channel_power_w_per_m_max", "channel_current_a", "cut_increment_mm", "reel_length_mm", "sale_mode"],
+      "din_layout": {"mounting": "NOT_APPLICABLE", "width_modules": 0},
+      "required_product_data": ["supply_voltage_v_dc", "total_power_w_per_m_max", "channel_power_w_per_m_max", "color", "ip_rating", "width_mm", "cut_increment_mm", "reel_length_mm", "sale_mode", "minimum_purchase_increment_mm", "dimensions_mm", "din_modules", "official_source"]
+    },
+    {
+      "id": "led_tape.constant_voltage.rgbw.24v",
+      "passport_id": "led_tape.constant_voltage.rgbw.24v",
+      "version": 1,
+      "name": "Светодиодная лента постоянного напряжения 24 В, RGBW",
+      "equipment_class": "LED_TAPE_CONSTANT_VOLTAGE",
+      "functional_role": "Four-channel 24 V DC RGBW LED tape controlled by PWM",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/21_LED_LINES_AND_PWM_EQUIPMENT.md"],
+      "project_characteristics": {"current_kind": "DC", "nominal_voltage_v": 24, "control_type": "RGBW", "channels": 4, "conductors": 5, "power_accounting": "TOTAL_POWER_ONCE_CHANNELS_CHECKED_SEPARATELY"},
+      "resources": [
+        {"resource_id": "DC_COMMON_POSITIVE", "kind": "DC_LED_POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"current_kind": "DC", "nominal_voltage_v": 24}},
+        {"resource_id": "PWM_CHANNEL", "kind": "OPEN_COLLECTOR_PWM_LOAD_INPUT", "direction": "IN", "quantity": 4, "exclusive": true, "branching": "FORBIDDEN", "labels": ["R", "G", "B", "W"]}
+      ],
+      "compatibility": {"signal_type": "PWM_CONSTANT_VOLTAGE", "common_conductor": "POSITIVE", "normalized_control_type": "RGBW"},
+      "validation_parameters": ["supply_voltage_v_dc", "total_power_w_per_m_max", "channel_power_w_per_m_max", "channel_current_a", "cut_increment_mm", "reel_length_mm", "sale_mode"],
+      "din_layout": {"mounting": "NOT_APPLICABLE", "width_modules": 0},
+      "required_product_data": ["supply_voltage_v_dc", "total_power_w_per_m_max", "channel_power_w_per_m_max", "color", "ip_rating", "width_mm", "cut_increment_mm", "reel_length_mm", "sale_mode", "minimum_purchase_increment_mm", "dimensions_mm", "din_modules", "official_source"]
+    },
+    {
+      "id": "power.acdc.24v.din",
+      "passport_id": "power.acdc.24v.din",
+      "version": 2,
+      "name": "DIN-блок питания 230 В AC → 24 В DC",
+      "equipment_class": "AC_DC_POWER_SUPPLY_24V",
+      "functional_role": "DIN power supply converting 230 V AC project power to regulated 24 V DC",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/21_LED_LINES_AND_PWM_EQUIPMENT.md", "10_PRODUCT/31_PANEL_POWER_DISTRIBUTION.md"],
+      "project_characteristics": {"input_current_kind": "AC", "input_voltage_v": 230, "output_current_kind": "DC", "output_voltage_v": 24},
+      "resources": [
+        {"resource_id": "AC_INPUT", "kind": "POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"current_kind": "AC", "nominal_voltage_v": 230}},
+        {"resource_id": "DC24_OUTPUT", "kind": "DC_POWER_OUTPUT", "direction": "OUT", "quantity": 1, "exclusive": false, "branching": "ALLOWED", "constraints": {"current_kind": "DC", "nominal_voltage_v": 24}, "propagates": ["current_kind", "voltage_v", "available_current_a", "available_power_w"]}
+      ],
+      "compatibility": {"input_signal_type": "POWER_AC", "output_signal_type": "POWER_DC", "product_output_must_include_v": 24},
+      "validation_parameters": ["input_voltage_range_v_ac", "input_frequency_range_hz", "input_current_a_typical_at_230_v_ac", "input_apparent_power_va", "input_capacitance_uf", "output_voltage_v_dc", "rated_output_current_a", "rated_output_power_w", "efficiency_percent_typical", "inrush_current_a_cold_start", "startup_time_ms_at_230_v_ac", "rise_time_ms_at_230_v_ac", "hold_up_time_ms_typical_at_230_v_ac", "pfc", "pwm_load_compatibility", "operating_temperature_range_c", "ambient_derating", "icl_compatibility_status"],
+      "din_layout": {"mounting": "DIN_RAIL_35_MM", "width_modules": "PRODUCT_DEFINED"},
+      "required_product_data": ["input_voltage_range_v_ac", "input_frequency_range_hz", "input_current_a_typical_at_230_v_ac", "input_apparent_power_va", "input_capacitance_uf", "output_voltage_v_dc", "rated_output_current_a", "rated_output_power_w", "efficiency_percent_typical", "inrush_current_a_cold_start", "startup_time_ms_at_230_v_ac", "rise_time_ms_at_230_v_ac", "hold_up_time_ms_typical_at_230_v_ac", "pfc", "pwm_load_compatibility", "operating_temperature_range_c", "ambient_derating", "dimensions_mm", "din_modules", "official_source", "lifecycle_status"],
+      "unknown_data_policy": "Officially unpublished values are explicit null and produce DATA_INCOMPLETE where required by a compatibility check"
+    },
+    {
+      "id": "power.acdc.48v.din",
+      "passport_id": "power.acdc.48v.din",
+      "version": 2,
+      "name": "DIN-блок питания 230 В AC → 48 В DC",
+      "equipment_class": "AC_DC_POWER_SUPPLY_48V",
+      "functional_role": "DIN power supply converting 230 V AC project power to regulated 48 V DC",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/31_PANEL_POWER_DISTRIBUTION.md", "10_PRODUCT/32_INRUSH_CURRENT_LIMITERS.md"],
+      "project_characteristics": {"input_current_kind": "AC", "input_voltage_v": 230, "output_current_kind": "DC", "output_voltage_v": 48},
+      "resources": [
+        {"resource_id": "AC_INPUT", "kind": "POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"current_kind": "AC", "nominal_voltage_v": 230}},
+        {"resource_id": "DC48_OUTPUT", "kind": "DC_POWER_OUTPUT", "direction": "OUT", "quantity": 1, "exclusive": false, "branching": "ALLOWED", "constraints": {"current_kind": "DC", "nominal_voltage_v": 48}, "propagates": ["current_kind", "voltage_v", "available_current_a", "available_power_w"]}
+      ],
+      "compatibility": {"input_signal_type": "POWER_AC", "output_signal_type": "POWER_DC", "product_output_must_include_v": 48},
+      "validation_parameters": ["input_voltage_range_v_ac", "input_frequency_range_hz", "input_current_a_typical_at_230_v_ac", "input_apparent_power_va", "input_capacitance_uf", "output_voltage_v_dc", "rated_output_current_a", "rated_output_power_w", "efficiency_percent_typical", "inrush_current_a_cold_start", "startup_time_ms_at_230_v_ac", "rise_time_ms_at_230_v_ac", "hold_up_time_ms_typical_at_230_v_ac", "pfc", "pwm_load_compatibility", "operating_temperature_range_c", "ambient_derating", "icl_compatibility_status"],
+      "din_layout": {"mounting": "DIN_RAIL_35_MM", "width_modules": "PRODUCT_DEFINED"},
+      "required_product_data": ["input_voltage_range_v_ac", "input_frequency_range_hz", "input_current_a_typical_at_230_v_ac", "input_apparent_power_va", "input_capacitance_uf", "output_voltage_v_dc", "rated_output_current_a", "rated_output_power_w", "efficiency_percent_typical", "inrush_current_a_cold_start", "startup_time_ms_at_230_v_ac", "rise_time_ms_at_230_v_ac", "hold_up_time_ms_typical_at_230_v_ac", "pfc", "pwm_load_compatibility", "operating_temperature_range_c", "ambient_derating", "dimensions_mm", "din_modules", "official_source", "lifecycle_status"],
+      "unknown_data_policy": "Officially unpublished values are explicit null and produce DATA_INCOMPLETE where required by a compatibility check"
+    },
+    {
+      "id": "controller.wb_mr6c_v2",
+      "passport_id": "controller.wb_mr6c_v2",
+      "version": 1,
+      "name": "Wiren Board WB-MR6C v.2",
+      "equipment_class": "WB_MR6C_V2",
+      "functional_role": "Six-channel Modbus relay module with two COM groups and seven dry-contact inputs",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/23_DATA_BUS_TOPOLOGY.md", "10_PRODUCT/31_PANEL_POWER_DISTRIBUTION.md"],
+      "project_characteristics": {"electronics_power_v_dc": 24},
+      "resources": [
+        {"resource_id": "ELECTRONICS_POWER", "kind": "DC_POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"range_v": [9, 28], "project_value_v": 24}},
+        {"resource_id": "RS485", "kind": "RS485_INTERFACE", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": true, "branching": "BUS_TOPOLOGY_ONLY", "constraints": {"protocol": "MODBUS_RTU", "isolated": false}},
+        {"resource_id": "INPUT", "kind": "DRY_CONTACT_INPUT", "direction": "IN", "quantity": 7, "exclusive": true, "branching": "FORBIDDEN", "labels": ["Input0", "Input1", "Input2", "Input3", "Input4", "Input5", "Input6"]},
+        {"resource_id": "COM", "kind": "RELAY_COMMON_INPUT", "direction": "IN", "quantity": 2, "exclusive": true, "branching": "INTERNAL_TO_THREE_RELAYS", "labels": ["COM1", "COM2"], "constraints": {"group_nominal_current_a_at_230vac": 30}},
+        {"resource_id": "RELAY_OUTPUT", "kind": "NORMALLY_OPEN_RELAY_OUTPUT", "direction": "OUT", "quantity": 6, "exclusive": true, "branching": "FORBIDDEN", "labels": ["K1", "K2", "K3", "K4", "K5", "K6"], "groups": {"COM1": ["K1", "K2", "K3"], "COM2": ["K4", "K5", "K6"]}, "constraints": {"rated_current_a_at_230vac": 10, "maximum_current_a_at_230vac": 16, "maximum_inrush_current_a_20ms_at_230vac": 80, "maximum_voltage_v_ac": 250, "maximum_voltage_v_dc": 30}}
+      ],
+      "compatibility": {"bus": "RS485_MODBUS_RTU", "electronics_power": "24_V_DC_PROJECT", "relay_load_must_be_checked_by_type": true},
+      "validation_parameters": ["electronics_voltage_v", "electronics_power_w", "relay_load_current_a", "relay_inrush_current_a", "relay_group_total_current_a", "switched_voltage_v", "switched_current_kind", "rs485_address_uniqueness"],
+      "din_layout": {"mounting": "DIN_RAIL_35_MM", "width_modules": 3},
+      "required_product_data": ["electronics_voltage_range_v", "power_consumption_w", "relay_limits", "input_count", "relay_count", "com_groups", "dimensions_mm", "din_modules", "official_source"]
+    },
+    {
+      "id": "controller.wb_led_v1",
+      "passport_id": "controller.wb_led_v1",
+      "version": 1,
+      "name": "Wiren Board WB-LED v.1",
+      "equipment_class": "WB_LED_V1",
+      "functional_role": "Four-channel constant-voltage LED PWM dimmer with four universal inputs and Modbus RTU",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/21_LED_LINES_AND_PWM_EQUIPMENT.md", "10_PRODUCT/23_DATA_BUS_TOPOLOGY.md"],
+      "project_characteristics": {"electronics_power_v_dc": 24},
+      "resources": [
+        {"resource_id": "ELECTRONICS_POWER", "kind": "DC_POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"range_v": [9, 28], "project_value_v": 24}},
+        {"resource_id": "LED_LOAD_POWER", "kind": "DC_LOAD_POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "INTERNAL_TO_FOUR_CHANNELS", "constraints": {"maximum_voltage_v": 48}},
+        {"resource_id": "RS485", "kind": "RS485_INTERFACE", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": true, "branching": "BUS_TOPOLOGY_ONLY", "constraints": {"protocol": "MODBUS_RTU", "isolated": false}},
+        {"resource_id": "INPUT", "kind": "DRY_CONTACT_INPUT", "direction": "IN", "quantity": 4, "exclusive": true, "branching": "FORBIDDEN", "labels": ["Input1", "Input2", "Input3", "Input4"]},
+        {"resource_id": "PWM_OUTPUT", "kind": "OPEN_COLLECTOR_PWM_OUTPUT", "direction": "OUT", "quantity": 4, "exclusive": true, "branching": "FORBIDDEN", "labels": ["Channel1", "Channel2", "Channel3", "Channel4"], "constraints": {"maximum_current_a_per_channel": 5, "maximum_voltage_v": 48, "frequency_range_hz": [100, 24000], "default_frequency_hz": 3000, "combined_current_a_when_paralleled": 20}}
+      ],
+      "compatibility": {"bus": "RS485_MODBUS_RTU", "electronics_power": "24_V_DC_PROJECT", "load_type": "COMMON_POSITIVE_CONSTANT_VOLTAGE_LED", "shared_negative_with_logic": true},
+      "validation_parameters": ["electronics_voltage_v", "led_supply_voltage_v", "channel_current_a", "combined_channel_current_a", "pwm_frequency_hz", "rs485_address_uniqueness"],
+      "din_layout": {"mounting": "DIN_RAIL_35_MM", "width_modules": 2},
+      "required_product_data": ["electronics_voltage_range_v", "power_consumption_w", "pwm_channel_limits", "input_count", "dimensions_mm", "din_modules", "official_source"]
+    },
+    {
+      "id": "power.wb_ups_v3",
+      "passport_id": "power.wb_ups_v3",
+      "version": 1,
+      "name": "Wiren Board WB-UPS v.3",
+      "equipment_class": "WB_UPS_V3",
+      "functional_role": "DIN DC uninterruptible power module with integrated battery and Modbus telemetry",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/23_DATA_BUS_TOPOLOGY.md", "10_PRODUCT/30_SITE_POWER_AND_RESERVE.md"],
+      "project_characteristics": {"nominal_project_voltage_v_dc": 24},
+      "resources": [
+        {"resource_id": "VIN", "kind": "DC_POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"range_v": [10, 27], "project_value_v": 24}},
+        {"resource_id": "VOUT", "kind": "BACKED_DC_POWER_OUTPUT", "direction": "OUT", "quantity": 1, "exclusive": false, "branching": "ONLY_THROUGH_DISTRIBUTION_NODE", "constraints": {"backup_range_v": [9, 25], "rated_power_w": 15, "peak_power_w": 20}},
+        {"resource_id": "RS485", "kind": "RS485_INTERFACE", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": true, "branching": "BUS_TOPOLOGY_ONLY", "constraints": {"protocol": "MODBUS_RTU"}},
+        {"resource_id": "INTERNAL_BATTERY", "kind": "INTERNAL_ENERGY_STORAGE", "direction": "INTERNAL", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "assignable": false, "constraints": {"chemistry": "LI_ION_18650", "cells": 2, "rated_energy_wh": 15}},
+        {"resource_id": "TELEMETRY", "kind": "MEASUREMENT_CHANNEL", "direction": "OUT", "quantity": 8, "exclusive": false, "branching": "READ_ONLY", "labels": ["input_voltage", "output_voltage", "battery_voltage", "battery_current", "charge_input_current", "backup_load_current", "state_of_charge", "battery_temperature"]}
+      ],
+      "compatibility": {"bus": "RS485_MODBUS_RTU", "input": "24_V_DC_PROJECT", "output_setpoint_must_match_loads": true},
+      "validation_parameters": ["input_voltage_v", "output_setpoint_v", "rated_load_power_w", "peak_load_power_w", "backup_time_requirement_min", "rs485_address_uniqueness"],
+      "din_layout": {"mounting": "DIN_RAIL_35_MM", "width_modules": 2, "thermal_clearance_note": "Manufacturer recommends approximately 10 mm from hot neighboring devices."},
+      "required_product_data": ["input_voltage_range_v", "backup_output_range_v", "rated_power_w", "peak_power_w", "rated_energy_wh", "battery_configuration", "dimensions_mm", "din_modules", "official_source"]
+    },
+    {
+      "id": "gateway.wirenboard.wb_dali3",
+      "passport_id": "gateway.wirenboard.wb_dali3",
+      "version": 1,
+      "name": "Wiren Board WB-DALI3",
+      "equipment_class": "DALI_GATEWAY",
+      "functional_role": "Three-channel DALI-2 gateway with independent DALI ports and Modbus RTU upstream interface",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/23_DATA_BUS_TOPOLOGY.md", "10_PRODUCT/31_PANEL_POWER_DISTRIBUTION.md"],
+      "project_characteristics": {"dali_port_count": 3, "upstream_interface": "RS485_MODBUS_RTU"},
+      "resources": [
+        {"resource_id": "DC_ELECTRONICS_POWER", "kind": "DC_POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"range_v": [9, 28]}},
+        {"resource_id": "AC_DALI_POWER", "kind": "POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"current_kind": "AC", "nominal_voltage_v": 230}},
+        {"resource_id": "RS485", "kind": "RS485_INTERFACE", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": true, "branching": "BUS_TOPOLOGY_ONLY", "constraints": {"protocol": "MODBUS_RTU", "isolated": true}},
+        {"resource_id": "DALI_PORT", "kind": "DALI_BUS_PORT", "direction": "BIDIRECTIONAL", "quantity": 3, "exclusive": true, "branching": "BUS_TOPOLOGY_ONLY", "labels": ["DA1", "DA2", "DA3"], "constraints": {"protocol": "DALI_2", "output_voltage_v": 19.2, "output_current_ma_by_label": {"DA1": 200, "DA2": 100, "DA3": 100}}},
+        {"resource_id": "INPUT", "kind": "DRY_CONTACT_INPUT", "direction": "IN", "quantity": 7, "exclusive": true, "branching": "FORBIDDEN", "labels": ["Input1", "Input2", "Input3", "Input4", "Input5", "Input6", "Input7"]}
+      ],
+      "compatibility": {"dali_source": "ONE_PHYSICAL_BUS_PER_DALI_PORT", "dali_group_scope": "WITHIN_ONE_DALI_PORT", "both_ac_and_dc_power_required": true, "power_and_bus_link_independent": true},
+      "validation_parameters": ["dc_supply_voltage_v", "ac_supply_voltage_v", "dali_port_occupancy", "dali_device_count", "dali_address_uniqueness", "dali_group_membership", "rs485_address_uniqueness"],
+      "din_layout": {"mounting": "DIN_RAIL_35_MM", "width_modules": 3},
+      "required_product_data": ["dc_supply_voltage_range_v", "ac_supply_voltage_v", "power_consumption_w", "dali_port_count", "dali_bus_voltage_v", "dali_bus_current_ma_by_port", "input_count", "dimensions_mm", "din_modules", "official_source"]
+    },
+    {
+      "id": "module.wirenboard.wbe2_i_knx",
+      "passport_id": "module.wirenboard.wbe2_i_knx",
+      "version": 1,
+      "name": "Wiren Board WBE2-I-KNX",
+      "equipment_class": "KNX_INTERFACE_MODULE",
+      "functional_role": "Internal Wiren Board controller expansion module providing one KNX bus port",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/23_DATA_BUS_TOPOLOGY.md"],
+      "project_characteristics": {"knx_port_count": 1, "mounting": "INTERNAL_EXTENSION_SLOT"},
+      "resources": [
+        {"resource_id": "HOST_SLOT_ATTACHMENT", "kind": "INTERNAL_EXPANSION_MODULE_ATTACHMENT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"compatible_controller_generations": [6, 7, 8]}},
+        {"resource_id": "KNX_PORT", "kind": "KNX_BUS_PORT", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": true, "branching": "BUS_TOPOLOGY_ONLY", "constraints": {"protocol": "KNX", "external_bus_power_required": true, "isolation_kv": 4}}
+      ],
+      "compatibility": {"host": "WIREN_BOARD_6_TO_8", "knx_source": "KNX_PORT", "knx_bus_power_required": true, "host_attachment_and_bus_link_independent": true},
+      "validation_parameters": ["host_slot_compatibility", "host_slot_occupancy", "knx_bus_power_present", "knx_port_occupancy", "knx_address_uniqueness"],
+      "din_layout": {"mounting": "INTERNAL_EXTENSION_SLOT", "width_modules": 0},
+      "required_product_data": ["compatible_controller_generations", "knx_port_count", "isolation_kv", "knx_bus_power_required", "dimensions_mm", "official_source"],
+      "unknown_data_policy": "Officially unpublished dimensions and electrical consumption remain explicit null; no DIN footprint is inferred for an internal module"
+    },
+    {
+      "id": "module.wirenboard.wb_mcm8",
+      "passport_id": "module.wirenboard.wb_mcm8",
+      "version": 1,
+      "name": "Wiren Board WB-MCM8",
+      "equipment_class": "WB_MCM8",
+      "functional_role": "Eight-channel dry-contact and open-collector input module with Modbus RTU interface",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/23_DATA_BUS_TOPOLOGY.md"],
+      "project_characteristics": {"nominal_project_voltage_v_dc": 24, "input_count": 8},
+      "resources": [
+        {"resource_id": "ELECTRONICS_POWER", "kind": "DC_POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"range_v": [9, 28], "project_value_v": 24}},
+        {"resource_id": "RS485", "kind": "RS485_INTERFACE", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": true, "branching": "BUS_TOPOLOGY_ONLY", "constraints": {"protocol": "MODBUS_RTU"}},
+        {"resource_id": "INPUT", "kind": "DRY_CONTACT_INPUT", "direction": "IN", "quantity": 8, "exclusive": true, "branching": "FORBIDDEN", "labels": ["Input 1", "Input 2", "Input 3", "Input 4", "Input 5", "Input 6", "Input 7", "Input 8"], "constraints": {"compatible_sources": ["DRY_CONTACT", "OPEN_COLLECTOR"]}}
+      ],
+      "compatibility": {"bus": "RS485_MODBUS_RTU", "electronics_power": "24_V_DC_PROJECT", "input_assignment": "ONE_PHYSICAL_KEY_PER_INPUT"},
+      "validation_parameters": ["electronics_voltage_v", "input_occupancy", "input_source_type", "rs485_address_uniqueness"],
+      "din_layout": {"mounting": "DIN_RAIL_35_MM", "width_modules": 2},
+      "required_product_data": ["supply_voltage_range_v_dc", "power_consumption_w", "input_count", "input_source_types", "interface", "dimensions_mm", "din_modules", "official_source"],
+      "unknown_data_policy": "Only characteristics explicitly confirmed by official manufacturer materials are catalog facts; unconfirmed electrical or counting characteristics remain absent."
+    },
+    {
+      "id": "controller.wiren_board_8_5",
+      "passport_id": "controller.wiren_board_8_5",
+      "version": 1,
+      "name": "Контроллер Wiren Board 8.5",
+      "equipment_class": "WIREN_BOARD_8_5",
+      "functional_role": "Wiren Board 8.5 automation controller with onboard I/O, communications and expansion resources",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/23_DATA_BUS_TOPOLOGY.md"],
+      "project_characteristics": {"electronics_power_v_dc": 24},
+      "resources": [
+        {"resource_id": "VPLUS_INPUT", "kind": "DC_POWER_INPUT", "direction": "IN", "quantity": 2, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"range_v": [9, 48], "project_value_v": 24, "priority": "HIGHER_VOLTAGE"}},
+        {"resource_id": "VOUT", "kind": "SWITCHABLE_DC_POWER_OUTPUT", "direction": "OUT", "quantity": 1, "exclusive": false, "branching": "ONLY_THROUGH_DISTRIBUTION_NODE", "constraints": {"maximum_current_a": 1}},
+        {"resource_id": "5VOUT", "kind": "SWITCHABLE_DC_POWER_OUTPUT", "direction": "OUT", "quantity": 1, "exclusive": false, "branching": "ONLY_THROUGH_DISTRIBUTION_NODE", "constraints": {"voltage_v": 5}},
+        {"resource_id": "RS485", "kind": "RS485_INTERFACE", "direction": "BIDIRECTIONAL", "quantity": 2, "exclusive": true, "branching": "BUS_TOPOLOGY_ONLY", "labels": ["RS485-1", "RS485-2"]},
+        {"resource_id": "WX", "kind": "ONEWIRE_OR_DIGITAL_INPUT", "direction": "BIDIRECTIONAL", "quantity": 2, "exclusive": true, "branching": "PROTOCOL_DEPENDENT"},
+        {"resource_id": "AX", "kind": "MULTIFUNCTION_ANALOG_DIGITAL_IO", "direction": "BIDIRECTIONAL", "quantity": 4, "exclusive": true, "branching": "FORBIDDEN"},
+        {"resource_id": "ETHERNET", "kind": "ETHERNET_PORT", "direction": "BIDIRECTIONAL", "quantity": 2, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"speed_mbps": 100}},
+        {"resource_id": "USB_HOST", "kind": "USB_HOST_PORT", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN"},
+        {"resource_id": "DEBUG_USB", "kind": "USB_DEBUG_PORT", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN"},
+        {"resource_id": "MICROSD", "kind": "STORAGE_SLOT", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN"},
+        {"resource_id": "INTERNAL_MODULE_SLOT", "kind": "INTERNAL_EXPANSION_SLOT", "direction": "BIDIRECTIONAL", "quantity": 4, "exclusive": true, "branching": "FORBIDDEN", "labels": ["MOD1", "MOD2", "MOD3", "MOD4"]},
+        {"resource_id": "WBIO", "kind": "EXTERNAL_IO_EXPANSION_PORT", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": true, "branching": "VIA_SUPPORTED_WBIO_TOPOLOGY"},
+        {"resource_id": "UPS_CONNECTOR", "kind": "BACKUP_POWER_MODULE_PORT", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN"},
+        {"resource_id": "POE_MODULE_SLOT", "kind": "POE_EXPANSION_SLOT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN"},
+        {"resource_id": "WIFI", "kind": "WIFI_INTERFACE", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": false, "branching": "NETWORK_TOPOLOGY"},
+        {"resource_id": "BLUETOOTH", "kind": "BLUETOOTH_INTERFACE", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": false, "branching": "NETWORK_TOPOLOGY"},
+        {"resource_id": "CELLULAR_MODEM", "kind": "CELLULAR_INTERFACE", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": false, "branching": "NETWORK_TOPOLOGY", "constraints": {"technology": "2G_3G_4G_LTE"}},
+        {"resource_id": "NANOSIM", "kind": "SIM_SLOT", "direction": "BIDIRECTIONAL", "quantity": 2, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"simultaneously_active": 1}}
+      ],
+      "compatibility": {"electronics_power": "24_V_DC_PROJECT", "rs485": "BUS_TOPOLOGY_RULES_APPLY", "internal_modules": "SLOT_COMPATIBILITY_MUST_BE_CHECKED"},
+      "validation_parameters": ["electronics_voltage_v", "power_budget_w", "rs485_port_capacity", "rs485_address_uniqueness", "slot_compatibility", "port_occupancy", "cellular_configuration"],
+      "din_layout": {"mounting": "DIN_RAIL_35_MM", "width_modules": 6},
+      "required_product_data": ["ram_gb", "emmc_gb", "temperature_range_c", "communication_configuration", "dimensions_mm", "din_modules", "official_source"]
+    },
+    {
+      "id": "conduit.flexible_corrugated.pp",
+      "passport_id": "conduit.flexible_corrugated.pp",
+      "version": 1,
+      "name": "Гибкая гофрированная труба из полипропилена",
+      "equipment_class": "FLEXIBLE_CORRUGATED_PP_CONDUIT",
+      "functional_role": "Прокладка и механическая защита кабельных линий",
+      "normative_basis": ["10_PRODUCT/22_CABLE_LENGTHS_AND_CONDUITS.md", "10_PRODUCT/25_DWG_SYNCHRONIZATION.md"],
+      "project_characteristics": {"material_code": "PP", "dwg_type_prefix": "ПП", "project_id_suffix": "PP"},
+      "resources": [
+        {"resource_id": "CABLE_PATH", "kind": "CABLE_CONTAINMENT_PATH", "direction": "INTERNAL", "quantity": 1, "exclusive": false, "branching": "ALLOWED", "constraints": {"material_code": "PP"}}
+      ],
+      "compatibility": {"engineering_fields": ["material_code", "nominal_diameter_mm", "color"], "all_known_fields_must_match": true},
+      "validation_parameters": ["material_code", "nominal_diameter_mm", "color"],
+      "din_layout": {"mounting": "ROUTE", "width_modules": 0},
+      "required_product_data": ["material_code", "nominal_diameter_mm", "inside_diameter_mm", "color", "package_length_m", "official_source"]
+    }
+  ]
+}

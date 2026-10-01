@@ -1,0 +1,2 @@
+Systems/NLP/resources/catalogs/*.json text eol=lf
+Systems/NLP/**/*.py text eol=lf
