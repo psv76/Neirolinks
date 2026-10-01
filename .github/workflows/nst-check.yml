@@ -40,7 +40,9 @@ jobs:
           node "$RUNNER_TEMP/hhm35/objects/05_31_Ivolga_13/HHM3_FSE/tests/persistent-storage-regressions.js"
           node "$RUNNER_TEMP/hhm35/objects/05_31_Ivolga_13/HHM3_FSE/tests/manifest.js" --check
       - name: Shell syntax
-        run: sh -n Systems/NST/tests/wb_package_smoke.sh
+        run: |
+          sh -n Systems/NST/tests/wb_package_smoke.sh
+          sh -n Systems/NST/tests/wb_clean_smoke.sh
       - name: Build Debian package
         run: |
           python -B Systems/NST/tools/build_deb.py

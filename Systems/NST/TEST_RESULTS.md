@@ -4,8 +4,8 @@
 архитектуры persistent storage; нормативный формат только X.Y.
 
 Полный Linux CI предыдущего проверенного состояния:
-[run 36897308860](https://github.com/psv76/Neirolinks/actions/runs/36897308860),
-commit d7b94a5fe1538e36fac4c5c3876ad78d7fead646: 240 Python tests без skips,
+[run 36899135498](https://github.com/psv76/Neirolinks/actions/runs/36899135498),
+commit fa598f00104c507f7f1afa87b8c77c75599003e9: 248 Python tests без skips,
 regression/security, обе роли, HHM/507 JS, сборка и два независимых rootfs сценария.
 Итоговый CI текущего HEAD и checksum артефакта указываются в PR.
 

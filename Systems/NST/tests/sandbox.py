@@ -21,7 +21,7 @@ REPO = Path(__file__).resolve().parents[3]
 
 
 def run(role):
-    with tempfile.TemporaryDirectory(prefix="nli-sandbox-") as folder:
+    with tempfile.TemporaryDirectory(prefix="nst-sandbox-") as folder:
         root = Path(folder)
         def put(path, data):
             p = root / path.lstrip("/")
@@ -44,7 +44,7 @@ def run(role):
         for command in (["status"], ["check", "hhm"], ["update", "hhm"], ["verify", "hhm"], ["rollback", "hhm"]):
             with contextlib.redirect_stdout(io.StringIO()) as output:
                 rc = main(command, engine=engine)
-            print(role + " nli " + " ".join(command) + ": " + str(rc))
+            print(role + " nst " + " ".join(command) + ": " + str(rc))
             assert rc == 0, output.getvalue()
         source = b"# sandbox only update-all recover-all --debug"
         put("/usr/bin/wb-mcu-fw-updater", source)
@@ -56,7 +56,7 @@ def run(role):
         compatibility.start()
         result = Firmware(engine).execute("check")
         assert result["final_status"] == "unavailable", result
-        print(role + " nli firmware check: unavailable (honest read-only result)")
+        print(role + " nst firmware check: unavailable (honest read-only result)")
         for action, summary in [("update", "1 upgraded, 0 skipped upgrade, 0 bootloader updates available, 0 stuck in bootloader, 0 disconnected, 0 foreign and 0 too old"),
                                 ("recover", "1 recovered, 0 was already working, 0 not recovered and 0 not answered")]:
             result = Firmware(engine, lambda *args: (summary, 0)).execute(action)
