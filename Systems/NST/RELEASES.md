@@ -26,6 +26,6 @@ python3 -B Systems/NST/tools/prepare_platform_release.py --commit <MAIN_COMMIT> 
 
 Workflow **Prepare NST platform assets** запускается только вручную, имеет `contents: read` и загружает CI artifact. Он не создаёт tags/Releases и не выполняет deploy. Перед отдельной публикацией maintainer проверяет completeness и approved component provenance; `verify_approved_components.py` проверяет snapshot против опубликованных Releases.
 
-Сейчас ABF62SL заявляет `pressure_makeup`, которого нет в desired components/approved snapshot. Подготовка полного platform release должна завершиться явным отказом до появления reviewed profile и approved pressure_makeup.
+ABF62SL разрешает `hhm: stable` и `pressure_makeup: stable`; опубликованный `nst-approved-components-pressure-makeup-1.0` зафиксирован в approved snapshot. Подготовка полного platform release теперь должна разрешать оба компонента, но сама публикация platform Release остаётся отдельным maintainer action.
 
 Merge PR только обновляет код/проверки. Для установки на объект нужны отдельные package и platform Releases и явная команда оператора. Immutable historical Releases не удаляются и не переписываются.
