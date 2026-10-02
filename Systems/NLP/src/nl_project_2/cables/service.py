@@ -111,7 +111,7 @@ class CableService:
             return [dict(row) for row in rows]
 
     def topology(self, project_id: str, cable_line_id: str) -> dict:
-        """Return canonical physical edges and the derived CableLine root endpoint."""
+        """Return user-facing physical topology, segment facts and route breakdown."""
 
         with self._engine.connect() as connection:
             line = (
@@ -162,13 +162,65 @@ class CableService:
                     .where(field_port.c.project_id == project_id)
                 ).mappings()
             }
-            segments = list(
-                connection.execute(
+            segments = [
+                dict(row)
+                for row in connection.execute(
                     select(cable_segment).where(
                         cable_segment.c.project_id == project_id,
                         cable_segment.c.cable_line_id == cable_line_id,
                     )
                 ).mappings()
+            ]
+            conduit_rows = {
+                row["segment_id"]: dict(row)
+                for row in connection.execute(
+                    select(
+                        conduit_segment_assignment.c.cable_segment_id.label("segment_id"),
+                        conduit.c.id.label("conduit_id"),
+                        conduit.c.designation.label("conduit_designation"),
+                        conduit.c.conduit_type,
+                        conduit.c.color.label("conduit_color"),
+                        conduit.c.length_m_decimal.label("conduit_length_m"),
+                        product_definition.c.name.label("conduit_product_name"),
+                        product_definition.c.article.label("conduit_product_article"),
+                    )
+                    .join(
+                        conduit,
+                        conduit.c.id == conduit_segment_assignment.c.conduit_id,
+                    )
+                    .outerjoin(
+                        product_definition,
+                        product_definition.c.id == conduit.c.product_definition_id,
+                    )
+                    .where(
+                        conduit_segment_assignment.c.project_id == project_id,
+                        cable_segment.c.project_id == project_id,
+                    )
+                    .select_from(
+                        conduit_segment_assignment.join(
+                            cable_segment,
+                            cable_segment.c.id
+                            == conduit_segment_assignment.c.cable_segment_id,
+                        ).join(
+                            conduit,
+                            conduit.c.id == conduit_segment_assignment.c.conduit_id,
+                        ).outerjoin(
+                            product_definition,
+                            product_definition.c.id == conduit.c.product_definition_id,
+                        )
+                    )
+                    .where(cable_segment.c.cable_line_id == cable_line_id)
+                ).mappings()
+            }
+            length_row = (
+                connection.execute(
+                    select(cable_length_fact).where(
+                        cable_length_fact.c.project_id == project_id,
+                        cable_length_fact.c.cable_line_id == cable_line_id,
+                    )
+                )
+                .mappings()
+                .one_or_none()
             )
 
         facts = dict(line["cable_facts_json"] or {})
@@ -178,22 +230,65 @@ class CableService:
             if endpoint["endpoint_kind"] == "FIELD_PORT":
                 port = port_rows[endpoint["field_port_id"]]
                 point_id = str((port["normalized_fields_json"] or {}).get("BUS_POINT_ID", ""))
+                reference = f"{point_id}/{port['port_tag']}"
                 return {
                     "kind": "FIELD_PORT",
-                    "reference": f"{point_id}/{port['port_tag']}",
+                    "reference": reference,
+                    "label": reference,
                 }
             if endpoint["endpoint_kind"] == "INSTANCE_RESOURCE":
+                reference = str(endpoint["instance_resource_id"])
                 return {
                     "kind": "INSTANCE_RESOURCE",
-                    "resource_id": endpoint["instance_resource_id"],
+                    "resource_id": reference,
+                    "label": f"Ресурс {reference}",
                 }
             point = point_rows[endpoint["cable_point_id"]]
             if point["point_kind"] == "INTERNAL_SOURCE":
-                return {"kind": "BOARD_OUTPUT", "board": facts.get("BOARD", "")}
+                board_name = str(facts.get("BOARD", "") or "")
+                return {
+                    "kind": "BOARD_OUTPUT",
+                    "board": board_name,
+                    "label": f"Щит {board_name}" if board_name else "Источник линии",
+                }
+            reference = str(point["logical_identity"])
             return {
                 "kind": "TOPOLOGY_POINT",
-                "reference": point["logical_identity"],
+                "reference": reference,
+                "point_kind": point["point_kind"],
+                "label": reference,
             }
+
+        diagnostics: dict[str, dict] = {}
+        with UnitOfWork(self._engine) as uow:
+            for row in segments:
+                diagnostics[row["id"]] = segment_geometry_diagnostics(
+                    uow, project_id, row
+                )
+            board_reserve = board_reserve_for_line(uow, project_id, cable_line_id)
+            uow.rollback()
+
+        def missing_text(codes: tuple[str, ...]) -> str:
+            labels = {
+                "x": "координата X",
+                "y": "координата Y",
+                "mount": "MOUNT_HEIGHT",
+                "base": "отметка пола помещения",
+                "height": "высота помещения",
+                "ambiguous_shared_endpoint_geometry": "неоднозначная геометрия общей точки",
+                "invalid_endpoint_geometry": "некорректная геометрия точки",
+                "mount_way": "способ прокладки",
+            }
+            parts = []
+            for code in codes:
+                side, _, key = code.partition(":")
+                if not key:
+                    key = side
+                    side = ""
+                prefix = "Источник" if side == "source" else "Приёмник" if side == "target" else ""
+                value = labels.get(key, key)
+                parts.append(f"{prefix}: нет {value}" if prefix else f"Нет {value}")
+            return "; ".join(parts)
 
         target_ids = {row["target_endpoint_id"] for row in segments}
         root_ids = {
@@ -202,18 +297,108 @@ class CableService:
             if row["source_endpoint_id"] not in target_ids
         }
         root = endpoint_value(next(iter(root_ids))) if len(root_ids) == 1 else None
-        return {
-            "cable_line_id": cable_line_id,
-            "designation": line["designation"],
-            "root_endpoint": root,
-            "edges": tuple(
+
+        adjacency: dict[str, list[dict]] = {}
+        for row in segments:
+            adjacency.setdefault(row["source_endpoint_id"], []).append(row)
+        ordered: list[tuple[int, dict]] = []
+        visited: set[str] = set()
+
+        def walk(source_id: str, depth: int) -> None:
+            rows = sorted(
+                adjacency.get(source_id, []),
+                key=lambda item: endpoint_value(item["target_endpoint_id"])["label"],
+            )
+            for row in rows:
+                if row["id"] in visited:
+                    continue
+                visited.add(row["id"])
+                ordered.append((depth, row))
+                walk(row["target_endpoint_id"], depth + 1)
+
+        for root_id in sorted(root_ids, key=lambda value: endpoint_value(value)["label"]):
+            walk(root_id, 0)
+        for row in sorted(segments, key=lambda item: item["id"]):
+            if row["id"] not in visited:
+                ordered.append((0, row))
+
+        breakdown: dict[str, dict[str, object]] = {}
+        edges = []
+        for depth, row in ordered:
+            diag = diagnostics[row["id"]]
+            calculated = row["calculated_length_m_decimal"]
+            cable_length = Decimal(calculated) if calculated is not None else None
+            route = ROUTE_METHOD_BY_MOUNT_WAY.get(str(row["mount_way"] or ""))
+            physical_length = (
+                conduit_length_from_segment_length(cable_length, route)
+                if cable_length is not None and route is not None
+                else None
+            )
+            mount_way = str(row["mount_way"] or "Не указано")
+            summary = breakdown.setdefault(
+                mount_way,
+                {
+                    "mount_way": mount_way,
+                    "physical_m": Decimal(0),
+                    "cable_m": Decimal(0),
+                    "incomplete_segments": 0,
+                },
+            )
+            if cable_length is None or physical_length is None:
+                summary["incomplete_segments"] = int(summary["incomplete_segments"]) + 1
+            else:
+                summary["physical_m"] = Decimal(summary["physical_m"]) + physical_length
+                summary["cable_m"] = Decimal(summary["cable_m"]) + cable_length
+            conduit_info = conduit_rows.get(row["id"], {})
+            edges.append(
                 {
                     "segment_id": row["id"],
+                    "depth": depth,
                     "source": endpoint_value(row["source_endpoint_id"]),
                     "target": endpoint_value(row["target_endpoint_id"]),
                     "connection_kind": "CABLE",
+                    "mount_way": row["mount_way"] or "",
+                    "gofra_type": row["gofra_type"] or "",
+                    "gofra_color": row["gofra_color"] or "",
+                    "gofra_id": conduit_info.get("conduit_designation") or "",
+                    "conduit_id": conduit_info.get("conduit_id"),
+                    "conduit_product_name": conduit_info.get("conduit_product_name") or "",
+                    "conduit_product_article": conduit_info.get("conduit_product_article") or "",
+                    "physical_length_m": (
+                        None if physical_length is None else str(physical_length)
+                    ),
+                    "cable_length_m": (
+                        None if cable_length is None else str(cable_length)
+                    ),
+                    "calculation_status": "READY" if diag["complete"] else "INCOMPLETE",
+                    "calculation_reason": (
+                        "" if diag["complete"] else missing_text(diag["missing"])
+                    ),
                 }
-                for row in sorted(segments, key=lambda item: item["id"])
+            )
+
+        return {
+            "cable_line_id": cable_line_id,
+            "designation": line["designation"],
+            "cable_type": facts.get("CABLE_TYPE", ""),
+            "root_endpoint": root,
+            "edges": tuple(edges),
+            "route_breakdown": tuple(
+                {
+                    **value,
+                    "physical_m": str(value["physical_m"]),
+                    "cable_m": str(value["cable_m"]),
+                }
+                for _key, value in sorted(breakdown.items())
+            ),
+            "board_reserve_m": str(board_reserve),
+            "additional_m": (
+                "0"
+                if length_row is None
+                else str(length_row["additional_length_m_decimal"] or "0")
+            ),
+            "manual_full_m": (
+                None if length_row is None else length_row["manual_full_length_m_decimal"]
             ),
         }
 
