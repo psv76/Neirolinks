@@ -24,6 +24,7 @@ jobs:
         env:
           SOURCE_COMMIT: ${{ inputs.source_commit }}
           PLATFORM_VERSION: ${{ inputs.version }}
+          NST_GITHUB_TOKEN: ${{ github.token }}
         run: |
           git fetch origin main
           python -B Systems/NST/tools/prepare_platform_release.py --commit "$SOURCE_COMMIT" --version "$PLATFORM_VERSION" --output platform-assets

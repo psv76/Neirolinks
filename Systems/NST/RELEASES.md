@@ -24,7 +24,7 @@ python3 -B Systems/NST/tools/prepare_platform_release.py --commit <MAIN_COMMIT> 
 
 Инструмент проверяет принадлежность source commit истории `origin/main`, capabilities/desired components и все referenced bytes. Создаёт `nst-controller-registry.json`, `nst-deployment-<SERIAL>.json`, `nst-platform-metadata.json` с исходным commit и checksums.
 
-Workflow **Prepare NST platform assets** запускается только вручную, имеет `contents: read` и загружает CI artifact. Он не создаёт tags/Releases и не выполняет deploy. Перед отдельной публикацией maintainer проверяет completeness и approved component provenance; `verify_approved_components.py` проверяет snapshot против опубликованных Releases.
+Workflow **Prepare NST platform assets** запускается только вручную, имеет `contents: read` и загружает CI artifact. Проверка опубликованных Releases использует только ephemeral `github.token` текущего Actions run, чтобы не зависеть от anonymous API rate limit; token не сохраняется в assets. Workflow не создаёт tags/Releases и не выполняет deploy. Перед отдельной публикацией maintainer проверяет completeness и approved component provenance; `verify_approved_components.py` проверяет snapshot против опубликованных Releases.
 
 ABF62SL разрешает `hhm: stable` и `pressure_makeup: stable`; опубликованный `nst-approved-components-pressure-makeup-1.0` зафиксирован в approved snapshot. Подготовка полного platform release теперь должна разрешать оба компонента, но сама публикация platform Release остаётся отдельным maintainer action.
 
