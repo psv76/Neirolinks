@@ -767,6 +767,7 @@ class LinesWorkspace(QWidget):
                 button.setEnabled(False)
             self.open_resource.setEnabled(False)
             self.show_issue.setEnabled(False)
+            self._clear_physical_route()
             return
         identity = f"{card['designation']} — {card['load_name'] or 'Потребитель не указан'}"
         self.card_title.setText(identity)
@@ -808,6 +809,124 @@ class LinesWorkspace(QWidget):
             )
         self.open_resource.setEnabled(bool(assignments))
         self.show_issue.setEnabled(card["user_status"] != "Готово")
+        self._load_physical_route(line_id)
+
+    def _clear_physical_route(self) -> None:
+        self._segment_rows = []
+        self.segment_table.setRowCount(0)
+        self.segment_summary.setText("Линия не выбрана")
+        self.segment_gofra_id.setText("—")
+        self.segment_gofra_type_edit.clear()
+        self.segment_gofra_color_edit.clear()
+        self.save_segment_button.setEnabled(False)
+
+    def _load_physical_route(self, line_id: str) -> None:
+        try:
+            topology = self.cables.topology(self.project_id, line_id)
+        except Exception as exc:
+            self._segment_rows = []
+            self.segment_table.setRowCount(0)
+            self.segment_summary.setText(f"Не удалось прочитать физическую цепочку: {exc}")
+            self.save_segment_button.setEnabled(False)
+            return
+
+        self._segment_rows = list(topology.get("edges") or ())
+        self.segment_table.blockSignals(True)
+        try:
+            self.segment_table.setRowCount(len(self._segment_rows))
+            for row_index, edge in enumerate(self._segment_rows):
+                source = str((edge.get("source") or {}).get("label") or "Источник")
+                target = str((edge.get("target") or {}).get("label") or "Точка")
+                source = f"{'  ' * int(edge.get('depth') or 0)}{source}"
+                status = (
+                    "Готово"
+                    if edge.get("calculation_status") == "READY"
+                    else edge.get("calculation_reason") or "Длина не рассчитана"
+                )
+                values = (
+                    source,
+                    target,
+                    edge.get("mount_way") or "Не указана",
+                    edge.get("gofra_id") or "—",
+                    _format_length(edge.get("physical_length_m")),
+                    _format_length(edge.get("cable_length_m")),
+                    status,
+                )
+                for column, value in enumerate(values):
+                    item = QTableWidgetItem(str(value))
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    item.setData(Qt.ItemDataRole.UserRole, edge["segment_id"])
+                    self.segment_table.setItem(row_index, column, item)
+        finally:
+            self.segment_table.blockSignals(False)
+
+        parts = []
+        for item in topology.get("route_breakdown") or ():
+            physical_m = _format_length(item.get("physical_m"))
+            cable_m = _format_length(item.get("cable_m"))
+            incomplete = int(item.get("incomplete_segments") or 0)
+            text = f"{item['mount_way']}: трасса {physical_m} м, кабель {cable_m} м"
+            if incomplete:
+                text += f", не рассчитано участков: {incomplete}"
+            parts.append(text)
+        reserve = _format_length(topology.get("board_reserve_m"))
+        additional = _format_length(topology.get("additional_m"))
+        if reserve not in {"", "0"}:
+            parts.append(f"Запас кабеля у щита: {reserve} м")
+        if additional not in {"", "0"}:
+            parts.append(f"Дополнительная длина кабеля: {additional} м")
+        if topology.get("manual_full_m") is not None:
+            parts.append(
+                f"Полная ручная длина линии: {_format_length(topology['manual_full_m'])} м"
+            )
+        self.segment_summary.setText(
+            " | ".join(parts) if parts else "Физические участки не построены"
+        )
+        if self._segment_rows:
+            self.segment_table.selectRow(0)
+            self._segment_selection_changed()
+        else:
+            self.save_segment_button.setEnabled(False)
+
+    def _segment_selection_changed(self) -> None:
+        row = self.segment_table.currentRow()
+        if row < 0 or row >= len(self._segment_rows):
+            self.save_segment_button.setEnabled(False)
+            return
+        edge = self._segment_rows[row]
+        route_index = self.segment_route_combo.findText(str(edge.get("mount_way") or ""))
+        self.segment_route_combo.setCurrentIndex(max(route_index, 0))
+        self.segment_gofra_type_edit.setText(str(edge.get("gofra_type") or ""))
+        self.segment_gofra_color_edit.setText(str(edge.get("gofra_color") or ""))
+        product = str(edge.get("conduit_product_name") or "")
+        article = str(edge.get("conduit_product_article") or "")
+        conduit = str(edge.get("gofra_id") or "—")
+        if product:
+            conduit += f" · {product}"
+            if article:
+                conduit += f" · арт. {article}"
+        self.segment_gofra_id.setText(conduit)
+        self.save_segment_button.setEnabled(True)
+
+    def _save_segment_route(self) -> None:
+        row = self.segment_table.currentRow()
+        line_id = self.current_line_id()
+        if row < 0 or row >= len(self._segment_rows) or line_id is None:
+            return
+        edge = self._segment_rows[row]
+        try:
+            self.cables.update_segment_route(
+                project_id=self.project_id,
+                cable_segment_id=edge["segment_id"],
+                route_method=self.segment_route_combo.currentData(),
+                conduit_type=self.segment_gofra_type_edit.text(),
+                conduit_color=self.segment_gofra_color_edit.text(),
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Участок не сохранён", str(exc))
+            return
+        self.refresh(selected_line_id=line_id)
+        self.projectChanged.emit()
 
     def _item_changed(self, item: QTableWidgetItem) -> None:
         if self._refreshing:
