@@ -121,6 +121,30 @@
         "path": "NLI/releases/hhm-boiler-3.6.json",
         "sha256": "9469bf5c4d62555b62adcc033fde62a151156392cd64004ebaaae075f6eb37ab"
       }
+    },
+    {
+      "component": "pressure_makeup",
+      "object": "05_31_Ivolga_13",
+      "role": "boiler",
+      "track": "stable",
+      "version": "1.0",
+      "approved": true,
+      "release_state": "stable",
+      "draft": false,
+      "prerelease": false,
+      "minimum_nst": "2.0",
+      "approval": {
+        "kind": "github_release",
+        "tag": "nst-approved-components-pressure-makeup-1.0",
+        "published_at": "2026-10-02T10:05:46Z",
+        "catalog_sha256": "84b89100c16b8d61227c1ece0e57f3bbd177b71163c33603b443b779802a32d0",
+        "release_commit": "ae5da54eaab62dcb3c63a0e8b5704adc37ff6fdc"
+      },
+      "manifest": {
+        "commit": "ae5da54eaab62dcb3c63a0e8b5704adc37ff6fdc",
+        "path": "Systems/NST/releases/pressure_makeup/1.0/pressure-makeup-boiler-1.0.json",
+        "sha256": "f038549cf93b5d1571903235dc6045a8b9cde6f28c124c7d062ac8c043fa481a"
+      }
     }
   ]
 }

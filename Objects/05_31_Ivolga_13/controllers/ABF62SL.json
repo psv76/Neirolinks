@@ -11,6 +11,9 @@
   "components": {
     "hhm": {
       "track": "stable"
+    },
+    "pressure_makeup": {
+      "track": "stable"
     }
   },
   "object_files": [
