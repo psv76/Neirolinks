@@ -205,6 +205,11 @@ def _validation_issue_text(issue, observation) -> str:
 
 
 def _change_reason_text(change, issues, observation) -> tuple[str, str]:
+    if change.detail_status == "ROOM_CANONICALIZATION":
+        return (
+            "Помещение существует в Project. Требуется привязать устройство к нему.",
+            change.reason,
+        )
     if change.change_class == ChangeClass.INVALID_DWG_DATA:
         relevant = [issue for issue in issues if issue.handle == change.handle]
         primary = "\n".join(_validation_issue_text(issue, observation) for issue in relevant)
@@ -442,7 +447,11 @@ class DwgSyncPreviewDialog(QDialog):
             )
             for column, value in enumerate((number, assignment, room_name, object_name), start=1):
                 self.table.setItem(row, column, QTableWidgetItem(value or "—"))
-            status_item = QTableWidgetItem(_SYNC_STATUS_TITLES[change.change_class])
+            status_item = QTableWidgetItem(
+                "Привязать помещение"
+                if change.detail_status == "ROOM_CANONICALIZATION"
+                else _SYNC_STATUS_TITLES[change.change_class]
+            )
             status_item.setData(Qt.ItemDataRole.UserRole, change.change_class.value)
             status_item.setToolTip(f"Технический код: {change.change_class.value}")
             self.table.setItem(row, 5, status_item)
