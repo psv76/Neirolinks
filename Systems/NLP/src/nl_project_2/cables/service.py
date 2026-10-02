@@ -184,32 +184,26 @@ class CableService:
                         product_definition.c.name.label("conduit_product_name"),
                         product_definition.c.article.label("conduit_product_article"),
                     )
-                    .join(
-                        conduit,
-                        conduit.c.id == conduit_segment_assignment.c.conduit_id,
-                    )
-                    .outerjoin(
-                        product_definition,
-                        product_definition.c.id == conduit.c.product_definition_id,
-                    )
-                    .where(
-                        conduit_segment_assignment.c.project_id == project_id,
-                        cable_segment.c.project_id == project_id,
-                    )
                     .select_from(
                         conduit_segment_assignment.join(
                             cable_segment,
                             cable_segment.c.id
                             == conduit_segment_assignment.c.cable_segment_id,
-                        ).join(
+                        )
+                        .join(
                             conduit,
                             conduit.c.id == conduit_segment_assignment.c.conduit_id,
-                        ).outerjoin(
+                        )
+                        .outerjoin(
                             product_definition,
                             product_definition.c.id == conduit.c.product_definition_id,
                         )
                     )
-                    .where(cable_segment.c.cable_line_id == cable_line_id)
+                    .where(
+                        conduit_segment_assignment.c.project_id == project_id,
+                        cable_segment.c.project_id == project_id,
+                        cable_segment.c.cable_line_id == cable_line_id,
+                    )
                 ).mappings()
             }
             length_row = (
