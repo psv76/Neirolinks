@@ -1,5 +1,6 @@
 """Approved GitHub release catalogs. No mutable branch payloads or implicit trust."""
 import http.client
+import os
 import re
 import urllib.request
 from urllib.parse import urlparse
@@ -29,6 +30,9 @@ def fetch(url, limit=MAX_METADATA, binary=False):
     require(url.startswith((API + '/', RAW)), 'Release source must be ' + REPO)
     headers = {'User-Agent': 'nst/' + __version__,
                'Accept': 'application/octet-stream' if binary else 'application/vnd.github+json'}
+    token = os.environ.get('NST_GITHUB_TOKEN')
+    if token:
+        headers['Authorization'] = 'Bearer ' + token
     try:
         request = urllib.request.Request(url, headers=headers)
         with urllib.request.build_opener(Redirect).open(request, timeout=20) as response:
