@@ -329,21 +329,57 @@ def _segment_room_ids(uow, project_id: str, segment_row: dict) -> set[str]:
             .one()
         )
         if endpoint["endpoint_kind"] == "TOPOLOGY_POINT":
-            result.update(
-                room_id
-                for room_id in uow.execute(
-                    select(field_device.c.room_id)
-                    .join(
-                        cable_point_field_device,
-                        cable_point_field_device.c.field_device_id == field_device.c.id,
-                    )
-                    .where(
-                        cable_point_field_device.c.cable_point_id == endpoint["cable_point_id"],
-                        field_device.c.project_id == project_id,
-                    )
-                ).scalars()
-                if room_id
+            point = (
+                uow.execute(
+                    select(cable_point).where(cable_point.c.id == endpoint["cable_point_id"])
+                )
+                .mappings()
+                .one()
             )
+            if point["point_kind"] == "INTERNAL_SOURCE":
+                line_facts = (
+                    uow.execute(
+                        select(cable_line.c.cable_facts_json).where(
+                            cable_line.c.id == point["cable_line_id"],
+                            cable_line.c.project_id == project_id,
+                        )
+                    ).scalar_one_or_none()
+                    or {}
+                )
+                board_designation = str(line_facts.get("BOARD") or "").strip()
+                if board_designation:
+                    result.update(
+                        room_id
+                        for room_id in uow.execute(
+                            select(field_device.c.room_id).where(
+                                field_device.c.project_id == project_id,
+                                field_device.c.lifecycle == "ACTIVE",
+                                field_device.c.normalized_fields_json[
+                                    "DEVICE_TYPE"
+                                ].as_string()
+                                == "BOARD",
+                                field_device.c.normalized_fields_json["BOARD_ID"].as_string()
+                                == board_designation,
+                            )
+                        ).scalars()
+                        if room_id
+                    )
+            else:
+                result.update(
+                    room_id
+                    for room_id in uow.execute(
+                        select(field_device.c.room_id)
+                        .join(
+                            cable_point_field_device,
+                            cable_point_field_device.c.field_device_id == field_device.c.id,
+                        )
+                        .where(
+                            cable_point_field_device.c.cable_point_id == endpoint["cable_point_id"],
+                            field_device.c.project_id == project_id,
+                        )
+                    ).scalars()
+                    if room_id
+                )
         elif endpoint["endpoint_kind"] == "FIELD_PORT":
             room_id = uow.execute(
                 select(field_device.c.room_id)
@@ -424,30 +460,54 @@ def _recalculate_line_fact(uow, project_id: str, line_id: str, now: datetime) ->
 
 
 def board_reserve_for_line(uow, project_id: str, line_id: str) -> Decimal:
-    """Return reserve only when a graph root is physically owned by a board instance."""
+    """Return reserve when the physical graph root is owned by the line board."""
 
     target_ids = select(cable_segment.c.target_endpoint_id).where(
         cable_segment.c.project_id == project_id,
         cable_segment.c.cable_line_id == line_id,
     )
-    roots = list(
-        uow.execute(
-            select(cable_topology_endpoint.c.instance_resource_id).where(
+    roots = [
+        dict(row)
+        for row in uow.execute(
+            select(cable_topology_endpoint).where(
                 cable_topology_endpoint.c.project_id == project_id,
                 cable_topology_endpoint.c.cable_line_id == line_id,
-                cable_topology_endpoint.c.endpoint_kind == "INSTANCE_RESOURCE",
                 cable_topology_endpoint.c.id.not_in(target_ids),
             )
-        ).scalars()
-    )
-    if not roots:
-        return Decimal(0)
-    board_owned = uow.execute(
-        select(func.count())
-        .select_from(instance_resource)
-        .join(project_instance, project_instance.c.id == instance_resource.c.project_instance_id)
-        .where(instance_resource.c.id.in_(roots), project_instance.c.board_id.is_not(None))
-    ).scalar_one()
+        ).mappings()
+    ]
+    board_owned = False
+    for endpoint in roots:
+        if endpoint["endpoint_kind"] == "INSTANCE_RESOURCE":
+            if endpoint["instance_resource_id"] is None:
+                continue
+            owner_board_id = uow.execute(
+                select(project_instance.c.board_id)
+                .join(
+                    instance_resource,
+                    instance_resource.c.project_instance_id == project_instance.c.id,
+                )
+                .where(instance_resource.c.id == endpoint["instance_resource_id"])
+            ).scalar_one_or_none()
+            if owner_board_id is not None:
+                board_owned = True
+                break
+        elif endpoint["endpoint_kind"] == "TOPOLOGY_POINT":
+            point_kind = uow.execute(
+                select(cable_point.c.point_kind).where(
+                    cable_point.c.id == endpoint["cable_point_id"]
+                )
+            ).scalar_one_or_none()
+            if point_kind == "INTERNAL_SOURCE":
+                line_board_id = uow.execute(
+                    select(cable_line.c.board_id).where(
+                        cable_line.c.id == line_id,
+                        cable_line.c.project_id == project_id,
+                    )
+                ).scalar_one_or_none()
+                if line_board_id is not None:
+                    board_owned = True
+                    break
     if not board_owned:
         return Decimal(0)
     value = uow.execute(
@@ -457,7 +517,6 @@ def board_reserve_for_line(uow, project_id: str, line_id: str) -> Decimal:
         )
     ).scalar_one_or_none()
     return Decimal(str(value or 0))
-
 
 def _reconcile_segment_conduit(uow, project_id: str, segment_row: dict, now: datetime) -> None:
     mount_way = str(segment_row["mount_way"] or "")
