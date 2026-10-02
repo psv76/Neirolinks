@@ -210,19 +210,27 @@ class DwgSyncService:
             binding_id = None if binding_row is None else binding_row["id"]
             devices: dict[str, dict[str, Any]] = {}
             baselines: dict[str, Any] = {}
+            unlinked_room_handles: set[str] = set()
             if binding_id:
-                devices = {
-                    row["entity_handle"]: dict(row["normalized_fields_json"] or {})
-                    for row in connection.execute(
+                device_rows = list(
+                    connection.execute(
                         select(
                             field_device.c.entity_handle,
                             field_device.c.normalized_fields_json,
+                            field_device.c.room_id,
                         ).where(
                             field_device.c.project_id == project_id,
                             field_device.c.dwg_document_binding_id == binding_id,
                             field_device.c.lifecycle == "ACTIVE",
                         )
                     ).mappings()
+                )
+                devices = {
+                    row["entity_handle"]: dict(row["normalized_fields_json"] or {})
+                    for row in device_rows
+                }
+                unlinked_room_handles = {
+                    row["entity_handle"] for row in device_rows if row["room_id"] is None
                 }
                 baselines = {
                     row["field_path"]: row["accepted_value_json"]
@@ -256,6 +264,17 @@ class DwgSyncService:
                 binding_id=binding_id,
                 observations=validation.observations,
             )
+            room_canonicalizations = {
+                item.observation.handle
+                for item in validation.observations
+                if item.observation.handle in unlinked_room_handles
+                and all(
+                    devices[item.observation.handle].get(field)
+                    == item.normalized_attributes.get(field)
+                    for field in ("ROOM", "BUILDING")
+                )
+                and _resolve_project_room_id(connection, project_id, _fields(item)) is not None
+            }
 
         valid_by_handle = {
             item.observation.handle: item
@@ -341,6 +360,14 @@ class DwgSyncService:
                 if reason == "Both sides changed to the same normalized value"
                 else ""
             )
+            if (
+                fact.field == "ROOM"
+                and status is ChangeClass.EQUAL
+                and fact.primary_handle in room_canonicalizations
+            ):
+                status = ChangeClass.DWG_CHANGED
+                detail_status = "ROOM_CANONICALIZATION"
+                reason = "Existing Project room can be linked; canonical room_id is missing"
             if fact.structural and status not in {
                 ChangeClass.EQUAL,
             }:
@@ -595,6 +622,18 @@ class DwgSyncService:
             self._check_baseline_preconditions(uow, proposal, selected)
             binding_id = self._ensure_binding(uow, proposal, now)
             scan_id, observations = self._persist_scan(uow, proposal, binding_id, now)
+            # A relation-only acceptance must not materialize unselected DWG facts/topology.
+            for handle in tuple(active_handles):
+                handle_changes = [
+                    by_path[path]
+                    for path in selected
+                    if handle in (by_path[path].affected_handles or (by_path[path].handle,))
+                ]
+                if handle_changes and all(
+                    change.detail_status == "ROOM_CANONICALIZATION" for change in handle_changes
+                ):
+                    self._apply_room_canonicalization(uow, proposal.project_id, binding_id, handle)
+                    active_handles.remove(handle)
             if load_name_only:
                 self._apply_load_name_only(
                     uow,
@@ -1313,36 +1352,33 @@ class DwgSyncService:
         return result
 
     def _ensure_room(self, uow, project_id, values):
-        building_name = str(values.get("BUILDING", "")).strip()
-        room_name = str(values.get("ROOM", "")).strip()
-        if not building_name or not room_name:
-            return None
-        building_rows = list(
+        return _resolve_project_room_id(uow, project_id, values)
+
+    def _apply_room_canonicalization(self, uow, project_id, binding_id, handle):
+        device = (
             uow.execute(
-                select(building.c.id, building.c.name).where(building.c.project_id == project_id)
-            ).mappings()
-        )
-        building_matches = [
-            item
-            for item in building_rows
-            if normalize_room_name(item["name"]) == normalize_room_name(building_name)
-        ]
-        if len(building_matches) != 1:
-            return None
-        building_id = building_matches[0]["id"]
-        room_rows = list(
-            uow.execute(
-                select(room.c.id, room.c.name).where(
-                    room.c.project_id == project_id,
-                    room.c.building_id == building_id,
+                select(field_device).where(
+                    field_device.c.project_id == project_id,
+                    field_device.c.dwg_document_binding_id == binding_id,
+                    field_device.c.entity_handle == handle,
+                    field_device.c.lifecycle == "ACTIVE",
                 )
-            ).mappings()
+            )
+            .mappings()
+            .one()
         )
-        resolution = resolve_room(
-            (RoomIdentity(item["id"], item["name"]) for item in room_rows),
-            room_name,
+        room_id = self._ensure_room(uow, project_id, device["normalized_fields_json"] or {})
+        if device["room_id"] is not None or room_id is None:
+            raise StaleProposalError("Room relation changed after preview; scan again")
+        uow.execute(
+            update(field_device)
+            .where(field_device.c.id == device["id"])
+            .values(
+                room_id=room_id,
+                row_version=field_device.c.row_version + 1,
+                updated_at_utc=datetime.now(UTC),
+            )
         )
-        return resolution.room_id
 
     def _materialize_snapshot(
         self,
@@ -2777,6 +2813,32 @@ def _preview_display_contexts(
             "raw_room": raw_room,
         }
     return contexts
+
+
+def _resolve_project_room_id(connection, project_id, values):
+    """Resolve an existing room only, using the same rules for preview and apply."""
+    building_name = str(values.get("BUILDING", "")).strip()
+    room_name = str(values.get("ROOM", "")).strip()
+    if not building_name or not room_name:
+        return None
+    building_matches = [
+        item
+        for item in connection.execute(
+            select(building.c.id, building.c.name).where(building.c.project_id == project_id)
+        ).mappings()
+        if normalize_room_name(item["name"]) == normalize_room_name(building_name)
+    ]
+    if len(building_matches) != 1:
+        return None
+    room_rows = connection.execute(
+        select(room.c.id, room.c.name).where(
+            room.c.project_id == project_id,
+            room.c.building_id == building_matches[0]["id"],
+        )
+    ).mappings()
+    return resolve_room(
+        (RoomIdentity(item["id"], item["name"]) for item in room_rows), room_name
+    ).room_id
 
 
 def _fields(item: ValidatedObservation) -> dict[str, Any]:

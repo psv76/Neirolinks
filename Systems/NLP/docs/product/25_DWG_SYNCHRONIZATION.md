@@ -23,3 +23,9 @@ Selective apply должен разрешать source dependency из полн�
 Самостоятельная линия из щита имеет пустой `CABLE_SOURCE`; ordinary box/point не создаёт новый независимый кабель другой CableLine. Межлинейный выход через реальный physical port использует line-owned `FIELD_PORT` endpoint принимающей CableLine со ссылкой на project-owned порт источника. Это существующее typed endpoint representation сохраняет FK без требования одинакового `CABLE_ID` у source device и downstream point.
 
 Apply остаётся одной UnitOfWork: commit только после успешной materialization и всех записей, исключение — полный rollback. Presentation должна показывать явную ошибку apply и не выполнять ветку успеха/refresh. Неожиданное исключение записывается в журнал с техническими подробностями, а основной UI-текст содержит понятное сообщение без Python traceback.
+
+## Канонизация существующего помещения
+
+Если у принятой активной вставки отсутствует `field_device.room_id`, а неизменённые `BUILDING` / `ROOM` однозначно разрешаются в существующее помещение Project по правилам [11_OBJECT_AND_ROOM_MODEL.md](11_OBJECT_AND_ROOM_MODEL.md), preview должен явно предложить привязку помещения даже при равенстве текстового evidence и baseline. Привязка выполняется только после выбора пользователем; операция одной привязки не принимает другие невыбранные факты DWG и не материализует topology.
+
+Канонизация сохраняет исходный текст DWG как evidence и записывает устойчивый `room_id`. Она не создаёт здания/помещения, не угадывает ambiguous/unresolved room и не подменяет three-way classification изменений имён `ROOM` / `BUILDING`. Существующая room relation остаётся источником Project-имён, включая Project rename, DWG rename и BOTH_CHANGED_CONFLICT. Привязка и sync evidence сохраняются в одной транзакции; устаревший preview требует повторного сканирования.
