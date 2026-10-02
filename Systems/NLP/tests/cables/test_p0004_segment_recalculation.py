@@ -572,11 +572,7 @@ def test_internal_board_root_uses_dwg_board_geometry_and_board_reserve(database)
                 board_kind="POWER",
             )
         )
-        row = (
-            uow.execute(select(cable_line).where(cable_line.c.id == line_id))
-            .mappings()
-            .one()
-        )
+        row = uow.execute(select(cable_line).where(cable_line.c.id == line_id)).mappings().one()
         facts = dict(row["cable_facts_json"] or {})
         facts["BOARD"] = "QB"
         uow.execute(
@@ -682,5 +678,5 @@ def test_topology_reports_exact_incomplete_geometry_reason(database):
     topology = service.topology(project_id, line_id)
     edge = topology["edges"][0]
     assert edge["calculation_status"] == "INCOMPLETE"
-    assert "Источник: нет координата X" in edge["calculation_reason"]
-    assert "Источник: нет координата Y" in edge["calculation_reason"]
+    assert "Источник: нет координаты X" in edge["calculation_reason"]
+    assert "Источник: нет координаты Y" in edge["calculation_reason"]

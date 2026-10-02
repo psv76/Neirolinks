@@ -65,7 +65,9 @@ def recalculate_segments(
     segment_ids: set[str] | None = None,
     line_ids: set[str] | None = None,
     room_ids: set[str] | None = None,
+    device_ids: set[str] | None = None,
     recalculate_geometry: bool = True,
+    reconcile_conduits: bool = True,
 ) -> RecalculationResult:
     """Recalculate the affected persisted segments, lines and conduits."""
 
@@ -75,6 +77,14 @@ def recalculate_segments(
     if line_ids is not None:
         selected = selected.where(cable_segment.c.cable_line_id.in_(line_ids))
     rows = [dict(row) for row in uow.execute(selected).mappings()]
+    if device_ids is not None:
+        endpoint_ids = _device_endpoint_ids(uow, project_id, device_ids)
+        rows = [
+            row
+            for row in rows
+            if row["source_endpoint_id"] in endpoint_ids
+            or row["target_endpoint_id"] in endpoint_ids
+        ]
     if room_ids is not None:
         rows = [row for row in rows if _segment_room_ids(uow, project_id, row) & room_ids]
     affected_segments = {row["id"] for row in rows}
@@ -111,7 +121,16 @@ def recalculate_segments(
                     )
                 )
                 segment_row["calculated_length_m_decimal"] = next_value
-            _reconcile_segment_conduit(uow, project_id, segment_row, now)
+            if reconcile_conduits:
+                _reconcile_segment_conduit(uow, project_id, segment_row, now)
+            else:
+                assigned = uow.execute(
+                    select(conduit_segment_assignment.c.conduit_id).where(
+                        conduit_segment_assignment.c.cable_segment_id == segment_row["id"]
+                    )
+                ).scalar_one_or_none()
+                if assigned:
+                    _refresh_conduit_length(uow, project_id, assigned, now)
 
     for line_id in affected_lines | (line_ids or set()):
         _recalculate_line_fact(uow, project_id, line_id, now)
@@ -119,6 +138,42 @@ def recalculate_segments(
         tuple(sorted(affected_segments)),
         tuple(sorted(affected_lines | (line_ids or set()))),
         tuple(sorted(incomplete)),
+    )
+
+
+def _device_endpoint_ids(uow, project_id: str, device_ids: set[str]) -> set[str]:
+    """Include both sides of shared points/ports and all roots of accepted BOARD devices."""
+    points = select(cable_point_field_device.c.cable_point_id).where(
+        cable_point_field_device.c.field_device_id.in_(device_ids)
+    )
+    ports = select(field_port.c.id).where(field_port.c.field_device_id.in_(device_ids))
+    board_names = [
+        fields["BOARD_ID"]
+        for fields in uow.execute(
+            select(field_device.c.normalized_fields_json).where(
+                field_device.c.project_id == project_id,
+                field_device.c.id.in_(device_ids),
+                field_device.c.lifecycle == "ACTIVE",
+            )
+        ).scalars()
+        if fields.get("DEVICE_TYPE") == "BOARD" and fields.get("BOARD_ID")
+    ]
+    board_lines = select(cable_line.c.id).where(
+        cable_line.c.project_id == project_id,
+        cable_line.c.cable_facts_json["BOARD"].as_string().in_(board_names),
+    )
+    internal = select(cable_point.c.id).where(
+        cable_point.c.point_kind == "INTERNAL_SOURCE", cable_point.c.cable_line_id.in_(board_lines)
+    )
+    return set(
+        uow.execute(
+            select(cable_topology_endpoint.c.id).where(
+                cable_topology_endpoint.c.project_id == project_id,
+                cable_topology_endpoint.c.cable_point_id.in_(points)
+                | cable_topology_endpoint.c.field_port_id.in_(ports)
+                | cable_topology_endpoint.c.cable_point_id.in_(internal),
+            )
+        ).scalars()
     )
 
 
@@ -288,9 +343,18 @@ def _endpoint_geometry(uow, project_id: str, endpoint_id: str, route: RouteMetho
         required.add("base")
     if route is RouteMethod.CEILING:
         required.add("height")
+    missing = {key for fact in facts for key in required if fact[key] in (None, "")}
+    if route in {RouteMethod.FLOOR, RouteMethod.CEILING} and any(
+        not fact["room_id"] for fact in facts
+    ):
+        missing.add("room")
     complete = [fact for fact in facts if all(fact[key] not in (None, "") for key in required)]
-    signatures = {tuple(str(fact[key]) for key in sorted(required)) for fact in complete}
-    missing = {key for key in required if not complete or complete[0][key] in (None, "")}
+    try:
+        signatures = {
+            tuple(Decimal(str(fact[key])) for key in sorted(required)) for fact in complete
+        }
+    except InvalidOperation:
+        return None, {"invalid_endpoint_geometry"}
     if len(signatures) > 1:
         missing.add("ambiguous_shared_endpoint_geometry")
     if missing:
@@ -354,9 +418,7 @@ def _segment_room_ids(uow, project_id: str, segment_row: dict) -> set[str]:
                             select(field_device.c.room_id).where(
                                 field_device.c.project_id == project_id,
                                 field_device.c.lifecycle == "ACTIVE",
-                                field_device.c.normalized_fields_json[
-                                    "DEVICE_TYPE"
-                                ].as_string()
+                                field_device.c.normalized_fields_json["DEVICE_TYPE"].as_string()
                                 == "BOARD",
                                 field_device.c.normalized_fields_json["BOARD_ID"].as_string()
                                 == board_designation,
@@ -466,12 +528,17 @@ def board_reserve_for_line(uow, project_id: str, line_id: str) -> Decimal:
         cable_segment.c.project_id == project_id,
         cable_segment.c.cable_line_id == line_id,
     )
+    source_ids = select(cable_segment.c.source_endpoint_id).where(
+        cable_segment.c.project_id == project_id,
+        cable_segment.c.cable_line_id == line_id,
+    )
     roots = [
         dict(row)
         for row in uow.execute(
             select(cable_topology_endpoint).where(
                 cable_topology_endpoint.c.project_id == project_id,
                 cable_topology_endpoint.c.cable_line_id == line_id,
+                cable_topology_endpoint.c.id.in_(source_ids),
                 cable_topology_endpoint.c.id.not_in(target_ids),
             )
         ).mappings()
@@ -517,6 +584,7 @@ def board_reserve_for_line(uow, project_id: str, line_id: str) -> Decimal:
         )
     ).scalar_one_or_none()
     return Decimal(str(value or 0))
+
 
 def _reconcile_segment_conduit(uow, project_id: str, segment_row: dict, now: datetime) -> None:
     mount_way = str(segment_row["mount_way"] or "")

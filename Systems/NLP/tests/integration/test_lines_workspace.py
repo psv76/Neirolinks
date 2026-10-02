@@ -59,7 +59,6 @@ class FakeCableService:
         for edit in edits:
             by_id[edit["cable_line_id"]][field_map[edit["field"]]] = edit["value"]
 
-
     def topology(self, _project_id, cable_line_id):
         card = next(card for card in self.cards if card["id"] == cable_line_id)
         return {
@@ -98,7 +97,14 @@ class FakeCableService:
         }
 
     def update_segment_route(
-        self, *, project_id, cable_segment_id, route_method, conduit_type="", conduit_color=""
+        self,
+        *,
+        project_id,
+        cable_segment_id,
+        route_method,
+        conduit_type="",
+        conduit_color="",
+        conduit_designation=None,
     ):
         self.segment_calls.append(
             (project_id, cable_segment_id, route_method, conduit_type, conduit_color)
@@ -211,6 +217,7 @@ def test_keyboard_path_multi_selection_refresh_and_state_restore(qtbot, tmp_path
     store = UiStateStore(tmp_path / "state")
     workspace = LinesWorkspace(service, FakeConstructor(), "project", ui_state=store)
     qtbot.addWidget(workspace)
+    workspace.resize(1440, 1000)
     workspace.show()
     board_column = _column("board")
 
@@ -239,6 +246,7 @@ def test_keyboard_path_multi_selection_refresh_and_state_restore(qtbot, tmp_path
 
     reopened = LinesWorkspace(service, FakeConstructor(), "project", ui_state=store)
     qtbot.addWidget(reopened)
+    reopened.resize(1440, 1000)
     reopened.show()
     qtbot.wait(10)
     assert reopened.search.text() == "розетка"

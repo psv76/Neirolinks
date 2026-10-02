@@ -305,6 +305,7 @@ def test_physical_output_port_supports_cross_line_full_and_selective_import(data
     assert CableService(database.engine).topology(pid, line_id)["root_endpoint"] == {
         "kind": "FIELD_PORT",
         "reference": "902.003/K1",
+        "label": "902.003/K1",
     }
 
 

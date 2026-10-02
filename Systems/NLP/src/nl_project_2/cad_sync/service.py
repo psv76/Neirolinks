@@ -687,6 +687,14 @@ class DwgSyncService:
                     observations,
                     active_handles,
                 )
+                recalculate_segments(
+                    uow,
+                    proposal.project_id,
+                    device_ids={
+                        device_ids[handle] for handle in active_handles if handle in device_ids
+                    },
+                    reconcile_conduits=False,
+                )
             operation_id = new_id()
             correlation_id = new_id()
             uow.execute(
@@ -1379,6 +1387,9 @@ class DwgSyncService:
                 updated_at_utc=datetime.now(UTC),
             )
         )
+        # Recompute derived lengths from accepted Project facts only. Never import
+        # unselected observation geometry/routes or create conduit assignments here.
+        recalculate_segments(uow, project_id, device_ids={device["id"]}, reconcile_conduits=False)
 
     def _materialize_snapshot(
         self,

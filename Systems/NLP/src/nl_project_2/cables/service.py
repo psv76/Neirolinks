@@ -33,13 +33,16 @@ from nl_project_2.persistence.schema import (
     conduit_segment_assignment,
     field_device,
     field_port,
+    instance_resource,
     operation_journal,
     passport_definition,
     product_definition,
     project,
+    project_instance,
     room,
 )
 from nl_project_2.persistence.uow import UnitOfWork
+from nl_project_2.resource_labels import resource_user_label
 
 from .domain import (
     MOUNT_WAY_BY_ROUTE_METHOD,
@@ -56,6 +59,7 @@ from .domain import (
 )
 from .recalculation import (
     RecalculationError,
+    _remove_assignment_and_empty_auto,
     board_reserve_for_line,
     recalculate_segments,
     refresh_conduit_length,
@@ -162,6 +166,20 @@ class CableService:
                     .where(field_port.c.project_id == project_id)
                 ).mappings()
             }
+            resources = {
+                row["id"]: dict(row)
+                for row in connection.execute(
+                    select(
+                        instance_resource,
+                        project_instance.c.designation.label("instance_designation"),
+                    )
+                    .join(
+                        project_instance,
+                        project_instance.c.id == instance_resource.c.project_instance_id,
+                    )
+                    .where(instance_resource.c.project_id == project_id)
+                ).mappings()
+            }
             segments = [
                 dict(row)
                 for row in connection.execute(
@@ -187,8 +205,7 @@ class CableService:
                     .select_from(
                         conduit_segment_assignment.join(
                             cable_segment,
-                            cable_segment.c.id
-                            == conduit_segment_assignment.c.cable_segment_id,
+                            cable_segment.c.id == conduit_segment_assignment.c.cable_segment_id,
                         )
                         .join(
                             conduit,
@@ -235,7 +252,7 @@ class CableService:
                 return {
                     "kind": "INSTANCE_RESOURCE",
                     "resource_id": reference,
-                    "label": f"Ресурс {reference}",
+                    "label": resource_user_label(resources.get(reference)),
                 }
             point = point_rows[endpoint["cable_point_id"]]
             if point["point_kind"] == "INTERNAL_SOURCE":
@@ -256,22 +273,23 @@ class CableService:
         diagnostics: dict[str, dict] = {}
         with UnitOfWork(self._engine) as uow:
             for row in segments:
-                diagnostics[row["id"]] = segment_geometry_diagnostics(
-                    uow, project_id, row
-                )
+                diagnostics[row["id"]] = segment_geometry_diagnostics(uow, project_id, row)
             board_reserve = board_reserve_for_line(uow, project_id, cable_line_id)
             uow.rollback()
 
         def missing_text(codes: tuple[str, ...]) -> str:
             labels = {
-                "x": "координата X",
-                "y": "координата Y",
-                "mount": "MOUNT_HEIGHT",
-                "base": "отметка пола помещения",
-                "height": "высота помещения",
+                "x": "координаты X",
+                "y": "координаты Y",
+                "mount": "высоты установки (MOUNT_HEIGHT)",
+                "base": "отметки основания пола",
+                "height": "высоты потолка помещения",
                 "ambiguous_shared_endpoint_geometry": "неоднозначная геометрия общей точки",
                 "invalid_endpoint_geometry": "некорректная геометрия точки",
                 "mount_way": "способ прокладки",
+                "room": "помещения (канонической связи)",
+                "not_calculated": "сохранённый расчёт; выполните пересчёт",
+                "stale_calculation": "актуальный расчёт; выполните пересчёт",
             }
             parts = []
             for code in codes:
@@ -281,7 +299,12 @@ class CableService:
                     side = ""
                 prefix = "Источник" if side == "source" else "Приёмник" if side == "target" else ""
                 value = labels.get(key, key)
-                parts.append(f"{prefix}: нет {value}" if prefix else f"Нет {value}")
+                reason = (
+                    value
+                    if key in {"ambiguous_shared_endpoint_geometry", "invalid_endpoint_geometry"}
+                    else f"нет {value}"
+                )
+                parts.append(f"{prefix}: {reason}" if prefix else reason.capitalize())
             return "; ".join(parts)
 
         target_ids = {row["target_endpoint_id"] for row in segments}
@@ -321,6 +344,12 @@ class CableService:
         for depth, row in ordered:
             diag = diagnostics[row["id"]]
             calculated = row["calculated_length_m_decimal"]
+            if diag["complete"] and calculated is None:
+                diag = {"complete": False, "missing": ("not_calculated",)}
+            elif diag["complete"] and Decimal(calculated) != Decimal(diag["calculated_length_m"]):
+                diag = {"complete": False, "missing": ("stale_calculation",)}
+            if not diag["complete"]:
+                calculated = None
             cable_length = Decimal(calculated) if calculated is not None else None
             route = ROUTE_METHOD_BY_MOUNT_WAY.get(str(row["mount_way"] or ""))
             physical_length = (
@@ -356,14 +385,13 @@ class CableService:
                     "gofra_color": row["gofra_color"] or "",
                     "gofra_id": conduit_info.get("conduit_designation") or "",
                     "conduit_id": conduit_info.get("conduit_id"),
+                    "conduit_length_m": conduit_info.get("conduit_length_m"),
                     "conduit_product_name": conduit_info.get("conduit_product_name") or "",
                     "conduit_product_article": conduit_info.get("conduit_product_article") or "",
                     "physical_length_m": (
                         None if physical_length is None else str(physical_length)
                     ),
-                    "cable_length_m": (
-                        None if cable_length is None else str(cable_length)
-                    ),
+                    "cable_length_m": (None if cable_length is None else str(cable_length)),
                     "calculation_status": "READY" if diag["complete"] else "INCOMPLETE",
                     "calculation_reason": (
                         "" if diag["complete"] else missing_text(diag["missing"])
@@ -387,13 +415,66 @@ class CableService:
             ),
             "board_reserve_m": str(board_reserve),
             "additional_m": (
-                "0"
-                if length_row is None
-                else str(length_row["additional_length_m_decimal"] or "0")
+                "0" if length_row is None else str(length_row["additional_length_m_decimal"] or "0")
             ),
             "manual_full_m": (
                 None if length_row is None else length_row["manual_full_length_m_decimal"]
             ),
+        }
+
+    def project_route_breakdown(self, project_id: str) -> dict:
+        """Summarize unique active physical edges, never allocate line-only reserves to routes."""
+        groups = {
+            title: {
+                "mount_way": title,
+                "physical_m": Decimal(0),
+                "cable_m": Decimal(0),
+                "incomplete_segments": 0,
+            }
+            for title in MOUNT_WAY_BY_ROUTE_METHOD.values()
+        }
+        with self._engine.connect() as connection:
+            segments = connection.execute(
+                select(cable_segment)
+                .join(cable_line, cable_line.c.id == cable_segment.c.cable_line_id)
+                .where(cable_segment.c.project_id == project_id, cable_line.c.lifecycle == "ACTIVE")
+            ).mappings()
+            for segment in segments:
+                method = segment["mount_way"] or "Не указано"
+                group = groups.setdefault(
+                    method,
+                    {
+                        "mount_way": method,
+                        "physical_m": Decimal(0),
+                        "cable_m": Decimal(0),
+                        "incomplete_segments": 0,
+                    },
+                )
+                value = segment["calculated_length_m_decimal"]
+                route = ROUTE_METHOD_BY_MOUNT_WAY.get(method)
+                if value is None or route is None:
+                    group["incomplete_segments"] += 1
+                else:
+                    group["cable_m"] += Decimal(value)
+                    group["physical_m"] += conduit_length_from_segment_length(value, route)
+        cards = self.line_cards(project_id)
+        return {
+            "routes": tuple(
+                {**group, "physical_m": str(group["physical_m"]), "cable_m": str(group["cable_m"])}
+                for group in groups.values()
+            ),
+            "effective_m": str(
+                sum(
+                    (
+                        Decimal(card["effective_m"])
+                        for card in cards
+                        if card["effective_m"] is not None
+                    ),
+                    Decimal(0),
+                )
+            ),
+            "incomplete_lines": sum(card["effective_m"] is None for card in cards),
+            "manual_lines": sum(card.get("manual_full_m") is not None for card in cards),
         }
 
     def line_cards(self, project_id: str) -> list[dict]:
@@ -591,6 +672,10 @@ class CableService:
                     )
                 )
                 self._set_device_line_fields(uow, project_id, line_id, changed_values)
+                if "BOARD" in changed_values:
+                    recalculate_segments(
+                        uow, project_id, line_ids={line_id}, reconcile_conduits=False
+                    )
             self._touch_project(uow, project_id, now)
             command_id = new_id()
             uow.execute(
@@ -694,8 +779,26 @@ class CableService:
                     "cable_type": facts.get("CABLE_TYPE", ""),
                 }
             )
+        topologies = {
+            line_id: {
+                edge["segment_id"]: edge for edge in self.topology(project_id, line_id)["edges"]
+            }
+            for line_id in {
+                child["cable_line_id"] for rows in by_conduit.values() for child in rows
+            }
+        }
         for parent in parents:
             parent["lines"] = by_conduit.get(parent["id"], [])
+            for child in parent["lines"]:
+                edge = topologies[child["cable_line_id"]][child["id"]]
+                child.update(
+                    source=edge["source"]["label"],
+                    target=edge["target"]["label"],
+                    mount_way=edge["mount_way"],
+                    physical_m=edge["physical_length_m"],
+                    cable_m=edge["cable_length_m"],
+                    calculation_reason=edge["calculation_reason"],
+                )
             parent["product_display"] = (
                 f"{parent['product_name']} · арт. {parent['product_article']}"
                 if parent["product_name"]
@@ -980,16 +1083,19 @@ class CableService:
         route_method: RouteMethod,
         conduit_type: str = "",
         conduit_color: str = "",
+        conduit_designation: str | None = None,
     ) -> None:
         """Edit and recalculate one exact persisted segment."""
 
-        mount_way = MOUNT_WAY_BY_ROUTE_METHOD[route_method]
+        mount_way = MOUNT_WAY_BY_ROUTE_METHOD[RouteMethod(route_method)]
+        conduit_type = conduit_type.strip()
+        conduit_color = conduit_color.strip()
         try:
             validate_line_conduit_fields(
                 mount_way=mount_way,
                 conduit_type=conduit_type.strip(),
                 conduit_color=conduit_color.strip(),
-                conduit_id="",
+                conduit_id=conduit_designation or "",
             )
         except ConduitContractError as exc:
             raise CableError(str(exc)) from exc
@@ -1010,6 +1116,96 @@ class CableService:
             )
             if changed.rowcount != 1:
                 raise CableError("Cable segment not found")
+            current = (
+                uow.execute(
+                    select(conduit)
+                    .join(
+                        conduit_segment_assignment,
+                        conduit_segment_assignment.c.conduit_id == conduit.c.id,
+                    )
+                    .where(conduit_segment_assignment.c.cable_segment_id == cable_segment_id)
+                )
+                .mappings()
+                .one_or_none()
+            )
+            target = None
+            if conduit_designation:
+                target = (
+                    uow.execute(
+                        select(conduit).where(
+                            conduit.c.project_id == project_id,
+                            conduit.c.designation == conduit_designation,
+                            conduit.c.lifecycle == "ACTIVE",
+                        )
+                    )
+                    .mappings()
+                    .one_or_none()
+                )
+                if target is not None and (
+                    target["conduit_type"] != conduit_type
+                    or (target["color"] or "") != conduit_color
+                ):
+                    count = uow.execute(
+                        select(func.count())
+                        .select_from(conduit_segment_assignment)
+                        .where(conduit_segment_assignment.c.conduit_id == target["id"])
+                    ).scalar_one()
+                    if current is None or target["id"] != current["id"] or count != 1:
+                        raise CableError(
+                            "Существующая труба имеет другой тип или цвет. "
+                            "Для отдельного участка укажите новый номер."
+                        )
+                    uow.execute(
+                        update(conduit)
+                        .where(conduit.c.id == target["id"])
+                        .values(
+                            color=conduit_color or None,
+                            product_definition_id=None,
+                            row_version=conduit.c.row_version + 1,
+                            updated_at_utc=datetime.now(UTC),
+                        )
+                    )
+            elif (
+                current is not None
+                and current["conduit_type"] == conduit_type
+                and (current["color"] or "") == conduit_color
+            ):
+                target = current
+            if current is not None and (target is None or target["id"] != current["id"]):
+                _remove_assignment_and_empty_auto(uow, project_id, cable_segment_id, current["id"])
+            if conduit_designation and target is None:
+                target = {"id": new_id(), "designation": conduit_designation}
+                uow.execute(
+                    conduit.insert().values(
+                        id=target["id"],
+                        project_id=project_id,
+                        designation=conduit_designation,
+                        conduit_number=parse_conduit_id(conduit_designation, conduit_type),
+                        conduit_type=conduit_type,
+                        color=conduit_color or None,
+                        path_json={"origin": "USER_EMPTY", "length_source": "SEGMENT_GEOMETRY"},
+                    )
+                )
+            if target is not None and (current is None or target["id"] != current["id"]):
+                uow.execute(
+                    conduit_segment_assignment.insert().values(
+                        id=new_id(),
+                        project_id=project_id,
+                        conduit_id=target["id"],
+                        cable_segment_id=cable_segment_id,
+                    )
+                )
+            self._set_segment_device_fields(
+                uow,
+                project_id,
+                cable_segment_id,
+                {
+                    "MOUNT_WAY": mount_way,
+                    "GOFRA_TYPE": conduit_type,
+                    "GOFRA_COLOR": conduit_color,
+                    "GOFRA_ID": "" if target is None else target["designation"],
+                },
+            )
             try:
                 recalculate_segments(uow, project_id, segment_ids={cable_segment_id})
             except RecalculationError as exc:

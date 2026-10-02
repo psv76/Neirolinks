@@ -184,7 +184,7 @@ class CableWorkspaceDialog(QDialog):
         self.routes_tree.setColumnCount(8)
         self.routes_tree.setHeaderLabels(
             [
-                "Труба / линия",
+                "Труба → участок → линия",
                 "Тип трубы / назначение",
                 "Цвет трубы",
                 "Длина трубы, м",
@@ -386,9 +386,24 @@ class CableWorkspaceDialog(QDialog):
             parent.setData(0, Qt.ItemDataRole.UserRole + 1, "CONDUIT")
             self.routes_tree.addTopLevelItem(parent)
             for line in row["lines"]:
+                segment = QTreeWidgetItem(
+                    [
+                        f"Участок {line['source']} → {line['target']}",
+                        line["mount_way"],
+                        "",
+                        "",
+                        "",
+                        "",
+                        f"Трасса {line['physical_m'] or '—'} м; кабель {line['cable_m'] or '—'} м",
+                        line["calculation_reason"] or "Готово",
+                    ]
+                )
+                segment.setData(0, Qt.ItemDataRole.UserRole, line["id"])
+                segment.setData(0, Qt.ItemDataRole.UserRole + 1, "CABLE_SEGMENT")
+                parent.addChild(segment)
                 child = QTreeWidgetItem(
                     [
-                        f"    → {line['designation']}",
+                        f"Линия {line['designation']}",
                         line["load_name"],
                         "",
                         "",
@@ -398,9 +413,13 @@ class CableWorkspaceDialog(QDialog):
                         "",
                     ]
                 )
-                child.setData(0, Qt.ItemDataRole.UserRole, line["id"])
+                child.setData(0, Qt.ItemDataRole.UserRole, line["cable_line_id"])
                 child.setData(0, Qt.ItemDataRole.UserRole + 1, "CABLE_LINE")
-                parent.addChild(child)
+                child.setToolTip(
+                    5, "Отображаемая марка кабеля; не подтверждение exact catalog product"
+                )
+                segment.addChild(child)
+                segment.setExpanded(True)
             parent.setExpanded(True)
 
     def refresh_catalog(self) -> None:
@@ -622,7 +641,7 @@ class CableWorkspaceDialog(QDialog):
         item = self.routes_tree.currentItem()
         if item is None:
             return
-        if item.data(0, Qt.ItemDataRole.UserRole + 1) != "CONDUIT":
+        while item is not None and item.data(0, Qt.ItemDataRole.UserRole + 1) != "CONDUIT":
             item = item.parent()
         if item is None:
             return
