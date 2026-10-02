@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from nl_project_2.cables import RouteMethod
 from nl_project_2.cables.presentation import format_cable_mark
 from nl_project_2.guided_actions import GuidedAction
 
@@ -216,7 +217,7 @@ _DEFAULT_COLUMN_WIDTHS = {
     "resource_labels": 230,
 }
 
-LINES_LAYOUT_VERSION = 2
+LINES_LAYOUT_VERSION = 3
 
 
 def _column_index(key: str) -> int:
@@ -446,12 +447,67 @@ class LinesWorkspace(QWidget):
         bottom_layout.addLayout(details)
         bottom_layout.addLayout(card_actions)
 
+        physical = QWidget(self)
+        physical.setObjectName("linePhysicalRoutePanel")
+        physical_layout = QVBoxLayout(physical)
+        physical_layout.setContentsMargins(8, 4, 8, 4)
+        physical_layout.setSpacing(4)
+        physical_layout.addWidget(QLabel("Физическая цепочка выбранной линии", physical))
+
+        self.segment_summary = QLabel("Линия не выбрана", physical)
+        self.segment_summary.setObjectName("lineRouteBreakdownLabel")
+        self.segment_summary.setWordWrap(True)
+        physical_layout.addWidget(self.segment_summary)
+
+        self.segment_table = QTableWidget(0, 7, physical)
+        self.segment_table.setObjectName("linePhysicalSegmentsTable")
+        self.segment_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.segment_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.segment_table.setHorizontalHeaderLabels(
+            ["Откуда", "Куда", "Прокладка", "Труба", "Трасса, м", "Кабель, м", "Статус"]
+        )
+        self.segment_table.itemSelectionChanged.connect(self._segment_selection_changed)
+        physical_layout.addWidget(self.segment_table, 1)
+
+        self.segment_route_combo = QComboBox(physical)
+        for method, title in (
+            (RouteMethod.FLOOR, "По полу"),
+            (RouteMethod.CEILING, "По потолку"),
+            (RouteMethod.WALL, "В стене"),
+            (RouteMethod.TIMBER, "В брусе"),
+            (RouteMethod.CABLE_CHANNEL, "В кабель-канале"),
+        ):
+            self.segment_route_combo.addItem(title, method)
+        self.segment_gofra_type_edit = QLineEdit(physical)
+        self.segment_gofra_color_edit = QLineEdit(physical)
+        self.segment_gofra_id = QLabel("—", physical)
+        save_segment = QPushButton("Сохранить выбранный участок", physical)
+        save_segment.setObjectName("savePhysicalSegmentButton")
+        save_segment.clicked.connect(self._save_segment_route)
+        self.save_segment_button = save_segment
+        self.save_segment_button.setEnabled(False)
+        segment_editor = QHBoxLayout()
+        segment_editor.addWidget(QLabel("Прокладка", physical))
+        segment_editor.addWidget(self.segment_route_combo)
+        segment_editor.addWidget(QLabel("Тип трубы", physical))
+        segment_editor.addWidget(self.segment_gofra_type_edit)
+        segment_editor.addWidget(QLabel("Цвет", physical))
+        segment_editor.addWidget(self.segment_gofra_color_edit)
+        segment_editor.addWidget(QLabel("Труба", physical))
+        segment_editor.addWidget(self.segment_gofra_id)
+        segment_editor.addWidget(save_segment)
+        physical_layout.addLayout(segment_editor)
+
+        self._segment_rows: list[dict] = []
+
         self.splitter = QSplitter(Qt.Orientation.Vertical, self)
         self.splitter.setObjectName("linesHorizontalSplitter")
         self.splitter.addWidget(top)
         self.splitter.addWidget(bottom)
+        self.splitter.addWidget(physical)
         self.splitter.setStretchFactor(0, 4)
         self.splitter.setStretchFactor(1, 1)
+        self.splitter.setStretchFactor(2, 2)
         self.splitter.setChildrenCollapsible(False)
         self.splitter.splitterMoved.connect(lambda *_: self._save_state())
         layout = QVBoxLayout(self)
@@ -1089,13 +1145,13 @@ class LinesWorkspace(QWidget):
             sizes = state.get("splitter_sizes")
             valid_sizes = (
                 isinstance(sizes, list)
-                and len(sizes) == 2
+                and len(sizes) == 3
                 and all(isinstance(value, int) for value in sizes)
             )
             if valid_sizes and layout_current:
                 self.splitter.setSizes(sizes)
             else:
-                self.splitter.setSizes([820, 180])
+                self.splitter.setSizes([680, 180, 260])
             selected = state.get("selected_line_id")
             if selected in self._cards_by_id:
                 self.select_line(selected)
@@ -1110,7 +1166,7 @@ class LinesWorkspace(QWidget):
             self.table.setColumnWidth(logical, _DEFAULT_COLUMN_WIDTHS[column.key])
             self.table.setColumnHidden(logical, not column.default_visible)
             self.column_actions[column.key].setChecked(column.default_visible)
-        self.splitter.setSizes([820, 180])
+        self.splitter.setSizes([680, 180, 260])
 
     def save_state(self) -> None:
         self._save_state()
