@@ -699,7 +699,7 @@ class CableService:
             parent["product_display"] = (
                 f"{parent['product_name']} · арт. {parent['product_article']}"
                 if parent["product_name"]
-                else "Не выбран"
+                else "Товар трубы не выбран"
             )
         return parents
 
