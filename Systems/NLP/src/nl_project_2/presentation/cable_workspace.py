@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from nl_project_2.cables import CableError, RouteMethod
+from nl_project_2.cables.presentation import format_cable_mark
 from nl_project_2.resource_labels import (
     resource_display_name,
     resource_technical_identity,
@@ -180,14 +181,15 @@ class CableWorkspaceDialog(QDialog):
         tab = QWidget(self)
         self.routes_tree = QTreeWidget(tab)
         self.routes_tree.setObjectName("cableRoutesTree")
-        self.routes_tree.setColumnCount(7)
+        self.routes_tree.setColumnCount(8)
         self.routes_tree.setHeaderLabels(
             [
                 "Труба / линия",
-                "GOFRA_TYPE / назначение",
-                "GOFRA_COLOR",
-                "Длина, м",
-                "Товар / тип кабеля",
+                "Тип трубы / назначение",
+                "Цвет трубы",
+                "Длина трубы, м",
+                "Товар трубы",
+                "Тип / марка кабеля",
                 "Источник",
                 "Статус",
             ]
@@ -375,6 +377,7 @@ class CableWorkspaceDialog(QDialog):
                     row["color"] or "",
                     "" if row["length_m_decimal"] is None else str(row["length_m_decimal"]),
                     row["product_display"],
+                    "",
                     (row["path_json"] or {}).get("origin", ""),
                     status,
                 ]
@@ -389,7 +392,8 @@ class CableWorkspaceDialog(QDialog):
                         line["load_name"],
                         "",
                         "",
-                        line["cable_type"],
+                        "",
+                        format_cable_mark(line["cable_type"]),
                         "",
                         "",
                     ]
