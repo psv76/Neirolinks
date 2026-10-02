@@ -76,6 +76,43 @@
       },
       "track": "stable",
       "version": "3.6"
+    },
+    {
+      "approval": {
+        "catalog_sha256": "84b89100c16b8d61227c1ece0e57f3bbd177b71163c33603b443b779802a32d0",
+        "kind": "github_release",
+        "published_at": "2026-10-02T10:05:46Z",
+        "release_commit": "ae5da54eaab62dcb3c63a0e8b5704adc37ff6fdc",
+        "tag": "nst-approved-components-pressure-makeup-1.0"
+      },
+      "component": "pressure_makeup",
+      "files": [
+        {
+          "sha256": "767739a1358381297605fb598c38dfd6925e976121dfcfef2d9a77ea9ec4dafd",
+          "source": "Systems/NST/releases/pressure_makeup/1.0/507_Pressure_makeup.js",
+          "target": "/etc/wb-rules/507_Pressure_makeup.js"
+        }
+      ],
+      "manifest": {
+        "commit": "ae5da54eaab62dcb3c63a0e8b5704adc37ff6fdc",
+        "path": "Systems/NST/releases/pressure_makeup/1.0/pressure-makeup-boiler-1.0.json",
+        "sha256": "f038549cf93b5d1571903235dc6045a8b9cde6f28c124c7d062ac8c043fa481a"
+      },
+      "minimum_nst": "2.0",
+      "release": {
+        "commit": "90fdbb693f8ff50490f938f6e406b03fb5c3e7a7",
+        "repository": "psv76/Neirolinks"
+      },
+      "services": {
+        "start": [
+          "wb-rules"
+        ],
+        "stop": [
+          "wb-rules"
+        ]
+      },
+      "track": "stable",
+      "version": "1.0"
     }
   ],
   "controller_serial": "ABF62SL",
@@ -83,7 +120,7 @@
     "path": "Systems/NST/diagnostics/ivolga-boiler-hhm-v1.json",
     "sha256": "c2d0a81c57242f5e24fb062ca73043a76d565bed0d82266e66da2fbc8950b8b6"
   },
-  "minimum_nst": "1.0.0",
+  "minimum_nst": "2.0",
   "node": "boiler",
   "object": "05_31_Ivolga_13",
   "object_files": [
@@ -110,7 +147,7 @@
   ],
   "profile": {
     "path": "Objects/05_31_Ivolga_13/controllers/ABF62SL.json",
-    "sha256": "c2d6542b9c17677ba2fa43bcdbe4eb061434efb2375c06affc79228394f0af8b"
+    "sha256": "5e73386e50df21a298ec04d384b56e0b6b915ffc5d5db2081f76c9c4850102f0"
   },
   "role": "boiler",
   "schema": 1,
@@ -124,7 +161,7 @@
   },
   "signatures": [],
   "source": {
-    "commit": "262ea7cfba987374afe6a15b66143c7898a0cbc9",
+    "commit": "deac3d6bbf1507864323caee84b09f3932a93d59",
     "repository": "psv76/Neirolinks"
   },
   "state": "active"
