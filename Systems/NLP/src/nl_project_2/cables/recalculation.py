@@ -128,6 +128,43 @@ def _route_method(mount_way: str | None) -> RouteMethod:
         raise RecalculationError("Cable segment has no supported MOUNT_WAY") from exc
 
 
+def segment_geometry_diagnostics(uow, project_id: str, segment_row: dict) -> dict:
+    """Return calculation readiness for one persisted segment without mutating data."""
+
+    try:
+        route = _route_method(segment_row.get("mount_way"))
+    except RecalculationError:
+        return {
+            "complete": False,
+            "calculated_length_m": None,
+            "missing": ("mount_way",),
+        }
+    source, source_missing = _endpoint_geometry(
+        uow, project_id, segment_row["source_endpoint_id"], route
+    )
+    target, target_missing = _endpoint_geometry(
+        uow, project_id, segment_row["target_endpoint_id"], route
+    )
+    missing = tuple(
+        sorted(
+            {f"source:{value}" for value in source_missing}
+            | {f"target:{value}" for value in target_missing}
+        )
+    )
+    if missing:
+        return {
+            "complete": False,
+            "calculated_length_m": None,
+            "missing": missing,
+        }
+    length, _trace = calculate_segment_length(source, target, route)
+    return {
+        "complete": True,
+        "calculated_length_m": str(length),
+        "missing": (),
+    }
+
+
 def _endpoint_geometry(uow, project_id: str, endpoint_id: str, route: RouteMethod):
     endpoint = (
         uow.execute(
