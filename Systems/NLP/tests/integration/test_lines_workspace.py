@@ -44,6 +44,7 @@ class FakeCableService:
             _card("line-1", "1", "Розетка холла", room="Холл", board="ЩР-1"),
         ]
         self.calls = []
+        self.segment_calls = []
 
     def line_cards(self, _project_id):
         return deepcopy(self.cards)
@@ -57,6 +58,51 @@ class FakeCableService:
         field_map = {"BOARD": "board", "CABLE_TYPE": "cable_type"}
         for edit in edits:
             by_id[edit["cable_line_id"]][field_map[edit["field"]]] = edit["value"]
+
+
+    def topology(self, _project_id, cable_line_id):
+        card = next(card for card in self.cards if card["id"] == cable_line_id)
+        return {
+            "cable_line_id": cable_line_id,
+            "designation": card["designation"],
+            "root_endpoint": {"label": f"Щит {card['board']}"},
+            "edges": (
+                {
+                    "segment_id": f"segment-{cable_line_id}",
+                    "depth": 0,
+                    "source": {"label": f"Щит {card['board']}"},
+                    "target": {"label": f"{card['designation']}.01"},
+                    "mount_way": "По полу",
+                    "gofra_type": "ПНД25",
+                    "gofra_color": "Синий",
+                    "gofra_id": "001.PND25",
+                    "physical_length_m": "10",
+                    "cable_length_m": "10",
+                    "calculation_status": "READY",
+                    "calculation_reason": "",
+                    "conduit_product_name": "",
+                    "conduit_product_article": "",
+                },
+            ),
+            "route_breakdown": (
+                {
+                    "mount_way": "По полу",
+                    "physical_m": "10",
+                    "cable_m": "10",
+                    "incomplete_segments": 0,
+                },
+            ),
+            "board_reserve_m": "1.5",
+            "additional_m": "0",
+            "manual_full_m": None,
+        }
+
+    def update_segment_route(
+        self, *, project_id, cable_segment_id, route_method, conduit_type="", conduit_color=""
+    ):
+        self.segment_calls.append(
+            (project_id, cable_segment_id, route_method, conduit_type, conduit_color)
+        )
 
 
 class FakeConstructor:
@@ -95,6 +141,7 @@ def test_lines_layout_identity_search_natural_sort_and_bottom_card(qtbot):
     assert workspace.splitter.orientation() == Qt.Orientation.Vertical
     assert workspace.splitter.widget(0).findChild(type(workspace.table)) is workspace.table
     assert workspace.splitter.widget(1).objectName() == "lineBottomCard"
+    assert workspace.splitter.widget(2).objectName() == "linePhysicalRoutePanel"
     designation = _column("designation")
     assert [workspace.table.item(row, designation).text() for row in range(3)] == [
         "1",
@@ -187,7 +234,7 @@ def test_keyboard_path_multi_selection_refresh_and_state_restore(qtbot, tmp_path
     )
     workspace.column_actions["load_type"].setChecked(False)
     workspace.select_line("line-1")
-    workspace.splitter.setSizes([420, 180])
+    workspace.splitter.setSizes([420, 180, 220])
     workspace.save_state()
 
     reopened = LinesWorkspace(service, FakeConstructor(), "project", ui_state=store)
@@ -220,3 +267,33 @@ def test_project_scoped_state_and_stale_identity_clear_safely(qtbot, tmp_path):
     assert first.current_line_id() != "missing"
     assert second.search.text() == "Гостиная"
     assert second.current_line_id() == "line-10"
+
+
+def test_selected_line_shows_physical_segments_breakdown_and_edits_exact_segment(qtbot):
+    service = FakeCableService()
+    workspace = LinesWorkspace(service, FakeConstructor(), "project")
+    qtbot.addWidget(workspace)
+    workspace.show()
+
+    workspace.select_line("line-1")
+    assert workspace.segment_table.rowCount() == 1
+    assert workspace.segment_table.item(0, 0).text() == "Щит ЩР-1"
+    assert workspace.segment_table.item(0, 1).text() == "1.01"
+    assert workspace.segment_table.item(0, 3).text() == "001.PND25"
+    assert "По полу: трасса 10 м, кабель 10 м" in workspace.segment_summary.text()
+    assert "Запас кабеля у щита: 1.5 м" in workspace.segment_summary.text()
+
+    workspace.segment_table.selectRow(0)
+    wall_index = workspace.segment_route_combo.findText("В стене")
+    workspace.segment_route_combo.setCurrentIndex(wall_index)
+    workspace.segment_gofra_type_edit.clear()
+    workspace.segment_gofra_color_edit.clear()
+    workspace._save_segment_route()
+
+    assert service.segment_calls
+    project_id, segment_id, route_method, conduit_type, conduit_color = service.segment_calls[-1]
+    assert project_id == "project"
+    assert segment_id == "segment-line-1"
+    assert route_method.value == "WALL"
+    assert conduit_type == ""
+    assert conduit_color == ""
