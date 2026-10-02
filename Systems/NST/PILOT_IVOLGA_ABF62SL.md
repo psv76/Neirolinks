@@ -1,4 +1,4 @@
-# NST 1.0 pilot — 05 31 Ivolga / ABF62SL
+# NST 2.0 pilot — 05 31 Ivolga / ABF62SL
 
 Issue: #93.
 
@@ -25,13 +25,13 @@ Diagnostics use `Systems/NST/diagnostics/ivolga-boiler-hhm-v1.json`.
 
 This branch does not publish a platform release and does not access the live controller.
 
-The current approved-component snapshot contains HHM 3.2–3.5 but no published approved `pressure_makeup` release. Therefore the pilot must not silently reinterpret 507 as an object file or fabricate approval metadata. Existing NLI/NST local registration for `pressure_makeup` remains valid, but complete remote desired-state coverage for that component requires a separately approved release.
+The approved-component snapshot now contains the published stable `pressure_makeup 1.0` release and the ABF62SL profile requests `pressure_makeup: stable`. The 507 rule remains a separate component-owned target and MUST NOT be reinterpreted as an object file.
 
 Object-file mutation is also deliberately fail-closed in `nst sync` when object bytes differ. Read-only `status/check` can report exact/missing/drift. A no-op sync is possible only when the approved object payload is already exact; NST must not introduce a new object-file writer during the read-only pilot.
 
 ## Read-only field acceptance
 
-After an NST 1.0 package/platform release is explicitly approved for field use, capture before/after service timestamps and run only:
+After an NST 2.0 package/platform release is explicitly approved for field use, capture before/after service timestamps and run only:
 
 ```sh
 nst --version

@@ -22,6 +22,8 @@ jobs:
       - name: Generate and verify NST controller registry
         run: python -B Systems/NST/tools/build_controller_registry.py --check
       - name: Verify approved deployment metadata and deterministic pilot
+        env:
+          NST_GITHUB_TOKEN: ${{ github.token }}
         run: |
           python -B Systems/NST/tools/verify_approved_components.py
           python -B Systems/NST/tools/build_deployment.py --serial ABF62SL --output Systems/NST/deployments/ABF62SL.json --check

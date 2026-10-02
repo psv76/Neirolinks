@@ -31,4 +31,4 @@ Package release и platform release — разные approvals. Установк
 
 Локальные unknown files не становятся approved только из-за нахождения на контроллере. Если новый approved target уже существует, допускаются только точные одобренные bytes либо подтверждённая предыдущая managed version.
 
-Для ABF62SL approved pressure_makeup отсутствует в desired components: публикация полного platform deployment блокируется до решения этого пробела. Реальные hardware/MQTT interlocks должны быть доступны; CI использует fake backend и не доказывает ПНР на физическом WB.
+Для ABF62SL desired state включает approved `hhm: stable` и `pressure_makeup: stable`; 507 остаётся отдельным component-owned target и не дублируется в object files. Реальные hardware/MQTT interlocks должны быть доступны; CI использует fake backend и не доказывает ПНР на физическом WB.

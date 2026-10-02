@@ -37,7 +37,7 @@ Persistent config/state/logs: `/mnt/data/etc/neirolinks/nst`, `/mnt/data/var/lib
 
 ## Что остаётся отдельной работой
 
-- Для ABF62SL профиль содержит capability `pressure_makeup`, но desired components содержит только HHM. Нужны reviewed profile и опубликованный approved компонент подпитки; подготовка полного platform release до этого блокируется.
+- Для ABF62SL опубликован и включён в desired state approved компонент `pressure_makeup 1.0`. Полный platform Release и полевой pilot публикуются/выполняются отдельно; merge сам по себе не обновляет контроллер.
 - Публикация NST package release и полного platform release выполняется отдельно после merge; один package release не заменяет registry/deployment assets.
 - Удаление ранее управляемых файлов/компонентов требует отдельного decommissioning plan и сейчас блокируется.
 - Реальная установка, firmware и ПНР на WB в этой задаче не выполняются. Результаты проверок: [TEST_RESULTS.md](TEST_RESULTS.md).

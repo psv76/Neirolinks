@@ -53,12 +53,21 @@ class IvolgaPilotTests(unittest.TestCase):
         for item in self.profile["object_files"]:
             self.assertTrue((REPO / item["source"]).is_file(), item["source"])
 
-    def test_pressure_makeup_is_capability_but_not_falsely_approved_in_pilot_deployment(self):
+    def test_pressure_makeup_is_approved_and_resolved_in_pilot_deployment(self):
         self.assertIn("pressure_makeup", self.profile["capabilities"])
-        self.assertNotIn("pressure_makeup", self.profile["components"])
+        self.assertEqual(self.profile["components"]["pressure_makeup"], {"track": "stable"})
         approved = json.loads((ROOT / "deployment/approved-components.json").read_text(encoding="utf-8"))
-        self.assertFalse(any(item["component"] == "pressure_makeup" for item in approved["components"]),
-                         "Do not invent approval metadata; publish an approved release first")
+        matches = [item for item in approved["components"] if item["component"] == "pressure_makeup"]
+        self.assertEqual(len(matches), 1)
+        entry = matches[0]
+        self.assertEqual((entry["version"], entry["release_state"], entry["approved"]),
+                         ("1.0", "stable", True))
+        self.assertEqual(entry["approval"]["tag"], "nst-approved-components-pressure-makeup-1.0")
+        deployment = json.loads((ROOT / "deployments/ABF62SL.json").read_text(encoding="utf-8"))
+        resolved = [item for item in deployment["components"] if item["component"] == "pressure_makeup"]
+        self.assertEqual(len(resolved), 1)
+        self.assertEqual(resolved[0]["version"], "1.0")
+        self.assertEqual(resolved[0]["approval"]["tag"], "nst-approved-components-pressure-makeup-1.0")
 
 
 if __name__ == "__main__":
