@@ -48,6 +48,7 @@ from .domain import (
     LengthResult,
     RouteMethod,
     calculate_effective_length,
+    conduit_length_from_segment_length,
     conduit_type_suffix,
     format_conduit_id,
     parse_conduit_id,
@@ -58,6 +59,7 @@ from .recalculation import (
     board_reserve_for_line,
     recalculate_segments,
     refresh_conduit_length,
+    segment_geometry_diagnostics,
 )
 
 AV_LOAD_TYPES = frozenset({"SPEAKER_CABLE", "HDMI"})
