@@ -17,6 +17,7 @@ from sqlalchemy import delete, func, select, update
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
     cable_length_fact,
+    cable_line,
     cable_point,
     cable_point_field_device,
     cable_segment,
@@ -186,17 +187,46 @@ def _endpoint_geometry(uow, project_id: str, endpoint_id: str, route: RouteMetho
             .one()
         )
         location = dict(point["location_json"] or {})
-        device_rows = [
-            dict(row)
-            for row in uow.execute(
-                select(field_device)
-                .join(
-                    cable_point_field_device,
-                    cable_point_field_device.c.field_device_id == field_device.c.id,
-                )
-                .where(cable_point_field_device.c.cable_point_id == point["id"])
-            ).mappings()
-        ]
+        if point["point_kind"] == "INTERNAL_SOURCE":
+            line_facts = (
+                uow.execute(
+                    select(cable_line.c.cable_facts_json).where(
+                        cable_line.c.id == point["cable_line_id"],
+                        cable_line.c.project_id == project_id,
+                    )
+                ).scalar_one_or_none()
+                or {}
+            )
+            board_designation = str(line_facts.get("BOARD") or "").strip()
+            device_rows = (
+                [
+                    dict(row)
+                    for row in uow.execute(
+                        select(field_device).where(
+                            field_device.c.project_id == project_id,
+                            field_device.c.lifecycle == "ACTIVE",
+                            field_device.c.normalized_fields_json["DEVICE_TYPE"].as_string()
+                            == "BOARD",
+                            field_device.c.normalized_fields_json["BOARD_ID"].as_string()
+                            == board_designation,
+                        )
+                    ).mappings()
+                ]
+                if board_designation
+                else []
+            )
+        else:
+            device_rows = [
+                dict(row)
+                for row in uow.execute(
+                    select(field_device)
+                    .join(
+                        cable_point_field_device,
+                        cable_point_field_device.c.field_device_id == field_device.c.id,
+                    )
+                    .where(cable_point_field_device.c.cable_point_id == point["id"])
+                ).mappings()
+            ]
     elif endpoint["endpoint_kind"] == "FIELD_PORT":
         device_rows = [
             dict(
