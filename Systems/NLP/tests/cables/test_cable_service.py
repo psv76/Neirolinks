@@ -224,7 +224,7 @@ def test_conduit_merge_user_empty_bulk_edit_and_rollback(database):
     route_rows = service.list_conduit_routes(project_id)
     shared_route = next(row for row in route_rows if row["id"] == first_tube)
     assert [row["designation"] for row in shared_route["lines"]] == ["101", "102"]
-    assert shared_route["product_display"] == "Не выбран"
+    assert shared_route["product_display"] == "Товар трубы не выбран"
     service.bulk_edit_conduits(
         project_id=project_id,
         conduit_ids={first_tube, user_tube},

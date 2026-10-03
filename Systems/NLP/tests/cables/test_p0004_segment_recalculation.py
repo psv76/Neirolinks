@@ -555,3 +555,128 @@ def test_preview_boundary_does_not_recalculate(database):
             connection.execute(select(project.c.project_revision).where(project.c.id == project_id))
         )
     assert _rows(database)[:2] == before
+
+
+def test_internal_board_root_uses_dwg_board_geometry_and_board_reserve(database):
+    _objects, project_id, room_a, room_b, _building = _project(database)
+    line_id, segments, _endpoints = _graph(
+        database, project_id, (room_a, room_b), routes=[(0, 1, "По полу", "ПНД25")]
+    )
+    with UnitOfWork(database.engine) as uow:
+        board_id = new_id()
+        uow.execute(
+            board.insert().values(
+                id=board_id,
+                project_id=project_id,
+                designation="QB",
+                board_kind="POWER",
+            )
+        )
+        row = uow.execute(select(cable_line).where(cable_line.c.id == line_id)).mappings().one()
+        facts = dict(row["cable_facts_json"] or {})
+        facts["BOARD"] = "QB"
+        uow.execute(
+            update(cable_line)
+            .where(cable_line.c.id == line_id)
+            .values(board_id=board_id, cable_facts_json=facts)
+        )
+        uow.execute(
+            field_device.insert().values(
+                id=new_id(),
+                project_id=project_id,
+                block_kind="BOARD_OUT",
+                room_id=room_a,
+                normalized_fields_json={
+                    "DEVICE_TYPE": "BOARD",
+                    "BOARD_ID": "QB",
+                    "X": 0,
+                    "Y": 0,
+                    "MOUNT_HEIGHT": 300,
+                },
+            )
+        )
+        source_point_id = new_id()
+        uow.execute(
+            cable_point.insert().values(
+                id=source_point_id,
+                project_id=project_id,
+                cable_line_id=line_id,
+                field_device_id=None,
+                point_kind="INTERNAL_SOURCE",
+                ordinal=99,
+                logical_identity=f"internal:{line_id}:source",
+                origin_kind="PROJECT",
+                migration_state="CONFIRMED",
+            )
+        )
+        source_endpoint_id = new_id()
+        uow.execute(
+            cable_topology_endpoint.insert().values(
+                id=source_endpoint_id,
+                project_id=project_id,
+                cable_line_id=line_id,
+                endpoint_kind="TOPOLOGY_POINT",
+                cable_point_id=source_point_id,
+            )
+        )
+        uow.execute(
+            update(cable_segment)
+            .where(cable_segment.c.id == segments[0])
+            .values(source_endpoint_id=source_endpoint_id)
+        )
+        uow.commit()
+
+    service = CableService(database.engine)
+    service.recalculate(project_id=project_id, segment_ids=segments)
+    segment = next(row for row in _rows(database)[0] if row["id"] == segments[0])
+    assert Decimal(segment["calculated_length_m_decimal"]) == Decimal("4.1")
+    result = service.effective_length(project_id, line_id)
+    assert result.automatic_m == Decimal("4.1")
+    assert result.board_reserve_m == Decimal("1.5")
+    assert result.effective_m == Decimal("5.6")
+
+
+def test_topology_exposes_segment_chain_and_mount_way_breakdown(database):
+    _objects, project_id, room_a, room_b, _building = _project(database)
+    line_id, segments, _endpoints = _graph(
+        database,
+        project_id,
+        (room_a, room_b),
+        routes=[
+            (0, 1, "По полу", "ПНД25"),
+            (1, 2, "В брусе", "ППЛ25"),
+        ],
+    )
+    service = CableService(database.engine)
+    service.recalculate(project_id=project_id, segment_ids=segments)
+
+    topology = service.topology(project_id, line_id)
+    assert len(topology["edges"]) == 2
+    assert {edge["segment_id"] for edge in topology["edges"]} == set(segments)
+    assert all(edge["calculation_status"] == "READY" for edge in topology["edges"])
+
+    breakdown = {row["mount_way"]: row for row in topology["route_breakdown"]}
+    assert Decimal(breakdown["По полу"]["physical_m"]) == Decimal("4.1")
+    assert Decimal(breakdown["По полу"]["cable_m"]) == Decimal("4.1")
+    assert Decimal(breakdown["В брусе"]["physical_m"]) == Decimal("1.3")
+    assert Decimal(breakdown["В брусе"]["cable_m"]) == Decimal("1.8")
+
+
+def test_topology_reports_exact_incomplete_geometry_reason(database):
+    _objects, project_id, room_a, room_b, _building = _project(database)
+    line_id, segments, _ = _graph(
+        database, project_id, (room_a, room_b), routes=[(0, 1, "По полу", "ПНД25")]
+    )
+    with database.engine.begin() as connection:
+        point_id = connection.scalar(select(cable_point.c.id).order_by(cable_point.c.ordinal))
+        connection.execute(
+            update(cable_point).where(cable_point.c.id == point_id).values(location_json={})
+        )
+
+    service = CableService(database.engine)
+    service.recalculate(project_id=project_id, segment_ids=segments)
+    topology = service.topology(project_id, line_id)
+    edge = topology["edges"][0]
+    assert edge["calculation_status"] == "INCOMPLETE"
+    assert "Источник: нет координаты X" in edge["calculation_reason"]
+    assert "Источник: нет координаты Y" in edge["calculation_reason"]

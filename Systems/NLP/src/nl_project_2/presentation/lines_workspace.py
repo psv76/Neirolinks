@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -21,6 +23,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSpinBox,
     QSplitter,
     QStyle,
     QStyleOptionHeader,
@@ -32,6 +35,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from nl_project_2.cables import RouteMethod
+from nl_project_2.cables.domain import format_conduit_id
 from nl_project_2.cables.presentation import format_cable_mark
 from nl_project_2.guided_actions import GuidedAction
 
@@ -216,7 +221,7 @@ _DEFAULT_COLUMN_WIDTHS = {
     "resource_labels": 230,
 }
 
-LINES_LAYOUT_VERSION = 2
+LINES_LAYOUT_VERSION = 3
 
 
 def _column_index(key: str) -> int:
@@ -446,12 +451,108 @@ class LinesWorkspace(QWidget):
         bottom_layout.addLayout(details)
         bottom_layout.addLayout(card_actions)
 
+        physical = QWidget(self)
+        physical.setObjectName("linePhysicalRoutePanel")
+        physical_layout = QVBoxLayout(physical)
+        physical_layout.setContentsMargins(8, 4, 8, 4)
+        physical_layout.setSpacing(4)
+        physical_layout.addWidget(QLabel("Физическая цепочка выбранной линии", physical))
+        route_actions = QHBoxLayout()
+        recalculate = QPushButton("Пересчитать длины линии", physical)
+        recalculate.clicked.connect(self._recalculate_selected_line)
+        summary = QPushButton("Метры по способам: весь объект", physical)
+        summary.setObjectName("projectRouteBreakdownButton")
+        summary.clicked.connect(self._show_project_route_breakdown)
+        route_actions.addWidget(recalculate)
+        route_actions.addWidget(summary)
+        route_actions.addStretch()
+        physical_layout.addLayout(route_actions)
+
+        self.segment_summary = QLabel("Линия не выбрана", physical)
+        self.segment_summary.setObjectName("lineRouteBreakdownLabel")
+        self.segment_summary.setWordWrap(True)
+        physical_layout.addWidget(self.segment_summary)
+
+        self.segment_table = QTableWidget(0, 11, physical)
+        self.segment_table.setObjectName("linePhysicalSegmentsTable")
+        self.segment_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.segment_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.segment_table.setHorizontalHeaderLabels(
+            [
+                "Откуда",
+                "Куда",
+                "Прокладка",
+                "Труба",
+                "Трасса, м",
+                "Кабель, м",
+                "Статус",
+                "Тип трубы",
+                "Цвет трубы",
+                "Длина трубы, м",
+                "Товар трубы",
+            ]
+        )
+        self.segment_table.setWordWrap(False)
+        for column, width in enumerate((155, 155, 115, 105, 85, 85, 290, 100, 90, 115, 200)):
+            self.segment_table.setColumnWidth(column, width)
+        self.segment_table.itemSelectionChanged.connect(self._segment_selection_changed)
+        physical_layout.addWidget(self.segment_table, 1)
+
+        self.segment_route_combo = QComboBox(physical)
+        for method, title in (
+            (RouteMethod.FLOOR, "По полу"),
+            (RouteMethod.CEILING, "По потолку"),
+            (RouteMethod.WALL, "В стене"),
+            (RouteMethod.TIMBER, "В брусе"),
+            (RouteMethod.CABLE_CHANNEL, "В кабель-канале"),
+        ):
+            self.segment_route_combo.addItem(title, method)
+        self.segment_gofra_type_edit = QLineEdit(physical)
+        self.segment_gofra_color_edit = QLineEdit(physical)
+        self.segment_gofra_id = QLabel("—", physical)
+        self.segment_conduit_number = QSpinBox(physical)
+        self.segment_conduit_number.setObjectName("segmentConduitNumber")
+        self.segment_conduit_number.setRange(-1, 999)
+        self.segment_conduit_number.setValue(-1)
+        self.segment_conduit_number.setSpecialValueText("Авто")
+        self.segment_conduit_number.setToolTip(
+            "Номер трубы; суффикс определяется типом. Существующий номер "
+            "с тем же типом и цветом назначает участок в эту трубу."
+        )
+        existing_conduit = QPushButton("Выбрать трубу…", physical)
+        existing_conduit.clicked.connect(self._choose_segment_conduit)
+        save_segment = QPushButton("Сохранить выбранный участок", physical)
+        save_segment.setObjectName("savePhysicalSegmentButton")
+        save_segment.clicked.connect(self._save_segment_route)
+        self.save_segment_button = save_segment
+        self.save_segment_button.setEnabled(False)
+        segment_editor = QHBoxLayout()
+        segment_editor.addWidget(QLabel("Прокладка", physical))
+        segment_editor.addWidget(self.segment_route_combo)
+        segment_editor.addWidget(QLabel("Тип трубы", physical))
+        segment_editor.addWidget(self.segment_gofra_type_edit)
+        segment_editor.addWidget(QLabel("Цвет", physical))
+        segment_editor.addWidget(self.segment_gofra_color_edit)
+        physical_layout.addLayout(segment_editor)
+        segment_editor = QHBoxLayout()
+        segment_editor.addWidget(QLabel("Номер трубы", physical))
+        segment_editor.addWidget(self.segment_conduit_number)
+        segment_editor.addWidget(existing_conduit)
+        segment_editor.addStretch()
+        segment_editor.addWidget(save_segment)
+        physical_layout.addLayout(segment_editor)
+        physical_layout.addWidget(self.segment_gofra_id)
+
+        self._segment_rows: list[dict] = []
+
         self.splitter = QSplitter(Qt.Orientation.Vertical, self)
         self.splitter.setObjectName("linesHorizontalSplitter")
         self.splitter.addWidget(top)
         self.splitter.addWidget(bottom)
+        self.splitter.addWidget(physical)
         self.splitter.setStretchFactor(0, 4)
         self.splitter.setStretchFactor(1, 1)
+        self.splitter.setStretchFactor(2, 2)
         self.splitter.setChildrenCollapsible(False)
         self.splitter.splitterMoved.connect(lambda *_: self._save_state())
         layout = QVBoxLayout(self)
@@ -532,10 +633,12 @@ class LinesWorkspace(QWidget):
                 for column, definition in enumerate(COLUMNS):
                     value = card.get(definition.key)
                     text = (
-                        _format_length(value)
+                        (_format_length(value) if value is not None else "Нужны данные")
                         if definition.key == "effective_m"
                         else ("" if value is None else str(value))
                     )
+                    if value == "MIXED" and definition.key in {"mount_way", "gofra_id"}:
+                        text = "По участкам"
                     item = (
                         CableMarkItem(value)
                         if definition.key == "cable_type"
@@ -711,6 +814,7 @@ class LinesWorkspace(QWidget):
                 button.setEnabled(False)
             self.open_resource.setEnabled(False)
             self.show_issue.setEnabled(False)
+            self._clear_physical_route()
             return
         identity = f"{card['designation']} — {card['load_name'] or 'Потребитель не указан'}"
         self.card_title.setText(identity)
@@ -723,8 +827,10 @@ class LinesWorkspace(QWidget):
             f"{format_cable_mark(card['cable_type']) or 'Марка не указана'}; "
             f"{card['load_type'] or 'классификация не указана'}"
         )
+        mount_way = "По участкам" if card["mount_way"] == "MIXED" else card["mount_way"]
+        gofra_id = "по участкам" if card["gofra_id"] == "MIXED" else card["gofra_id"]
         self.card_fields["route"].setText(
-            f"{card['mount_way'] or 'Не указана'}; труба: {card['gofra_id'] or 'не назначена'}"
+            f"{mount_way or 'Не указана'}; труба: {gofra_id or 'не назначена'}"
         )
         length = (
             "Не определена"
@@ -752,6 +858,224 @@ class LinesWorkspace(QWidget):
             )
         self.open_resource.setEnabled(bool(assignments))
         self.show_issue.setEnabled(card["user_status"] != "Готово")
+        self._load_physical_route(line_id)
+
+    def _clear_physical_route(self) -> None:
+        self._segment_rows = []
+        self.segment_table.setRowCount(0)
+        self.segment_summary.setText("Линия не выбрана")
+        self.segment_gofra_id.setText("—")
+        self.segment_gofra_type_edit.clear()
+        self.segment_gofra_color_edit.clear()
+        self.save_segment_button.setEnabled(False)
+
+    def _load_physical_route(self, line_id: str) -> None:
+        previous_segment = self.segment_table.currentRow()
+        previous_id = (
+            self._segment_rows[previous_segment]["segment_id"]
+            if 0 <= previous_segment < len(self._segment_rows)
+            else None
+        )
+        try:
+            topology = self.cables.topology(self.project_id, line_id)
+        except Exception as exc:
+            self._segment_rows = []
+            self.segment_table.setRowCount(0)
+            self.segment_summary.setText(f"Не удалось прочитать физическую цепочку: {exc}")
+            self.save_segment_button.setEnabled(False)
+            return
+
+        self._segment_rows = list(topology.get("edges") or ())
+        self.segment_table.blockSignals(True)
+        try:
+            self.segment_table.setRowCount(len(self._segment_rows))
+            for row_index, edge in enumerate(self._segment_rows):
+                source = str((edge.get("source") or {}).get("label") or "Источник")
+                target = str((edge.get("target") or {}).get("label") or "Точка")
+                source = f"{'  ' * int(edge.get('depth') or 0)}{source}"
+                status = (
+                    "Готово"
+                    if edge.get("calculation_status") == "READY"
+                    else edge.get("calculation_reason") or "Длина не рассчитана"
+                )
+                values = (
+                    source,
+                    target,
+                    edge.get("mount_way") or "Не указана",
+                    edge.get("gofra_id") or "—",
+                    _format_length(edge.get("physical_length_m")),
+                    _format_length(edge.get("cable_length_m")),
+                    status,
+                    edge.get("gofra_type") or "—",
+                    edge.get("gofra_color") or "—",
+                    (_format_length(edge.get("conduit_length_m")) or "Не задана")
+                    if edge.get("gofra_id")
+                    else "—",
+                    (edge.get("conduit_product_name") or "Товар трубы не выбран")
+                    if edge.get("gofra_id")
+                    else "—",
+                )
+                for column, value in enumerate(values):
+                    item = QTableWidgetItem(str(value))
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    item.setData(Qt.ItemDataRole.UserRole, edge["segment_id"])
+                    item.setToolTip(str(value))
+                    self.segment_table.setItem(row_index, column, item)
+        finally:
+            self.segment_table.blockSignals(False)
+
+        parts = []
+        for item in topology.get("route_breakdown") or ():
+            physical_m = _format_length(item.get("physical_m"))
+            cable_m = _format_length(item.get("cable_m"))
+            incomplete = int(item.get("incomplete_segments") or 0)
+            text = f"{item['mount_way']}: трасса {physical_m} м, кабель {cable_m} м"
+            if incomplete:
+                text += f", не рассчитано участков: {incomplete}"
+            parts.append(text)
+        reserve = _format_length(topology.get("board_reserve_m"))
+        additional = _format_length(topology.get("additional_m"))
+        if reserve not in {"", "0"}:
+            parts.append(f"Запас кабеля у щита: {reserve} м")
+        if additional not in {"", "0"}:
+            parts.append(f"Дополнительная длина кабеля: {additional} м")
+        if topology.get("manual_full_m") is not None:
+            parts.append(
+                f"Полная ручная длина линии: {_format_length(topology['manual_full_m'])} м"
+            )
+        self.segment_summary.setText(
+            " | ".join(parts) if parts else "Физические участки не построены"
+        )
+        if self._segment_rows:
+            self.segment_table.selectRow(
+                next(
+                    (
+                        i
+                        for i, edge in enumerate(self._segment_rows)
+                        if edge["segment_id"] == previous_id
+                    ),
+                    0,
+                )
+            )
+            self._segment_selection_changed()
+        else:
+            self.save_segment_button.setEnabled(False)
+
+    def _segment_selection_changed(self) -> None:
+        row = self.segment_table.currentRow()
+        if row < 0 or row >= len(self._segment_rows):
+            self.save_segment_button.setEnabled(False)
+            return
+        edge = self._segment_rows[row]
+        route_index = self.segment_route_combo.findText(str(edge.get("mount_way") or ""))
+        self.segment_route_combo.setCurrentIndex(max(route_index, 0))
+        self.segment_gofra_type_edit.setText(str(edge.get("gofra_type") or ""))
+        self.segment_gofra_color_edit.setText(str(edge.get("gofra_color") or ""))
+        product = str(edge.get("conduit_product_name") or "")
+        article = str(edge.get("conduit_product_article") or "")
+        conduit = str(edge.get("gofra_id") or "—")
+        self.segment_conduit_number.setValue(
+            int(conduit.split(".")[0]) if conduit[:1].isdigit() else -1
+        )
+        if product:
+            conduit += f" · {product}"
+            if article:
+                conduit += f" · арт. {article}"
+        self.segment_gofra_id.setText(
+            f"Труба: {conduit}"
+            + (" · Товар трубы не выбран" if not product and edge.get("gofra_id") else "")
+        )
+        self.save_segment_button.setEnabled(True)
+
+    def _save_segment_route(self) -> None:
+        row = self.segment_table.currentRow()
+        line_id = self.current_line_id()
+        if row < 0 or row >= len(self._segment_rows) or line_id is None:
+            return
+        edge = self._segment_rows[row]
+        try:
+            conduit_type = self.segment_gofra_type_edit.text().strip()
+            number = self.segment_conduit_number.value()
+            self.cables.update_segment_route(
+                project_id=self.project_id,
+                cable_segment_id=edge["segment_id"],
+                route_method=RouteMethod(self.segment_route_combo.currentData()),
+                conduit_type=self.segment_gofra_type_edit.text(),
+                conduit_color=self.segment_gofra_color_edit.text(),
+                conduit_designation=format_conduit_id(number, conduit_type)
+                if number >= 0 and conduit_type
+                else "",
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Участок не сохранён", str(exc))
+            return
+        self.refresh(selected_line_id=line_id)
+        self.projectChanged.emit()
+
+    def _choose_segment_conduit(self) -> None:
+        conduits = self.cables.list_conduits(self.project_id)
+        labels = [
+            f"{row['designation']} · {row['conduit_type']} · {row['color'] or 'цвет не задан'}"
+            for row in conduits
+        ]
+        if not labels:
+            QMessageBox.information(
+                self, "Трубы", "Труб пока нет. Укажите тип и новый номер либо оставьте «Авто»."
+            )
+            return
+        label, accepted = QInputDialog.getItem(
+            self, "Назначение выбранного участка", "Труба", labels, editable=False
+        )
+        if accepted:
+            row = conduits[labels.index(label)]
+            self.segment_conduit_number.setValue(row["conduit_number"])
+            self.segment_gofra_type_edit.setText(row["conduit_type"])
+            self.segment_gofra_color_edit.setText(row["color"] or "")
+
+    def _recalculate_selected_line(self) -> None:
+        line_id = self.current_line_id()
+        if line_id is None:
+            return
+        try:
+            self.cables.recalculate(project_id=self.project_id, cable_line_ids={line_id})
+        except Exception as exc:
+            QMessageBox.warning(self, "Пересчёт не выполнен", str(exc))
+            return
+        self.refresh(selected_line_id=line_id)
+        self.projectChanged.emit()
+
+    def _show_project_route_breakdown(self) -> None:
+        report = self.cables.project_route_breakdown(self.project_id)
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Метры по способам прокладки — весь объект")
+        dialog.resize(780, 420)
+        layout = QVBoxLayout(dialog)
+        table = QTableWidget(len(report["routes"]), 4, dialog)
+        table.setHorizontalHeaderLabels(
+            ["Прокладка", "Физическая трасса, м", "Кабель участков, м", "Не рассчитано участков"]
+        )
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        for index, row in enumerate(report["routes"]):
+            for column, key in enumerate(
+                ("mount_way", "physical_m", "cable_m", "incomplete_segments")
+            ):
+                table.setItem(index, column, QTableWidgetItem(str(row[key])))
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(table)
+        note = QLabel(
+            f"Итог кабеля по рассчитанным линиям: {report['effective_m']} м. "
+            f"Неполных линий: {report['incomplete_lines']}.\n"
+            "Метры участков включают запас 0,5 м в брусе. Запас у щита, "
+            "дополнительная и полная ручная длина учитываются в итоге линии; "
+            "по способам прокладки не распределяются.",
+            dialog,
+        )
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, dialog)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.exec()
 
     def _item_changed(self, item: QTableWidgetItem) -> None:
         if self._refreshing:
@@ -1089,13 +1413,13 @@ class LinesWorkspace(QWidget):
             sizes = state.get("splitter_sizes")
             valid_sizes = (
                 isinstance(sizes, list)
-                and len(sizes) == 2
+                and len(sizes) == 3
                 and all(isinstance(value, int) for value in sizes)
             )
             if valid_sizes and layout_current:
                 self.splitter.setSizes(sizes)
             else:
-                self.splitter.setSizes([820, 180])
+                self.splitter.setSizes([460, 180, 360])
             selected = state.get("selected_line_id")
             if selected in self._cards_by_id:
                 self.select_line(selected)
@@ -1110,7 +1434,7 @@ class LinesWorkspace(QWidget):
             self.table.setColumnWidth(logical, _DEFAULT_COLUMN_WIDTHS[column.key])
             self.table.setColumnHidden(logical, not column.default_visible)
             self.column_actions[column.key].setChecked(column.default_visible)
-        self.splitter.setSizes([820, 180])
+        self.splitter.setSizes([460, 180, 360])
 
     def save_state(self) -> None:
         self._save_state()

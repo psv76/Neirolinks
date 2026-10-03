@@ -102,7 +102,7 @@ def test_cable_workspace_filters_av_and_is_reachable_from_open_project(database,
     assert dialog.catalog_table.columnCount() == 8
     assert dialog.routes_tree.topLevelItemCount() == 1
     assert dialog.routes_tree.topLevelItem(0).text(0) == "010.PND25"
-    assert dialog.routes_tree.topLevelItem(0).text(4) == "Не выбран"
+    assert dialog.routes_tree.topLevelItem(0).text(4) == "Товар трубы не выбран"
     timber_index = dialog.route_combo.findData(RouteMethod.TIMBER)
     assert timber_index >= 0
     assert dialog.route_combo.itemText(timber_index) == "В брусе"
