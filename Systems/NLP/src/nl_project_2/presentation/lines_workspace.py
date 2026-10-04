@@ -241,6 +241,7 @@ def _format_length(value) -> str:
 class LinesWorkspace(QWidget):
     resourceRequested = Signal(str)
     issueRequested = Signal(str)
+    busRequested = Signal(str)
     projectChanged = Signal()
 
     def __init__(
@@ -898,7 +899,11 @@ class LinesWorkspace(QWidget):
             self._toggle_line_tree(row, str(line_id))
             return
         if "!" in item.text():
-            self.issueRequested.emit(str(line_id))
+            card = self._cards_by_id.get(str(line_id), {})
+            if card.get("network_kind") == "BUS":
+                self.busRequested.emit(str(line_id))
+            else:
+                self.issueRequested.emit(str(line_id))
 
     def _table_item_double_clicked(self, item: QTableWidgetItem) -> None:
         line_id = item.data(Qt.ItemDataRole.UserRole)
