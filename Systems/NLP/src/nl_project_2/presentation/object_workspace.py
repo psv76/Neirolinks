@@ -957,7 +957,6 @@ class ObjectWorkspace(QWidget):
         self.sync_button = QPushButton("Обновить", self)
         self.sync_button.setObjectName("dwgSyncButton")
         self.sync_button.setEnabled(False)
-        self.sync_button.setToolTip("Обновить данные из активного DWG и передать изменения Project в DWG")
         self.sync_status_label = QLabel("", self)
         self.sync_status_label.setObjectName("dwgSyncStatusLabel")
         self.sync_button.clicked.connect(self._sync_dwg)
@@ -1126,42 +1125,22 @@ class ObjectWorkspace(QWidget):
         page = QWidget(self)
         page.setObjectName(f"{section}SectionAdapter")
         layout = QVBoxLayout(page)
-        text, button_text, callback = {
-            "Линии": ("Откройте объект для работы с линиями", "", None),
-            "Оборудование": ("Откройте объект для работы с оборудованием", "", None),
-            "Щиты": (
-                "Рабочее окно щитов пока доступно как совместимый adapter.",
-                "Открыть щиты",
-                self._open_panels,
-            ),
-            "Трассы": (
-                "Рабочее окно трасс и труб пока доступно как совместимый adapter.",
-                "Открыть трассы и трубы",
-                self._open_cables,
-            ),
+        actions = {
+            "Линии": (),
+            "Оборудование": (),
+            "Щиты": (("Открыть щиты", self._open_panels),),
+            "Трассы": (("Открыть трассы и трубы", self._open_cables),),
             "Документы": (
-                "Спецификация и проверки доступны без потери активного объекта.",
-                "Открыть спецификацию",
-                self._open_specification,
+                ("Открыть спецификацию", self._open_specification),
+                ("Открыть проверки", self._open_validation_center),
             ),
-            "DWG": (
-                "Синхронизация выполняется только по явному подтверждению целевого DWG.",
-                "Синхронизация с DWG",
-                self._sync_dwg,
-            ),
+            "DWG": (("Обновить", self._sync_dwg),),
         }[section]
-        label = QLabel(text, page)
-        label.setWordWrap(True)
-        layout.addWidget(label)
-        if callback is not None:
-            button = QPushButton(button_text, page)
-            button.setObjectName(f"{section}AdapterAction")
+        for index, (title, callback) in enumerate(actions):
+            button = QPushButton(title, page)
+            button.setObjectName(f"{section}AdapterAction{index}")
             button.clicked.connect(callback)
             layout.addWidget(button)
-            if section == "Документы":
-                validation = QPushButton("Открыть проверки", page)
-                validation.clicked.connect(self._open_validation_center)
-                layout.addWidget(validation)
         layout.addStretch(1)
         return page
 
@@ -1182,6 +1161,7 @@ class ObjectWorkspace(QWidget):
             guided_service=self.runtime.guided_actions,
             bulk_service=self.runtime.bulk_actions,
             status_service=self.runtime.integrated_ui,
+            bus_service=self.runtime.buses,
             parent=self,
         )
         lines.resourceRequested.connect(self._navigate_line_to_resource)
