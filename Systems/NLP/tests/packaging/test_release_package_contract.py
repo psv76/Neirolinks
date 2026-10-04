@@ -43,7 +43,7 @@ def test_native_inventory_mapping_has_no_implicit_license_fallback() -> None:
 
 def test_spec_bundles_required_assets_and_excludes_unused_heavy_qt() -> None:
     root = Path(__file__).resolve().parents[2]
-    spec = (root / "packaging" / "nl_project_2.spec").read_text(encoding="utf-8")
+    spec = (root / "packaging" / "nl_project_3.spec").read_text(encoding="utf-8")
 
     assert 'root / "resources" / "catalogs"' in spec
     assert 'root / "resources" / "autocad"' in spec
@@ -66,5 +66,5 @@ def test_package_entry_dispatches_sta_bridge_without_importing_gui(monkeypatch) 
     fake_bridge.main = bridge_main
     monkeypatch.setitem(sys.modules, "autocad_sta_bridge", fake_bridge)
 
-    assert package_entry.package_main(["--nlp2-cad-bridge", "--pipe", "test-pipe"]) == 17
+    assert package_entry.package_main(["--nlp3-cad-bridge", "--pipe", "test-pipe"]) == 17
     assert observed == {"arguments": ["--pipe", "test-pipe"]}

@@ -1,4 +1,4 @@
-"""Minimal PySide6 shell for the 2.0 product line."""
+"""Minimal PySide6 shell for the 3.0 product line."""
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QMainWindow, QVBoxLayout, QWidget
@@ -10,7 +10,7 @@ class MainWindow(QMainWindow):
     def __init__(self, runtime=None) -> None:
         super().__init__()
         self._runtime = runtime
-        self.setObjectName("nlProject2MainWindow")
+        self.setObjectName("nlProject3MainWindow")
         self.setWindowTitle(f"{PRODUCT_NAME} {PRODUCT_LINE}")
         self.resize(720, 420)
 

@@ -1,4 +1,4 @@
-"""Persistence foundation for the single NL Project 2.0 SQLite database."""
+"""Persistence foundation for the single NL Project 3.0 SQLite database."""
 
 from nl_project_2.persistence.database import (
     DatabaseHandle,

@@ -158,7 +158,7 @@ def native_component(relative: str) -> tuple[str, str, str]:
     normalized = relative.replace("\\", "/")
     lowered = normalized.lower()
     filename = Path(lowered).name
-    if lowered == "nlproject2.exe":
+    if lowered == "nlproject3.exe":
         return (
             "NL Project wrapper / PyInstaller bootloader 6.21.0",
             "Proprietary application; GPL-2.0-or-later WITH Bootloader-exception",
@@ -385,7 +385,7 @@ def generate_notice(source_rows: list[dict]) -> str:
         f"SHA-256 `{row['sha256']}`; included under `THIRD_PARTY_SOURCE/`."
         for row in source_rows
     )
-    return f"""# NL Project 2.0 — third-party notices
+    return f"""# NL Project 3.0 — third-party notices
 
 NL Project application code remains proprietary. Third-party components remain under their
 own licenses; this notice does not relicense NL Project source code.

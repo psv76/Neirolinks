@@ -63,32 +63,32 @@ def run_process(executable: Path, arguments: list[str], cwd: Path, environment: 
 
 
 def smoke(source_dist: Path) -> dict:
-    with tempfile.TemporaryDirectory(prefix="nlp2-package-smoke-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="nlp3-package-smoke-") as temporary:
         root = Path(temporary)
-        isolated_dist = root / "package" / "NLProject2"
+        isolated_dist = root / "package" / "NLProject3"
         shutil.copytree(source_dist, isolated_dist)
         environment = os.environ.copy()
         environment.pop("PYTHONPATH", None)
         environment.update(
             {
-                "NLP2_PROJECTS_ROOT": str(root / "user" / "projects"),
-                "NLP2_LOCAL_STATE_ROOT": str(root / "user" / "state"),
-                "NLP2_BACKUP_ROOT": str(root / "user" / "backups"),
-                "NLP2_RELEASE_ROOT": str(root / "user" / "releases"),
+                "NLP3_PROJECTS_ROOT": str(root / "user" / "projects"),
+                "NLP3_LOCAL_STATE_ROOT": str(root / "user" / "state"),
+                "NLP3_BACKUP_ROOT": str(root / "user" / "backups"),
+                "NLP3_RELEASE_ROOT": str(root / "user" / "releases"),
                 "QT_QPA_PLATFORM": "offscreen",
             }
         )
-        executable = isolated_dist / "NLProject2.exe"
+        executable = isolated_dist / "NLProject3.exe"
         application = run_process(executable, ["--auto-close-ms", "200"], root, environment)
-        bridge = run_process(executable, ["--nlp2-cad-bridge", "--help"], root, environment)
+        bridge = run_process(executable, ["--nlp3-cad-bridge", "--help"], root, environment)
         version = run_process(executable, ["--version"], root, environment)
-        database = root / "user" / "projects" / "nl_project_2.sqlite"
+        database = root / "user" / "projects" / "nl_project_3.sqlite"
         fatal_log = root / "user" / "state" / "logs" / "fatal-startup.jsonl"
         if application["exit_code"] != 0:
             raise RuntimeError(f"Packaged application failed: {application}")
         if bridge["exit_code"] != 0:
             raise RuntimeError(f"Packaged STA bridge component failed self-check: {bridge}")
-        if version["exit_code"] != 0 or "NL Project 2.0" not in version["stdout"]:
+        if version["exit_code"] != 0 or "NL Project 3.0" not in version["stdout"]:
             raise RuntimeError(f"Packaged version command failed: {version}")
         if fatal_log.exists():
             raise RuntimeError(
@@ -100,16 +100,16 @@ def smoke(source_dist: Path) -> dict:
         expected = {
             "integrity_check": "ok",
             "foreign_key_violations": 0,
-            "revision": "000000000006",
-            "passports": 17,
-            "products": 30,
+            "revision": "000000000012",
+            "passports": 18,
+            "products": 31,
         }
         if any(database_receipt[key] != value for key, value in expected.items()):
             raise RuntimeError(f"Packaged database validation failed: {database_receipt}")
         return {
             "status": "PASSED",
             "source_dist": str(source_dist),
-            "source_dist_executable_sha256": sha256(source_dist / "NLProject2.exe"),
+            "source_dist_executable_sha256": sha256(source_dist / "NLProject3.exe"),
             "isolation": {
                 "copied_distribution": True,
                 "source_pythonpath_removed": True,

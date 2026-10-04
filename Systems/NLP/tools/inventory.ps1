@@ -1,5 +1,5 @@
 param(
-    [string]$RootPath = 'dist\NLProject2',
+    [string]$RootPath = 'dist\NLProject3',
     [string]$OutputPath = 'PACKAGE_MANIFEST_SHA256.tsv'
 )
 

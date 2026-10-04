@@ -15,7 +15,7 @@ from nl_project_2.objects.runtime import ApplicationRuntime
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="nl-project-2")
+    parser = argparse.ArgumentParser(prog="nl-project-3")
     parser.add_argument(
         "--auto-close-ms",
         type=int,
@@ -24,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="close the shell after a positive delay; intended for deployment smoke checks",
     )
     parser.add_argument("--version", action="store_true", help="print the product-line identifier")
-    parser.add_argument("--database", type=Path, help="explicit NL Project 2.0 database path")
+    parser.add_argument("--database", type=Path, help="explicit NL Project 3.0 database path")
     return parser
 
 

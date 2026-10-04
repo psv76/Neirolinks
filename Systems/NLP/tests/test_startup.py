@@ -7,7 +7,7 @@ from nl_project_2.__main__ import main
 
 
 def test_fatal_startup_is_logged_without_traceback(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setenv("NLP2_LOCAL_STATE_ROOT", str(tmp_path / "state"))
+    monkeypatch.setenv("NLP3_LOCAL_STATE_ROOT", str(tmp_path / "state"))
 
     def fail(_argv) -> int:
         raise RuntimeError("sensitive detail must not be stored")

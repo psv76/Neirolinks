@@ -1,34 +1,37 @@
-# NL Project 2.0 — текущее состояние
+# NL Project 3.0 — текущее состояние
 
 ## Current development state
 
-`Systems/NLP/` в `main` является каноническим текущим состоянием NL Project 2.0. Миграция из локальных `D:\NLP_2` / `D:\NLP_2_DOCS` завершена через Issue #118 и PR #119; локальные исторические комплекты больше не являются параллельным source of truth.
+`Systems/NLP/` в `main` — канонический source tree текущей линии NL Project 3.x. Глобальный development/recovery router: GitHub Issue `#145`.
 
-Текущие подтверждённые факты:
+Подтверждённая база перехода:
 
-- NL Project: `2.0` development state;
+- Stage 0 / Issue #142 / PR #144 merged to `main`;
+- accepted Lines UI and one-click DWG workflow are canonical;
+- PR #144 Windows non-live/non-manual regression: **715 passed, 0 failed, 1 existing SQLite datetime adapter warning**;
 - schema head: `000000000012_timber_mount_way`;
 - AutoCAD machine contract: `3.0.0`, 71 canonical block definitions / 10 groups;
-- equipment catalog release: `nlp2.mvp.equipment.2026-08-24.repair-05`;
-- equipment catalog: 18 passports / 31 products;
-- conduit contract после PR #121 поддерживает `ППЛ20 -> PP20`, `ППЛ25 -> PP25`, `МПТ16 -> MPT16` для ordinary и bus route fields; material code полипропилена остаётся `PP`;
-- полный non-live/non-manual regression на состоянии PR #121: **631 passed, 0 failed, 0 skipped**; один существующий SQLite datetime adapter warning;
-- AutoCAD contract, human ↔ machine parity, catalog checker и static checks на PR #121: `PASS`;
-- PR #123 добавил корневой `.gitattributes` с `text eol=lf` для `Systems/NLP/resources/catalogs/*.json`, чтобы Windows checkout не менял байты catalog payload и не ломал manifest hashes;
-- после PR #123 локально подтверждены clean clone на Windows, bootstrap CPython 3.13.14 x64 и source launch NL Project из `Systems/NLP`.
+- equipment catalog release `nlp2.mvp.equipment.2026-08-24.repair-05` сохраняет исходную immutable identity;
+- current product line: `3.0` development state.
 
-## Что не является текущим source of truth
+## Runtime separation 3.0
 
-Временные build/recovery TASK/REPORT, `90_ARCHIVE`, caches, `.venv`, `build`, `dist`, пользовательские SQLite/DWG и иные generated/runtime данные не являются действующими требованиями системы.
+- launcher: `START_NL_PROJECT_3.vbs`;
+- build: `NLProject3\NLProject3.exe`;
+- environment namespace: `NLP3_*`;
+- default database: `D:\NL_Project_3_Data\Projects\nl_project_3.sqlite`;
+- local state: `%LOCALAPPDATA%\NL Project 3.0`;
+- backups: `D:\NLP_3_BACKUPS`;
+- releases: `D:\NLP_3_RELEASES`.
 
-Три ранних документа `EIM/AutoCAD/Doc/Blocks.md`, `Parsing.md` и `NL_Cloud_Desktop_v1.0.md` удалены после появления канонических successors. Карта замены и исторические проверки переноса находятся в [MIGRATION.md](MIGRATION.md).
-
-## Открытый technical debt
-
-Format check по-прежнему выявляет 52 Python-файла, требующих `ruff format`. Этот долг существовал до миграции и пока не исправлен массовым форматированием.
+Внутренний Python package `nl_project_2` временно сохраняется для compatibility и не является user-facing identity.
 
 ## User acceptance и Release
 
-Общая пользовательская приёмка NL Project 2.0 не завершена. Merge технических PR и успешные автоматические проверки сами по себе не создают Release.
+Product line 3.0 остаётся development state. Runtime rename не создаёт Release и не подтверждает live readiness.
 
-Текущий `main` остаётся development state; отдельный Release не создан.
+Оставшиеся launch stages по #145:
+
+- #147 — clean DB + backup/cloud contour;
+- #148 — DWG refresh performance gate;
+- #149 — real Bogdanovich acceptance and final cutover.
