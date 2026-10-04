@@ -11,13 +11,13 @@ from sqlalchemy.exc import IntegrityError
 
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
+    building,
     bus,
     bus_branch,
     bus_branch_point,
     bus_endpoint,
     bus_segment,
     bus_segment_conduit_assignment,
-    building,
     conduit,
     dali_group,
     dali_group_member,

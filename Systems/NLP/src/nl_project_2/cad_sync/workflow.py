@@ -13,7 +13,6 @@ from .models import ChangeClass, SyncChange
 from .selection import atomic_line_import_groups
 from .service import PROJECT_TO_DWG_ALLOW_LIST
 
-
 _AUTO_IMPORT = frozenset({ChangeClass.NEW_DWG_INSERTION, ChangeClass.DWG_CHANGED})
 
 
