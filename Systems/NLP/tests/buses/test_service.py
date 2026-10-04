@@ -521,3 +521,41 @@ def test_rs485_endpoint_commands_persist_after_reopen(database):
         ]
     finally:
         reopened.close()
+
+
+def test_bus_journal_read_model_reuses_physical_topology(database):
+    project_id = database.test_project_id
+    root, *endpoints = _rs485_resources(database)
+    service = BusService(database.engine)
+    receipt = service.create_rs485_bus(
+        project_id=project_id,
+        designation="903",
+        root_resource_id=root,
+        points=tuple(
+            {
+                **point,
+                "cable_id": point["cable_id"].replace("901.", "903."),
+            }
+            for point in _points(endpoints)
+        ),
+    )
+
+    cards = service.journal_cards(project_id)
+    card = next(item for item in cards if item["id"] == receipt.bus_id)
+    assert card["network_kind"] == "BUS"
+    assert card["designation"] == "903"
+    assert card["system_kind"] == "RS485"
+    assert card["board"]
+    assert card["incomplete_segments"] == 4
+    assert card["effective_m"] is None
+
+    topology = service.journal_topology(project_id, receipt.bus_id)
+    assert topology["network_kind"] == "BUS"
+    assert topology["root_endpoint"]["reference"] == "903.000"
+    assert [edge["target"]["label"] for edge in topology["edges"]] == [
+        "903.001",
+        "903.002",
+        "903.003",
+        "903.004",
+    ]
+    assert all(edge["calculation_status"] == "INCOMPLETE" for edge in topology["edges"])
