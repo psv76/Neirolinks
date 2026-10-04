@@ -1299,11 +1299,83 @@ class ObjectWorkspace(QWidget):
             self._switch_section("Автоматика")
             self._open_automation()
 
-    def _show_line_issue(self, line_id: str) -> None:
-        if self.documents_workspace is None:
+    def _show_line_issue(self, issue) -> None:
+        if isinstance(issue, str):
+            if self.documents_workspace is None:
+                return
+            self.documents_workspace.show_issue_for("CABLE_LINE", issue)
+            self._switch_section("Документы")
             return
-        self.documents_workspace.show_issue_for("CABLE_LINE", line_id)
-        self._switch_section("Документы")
+
+        if not isinstance(issue, dict):
+            return
+        line_id = str(issue.get("line_id") or "")
+        title = str(issue.get("title") or "Требует внимания")
+        reason = str(issue.get("reason") or "Проблема требует исправления.")
+        required_action = str(issue.get("required_action") or "")
+        fix_action = str(issue.get("fix_action") or "")
+        segment_id = str(issue.get("segment_id") or "")
+        network_kind = str(issue.get("network_kind") or "CABLE")
+
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle(title)
+        dialog.setIcon(QMessageBox.Icon.Warning)
+        dialog.setText(reason)
+        if required_action:
+            dialog.setInformativeText(required_action)
+
+        fix_button = None
+        if fix_action == "SYNC_DWG":
+            fix_button = dialog.addButton(
+                "Обновить DWG",
+                QMessageBox.ButtonRole.AcceptRole,
+            )
+        elif fix_action == "RECALCULATE":
+            fix_button = dialog.addButton(
+                "Пересчитать",
+                QMessageBox.ButtonRole.AcceptRole,
+            )
+        elif fix_action == "OPEN_BUS":
+            fix_button = dialog.addButton(
+                "Открыть шину",
+                QMessageBox.ButtonRole.AcceptRole,
+            )
+        elif fix_action == "OPEN_LINE":
+            fix_button = dialog.addButton(
+                "Открыть линию",
+                QMessageBox.ButtonRole.AcceptRole,
+            )
+        dialog.addButton(QMessageBox.StandardButton.Close)
+        dialog.exec()
+
+        if fix_button is None or dialog.clickedButton() is not fix_button:
+            return
+        if fix_action == "SYNC_DWG":
+            self._sync_dwg()
+            return
+        if fix_action == "OPEN_BUS":
+            self._show_bus_issue(line_id)
+            return
+        if fix_action == "OPEN_LINE":
+            if self.lines_workspace is not None:
+                self.lines_workspace._open_line_details(line_id)
+            return
+        if fix_action == "RECALCULATE":
+            project_id = self.runtime.current_project_id
+            service = self.runtime.cables
+            if project_id is None or service is None:
+                return
+            try:
+                if segment_id:
+                    service.recalculate(project_id=project_id, segment_ids={segment_id})
+                else:
+                    service.recalculate(project_id=project_id, cable_line_ids={line_id})
+            except Exception as exc:
+                QMessageBox.warning(self, "Пересчёт не выполнен", str(exc))
+                return
+            if self.lines_workspace is not None:
+                self.lines_workspace.refresh(selected_line_id=line_id)
+            self._refresh_related_working_views()
 
     def _show_bus_issue(self, bus_id: str) -> None:
         project_id = self.runtime.current_project_id
