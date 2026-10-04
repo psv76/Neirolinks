@@ -1315,7 +1315,6 @@ class ObjectWorkspace(QWidget):
         required_action = str(issue.get("required_action") or "")
         fix_action = str(issue.get("fix_action") or "")
         segment_id = str(issue.get("segment_id") or "")
-        network_kind = str(issue.get("network_kind") or "CABLE")
 
         dialog = QMessageBox(self)
         dialog.setWindowTitle(title)
