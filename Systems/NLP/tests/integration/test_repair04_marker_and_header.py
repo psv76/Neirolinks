@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QRect
 from PySide6.QtWidgets import (
-    QApplication,
+    QHeaderView,
     QStyle,
     QStyleOptionViewItem,
     QTableWidget,
@@ -89,7 +89,7 @@ def test_lines_header_is_single_level_and_manually_resizable(qtbot):
     widget.show()
     qtbot.wait(10)
     header = widget.table.horizontalHeader()
-    assert header.sectionResizeMode(0) == header.ResizeMode.Interactive
+    assert header.sectionResizeMode(0) == QHeaderView.ResizeMode.Interactive
     original = widget.table.columnWidth(5)
     widget.table.setColumnWidth(5, original + 37)
     assert widget.table.columnWidth(5) == original + 37
