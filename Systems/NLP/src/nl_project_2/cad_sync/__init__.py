@@ -14,6 +14,7 @@ from .models import (
 )
 from .selection import AtomicLineImportGroup, atomic_line_import_groups
 from .service import DwgSyncError, DwgSyncService
+from .workflow import DwgUpdatePlan, build_dwg_update_plan
 
 __all__ = [
     "ActiveDocumentInfo",
@@ -33,4 +34,6 @@ __all__ = [
     "WriteExecutionReceipt",
     "AtomicLineImportGroup",
     "atomic_line_import_groups",
+    "DwgUpdatePlan",
+    "build_dwg_update_plan",
 ]
