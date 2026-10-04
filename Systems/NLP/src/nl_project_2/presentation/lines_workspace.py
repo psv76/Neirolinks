@@ -738,7 +738,7 @@ class LinesWorkspace(QWidget):
                                     "title": "Помещение не связано",
                                     "reason": "Не связано с помещением Project: "
                                     + ", ".join(unresolved),
-                                    "required_action": "Обновите DWG и выберите каноническое помещение.",
+                                    "required_action": "Выберите существующее помещение Project, соответствующее помещению в DWG.",
                                     "fix_action": "SYNC_DWG",
                                 },
                             )
@@ -1099,7 +1099,7 @@ class LinesWorkspace(QWidget):
                                 f"{target.get('room_names') or 'Помещение'} не связано "
                                 "с каноническим помещением Project."
                             ),
-                            "required_action": "Обновите DWG и выберите каноническое помещение.",
+                            "required_action": "Выберите существующее помещение Project, соответствующее помещению в DWG.",
                             "fix_action": "SYNC_DWG",
                         },
                     )
