@@ -149,6 +149,29 @@ class CableService:
                     )
                 ).mappings()
             }
+            point_devices: dict[str, list[dict]] = {}
+            for device_row in connection.execute(
+                select(
+                    cable_point_field_device.c.cable_point_id,
+                    field_device.c.block_kind,
+                    field_device.c.room_id,
+                    field_device.c.normalized_fields_json,
+                    room.c.name.label("room_name"),
+                    building.c.name.label("building_name"),
+                )
+                .join(
+                    field_device,
+                    field_device.c.id == cable_point_field_device.c.field_device_id,
+                )
+                .outerjoin(room, room.c.id == field_device.c.room_id)
+                .outerjoin(building, building.c.id == room.c.building_id)
+                .where(
+                    cable_point_field_device.c.project_id == project_id,
+                    cable_point_field_device.c.cable_point_id.in_(tuple(point_rows)),
+                    field_device.c.lifecycle == "ACTIVE",
+                )
+            ).mappings():
+                point_devices.setdefault(device_row["cable_point_id"], []).append(dict(device_row))
             port_rows = {
                 row["id"]: dict(row)
                 for row in connection.execute(
@@ -263,11 +286,42 @@ class CableService:
                     "label": f"Щит {board_name}" if board_name else "Источник линии",
                 }
             reference = str(point["logical_identity"])
+            members = point_devices.get(point["id"], [])
+            descriptions: list[str] = []
+            room_names: list[str] = []
+            building_names: list[str] = []
+            unresolved_room = False
+            for member in members:
+                fields = dict(member["normalized_fields_json"] or {})
+                description = str(
+                    fields.get("DEVICE_NAME")
+                    or fields.get("LOAD_NAME")
+                    or member["block_kind"]
+                    or ""
+                ).strip()
+                if description and description not in descriptions:
+                    descriptions.append(description)
+                canonical_room = str(member.get("room_name") or "").strip()
+                raw_room = str(fields.get("ROOM") or "").strip()
+                display_room = canonical_room or raw_room
+                if display_room and display_room not in room_names:
+                    room_names.append(display_room)
+                canonical_building = str(member.get("building_name") or "").strip()
+                raw_building = str(fields.get("BUILDING") or "").strip()
+                display_building = canonical_building or raw_building
+                if display_building and display_building not in building_names:
+                    building_names.append(display_building)
+                if raw_room and member.get("room_id") is None:
+                    unresolved_room = True
             return {
                 "kind": "TOPOLOGY_POINT",
                 "reference": reference,
                 "point_kind": point["point_kind"],
                 "label": reference,
+                "description": " / ".join(descriptions),
+                "room_names": ", ".join(room_names),
+                "building_names": ", ".join(building_names),
+                "room_unresolved": unresolved_room,
             }
 
         diagnostics: dict[str, dict] = {}
@@ -503,8 +557,29 @@ class CableService:
                 )
                 .order_by(cable_point.c.cable_line_id, cable_point.c.ordinal)
             ).all()
+            unresolved_room_rows = connection.execute(
+                select(
+                    cable_point.c.cable_line_id,
+                    field_device.c.normalized_fields_json,
+                )
+                .join(
+                    cable_point_field_device,
+                    cable_point_field_device.c.cable_point_id == cable_point.c.id,
+                )
+                .join(
+                    field_device,
+                    field_device.c.id == cable_point_field_device.c.field_device_id,
+                )
+                .where(
+                    cable_point.c.project_id == project_id,
+                    field_device.c.lifecycle == "ACTIVE",
+                    field_device.c.room_id.is_(None),
+                )
+                .order_by(cable_point.c.cable_line_id, cable_point.c.ordinal)
+            ).all()
         room_markers_by_line: dict[str, dict[str, dict[str, str]]] = {}
         building_names_by_line: dict[str, list[str]] = {}
+        unresolved_room_names_by_line: dict[str, list[str]] = {}
         for cable_line_id, building_name, room_id, room_name, room_display in room_rows:
             clean_name = str(room_name or "").strip()
             if clean_name:
@@ -521,6 +596,13 @@ class CableService:
             names = building_names_by_line.setdefault(cable_line_id, [])
             if clean_building and clean_building not in names:
                 names.append(clean_building)
+        for cable_line_id, fields in unresolved_room_rows:
+            raw_room = str((fields or {}).get("ROOM") or "").strip()
+            if not raw_room:
+                continue
+            names = unresolved_room_names_by_line.setdefault(cable_line_id, [])
+            if raw_room not in names:
+                names.append(raw_room)
         cards = []
         for row in self.list_lines(project_id):
             facts = dict(row["cable_facts_json"] or {})
@@ -531,6 +613,7 @@ class CableService:
                             cable_segment.c.mount_way,
                             cable_segment.c.gofra_type,
                             cable_segment.c.gofra_color,
+                            cable_segment.c.calculated_length_m_decimal,
                             conduit.c.designation,
                         )
                         .outerjoin(
@@ -554,6 +637,22 @@ class CableService:
 
             mount_way = uniform("mount_way")
             room_markers = tuple(room_markers_by_line.get(row["id"], {}).values())
+            conduit_designations = {
+                str(item["designation"])
+                for item in route_rows
+                if str(item["designation"] or "").strip()
+            }
+            incomplete_segments = sum(
+                1 for item in route_rows if item["calculated_length_m_decimal"] is None
+            )
+            known_segment_m = sum(
+                (
+                    Decimal(item["calculated_length_m_decimal"])
+                    for item in route_rows
+                    if item["calculated_length_m_decimal"] is not None
+                ),
+                Decimal(0),
+            )
             card = {
                 **row,
                 "route_method": str(ROUTE_METHOD_BY_MOUNT_WAY.get(mount_way, "")),
@@ -568,6 +667,10 @@ class CableService:
                 "building_names": ", ".join(building_names_by_line.get(row["id"], [])),
                 "room_names": ", ".join(item["name"] for item in room_markers),
                 "room_markers": room_markers,
+                "unresolved_room_names": tuple(unresolved_room_names_by_line.get(row["id"], [])),
+                "conduit_count": len(conduit_designations),
+                "incomplete_segments": incomplete_segments,
+                "known_segment_m": str(known_segment_m),
                 "automatic_m": None,
                 "additional_m": None,
                 "manual_full_m": None,

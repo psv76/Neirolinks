@@ -6,9 +6,10 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QMessageBox
+from PySide6.QtWidgets import QDialog
 from sqlalchemy import func, select
 
+import nl_project_2.presentation.object_workspace as object_workspace_module
 from nl_project_2.cad_contract import (
     CadObservation,
     CadObservationBatch,
@@ -480,7 +481,7 @@ def test_registry_four_tabs_room_color_and_time_controls(database, qtbot):
     assert color_item.data(ROOM_COLOR_ROLE) == "#336699"
     assert widget.time_button.text() == "Пауза"
     assert widget.time_tab_button.text() == "Пауза"
-    assert widget.sync_button.text() == "Синхронизация с DWG"
+    assert widget.sync_button.text() == "Обновить"
 
     with database.engine.connect() as connection:
         session_id = connection.scalar(
@@ -552,7 +553,7 @@ def test_dwg_sync_button_is_available_only_for_open_project_with_adapter(databas
     assert not widget.sync_button.isEnabled()
 
 
-def test_dwg_target_identity_requires_explicit_user_confirmation(database, qtbot, monkeypatch):
+def test_dwg_update_scans_the_inspected_active_target_directly(database, qtbot, monkeypatch):
     runtime = ApplicationRuntime(
         database,
         ObjectService(database.engine),
@@ -564,16 +565,79 @@ def test_dwg_target_identity_requires_explicit_user_confirmation(database, qtbot
     result = SimpleNamespace(value=ActiveDocumentInfo(identity, "target.dwg", False, False, 1))
     started = []
     monkeypatch.setattr(widget, "_start_dwg_scan", started.append)
-    monkeypatch.setattr(
-        "nl_project_2.presentation.object_workspace.QMessageBox.question",
-        lambda *args, **kwargs: QMessageBox.StandardButton.No,
-    )
-    widget._sync_identity_completed(result)
-    assert started == []
 
-    monkeypatch.setattr(
-        "nl_project_2.presentation.object_workspace.QMessageBox.question",
-        lambda *args, **kwargs: QMessageBox.StandardButton.Yes,
-    )
     widget._sync_identity_completed(result)
+
     assert started == [identity]
+
+
+def test_local_line_room_warning_opens_direct_remediation(database, qtbot, monkeypatch):
+    objects = ObjectService(database.engine)
+    project_id = objects.create_project(ProjectCard(name="Local issue", project_code="LOCAL-1"))
+    runtime = ApplicationRuntime(
+        database,
+        objects,
+        WorkTimeService(database.engine, new_id()),
+    )
+    widget = ObjectWorkspace(runtime)
+    qtbot.addWidget(widget)
+    widget.open_project(project_id)
+
+    sync_calls = []
+    widget._sync_dwg = lambda: sync_calls.append("sync")
+    widget._switch_section = lambda *_args: (_ for _ in ()).throw(
+        AssertionError("local warning must not navigate to the generic validation list")
+    )
+
+    class FakeMessageBox:
+        class Icon:
+            Warning = object()
+
+        class ButtonRole:
+            AcceptRole = object()
+
+        class StandardButton:
+            Close = object()
+
+        def __init__(self, _parent=None):
+            self._clicked = None
+
+        def setWindowTitle(self, _value):
+            pass
+
+        def setIcon(self, _value):
+            pass
+
+        def setText(self, _value):
+            pass
+
+        def setInformativeText(self, _value):
+            pass
+
+        def addButton(self, value, *_args):
+            button = object()
+            if value == "Привязать помещение":
+                self._clicked = button
+            return button
+
+        def exec(self):
+            return 0
+
+        def clickedButton(self):
+            return self._clicked
+
+    monkeypatch.setattr(object_workspace_module, "QMessageBox", FakeMessageBox)
+
+    widget._show_line_issue(
+        {
+            "issue_kind": "ROOM",
+            "line_id": "line-106",
+            "column_key": "room_names",
+            "title": "BOX.011 · помещение",
+            "reason": "Дет. ванная 2 не связано с каноническим помещением Project.",
+            "required_action": "Выберите существующее помещение Project.",
+            "fix_action": "SYNC_DWG",
+        }
+    )
+
+    assert sync_calls == ["sync"]

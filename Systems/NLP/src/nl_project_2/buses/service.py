@@ -11,11 +11,14 @@ from sqlalchemy.exc import IntegrityError
 
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
+    building,
     bus,
     bus_branch,
     bus_branch_point,
     bus_endpoint,
     bus_segment,
+    bus_segment_conduit_assignment,
+    conduit,
     dali_group,
     dali_group_member,
     field_device,
@@ -23,6 +26,7 @@ from nl_project_2.persistence.schema import (
     instance_resource,
     passport_resource_definition,
     project_instance,
+    room,
 )
 from nl_project_2.persistence.uow import UnitOfWork
 from nl_project_2.resource_labels import resource_technical_identity, resource_user_label
@@ -610,6 +614,285 @@ class BusService:
                     ).mappings()
                 ),
             }
+
+    def journal_cards(self, project_id: str) -> list[dict]:
+        """Return physical buses in the same read-model shape as the cable journal."""
+
+        result = []
+        for stored in self.list_buses(project_id):
+            topology = self.journal_topology(project_id, stored["id"])
+            edges = list(topology["edges"])
+            rooms: list[str] = []
+            buildings: list[str] = []
+            unresolved_rooms: list[str] = []
+            endpoint_kinds: list[str] = []
+            conduit_ids: set[str] = set()
+            mount_values: set[str] = set()
+            conduit_values: set[str] = set()
+            known_m = Decimal(0)
+            incomplete = 0
+            for edge in edges:
+                target = edge["target"]
+                for name in str(target.get("room_names") or "").split(","):
+                    clean = name.strip()
+                    if clean and clean not in rooms:
+                        rooms.append(clean)
+                for name in str(target.get("building_names") or "").split(","):
+                    clean = name.strip()
+                    if clean and clean not in buildings:
+                        buildings.append(clean)
+                if target.get("room_unresolved"):
+                    for name in str(target.get("room_names") or "").split(","):
+                        clean = name.strip()
+                        if clean and clean not in unresolved_rooms:
+                            unresolved_rooms.append(clean)
+                description = str(target.get("device_kind") or "").strip()
+                if description and description not in endpoint_kinds:
+                    endpoint_kinds.append(description)
+                if edge.get("mount_way"):
+                    mount_values.add(str(edge["mount_way"]))
+                if edge.get("gofra_id"):
+                    conduit_ids.add(str(edge["gofra_id"]))
+                    conduit_values.add(str(edge["gofra_id"]))
+                length = edge.get("cable_length_m")
+                if length is None:
+                    incomplete += 1
+                else:
+                    known_m += Decimal(str(length))
+
+            mount_way = (
+                next(iter(mount_values))
+                if len(mount_values) == 1
+                else ("MIXED" if mount_values else "")
+            )
+            gofra_id = (
+                next(iter(conduit_values))
+                if len(conduit_values) == 1
+                else ("MIXED" if conduit_values else "")
+            )
+            effective = str(known_m) if edges and incomplete == 0 else None
+            details = " / ".join(endpoint_kinds[:3])
+            load_name = stored["bus_kind"]
+            if details:
+                load_name += f" · {details}"
+            result.append(
+                {
+                    **stored,
+                    "network_kind": "BUS",
+                    "load_name": load_name,
+                    "load_type": "BUS",
+                    "board": topology["root_endpoint"]["label"],
+                    "building_names": ", ".join(buildings),
+                    "room_names": ", ".join(rooms),
+                    "room_markers": (),
+                    "unresolved_room_names": tuple(unresolved_rooms),
+                    "system_kind": stored["bus_kind"],
+                    "cable_type": stored.get("cable_type") or "",
+                    "mount_way": mount_way,
+                    "gofra_id": gofra_id,
+                    "conduit_count": len(conduit_ids),
+                    "incomplete_segments": incomplete,
+                    "known_segment_m": str(known_m),
+                    "automatic_m": effective,
+                    "additional_m": "0",
+                    "manual_full_m": None,
+                    "effective_m": effective,
+                    "length_mode": "Автоматическая" if effective is not None else "Не рассчитана",
+                    "length_explanation": "Сумма физических участков шины",
+                }
+            )
+        return result
+
+    def journal_topology(self, project_id: str, bus_id: str) -> dict:
+        """Return physical bus edges with working labels, rooms and route facts."""
+
+        stored = self.get_bus(project_id, bus_id)
+        resource_labels = self.list_bus_resource_labels(project_id)
+        endpoint_rows = {row["id"]: dict(row) for row in stored["endpoints"]}
+        field_ids = {
+            row["field_device_id"]
+            for row in endpoint_rows.values()
+            if row["endpoint_kind"] == "FIELD_DEVICE" and row.get("field_device_id")
+        }
+        resource_ids = {
+            row["resource_id"]
+            for row in endpoint_rows.values()
+            if row["endpoint_kind"] == "INSTANCE_RESOURCE" and row.get("resource_id")
+        }
+
+        with self._engine.connect() as connection:
+            field_meta = {
+                row["id"]: dict(row)
+                for row in connection.execute(
+                    select(
+                        field_device.c.id,
+                        field_device.c.block_kind,
+                        field_device.c.room_id,
+                        field_device.c.normalized_fields_json,
+                        room.c.name.label("room_name"),
+                        building.c.name.label("building_name"),
+                    )
+                    .outerjoin(room, room.c.id == field_device.c.room_id)
+                    .outerjoin(building, building.c.id == room.c.building_id)
+                    .where(
+                        field_device.c.project_id == project_id,
+                        field_device.c.id.in_(tuple(field_ids) or ("",)),
+                        field_device.c.lifecycle == "ACTIVE",
+                    )
+                ).mappings()
+            }
+            resource_meta = {
+                row["resource_id"]: dict(row)
+                for row in connection.execute(
+                    select(
+                        instance_resource.c.id.label("resource_id"),
+                        project_instance.c.designation.label("instance_designation"),
+                        project_instance.c.room_id,
+                        room.c.name.label("room_name"),
+                        building.c.name.label("building_name"),
+                    )
+                    .join(
+                        project_instance,
+                        project_instance.c.id == instance_resource.c.project_instance_id,
+                    )
+                    .outerjoin(room, room.c.id == project_instance.c.room_id)
+                    .outerjoin(building, building.c.id == room.c.building_id)
+                    .where(
+                        instance_resource.c.project_id == project_id,
+                        instance_resource.c.id.in_(tuple(resource_ids) or ("",)),
+                    )
+                ).mappings()
+            }
+            conduit_by_segment = {
+                row["segment_id"]: dict(row)
+                for row in connection.execute(
+                    select(
+                        bus_segment_conduit_assignment.c.bus_segment_id.label("segment_id"),
+                        conduit.c.designation,
+                    )
+                    .join(
+                        conduit,
+                        conduit.c.id == bus_segment_conduit_assignment.c.conduit_id,
+                    )
+                    .where(
+                        bus_segment_conduit_assignment.c.project_id == project_id,
+                        bus_segment_conduit_assignment.c.bus_segment_id.in_(
+                            tuple(row["id"] for row in stored["segments"]) or ("",)
+                        ),
+                    )
+                ).mappings()
+            }
+
+        def endpoint_info(endpoint_id: str) -> dict:
+            endpoint = endpoint_rows[endpoint_id]
+            address = str(endpoint.get("address") or "")
+            if endpoint["endpoint_kind"] == "FIELD_DEVICE":
+                meta = field_meta.get(endpoint["field_device_id"], {})
+                fields = dict(meta.get("normalized_fields_json") or {})
+                raw_room = str(fields.get("ROOM") or "").strip()
+                canonical_room = str(meta.get("room_name") or "").strip()
+                raw_building = str(fields.get("BUILDING") or "").strip()
+                canonical_building = str(meta.get("building_name") or "").strip()
+                description = str(
+                    fields.get("DEVICE_NAME")
+                    or fields.get("LOAD_NAME")
+                    or meta.get("block_kind")
+                    or "Полевое устройство"
+                ).strip()
+                return {
+                    "kind": "BUS_POINT",
+                    "label": address,
+                    "description": description,
+                    "device_kind": str(meta.get("block_kind") or ""),
+                    "room_names": canonical_room or raw_room,
+                    "building_names": canonical_building or raw_building,
+                    "room_unresolved": bool(raw_room and not meta.get("room_id")),
+                }
+            meta = resource_meta.get(endpoint["resource_id"], {})
+            label = resource_labels.get(str(endpoint["resource_id"]), {}).get(
+                "label",
+                f"{meta.get('instance_designation') or 'Устройство'} / {address}",
+            )
+            return {
+                "kind": "BUS_POINT",
+                "label": address,
+                "description": label,
+                "device_kind": str(meta.get("instance_designation") or ""),
+                "room_names": str(meta.get("room_name") or ""),
+                "building_names": str(meta.get("building_name") or ""),
+                "room_unresolved": False,
+            }
+
+        root_label = resource_labels.get(str(stored["root_resource_id"]), {}).get(
+            "label", f"{stored['designation']}.000"
+        )
+        root = {
+            "kind": "BUS_ROOT",
+            "label": root_label,
+            "reference": f"{stored['designation']}.000",
+        }
+        adjacency: dict[str | None, list[dict]] = {}
+        for segment in stored["segments"]:
+            adjacency.setdefault(segment.get("source_endpoint_id"), []).append(segment)
+
+        ordered: list[tuple[int, dict]] = []
+        visited: set[str] = set()
+
+        def order_key(segment) -> tuple:
+            target = endpoint_rows[segment["target_endpoint_id"]]
+            return (
+                target.get("endpoint_order")
+                if target.get("endpoint_order") is not None
+                else 999999,
+                str(target.get("address") or ""),
+            )
+
+        def walk(source_id: str | None, depth: int) -> None:
+            for segment in sorted(adjacency.get(source_id, ()), key=order_key):
+                if segment["id"] in visited:
+                    continue
+                visited.add(segment["id"])
+                ordered.append((depth, segment))
+                walk(segment["target_endpoint_id"], depth + 1)
+
+        walk(None, 0)
+        for segment in sorted(stored["segments"], key=order_key):
+            if segment["id"] not in visited:
+                ordered.append((0, segment))
+
+        edges = []
+        for depth, segment in ordered:
+            source_id = segment.get("source_endpoint_id")
+            assigned = conduit_by_segment.get(segment["id"], {})
+            length = segment.get("length_m_decimal")
+            edges.append(
+                {
+                    "segment_id": segment["id"],
+                    "depth": depth,
+                    "source": root if source_id is None else endpoint_info(source_id),
+                    "target": endpoint_info(segment["target_endpoint_id"]),
+                    "connection_kind": segment["connection_kind"],
+                    "mount_way": segment.get("mount_way") or "",
+                    "gofra_type": segment.get("gofra_type") or "",
+                    "gofra_color": segment.get("gofra_color") or "",
+                    "gofra_id": assigned.get("designation") or segment.get("gofra_id") or "",
+                    "cable_length_m": length,
+                    "physical_length_m": length,
+                    "calculation_status": "READY" if length is not None else "INCOMPLETE",
+                    "calculation_reason": "" if length is not None else "Длина не рассчитана",
+                }
+            )
+
+        return {
+            "network_kind": "BUS",
+            "bus_kind": stored["bus_kind"],
+            "designation": stored["designation"],
+            "root_endpoint": root,
+            "edges": tuple(edges),
+            "board_reserve_m": "0",
+            "additional_m": "0",
+            "manual_full_m": None,
+        }
 
     def topology(
         self,

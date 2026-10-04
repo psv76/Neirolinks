@@ -188,15 +188,15 @@ class GroupedHeaderView(QHeaderView):
 
 
 COLUMNS = (
-    LineColumn("building_names", "Здание", group="ОТКУДА", default_visible=True),
-    LineColumn("board", "Щит", "BOARD", "ОТКУДА", True),
-    LineColumn("room_names", "Помещение", group="КУДА", default_visible=True),
-    LineColumn("designation", "Номер линии", group="КТО", default_visible=True),
-    LineColumn("load_name", "Назначение линии", group="КТО", default_visible=True),
-    LineColumn("cable_type", "Марка кабеля", "CABLE_TYPE", "ФИЗИКА", True),
-    LineColumn("mount_way", "Прокладка", group="ФИЗИКА", default_visible=True),
-    LineColumn("gofra_id", "Труба", group="ФИЗИКА", default_visible=True),
-    LineColumn("effective_m", "Длина", group="ФИЗИКА", default_visible=True),
+    LineColumn("building_names", "Здание", default_visible=True),
+    LineColumn("board", "Источник", "BOARD", default_visible=True),
+    LineColumn("room_names", "Помещение", default_visible=True),
+    LineColumn("designation", "ID", default_visible=True),
+    LineColumn("load_name", "Назначение", default_visible=True),
+    LineColumn("cable_type", "Марка кабеля", "CABLE_TYPE", default_visible=True),
+    LineColumn("mount_way", "Прокладка", default_visible=True),
+    LineColumn("gofra_id", "Труба", default_visible=True),
+    LineColumn("effective_m", "Длина, м", default_visible=True),
     LineColumn("user_status", "Состояние"),
     LineColumn("load_type", "Тип нагрузки"),
     LineColumn("system_kind", "Система"),
@@ -221,7 +221,8 @@ _DEFAULT_COLUMN_WIDTHS = {
     "resource_labels": 230,
 }
 
-LINES_LAYOUT_VERSION = 3
+LINES_LAYOUT_VERSION = 4
+_ISSUE_CONTEXT_ROLE = int(Qt.ItemDataRole.UserRole) + 5
 
 
 def _column_index(key: str) -> int:
@@ -240,7 +241,8 @@ def _format_length(value) -> str:
 
 class LinesWorkspace(QWidget):
     resourceRequested = Signal(str)
-    issueRequested = Signal(str)
+    issueRequested = Signal(object)
+    busRequested = Signal(str)
     projectChanged = Signal()
 
     def __init__(
@@ -253,6 +255,7 @@ class LinesWorkspace(QWidget):
         guided_service=None,
         bulk_service=None,
         status_service=None,
+        bus_service=None,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -263,6 +266,7 @@ class LinesWorkspace(QWidget):
         self.guided = guided_service
         self.bulk = bulk_service
         self.status_service = status_service
+        self.buses = bus_service
         self._cards: list[dict] = []
         self._cards_by_id: dict[str, dict] = {}
         self._assignments_by_line: dict[str, list[dict]] = {}
@@ -298,7 +302,6 @@ class LinesWorkspace(QWidget):
 
         self.table = SpreadsheetTable(0, len(COLUMNS), self)
         self.table.setObjectName("linesSpreadsheetTable")
-        self.table.setHorizontalHeader(GroupedHeaderView(COLUMNS, self.table))
         self.table.setHorizontalHeaderLabels([column.title for column in COLUMNS])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
         self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
@@ -316,11 +319,21 @@ class LinesWorkspace(QWidget):
         )
         header_font = self.table.horizontalHeader().font()
         header_font.setBold(True)
+        if header_font.pointSize() > 0:
+            header_font.setPointSize(header_font.pointSize() + 1)
         self.table.horizontalHeader().setFont(header_font)
-        self.table.horizontalHeader().setMinimumHeight(50)
-        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.table.horizontalHeader().setMinimumHeight(32)
+        self.table.horizontalHeader().setDefaultAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table.horizontalHeader().setStyleSheet(
+            "QHeaderView::section { border-right: 1px solid #d9dee7; padding: 5px 7px; }"
+        )
         self.table.itemSelectionChanged.connect(self._selection_changed)
         self.table.itemChanged.connect(self._item_changed)
+        self.table.itemClicked.connect(self._table_item_clicked)
+        self.table.itemDoubleClicked.connect(self._table_item_double_clicked)
         self.table.copyRequested.connect(self.copy_selection)
         self.table.pasteRequested.connect(self.paste_clipboard)
         self.table.fillDownRequested.connect(self.fill_down)
@@ -362,7 +375,6 @@ class LinesWorkspace(QWidget):
         top_layout.setContentsMargins(0, 0, 0, 0)
         top_layout.addLayout(filter_row)
         top_layout.addWidget(self.table, 1)
-        top_layout.addLayout(table_actions)
 
         self.card_title = QLabel("Линия не выбрана", self)
         self.card_title.setObjectName("lineCardTitle")
@@ -544,15 +556,14 @@ class LinesWorkspace(QWidget):
         physical_layout.addWidget(self.segment_gofra_id)
 
         self._segment_rows: list[dict] = []
+        self._expanded_line_ids: set[str] = set()
+        self._full_tree_line_ids: set[str] = set()
 
+        bottom.hide()
+        physical.hide()
         self.splitter = QSplitter(Qt.Orientation.Vertical, self)
         self.splitter.setObjectName("linesHorizontalSplitter")
         self.splitter.addWidget(top)
-        self.splitter.addWidget(bottom)
-        self.splitter.addWidget(physical)
-        self.splitter.setStretchFactor(0, 4)
-        self.splitter.setStretchFactor(1, 1)
-        self.splitter.setStretchFactor(2, 2)
         self.splitter.setChildrenCollapsible(False)
         self.splitter.splitterMoved.connect(lambda *_: self._save_state())
         layout = QVBoxLayout(self)
@@ -601,7 +612,13 @@ class LinesWorkspace(QWidget):
         self.table.setSortingEnabled(False)
         self.table.blockSignals(True)
         try:
-            self._cards = list(self.cables.line_cards(self.project_id)) if self.cables else []
+            cable_cards = list(self.cables.line_cards(self.project_id)) if self.cables else []
+            for card in cable_cards:
+                card["network_kind"] = "CABLE"
+            bus_cards = (
+                list(self.buses.journal_cards(self.project_id)) if self.buses is not None else []
+            )
+            self._cards = cable_cards + bus_cards
             statuses = (
                 self.status_service.line_statuses(self.project_id)
                 if self.status_service is not None
@@ -618,6 +635,16 @@ class LinesWorkspace(QWidget):
                     assignment
                 )
             for card in self._cards:
+                if card.get("network_kind") == "BUS":
+                    card["status_summary"] = None
+                    card["user_status"] = (
+                        "Требуется действие"
+                        if int(card.get("incomplete_segments") or 0)
+                        or tuple(card.get("unresolved_room_names") or ())
+                        else "Готово"
+                    )
+                    card["resource_labels"] = ""
+                    continue
                 status = statuses.get(card["id"])
                 card["status_summary"] = status
                 card["user_status"] = (
@@ -628,16 +655,38 @@ class LinesWorkspace(QWidget):
                     for assignment in self._assignments_by_line.get(card["id"], [])
                 )
             self._cards_by_id = {card["id"]: card for card in self._cards}
+            self._expanded_line_ids.clear()
+            self._full_tree_line_ids.clear()
             self.table.setRowCount(len(self._cards))
             for row, card in enumerate(self._cards):
                 for column, definition in enumerate(COLUMNS):
                     value = card.get(definition.key)
-                    text = (
-                        (_format_length(value) if value is not None else "Нужны данные")
-                        if definition.key == "effective_m"
-                        else ("" if value is None else str(value))
-                    )
-                    if value == "MIXED" and definition.key in {"mount_way", "gofra_id"}:
+                    text = "" if value is None else str(value)
+                    if definition.key == "designation":
+                        text = f"▸ {card['designation']}"
+                    elif definition.key == "effective_m":
+                        if value is None:
+                            known = _format_length(card.get("known_segment_m"))
+                            text = f"{known} + ?  !" if known not in {"", "0"} else "—  !"
+                        else:
+                            text = _format_length(value)
+                            if int(card.get("incomplete_segments") or 0):
+                                text += "  !"
+                    elif definition.key == "room_names":
+                        unresolved = tuple(card.get("unresolved_room_names") or ())
+                        names = [
+                            part.strip() for part in str(value or "").split(",") if part.strip()
+                        ]
+                        for name in unresolved:
+                            if name not in names:
+                                names.append(name)
+                        text = ", ".join(names)
+                        if unresolved:
+                            text = (text + "  !").strip()
+                    elif definition.key == "gofra_id" and value == "MIXED":
+                        count = int(card.get("conduit_count") or 0)
+                        text = f"{count} труб" if count else "По участкам"
+                    elif definition.key == "mount_way" and value == "MIXED":
                         text = "По участкам"
                     item = (
                         CableMarkItem(value)
@@ -646,11 +695,16 @@ class LinesWorkspace(QWidget):
                     )
                     item.setData(Qt.ItemDataRole.UserRole, card["id"])
                     item.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
+                    item.setData(Qt.ItemDataRole.UserRole + 3, "BASE")
                     flags = item.flags()
-                    if definition.editable_field is None:
+                    if definition.editable_field is None or card.get("network_kind") != "CABLE":
                         flags &= ~Qt.ItemFlag.ItemIsEditable
                         item.setForeground(QBrush(QColor("#424a52")))
                     item.setFlags(flags)
+                    item.setData(
+                        Qt.ItemDataRole.UserRole + 4,
+                        card.get("network_kind", "CABLE"),
+                    )
                     if definition.key == "resource_labels":
                         technical = ", ".join(
                             assignment["technical_identity"]
@@ -658,9 +712,65 @@ class LinesWorkspace(QWidget):
                         )
                         item.setToolTip(technical)
                     if definition.key == "room_names":
-                        markers = tuple(card.get("room_markers") or ())
-                        item.setData(ROOM_MARKERS_ROLE, markers)
-                        item.setToolTip("\n".join(marker["name"] for marker in markers))
+                        markers = list(card.get("room_markers") or ())
+                        unresolved = tuple(card.get("unresolved_room_names") or ())
+                        markers.extend(
+                            {
+                                "id": f"unresolved:{name}",
+                                "name": f"{name} !",
+                                "color": "#FFF2D5",
+                            }
+                            for name in unresolved
+                        )
+                        item.setData(ROOM_MARKERS_ROLE, tuple(markers))
+                        tooltip = [
+                            marker["name"]
+                            for marker in markers
+                            if not str(marker["id"]).startswith("unresolved:")
+                        ]
+                        tooltip.extend(
+                            f"Не связано с помещением Project: {name}" for name in unresolved
+                        )
+                        item.setToolTip("\n".join(tooltip))
+                        if unresolved:
+                            item.setData(
+                                _ISSUE_CONTEXT_ROLE,
+                                {
+                                    "issue_kind": "ROOM",
+                                    "line_id": card["id"],
+                                    "network_kind": card.get("network_kind", "CABLE"),
+                                    "column_key": "room_names",
+                                    "row_kind": "BASE",
+                                    "title": "Помещение не связано",
+                                    "reason": "Не связано с помещением Project: "
+                                    + ", ".join(unresolved),
+                                    "required_action": (
+                                        "Выберите существующее помещение Project, "
+                                        "соответствующее помещению в DWG."
+                                    ),
+                                    "fix_action": "SYNC_DWG",
+                                },
+                            )
+                    if definition.key == "effective_m" and int(
+                        card.get("incomplete_segments") or 0
+                    ):
+                        item.setToolTip(
+                            f"Не рассчитано участков: {int(card.get('incomplete_segments') or 0)}"
+                        )
+                        item.setData(
+                            _ISSUE_CONTEXT_ROLE,
+                            {
+                                "issue_kind": "LENGTH",
+                                "line_id": card["id"],
+                                "network_kind": card.get("network_kind", "CABLE"),
+                                "column_key": "effective_m",
+                                "row_kind": "BASE",
+                                "title": "Длина рассчитана не полностью",
+                                "reason": "",
+                                "required_action": "",
+                                "fix_action": "RECALCULATE",
+                            },
+                        )
                     self.table.setItem(row, column, item)
             self._populate_filter(self.system_filter, (card["system_kind"] for card in self._cards))
             self._populate_filter(self.room_filter, (card["room_names"] for card in self._cards))
@@ -728,18 +838,36 @@ class LinesWorkspace(QWidget):
         board = str(self.board_filter.currentData() or "")
         status = str(self.status_filter.currentData() or "")
         visible_rows = []
+        rows_by_line: dict[str, list[int]] = {}
         for row in range(self.table.rowCount()):
-            line_id = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+            item = self.table.item(row, 0)
+            if item is None:
+                continue
+            line_id = item.data(Qt.ItemDataRole.UserRole)
+            if line_id in self._cards_by_id:
+                rows_by_line.setdefault(line_id, []).append(row)
+        for line_id, rows in rows_by_line.items():
             card = self._cards_by_id[line_id]
+            row_text = " ".join(
+                self.table.item(row, column).text()
+                for row in rows
+                for column in range(self.table.columnCount())
+                if self.table.item(row, column) is not None
+            )
             searchable = " ".join(
-                str(card.get(key) or "")
-                for key in (
-                    "designation",
-                    "load_name",
-                    "room_names",
-                    "board",
-                    "user_status",
-                )
+                [
+                    *(
+                        str(card.get(key) or "")
+                        for key in (
+                            "designation",
+                            "load_name",
+                            "room_names",
+                            "board",
+                            "user_status",
+                        )
+                    ),
+                    row_text,
+                ]
             ).casefold()
             visible = (
                 (not needle or needle in searchable)
@@ -748,9 +876,10 @@ class LinesWorkspace(QWidget):
                 and (not board or card["board"] == board)
                 and (not status or card["user_status"] == status)
             )
-            self.table.setRowHidden(row, not visible)
-            if visible:
-                visible_rows.append(row)
+            for row in rows:
+                self.table.setRowHidden(row, not visible)
+                if visible:
+                    visible_rows.append(row)
         current = self.table.currentRow()
         if not visible_rows or current not in visible_rows:
             self.table.clearSelection()
@@ -784,6 +913,379 @@ class LinesWorkspace(QWidget):
                 self.table.scrollToItem(self.table.item(row, 0))
                 return True
         return False
+
+    def _row_kind(self, row: int) -> str:
+        item = self.table.item(row, 0)
+        return "" if item is None else str(item.data(Qt.ItemDataRole.UserRole + 3) or "")
+
+    def _table_item_clicked(self, item: QTableWidgetItem) -> None:
+        row = item.row()
+        line_id = item.data(Qt.ItemDataRole.UserRole)
+        if not line_id:
+            return
+        row_kind = self._row_kind(row)
+        if row_kind == "MORE":
+            base_row = next(
+                (
+                    candidate
+                    for candidate in range(row - 1, -1, -1)
+                    if self._row_kind(candidate) == "BASE"
+                    and self.table.item(candidate, 0).data(Qt.ItemDataRole.UserRole) == line_id
+                ),
+                None,
+            )
+            if base_row is not None:
+                self._remove_line_tree_rows(base_row, str(line_id))
+                self._expanded_line_ids.discard(str(line_id))
+                self._full_tree_line_ids.add(str(line_id))
+                self._expand_line_tree(base_row, str(line_id))
+            return
+        if item.column() == _column_index("designation") and row_kind == "BASE":
+            self._toggle_line_tree(row, str(line_id))
+            return
+        context = item.data(_ISSUE_CONTEXT_ROLE)
+        if isinstance(context, dict):
+            self.issueRequested.emit(self._enrich_issue_context(dict(context)))
+
+    def _enrich_issue_context(self, context: dict) -> dict:
+        if context.get("issue_kind") != "LENGTH" or context.get("reason"):
+            return context
+        line_id = str(context.get("line_id") or "")
+        card = self._cards_by_id.get(line_id, {})
+        try:
+            topology = (
+                self.buses.journal_topology(self.project_id, line_id)
+                if card.get("network_kind") == "BUS" and self.buses is not None
+                else self.cables.topology(self.project_id, line_id)
+            )
+        except Exception as exc:
+            context["reason"] = str(exc)
+            context["required_action"] = "Откройте линию и проверьте исходные данные."
+            context["fix_action"] = "OPEN_LINE"
+            return context
+
+        incomplete = [
+            edge for edge in topology.get("edges", ()) if edge.get("calculation_status") != "READY"
+        ]
+        details = []
+        for edge in incomplete:
+            source = str((edge.get("source") or {}).get("label") or "Источник")
+            target = str((edge.get("target") or {}).get("label") or "Точка")
+            reason = str(edge.get("calculation_reason") or "Длина не рассчитана")
+            details.append(f"{source} → {target}: {reason}")
+        context["reason"] = "\n".join(details) or "Длина линии не рассчитана."
+        if card.get("network_kind") == "BUS":
+            context["required_action"] = "Откройте шину и исправьте исходные данные участка."
+            context["fix_action"] = "OPEN_BUS"
+        elif "канонической связи" in context["reason"]:
+            context["required_action"] = "Сначала привяжите помещение, затем длина пересчитается."
+            context["fix_action"] = "SYNC_DWG"
+        else:
+            context["required_action"] = "Исправьте указанные исходные данные и пересчитайте длину."
+            context["fix_action"] = "RECALCULATE"
+        return context
+
+    def _table_item_double_clicked(self, item: QTableWidgetItem) -> None:
+        line_id = item.data(Qt.ItemDataRole.UserRole)
+        if line_id:
+            self._open_line_details(str(line_id))
+
+    def _toggle_line_tree(self, base_row: int, line_id: str) -> None:
+        if line_id in self._expanded_line_ids:
+            self._collapse_line_tree(base_row, line_id)
+        else:
+            self._expand_line_tree(base_row, line_id)
+
+    def _expand_line_tree(self, base_row: int, line_id: str) -> None:
+        card = self._cards_by_id.get(line_id, {})
+        try:
+            topology = (
+                self.buses.journal_topology(self.project_id, line_id)
+                if card.get("network_kind") == "BUS" and self.buses is not None
+                else self.cables.topology(self.project_id, line_id)
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Линия не раскрыта", str(exc))
+            return
+        edges = list(topology.get("edges") or ())
+        additions: list[dict] = []
+        reserve = Decimal(str(topology.get("board_reserve_m") or "0"))
+        additional = Decimal(str(topology.get("additional_m") or "0"))
+        manual = topology.get("manual_full_m")
+        if reserve:
+            additions.append({"label": "+ запас у щита", "length": reserve})
+        if additional:
+            additions.append({"label": "+ дополнительная длина", "length": additional})
+        if manual is not None:
+            additions.append({"label": "= полная ручная длина", "length": Decimal(str(manual))})
+        if not edges and not additions:
+            return
+
+        self.table.setSortingEnabled(False)
+        insert_at = base_row + 1
+        selected_edges = list(enumerate(edges))
+        hidden_count = 0
+        if len(edges) > 8 and line_id not in self._full_tree_line_ids:
+            keep = {0, 1, 2, len(edges) - 2, len(edges) - 1}
+            keep.update(
+                index
+                for index, edge in enumerate(edges)
+                if bool((edge.get("target") or {}).get("room_unresolved"))
+                or edge.get("calculation_status") != "READY"
+            )
+            keep = {index for index in keep if 0 <= index < len(edges)}
+            hidden_count = len(edges) - len(keep)
+            selected_edges = [(index, edges[index]) for index in sorted(keep)]
+
+        previous_index = -1
+        more_inserted = False
+        for edge_index, edge in selected_edges:
+            if hidden_count and not more_inserted and edge_index > previous_index + 1:
+                self.table.insertRow(insert_at)
+                for column, definition in enumerate(COLUMNS):
+                    value = ""
+                    if definition.key == "designation":
+                        value = "⋮"
+                    elif definition.key == "load_name":
+                        value = f"Ещё {hidden_count} точек — показать все"
+                    more = NaturalSortItem(value)
+                    more.setFlags(more.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    more.setData(Qt.ItemDataRole.UserRole, line_id)
+                    more.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
+                    more.setData(Qt.ItemDataRole.UserRole + 3, "MORE")
+                    more.setForeground(QBrush(QColor("#1769e0")))
+                    self.table.setItem(insert_at, column, more)
+                insert_at += 1
+                more_inserted = True
+            previous_index = edge_index
+            self.table.insertRow(insert_at)
+            target = dict(edge.get("target") or {})
+            depth = int(edge.get("depth") or 0)
+            description = str(target.get("description") or "").strip()
+            if not description and target.get("point_kind") == "EL_BOX":
+                description = "Распределительная коробка"
+            values = {
+                "building_names": target.get("building_names") or "",
+                "board": "",
+                "room_names": target.get("room_names") or "",
+                "designation": f"{'   ' * depth}└─ {target.get('label') or 'Точка'}",
+                "load_name": description,
+                "cable_type": "",
+                "mount_way": edge.get("mount_way") or "",
+                "gofra_id": edge.get("gofra_id")
+                or (f"{edge.get('gofra_type')} · без №" if edge.get("gofra_type") else "—"),
+                "effective_m": (
+                    _format_length(edge.get("cable_length_m"))
+                    if edge.get("cable_length_m") is not None
+                    else "—  !"
+                ),
+            }
+            if target.get("room_unresolved") and values["room_names"]:
+                values["room_names"] += "  !"
+            for column, definition in enumerate(COLUMNS):
+                value = values.get(definition.key, "")
+                child = NaturalSortItem(str(value))
+                child.setFlags(child.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                child.setData(Qt.ItemDataRole.UserRole, line_id)
+                child.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
+                child.setData(Qt.ItemDataRole.UserRole + 3, "CHILD")
+                child.setForeground(QBrush(QColor("#4b5563")))
+                if definition.key == "room_names" and target.get("room_unresolved"):
+                    child.setToolTip("Помещение не связано с каноническим помещением Project")
+                    child.setData(
+                        _ISSUE_CONTEXT_ROLE,
+                        {
+                            "issue_kind": "ROOM",
+                            "line_id": line_id,
+                            "network_kind": card.get("network_kind", "CABLE"),
+                            "column_key": "room_names",
+                            "row_kind": "CHILD",
+                            "segment_id": edge.get("segment_id"),
+                            "target_label": target.get("label") or "Точка",
+                            "title": f"{target.get('label') or 'Точка'} · помещение",
+                            "reason": (
+                                f"{target.get('room_names') or 'Помещение'} не связано "
+                                "с каноническим помещением Project."
+                            ),
+                            "required_action": (
+                                "Выберите существующее помещение Project, "
+                                "соответствующее помещению в DWG."
+                            ),
+                            "fix_action": "SYNC_DWG",
+                        },
+                    )
+                if definition.key == "effective_m" and edge.get("calculation_status") != "READY":
+                    reason = edge.get("calculation_reason") or "Длина не рассчитана"
+                    child.setToolTip(reason)
+                    child.setData(
+                        _ISSUE_CONTEXT_ROLE,
+                        {
+                            "issue_kind": "LENGTH",
+                            "line_id": line_id,
+                            "network_kind": card.get("network_kind", "CABLE"),
+                            "column_key": "effective_m",
+                            "row_kind": "CHILD",
+                            "segment_id": edge.get("segment_id"),
+                            "target_label": target.get("label") or "Точка",
+                            "title": f"{target.get('label') or 'Участок'} · длина",
+                            "reason": reason,
+                            "required_action": (
+                                "Сначала привяжите помещение, затем длина пересчитается."
+                                if "канонической связи" in str(reason)
+                                else "Исправьте указанные исходные данные и пересчитайте участок."
+                            ),
+                            "fix_action": (
+                                "SYNC_DWG"
+                                if "канонической связи" in str(reason)
+                                else (
+                                    "OPEN_BUS"
+                                    if card.get("network_kind") == "BUS"
+                                    else "RECALCULATE"
+                                )
+                            ),
+                        },
+                    )
+                self.table.setItem(insert_at, column, child)
+            insert_at += 1
+
+        for addition in additions:
+            self.table.insertRow(insert_at)
+            for column, definition in enumerate(COLUMNS):
+                value = ""
+                if definition.key == "designation":
+                    value = addition["label"]
+                elif definition.key == "effective_m":
+                    value = _format_length(addition["length"])
+                child = NaturalSortItem(str(value))
+                child.setFlags(child.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                child.setData(Qt.ItemDataRole.UserRole, line_id)
+                child.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
+                child.setData(Qt.ItemDataRole.UserRole + 3, "ADJUSTMENT")
+                child.setForeground(QBrush(QColor("#5f6b7a")))
+                self.table.setItem(insert_at, column, child)
+            insert_at += 1
+
+        self._expanded_line_ids.add(line_id)
+        designation = self.table.item(base_row, _column_index("designation"))
+        if designation is not None:
+            designation.setText(f"▾ {self._cards_by_id[line_id]['designation']}")
+        self.apply_filters()
+
+    def _remove_line_tree_rows(self, base_row: int, line_id: str) -> None:
+        row = base_row + 1
+        while row < self.table.rowCount():
+            first = self.table.item(row, 0)
+            if (
+                first is None
+                or first.data(Qt.ItemDataRole.UserRole) != line_id
+                or self._row_kind(row) == "BASE"
+            ):
+                break
+            self.table.removeRow(row)
+
+    def _collapse_line_tree(self, base_row: int, line_id: str) -> None:
+        self._remove_line_tree_rows(base_row, line_id)
+        self._expanded_line_ids.discard(line_id)
+        self._full_tree_line_ids.discard(line_id)
+        designation = self.table.item(base_row, _column_index("designation"))
+        if designation is not None:
+            designation.setText(f"▸ {self._cards_by_id[line_id]['designation']}")
+        if not self._expanded_line_ids:
+            self.table.setSortingEnabled(True)
+        self.apply_filters()
+
+    def _open_line_details(self, line_id: str) -> None:
+        card = self._cards_by_id.get(line_id)
+        if card is None:
+            return
+        try:
+            topology = (
+                self.buses.journal_topology(self.project_id, line_id)
+                if card.get("network_kind") == "BUS" and self.buses is not None
+                else self.cables.topology(self.project_id, line_id)
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Линия не открыта", str(exc))
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"{card['designation']} — {card['load_name'] or 'Линия'}")
+        dialog.resize(980, 620)
+        layout = QVBoxLayout(dialog)
+
+        summary = QLabel(
+            " · ".join(
+                value
+                for value in (
+                    card.get("building_names") or "",
+                    card.get("board") or "",
+                    format_cable_mark(card.get("cable_type") or ""),
+                    (
+                        f"{_format_length(card['effective_m'])} м"
+                        if card.get("effective_m") is not None
+                        else "длина не определена"
+                    ),
+                )
+                if value
+            ),
+            dialog,
+        )
+        layout.addWidget(summary)
+
+        edges = list(topology.get("edges") or ())
+        table = QTableWidget(len(edges), 6, dialog)
+        table.setHorizontalHeaderLabels(
+            ["Помещение", "ID", "Назначение", "Прокладка", "Труба", "Длина, м"]
+        )
+        header = table.horizontalHeader()
+        header_font = header.font()
+        header_font.setBold(True)
+        if header_font.pointSize() > 0:
+            header_font.setPointSize(header_font.pointSize() + 1)
+        header.setFont(header_font)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        for row, edge in enumerate(edges):
+            target = dict(edge.get("target") or {})
+            depth = int(edge.get("depth") or 0)
+            description = str(target.get("description") or "").strip()
+            if not description and target.get("point_kind") == "EL_BOX":
+                description = "Распределительная коробка"
+            values = (
+                target.get("room_names") or "",
+                f"{'   ' * depth}└─ {target.get('label') or 'Точка'}",
+                description,
+                edge.get("mount_way") or "",
+                edge.get("gofra_id")
+                or (f"{edge.get('gofra_type')} · без №" if edge.get("gofra_type") else "—"),
+                (
+                    _format_length(edge.get("cable_length_m"))
+                    if edge.get("cable_length_m") is not None
+                    else "—"
+                ),
+            )
+            for column, value in enumerate(values):
+                cell = QTableWidgetItem(str(value))
+                cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                table.setItem(row, column, cell)
+        layout.addWidget(table, 1)
+
+        adjustments = []
+        reserve = Decimal(str(topology.get("board_reserve_m") or "0"))
+        additional = Decimal(str(topology.get("additional_m") or "0"))
+        if reserve:
+            adjustments.append(f"+ запас у щита: {_format_length(reserve)} м")
+        if additional:
+            adjustments.append(f"+ дополнительная длина: {_format_length(additional)} м")
+        if topology.get("manual_full_m") is not None:
+            adjustments.append(
+                f"Полная ручная длина: {_format_length(topology['manual_full_m'])} м"
+            )
+        if adjustments:
+            layout.addWidget(QLabel(" · ".join(adjustments), dialog))
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, dialog)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.exec()
 
     def _selection_changed(self) -> None:
         self._highlight_current_row()
@@ -858,7 +1360,13 @@ class LinesWorkspace(QWidget):
             )
         self.open_resource.setEnabled(bool(assignments))
         self.show_issue.setEnabled(card["user_status"] != "Готово")
-        self._load_physical_route(line_id)
+        if card.get("network_kind") == "BUS":
+            for button in self.single_buttons.values():
+                button.setEnabled(False)
+            self.open_resource.setEnabled(False)
+            self._clear_physical_route()
+        else:
+            self._load_physical_route(line_id)
 
     def _clear_physical_route(self) -> None:
         self._segment_rows = []
@@ -1078,10 +1586,12 @@ class LinesWorkspace(QWidget):
         dialog.exec()
 
     def _item_changed(self, item: QTableWidgetItem) -> None:
-        if self._refreshing:
+        if self._refreshing or self._row_kind(item.row()) != "BASE":
             return
         column = COLUMNS[item.column()]
-        if column.editable_field is None:
+        line_id = item.data(Qt.ItemDataRole.UserRole)
+        card = self._cards_by_id.get(line_id)
+        if column.editable_field is None or card is None or card.get("network_kind") != "CABLE":
             return
         self._apply_edits(
             [
@@ -1116,13 +1626,28 @@ class LinesWorkspace(QWidget):
             key=self.table.horizontalHeader().visualIndex,
         )
         selected = {(index.row(), index.column()) for index in indexes}
-        text = "\n".join(
-            "\t".join(
-                self.table.item(row, column).text() if (row, column) in selected else ""
-                for column in columns
-            )
-            for row in rows
-        )
+
+        def cell_text(row: int, column: int) -> str:
+            if (row, column) not in selected:
+                return ""
+            item = self.table.item(row, column)
+            if item is None:
+                return ""
+            if COLUMNS[column].key == "designation":
+                kind = self._row_kind(row)
+                if kind == "BASE":
+                    line_id = item.data(Qt.ItemDataRole.UserRole)
+                    card = self._cards_by_id.get(line_id)
+                    if card is not None:
+                        return str(card["designation"])
+                value = item.text().strip()
+                for prefix in ("▸", "▾", "└─", "├─"):
+                    if value.startswith(prefix):
+                        value = value[len(prefix) :].strip()
+                return value
+            return item.text()
+
+        text = "\n".join("\t".join(cell_text(row, column) for column in columns) for row in rows)
         QApplication.clipboard().setText(text)
         return text
 
@@ -1152,6 +1677,11 @@ class LinesWorkspace(QWidget):
             visual_anchor = visible_columns.index(anchor.column())
         except ValueError:
             return False
+        if self._row_kind(anchor.row()) != "BASE":
+            QMessageBox.warning(
+                self, "Вставка не выполнена", "Редактировать можно только строку линии"
+            )
+            return False
         rows_overflow = anchor.row() + len(matrix) > self.table.rowCount()
         columns_overflow = visual_anchor + len(matrix[0]) > len(visible_columns)
         if rows_overflow or columns_overflow:
@@ -1160,6 +1690,17 @@ class LinesWorkspace(QWidget):
         edits = []
         for row_offset, values in enumerate(matrix):
             target_row = anchor.row() + row_offset
+            if self._row_kind(target_row) != "BASE":
+                QMessageBox.warning(
+                    self, "Вставка не выполнена", "Редактировать можно только строки линий"
+                )
+                return False
+            target_line_id = self.table.item(target_row, 0).data(Qt.ItemDataRole.UserRole)
+            if self._cards_by_id[target_line_id].get("network_kind") != "CABLE":
+                QMessageBox.warning(
+                    self, "Вставка не выполнена", "Шина редактируется в разделе шин"
+                )
+                return False
             if self.table.isRowHidden(target_row):
                 QMessageBox.warning(self, "Вставка не выполнена", "Скрытые строки не изменяются")
                 return False
@@ -1193,6 +1734,20 @@ class LinesWorkspace(QWidget):
         if rows != list(range(rows[0], rows[-1] + 1)):
             QMessageBox.warning(self, "Заполнение не выполнено", "Выберите непрерывный диапазон")
             return False
+        if any(self._row_kind(row) != "BASE" for row in rows):
+            QMessageBox.warning(
+                self, "Заполнение не выполнено", "Редактировать можно только строки линий"
+            )
+            return False
+        if any(
+            self._cards_by_id[self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)].get(
+                "network_kind"
+            )
+            != "CABLE"
+            for row in rows
+        ):
+            QMessageBox.warning(self, "Заполнение не выполнено", "Шины редактируются отдельно")
+            return False
         edits = []
         for column in columns:
             definition = COLUMNS[column]
@@ -1223,7 +1778,11 @@ class LinesWorkspace(QWidget):
                 "Выберите изменяемую колонку BOARD или CABLE_TYPE",
             )
             return False
-        line_ids = self.selected_line_ids()
+        line_ids = tuple(
+            line_id
+            for line_id in self.selected_line_ids()
+            if self._cards_by_id[line_id].get("network_kind") == "CABLE"
+        )
         if not line_ids:
             return False
         if value is None:
@@ -1248,7 +1807,7 @@ class LinesWorkspace(QWidget):
         editable = [
             (row, column)
             for row in range(self.table.rowCount())
-            if not self.table.isRowHidden(row)
+            if not self.table.isRowHidden(row) and self._row_kind(row) == "BASE"
             for column, definition in enumerate(COLUMNS)
             if definition.editable_field is not None and not self.table.isColumnHidden(column)
         ]
@@ -1264,7 +1823,11 @@ class LinesWorkspace(QWidget):
 
     def run_guided_action(self, action: GuidedAction) -> None:
         line_id = self.current_line_id()
-        if line_id is None or self.guided is None:
+        if (
+            line_id is None
+            or self.guided is None
+            or self._cards_by_id.get(line_id, {}).get("network_kind") != "CABLE"
+        ):
             return
         if action == GuidedAction.OUTPUT:
             owner_id = line_id
@@ -1339,7 +1902,6 @@ class LinesWorkspace(QWidget):
             "selected_line_id": self.current_line_id(),
             "vertical_scroll": self.table.verticalScrollBar().value(),
             "horizontal_scroll": self.table.horizontalScrollBar().value(),
-            "splitter_sizes": self.splitter.sizes(),
             "layout_version": LINES_LAYOUT_VERSION,
             "sort_column": COLUMNS[self.table.horizontalHeader().sortIndicatorSection()].key,
             "sort_order": int(self.table.horizontalHeader().sortIndicatorOrder().value),
@@ -1410,16 +1972,6 @@ class LinesWorkspace(QWidget):
                 else Qt.SortOrder.AscendingOrder
             )
             self.table.sortItems(sort_column, order)
-            sizes = state.get("splitter_sizes")
-            valid_sizes = (
-                isinstance(sizes, list)
-                and len(sizes) == 3
-                and all(isinstance(value, int) for value in sizes)
-            )
-            if valid_sizes and layout_current:
-                self.splitter.setSizes(sizes)
-            else:
-                self.splitter.setSizes([460, 180, 360])
             selected = state.get("selected_line_id")
             if selected in self._cards_by_id:
                 self.select_line(selected)
@@ -1434,7 +1986,6 @@ class LinesWorkspace(QWidget):
             self.table.setColumnWidth(logical, _DEFAULT_COLUMN_WIDTHS[column.key])
             self.table.setColumnHidden(logical, not column.default_visible)
             self.column_actions[column.key].setChecked(column.default_visible)
-        self.splitter.setSizes([460, 180, 360])
 
     def save_state(self) -> None:
         self._save_state()

@@ -1,6 +1,15 @@
-# Issue #142 / PR #143 — software validation and final smoke plan
+# Issue #142 / PR #143 — software validation record
 
 Date: 2026-10-03. Repository: `psv76/Neirolinks`. Scope: `Systems/NLP` only.
+
+> Historical evidence from PR #143. The accepted user interaction was subsequently
+> changed by PR #144. Current normative behavior is defined by
+> [14_WORKING_USER_INTERFACE.md](../product/14_WORKING_USER_INTERFACE.md),
+> [25_DWG_SYNCHRONIZATION.md](../product/25_DWG_SYNCHRONIZATION.md) and
+> [WORKING_UI_WORKFLOWS_AND_TARGET.md](WORKING_UI_WORKFLOWS_AND_TARGET.md).
+> PR #144 merge gates are tracked in PR #144 / Issue #142; performance and final
+> real-object acceptance are separate NL Project 3.0 stages #148 and #149 under
+> global router #145.
 
 ## Baseline and integration
 
@@ -99,10 +108,12 @@ Known warning: SQLAlchemy/sqlite3 default datetime adapter deprecation in the
 existing topology migration test (Python 3.12+). No schema/migration, catalog release,
 AutoCAD block contract, NL Project 1.0, working SQLite or DWG edits were made.
 
-## One final user smoke session — 05 44 Богданович
+## Historical PR #143 real-object smoke plan — 05 44 Богданович
 
-This is the remaining real-object acceptance, not a claim that it has passed.
-Run only after checking out the reviewed PR head in an isolated runtime.
+This was the outstanding real-object plan recorded for PR #143. It is retained as
+historical evidence and must not be treated as the current PR #144 merge gate.
+Any real-object execution now follows the active task router #145 and the dedicated
+3.0 acceptance/performance stages.
 
 1. Identify the exact current Project DB and target DWG by absolute path and object
    identity. Record DWG hash/size/mtime. Create a verified SQLite backup using the
@@ -137,5 +148,6 @@ Run only after checking out the reviewed PR head in an isolated runtime.
 
 Stop and report any unexpected live-data access, requirement to save/modify working
 DWG/SQLite, inconsistent topology, unresolved product decision or failed integrity.
-Issue remains open until the real-object outcome is reviewed. PR merge requires a
-separate user decision; software green permits review, not release/live acceptance.
+For the historical PR #143 state, software green permitted review but did not prove
+release/live acceptance. Current closure and cutover decisions are governed by the
+active #145 task queue rather than this historical smoke plan.

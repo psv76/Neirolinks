@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
 from PySide6.QtCore import QRect
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QGroupBox, QMessageBox
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHeaderView, QMessageBox
 
 import nl_project_2.presentation.object_workspace as object_workspace_module
 from nl_project_2.cad_contract import (
@@ -51,6 +52,12 @@ def _paths(tmp_path) -> PathConfig:
         user_projects_root=tmp_path / "projects",
         local_state_root=tmp_path / "state",
     )
+
+
+@dataclass(frozen=True)
+class _ProposalStub:
+    project_id: str
+    project_revision: int = 0
 
 
 def test_project_room_rename_refreshes_lines_in_same_session(qtbot, tmp_path, monkeypatch):
@@ -132,9 +139,7 @@ def test_project_room_rename_refreshes_lines_in_same_session(qtbot, tmp_path, mo
     runtime.close()
 
 
-def test_successful_dwg_import_refreshes_lines_and_uses_plain_success_message(
-    qtbot, tmp_path, monkeypatch
-):
+def test_successful_dwg_import_refreshes_lines_without_preview(qtbot, tmp_path, monkeypatch):
     runtime = ApplicationRuntime.open(_paths(tmp_path))
     project_id = runtime.objects.create_project(
         ProjectCard(name="Sync refresh", project_code="SYNC-REFRESH")
@@ -144,18 +149,21 @@ def test_successful_dwg_import_refreshes_lines_and_uses_plain_success_message(
     widget.open_project(project_id)
     assert widget.lines_workspace.table.rowCount() == 0
 
-    class FakeDialog:
-        def __init__(self, _proposal, _parent):
-            self.direction = SimpleNamespace(currentData=lambda: "DWG_TO_PROJECT")
-
-        def exec(self):
-            return QDialog.DialogCode.Accepted
-
-        def selected_paths(self):
-            return {"N1201:$"}
+    monkeypatch.setattr(
+        object_workspace_module,
+        "build_dwg_update_plan",
+        lambda _proposal, **_kwargs: SimpleNamespace(
+            import_paths=frozenset({"N1201:$"}),
+            write_paths=frozenset(),
+            conflicts=(),
+            problems=(),
+            blocked_lines=(),
+            missing_bus_roots=(),
+        ),
+    )
 
     def import_line(_proposal, *, selected_paths, confirmed):
-        assert selected_paths == {"N1201:$"}
+        assert selected_paths == frozenset({"N1201:$"})
         assert confirmed
         with UnitOfWork(runtime.database.engine) as uow:
             uow.execute(
@@ -171,14 +179,13 @@ def test_successful_dwg_import_refreshes_lines_and_uses_plain_success_message(
         return "operation-id"
 
     messages = []
-    monkeypatch.setattr(object_workspace_module, "DwgSyncPreviewDialog", FakeDialog)
     monkeypatch.setattr(runtime.dwg_sync, "apply_dwg_to_project", import_line)
     monkeypatch.setattr(
         QMessageBox,
         "information",
         lambda _parent, title, message: messages.append((title, message)),
     )
-    widget._review_sync_proposal(SimpleNamespace(project_id=project_id))
+    widget._review_sync_proposal(_ProposalStub(project_id=project_id))
 
     widget.lines_workspace.search.setText("120")
     visible = [
@@ -190,9 +197,9 @@ def test_successful_dwg_import_refreshes_lines_and_uses_plain_success_message(
     designation_column = next(
         index for index, column in enumerate(COLUMNS) if column.key == "designation"
     )
-    assert widget.lines_workspace.table.item(visible[0], designation_column).text() == "120"
-    assert messages[-1] == ("Синхронизация DWG", "Изменения приняты в Project.")
-    assert "транзакционно" not in messages[-1][1]
+    assert widget.lines_workspace.table.item(visible[0], designation_column).text() == "▸ 120"
+    assert widget.sync_status_label.text() == "из DWG: 1"
+    assert messages == []
     widget.close()
     runtime.close()
 
@@ -205,7 +212,7 @@ def test_successful_dwg_import_refreshes_lines_and_uses_plain_success_message(
         RuntimeError("internal materialization failure"),
     ],
 )
-def test_failed_dwg_apply_is_visible_without_success_or_refresh(
+def test_failed_automatic_dwg_apply_becomes_visible_problem(
     qtbot, tmp_path, monkeypatch, caplog, error
 ):
     runtime = ApplicationRuntime.open(_paths(tmp_path))
@@ -214,40 +221,59 @@ def test_failed_dwg_apply_is_visible_without_success_or_refresh(
     qtbot.addWidget(widget)
     widget.open_project(pid)
 
-    class FakeDialog:
-        def __init__(self, _proposal, _parent):
-            self.direction = SimpleNamespace(currentData=lambda: "DWG_TO_PROJECT")
-
-        def exec(self):
-            return QDialog.DialogCode.Accepted
-
-        def selected_paths(self):
-            return {"E2:$"}
+    monkeypatch.setattr(
+        object_workspace_module,
+        "build_dwg_update_plan",
+        lambda _proposal, **_kwargs: SimpleNamespace(
+            import_paths=frozenset({"E2:$"}),
+            write_paths=frozenset(),
+            conflicts=(),
+            problems=(),
+            blocked_lines=(),
+            missing_bus_roots=(),
+        ),
+    )
 
     def fail(_proposal, **_kwargs):
         raise error
 
-    warnings, successes, refreshes = [], [], []
-    monkeypatch.setattr(object_workspace_module, "DwgSyncPreviewDialog", FakeDialog)
+    class Resolution:
+        def __init__(self, _proposal, _plan, runtime_errors=(), parent=None):
+            del parent
+            self.runtime_errors = runtime_errors
+            self.open_checks_requested = False
+
+        def exec(self):
+            assert self.runtime_errors
+            return QDialog.DialogCode.Rejected
+
+        @staticmethod
+        def selected_import_paths():
+            return set()
+
+        @staticmethod
+        def selected_write_paths():
+            return set()
+
+        @staticmethod
+        def requested_bus_roots():
+            return set()
+
+    warnings = []
+    monkeypatch.setattr(object_workspace_module, "DwgSyncResolutionDialog", Resolution)
     monkeypatch.setattr(runtime.dwg_sync, "apply_dwg_to_project", fail)
     monkeypatch.setattr(
         QMessageBox, "warning", lambda _parent, title, text: warnings.append((title, text))
     )
-    monkeypatch.setattr(QMessageBox, "information", lambda *_args: successes.append(_args))
-    monkeypatch.setattr(widget, "_load_detail", lambda: refreshes.append("detail"))
-    monkeypatch.setattr(widget.lines_workspace, "refresh", lambda: refreshes.append("lines"))
-    widget._review_sync_proposal(SimpleNamespace(project_id=pid))
-    assert len(warnings) == 1
-    assert warnings[0][0] == "Синхронизация DWG не выполнена"
-    assert "Traceback" not in warnings[0][1]
-    if isinstance(error, DwgSyncError):
-        assert warnings[0][1] == str(error)
-    else:
-        assert "Изменения не применены" in warnings[0][1]
-        assert str(error) not in warnings[0][1]
-    assert successes == []
-    assert refreshes == []
-    assert any(record.exc_info for record in caplog.records if record.message == "DWG apply failed")
+    widget._review_sync_proposal(_ProposalStub(project_id=pid))
+
+    assert warnings == []
+    assert widget.sync_status_label.text() == "требует решения"
+    assert any(
+        record.exc_info
+        for record in caplog.records
+        if record.message == "Automatic DWG apply failed"
+    )
     widget.close()
     runtime.close()
 
@@ -295,11 +321,49 @@ class _CableService:
                 "effective_m": "16.161687954734253",
                 "length_mode": "Автоматическая",
                 "length_explanation": "Сумма уникальных физических сегментов",
+                "conduit_count": 1,
+                "incomplete_segments": 0,
+                "known_segment_m": "16.161687954734253",
+                "unresolved_room_names": (),
             }
         ]
 
     def line_cards(self, _project_id):
         return deepcopy(self.cards)
+
+    def topology(self, _project_id, _line_id):
+        return {
+            "edges": (
+                {
+                    "segment_id": "segment-1",
+                    "depth": 0,
+                    "source": {"label": "ЩР-1"},
+                    "target": {
+                        "label": "101.01",
+                        "point_kind": "DEVICE_POINT",
+                        "description": "Розетка кухни",
+                        "room_names": "Кухня",
+                        "building_names": "Дом",
+                        "room_unresolved": False,
+                    },
+                    "mount_way": "По полу",
+                    "gofra_type": "ПНД25",
+                    "gofra_color": "Черный",
+                    "gofra_id": "001.PND25",
+                    "cable_length_m": "16.161687954734253",
+                    "physical_length_m": "16.161687954734253",
+                    "calculation_status": "READY",
+                    "calculation_reason": "",
+                    "conduit_length_m": None,
+                    "conduit_product_name": "",
+                    "conduit_product_article": "",
+                },
+            ),
+            "route_breakdown": (),
+            "board_reserve_m": "2",
+            "additional_m": "0",
+            "manual_full_m": None,
+        }
 
 
 class _Constructor:
@@ -312,13 +376,14 @@ def _column(key: str) -> int:
     return next(index for index, value in enumerate(COLUMNS) if value.key == key)
 
 
-def test_lines_default_and_persisted_layout_header_and_length_format(qtbot, tmp_path):
+def test_lines_default_and_persisted_layout_header_and_tree(qtbot, tmp_path):
     state = UiStateStore(tmp_path / "state")
     first = LinesWorkspace(_CableService(), _Constructor(), "project", ui_state=state)
     qtbot.addWidget(first)
     first.resize(1200, 800)
     first.show()
     qtbot.wait(10)
+
     visible = [
         column.key for index, column in enumerate(COLUMNS) if not first.table.isColumnHidden(index)
     ]
@@ -333,36 +398,34 @@ def test_lines_default_and_persisted_layout_header_and_length_format(qtbot, tmp_
         "gofra_id",
         "effective_m",
     ]
-    assert first.splitter.sizes()[0] > first.splitter.sizes()[1] * 2
-    assert first.table.horizontalHeader().font().bold()
-    assert first.table.horizontalHeader().height() >= 48
+    assert first.splitter.count() == 1
+    header = first.table.horizontalHeader()
+    assert header.font().bold()
+    assert header.height() >= 32
+    assert header.sectionResizeMode(0) == QHeaderView.ResizeMode.Interactive
+    if header.font().pointSize() > 0 and first.table.font().pointSize() > 0:
+        assert header.font().pointSize() > first.table.font().pointSize()
     assert first.table.horizontalHeaderItem(_column("building_names")).text() == "Здание"
+    assert first.table.horizontalHeaderItem(_column("board")).text() == "Источник"
     assert first.table.horizontalHeaderItem(_column("room_names")).text() == "Помещение"
-    assert first.table.horizontalHeaderItem(_column("designation")).text() == "Номер линии"
-    assert first.table.horizontalHeaderItem(_column("cable_type")).text() == "Марка кабеля"
-    assert [span.label for span in first.table.horizontalHeader().group_spans()] == [
-        "ОТКУДА",
-        "КУДА",
-        "КТО",
-        "ФИЗИКА",
-    ]
+    assert first.table.horizontalHeaderItem(_column("designation")).text() == "ID"
+    assert first.table.horizontalHeaderItem(_column("load_name")).text() == "Назначение"
+    assert first.table.horizontalHeaderItem(_column("effective_m")).text() == "Длина, м"
+    assert first.table.item(0, _column("designation")).text() == "▸ 101"
     assert first.table.item(0, _column("effective_m")).text() == "16.16"
     assert first.table.item(0, _column("cable_type")).text() == "ВВГнг(А)-LS 3х2,5"
-    assert "16.16 м" in first.card_fields["length"].text()
-    assert "ВВГнг(А)-LS 3х2,5" in first.card_fields["cable"].text()
-    assert first.table.columnWidth(_column("load_name")) >= 220
-    assert first.splitter.widget(1).maximumHeight() == 225
-    assert [group.title() for group in first.splitter.widget(1).findChildren(QGroupBox)] == [
-        "Расположение",
-        "Кабель / трасса",
-        "Связи / состояние",
-    ]
-    first.table.setCurrentCell(0, _column("load_name"))
-    assert first.table.item(0, _column("board")).background().color().name() == "#e7f1fb"
-    assert "color: white" in first.table.styleSheet()
+
+    first._toggle_line_tree(0, "line-1")
+    assert first.table.rowCount() == 3
+    assert "101.01" in first.table.item(1, _column("designation")).text()
+    assert first.table.item(1, _column("room_names")).text() == "Кухня"
+    assert first.table.item(1, _column("effective_m")).text() == "16.16"
+    assert first.table.item(2, _column("designation")).text() == "+ запас у щита"
+    assert first.table.item(2, _column("effective_m")).text() == "2"
+    first._toggle_line_tree(0, "line-1")
+    assert first.table.rowCount() == 1
 
     first.table.setColumnWidth(_column("load_name"), 337)
-    first.splitter.setSizes([590, 190])
     first.save_state()
     reopened = LinesWorkspace(_CableService(), _Constructor(), "project", ui_state=state)
     qtbot.addWidget(reopened)
@@ -370,7 +433,7 @@ def test_lines_default_and_persisted_layout_header_and_length_format(qtbot, tmp_
     reopened.show()
     qtbot.wait(10)
     assert reopened.table.columnWidth(_column("load_name")) == 337
-    assert reopened.splitter.sizes()[0] > reopened.splitter.sizes()[1] * 2
+    assert reopened.splitter.count() == 1
     old_font = reopened.table.horizontalHeader().font()
     reopened.resize(1500, 900)
     qtbot.wait(10)
