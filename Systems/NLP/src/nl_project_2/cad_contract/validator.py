@@ -1197,6 +1197,7 @@ class CadContractValidator:
                         f"{field} target {target!r} is absent from the observation batch",
                         handle=handle,
                         field=field,
+                        blocks_acceptance=False,
                     )
                 )
         return issues

@@ -147,12 +147,13 @@ def test_frame_posts_and_switch_key_contract(block_contract, make_observation):
     assert "REQUIRED_ATTRIBUTE_DEFINITION_MISSING" in codes
 
 
-def test_key_target_must_exist_in_same_observation_batch(block_contract, make_observation):
+def test_missing_key_target_is_reported_without_blocking_physical_import(
+    block_contract, make_observation
+):
     switch = make_observation("SW_IN_1", attributes={"KEY_1": "399"})
-    codes = issue_codes(
-        CadContractValidator(block_contract).validate(CadObservationBatch("doc", (switch,))).issues
-    )
-    assert "KEY_TARGET_NOT_FOUND" in codes
+    result = CadContractValidator(block_contract).validate(CadObservationBatch("doc", (switch,)))
+    issue = next(item for item in result.issues if item.code == "KEY_TARGET_NOT_FOUND")
+    assert issue.blocks_acceptance is False
 
 
 @pytest.mark.parametrize(
