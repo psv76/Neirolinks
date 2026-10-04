@@ -33,6 +33,10 @@ def _card(
         "effective_m": "12.5",
         "length_mode": "Автоматическая",
         "length_explanation": "Сумма уникальных физических сегментов",
+        "conduit_count": 1,
+        "incomplete_segments": 0,
+        "known_segment_m": "12.5",
+        "unresolved_room_names": (),
     }
 
 
@@ -70,7 +74,14 @@ class FakeCableService:
                     "segment_id": f"segment-{cable_line_id}",
                     "depth": 0,
                     "source": {"label": f"Щит {card['board']}"},
-                    "target": {"label": f"{card['designation']}.01"},
+                    "target": {
+                        "label": f"{card['designation']}.01",
+                        "point_kind": "DEVICE_POINT",
+                        "description": card["load_name"],
+                        "room_names": card["room_names"],
+                        "building_names": card["building_names"],
+                        "room_unresolved": False,
+                    },
                     "mount_way": "По полу",
                     "gofra_type": "ПНД25",
                     "gofra_color": "Синий",
@@ -139,20 +150,19 @@ def _row(workspace, line_id: str) -> int:
     )
 
 
-def test_lines_layout_identity_search_natural_sort_and_bottom_card(qtbot):
+def test_lines_layout_identity_search_natural_sort_and_clean_main_workspace(qtbot):
     workspace = LinesWorkspace(FakeCableService(), FakeConstructor(), "project")
     qtbot.addWidget(workspace)
     workspace.show()
 
     assert workspace.splitter.orientation() == Qt.Orientation.Vertical
     assert workspace.splitter.widget(0).findChild(type(workspace.table)) is workspace.table
-    assert workspace.splitter.widget(1).objectName() == "lineBottomCard"
-    assert workspace.splitter.widget(2).objectName() == "linePhysicalRoutePanel"
+    assert workspace.splitter.count() == 1
     designation = _column("designation")
     assert [workspace.table.item(row, designation).text() for row in range(3)] == [
-        "1",
-        "2",
-        "10",
+        "▸ 1",
+        "▸ 2",
+        "▸ 10",
     ]
     workspace.search.setText("кухонные")
     assert sum(not workspace.table.isRowHidden(row) for row in range(3)) == 1
@@ -160,9 +170,7 @@ def test_lines_layout_identity_search_natural_sort_and_bottom_card(qtbot):
     assert sum(not workspace.table.isRowHidden(row) for row in range(3)) == 1
     workspace.search.clear()
     workspace.select_line("line-1")
-    assert "1 — Розетка холла" in workspace.card_title.text()
-    assert workspace.card_fields["resources"].text() == "A01 / Channel1"
-    assert "Автоматическая" in workspace.card_fields["length"].text()
+    assert not workspace.card_title.isVisible()
     assert workspace.table.item(_row(workspace, "line-1"), _column("load_type")).text() == (
         "SOCKET"
     )
@@ -241,7 +249,6 @@ def test_keyboard_path_multi_selection_refresh_and_state_restore(qtbot, tmp_path
     )
     workspace.column_actions["load_type"].setChecked(False)
     workspace.select_line("line-1")
-    workspace.splitter.setSizes([420, 180, 220])
     workspace.save_state()
 
     reopened = LinesWorkspace(service, FakeConstructor(), "project", ui_state=store)
@@ -254,7 +261,7 @@ def test_keyboard_path_multi_selection_refresh_and_state_restore(qtbot, tmp_path
     assert reopened.table.isColumnHidden(_column("load_type"))
     assert reopened.table.horizontalHeader().visualIndex(board_column) == 1
     assert reopened.current_line_id() == "line-1"
-    assert reopened.splitter.sizes()[0] > reopened.splitter.sizes()[1]
+    assert reopened.splitter.count() == 1
 
 
 def test_project_scoped_state_and_stale_identity_clear_safely(qtbot, tmp_path):
