@@ -6,7 +6,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QMessageBox
+from PySide6.QtWidgets import QDialog
 from sqlalchemy import func, select
 
 import nl_project_2.presentation.object_workspace as object_workspace_module
@@ -553,7 +553,7 @@ def test_dwg_sync_button_is_available_only_for_open_project_with_adapter(databas
     assert not widget.sync_button.isEnabled()
 
 
-def test_dwg_target_identity_requires_explicit_user_confirmation(database, qtbot, monkeypatch):
+def test_dwg_update_scans_the_inspected_active_target_directly(database, qtbot, monkeypatch):
     runtime = ApplicationRuntime(
         database,
         ObjectService(database.engine),
@@ -565,18 +565,9 @@ def test_dwg_target_identity_requires_explicit_user_confirmation(database, qtbot
     result = SimpleNamespace(value=ActiveDocumentInfo(identity, "target.dwg", False, False, 1))
     started = []
     monkeypatch.setattr(widget, "_start_dwg_scan", started.append)
-    monkeypatch.setattr(
-        "nl_project_2.presentation.object_workspace.QMessageBox.question",
-        lambda *args, **kwargs: QMessageBox.StandardButton.No,
-    )
-    widget._sync_identity_completed(result)
-    assert started == []
 
-    monkeypatch.setattr(
-        "nl_project_2.presentation.object_workspace.QMessageBox.question",
-        lambda *args, **kwargs: QMessageBox.StandardButton.Yes,
-    )
     widget._sync_identity_completed(result)
+
     assert started == [identity]
 
 
@@ -594,8 +585,8 @@ def test_local_line_room_warning_opens_direct_remediation(database, qtbot, monke
 
     sync_calls = []
     widget._sync_dwg = lambda: sync_calls.append("sync")
-    widget.documents_workspace.show_issue_for = lambda *_args: (_ for _ in ()).throw(
-        AssertionError("local warning must not open the generic validation list")
+    widget._switch_section = lambda *_args: (_ for _ in ()).throw(
+        AssertionError("local warning must not navigate to the generic validation list")
     )
 
     class FakeMessageBox:
