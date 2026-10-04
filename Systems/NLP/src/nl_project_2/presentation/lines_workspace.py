@@ -553,6 +553,7 @@ class LinesWorkspace(QWidget):
 
         self._segment_rows: list[dict] = []
         self._expanded_line_ids: set[str] = set()
+        self._full_tree_line_ids: set[str] = set()
 
         bottom.hide()
         physical.hide()
@@ -635,6 +636,7 @@ class LinesWorkspace(QWidget):
                 )
             self._cards_by_id = {card["id"]: card for card in self._cards}
             self._expanded_line_ids.clear()
+            self._full_tree_line_ids.clear()
             self.table.setRowCount(len(self._cards))
             for row, card in enumerate(self._cards):
                 for column, definition in enumerate(COLUMNS):
@@ -769,18 +771,33 @@ class LinesWorkspace(QWidget):
         board = str(self.board_filter.currentData() or "")
         status = str(self.status_filter.currentData() or "")
         visible_rows = []
+        rows_by_line: dict[str, list[int]] = {}
         for row in range(self.table.rowCount()):
-            line_id = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+            item = self.table.item(row, 0)
+            if item is None:
+                continue
+            line_id = item.data(Qt.ItemDataRole.UserRole)
+            if line_id in self._cards_by_id:
+                rows_by_line.setdefault(line_id, []).append(row)
+        for line_id, rows in rows_by_line.items():
             card = self._cards_by_id[line_id]
+            row_text = " ".join(
+                self.table.item(row, column).text()
+                for row in rows
+                for column in range(self.table.columnCount())
+                if self.table.item(row, column) is not None
+            )
             searchable = " ".join(
-                str(card.get(key) or "")
-                for key in (
-                    "designation",
-                    "load_name",
-                    "room_names",
-                    "board",
-                    "user_status",
-                )
+                [
+                    *(str(card.get(key) or "") for key in (
+                        "designation",
+                        "load_name",
+                        "room_names",
+                        "board",
+                        "user_status",
+                    )),
+                    row_text,
+                ]
             ).casefold()
             visible = (
                 (not needle or needle in searchable)
@@ -789,9 +806,10 @@ class LinesWorkspace(QWidget):
                 and (not board or card["board"] == board)
                 and (not status or card["user_status"] == status)
             )
-            self.table.setRowHidden(row, not visible)
-            if visible:
-                visible_rows.append(row)
+            for row in rows:
+                self.table.setRowHidden(row, not visible)
+                if visible:
+                    visible_rows.append(row)
         current = self.table.currentRow()
         if not visible_rows or current not in visible_rows:
             self.table.clearSelection()
@@ -835,10 +853,24 @@ class LinesWorkspace(QWidget):
         line_id = item.data(Qt.ItemDataRole.UserRole)
         if not line_id:
             return
-        if (
-            item.column() == _column_index("designation")
-            and self._row_kind(row) == "BASE"
-        ):
+        row_kind = self._row_kind(row)
+        if row_kind == "MORE":
+            base_row = next(
+                (
+                    candidate
+                    for candidate in range(row - 1, -1, -1)
+                    if self._row_kind(candidate) == "BASE"
+                    and self.table.item(candidate, 0).data(Qt.ItemDataRole.UserRole) == line_id
+                ),
+                None,
+            )
+            if base_row is not None:
+                self._remove_line_tree_rows(base_row, str(line_id))
+                self._expanded_line_ids.discard(str(line_id))
+                self._full_tree_line_ids.add(str(line_id))
+                self._expand_line_tree(base_row, str(line_id))
+            return
+        if item.column() == _column_index("designation") and row_kind == "BASE":
             self._toggle_line_tree(row, str(line_id))
             return
         if "!" in item.text():
@@ -877,7 +909,41 @@ class LinesWorkspace(QWidget):
 
         self.table.setSortingEnabled(False)
         insert_at = base_row + 1
-        for edge in edges:
+        selected_edges = list(enumerate(edges))
+        hidden_count = 0
+        if len(edges) > 8 and line_id not in self._full_tree_line_ids:
+            keep = {0, 1, 2, len(edges) - 2, len(edges) - 1}
+            keep.update(
+                index
+                for index, edge in enumerate(edges)
+                if bool((edge.get("target") or {}).get("room_unresolved"))
+                or edge.get("calculation_status") != "READY"
+            )
+            keep = {index for index in keep if 0 <= index < len(edges)}
+            hidden_count = len(edges) - len(keep)
+            selected_edges = [(index, edges[index]) for index in sorted(keep)]
+
+        previous_index = -1
+        more_inserted = False
+        for edge_index, edge in selected_edges:
+            if hidden_count and not more_inserted and edge_index > previous_index + 1:
+                self.table.insertRow(insert_at)
+                for column, definition in enumerate(COLUMNS):
+                    value = ""
+                    if definition.key == "designation":
+                        value = "⋮"
+                    elif definition.key == "load_name":
+                        value = f"Ещё {hidden_count} точек — показать все"
+                    more = NaturalSortItem(value)
+                    more.setFlags(more.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    more.setData(Qt.ItemDataRole.UserRole, line_id)
+                    more.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
+                    more.setData(Qt.ItemDataRole.UserRole + 3, "MORE")
+                    more.setForeground(QBrush(QColor("#1769e0")))
+                    self.table.setItem(insert_at, column, more)
+                insert_at += 1
+                more_inserted = True
+            previous_index = edge_index
             self.table.insertRow(insert_at)
             target = dict(edge.get("target") or {})
             depth = int(edge.get("depth") or 0)
@@ -944,7 +1010,7 @@ class LinesWorkspace(QWidget):
             designation.setText(f"▾ {self._cards_by_id[line_id]['designation']}")
         self.apply_filters()
 
-    def _collapse_line_tree(self, base_row: int, line_id: str) -> None:
+    def _remove_line_tree_rows(self, base_row: int, line_id: str) -> None:
         row = base_row + 1
         while row < self.table.rowCount():
             first = self.table.item(row, 0)
@@ -955,7 +1021,11 @@ class LinesWorkspace(QWidget):
             ):
                 break
             self.table.removeRow(row)
+
+    def _collapse_line_tree(self, base_row: int, line_id: str) -> None:
+        self._remove_line_tree_rows(base_row, line_id)
         self._expanded_line_ids.discard(line_id)
+        self._full_tree_line_ids.discard(line_id)
         designation = self.table.item(base_row, _column_index("designation"))
         if designation is not None:
             designation.setText(f"▸ {self._cards_by_id[line_id]['designation']}")
@@ -1438,6 +1508,11 @@ class LinesWorkspace(QWidget):
         edits = []
         for row_offset, values in enumerate(matrix):
             target_row = anchor.row() + row_offset
+            if self._row_kind(target_row) != "BASE":
+                QMessageBox.warning(
+                    self, "Вставка не выполнена", "Редактировать можно только строки линий"
+                )
+                return False
             if self.table.isRowHidden(target_row):
                 QMessageBox.warning(self, "Вставка не выполнена", "Скрытые строки не изменяются")
                 return False
@@ -1531,7 +1606,7 @@ class LinesWorkspace(QWidget):
         editable = [
             (row, column)
             for row in range(self.table.rowCount())
-            if not self.table.isRowHidden(row)
+            if not self.table.isRowHidden(row) and self._row_kind(row) == "BASE"
             for column, definition in enumerate(COLUMNS)
             if definition.editable_field is not None and not self.table.isColumnHidden(column)
         ]
