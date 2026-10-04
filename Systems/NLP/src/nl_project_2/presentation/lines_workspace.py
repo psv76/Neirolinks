@@ -1131,6 +1131,7 @@ class LinesWorkspace(QWidget):
             )
         self.open_resource.setEnabled(bool(assignments))
         self.show_issue.setEnabled(card["user_status"] != "Готово")
+        self._load_physical_route(line_id)
 
     def _clear_physical_route(self) -> None:
         self._segment_rows = []
