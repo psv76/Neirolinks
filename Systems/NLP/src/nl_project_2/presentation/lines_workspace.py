@@ -676,7 +676,11 @@ class LinesWorkspace(QWidget):
                                 text += "  !"
                     elif definition.key == "room_names":
                         unresolved = tuple(card.get("unresolved_room_names") or ())
-                        names = [part.strip() for part in str(value or "").split(",") if part.strip()]
+                        names = [
+                            part.strip()
+                            for part in str(value or "").split(",")
+                            if part.strip()
+                        ]
                         for name in unresolved:
                             if name not in names:
                                 names.append(name)
@@ -723,8 +727,14 @@ class LinesWorkspace(QWidget):
                             for name in unresolved
                         )
                         item.setData(ROOM_MARKERS_ROLE, tuple(markers))
-                        tooltip = [marker["name"] for marker in markers if not str(marker["id"]).startswith("unresolved:")]
-                        tooltip.extend(f"Не связано с помещением Project: {name}" for name in unresolved)
+                        tooltip = [
+                            marker["name"]
+                            for marker in markers
+                            if not str(marker["id"]).startswith("unresolved:")
+                        ]
+                        tooltip.extend(
+                            f"Не связано с помещением Project: {name}" for name in unresolved
+                        )
                         item.setToolTip("\n".join(tooltip))
                         if unresolved:
                             item.setData(
@@ -738,11 +748,17 @@ class LinesWorkspace(QWidget):
                                     "title": "Помещение не связано",
                                     "reason": "Не связано с помещением Project: "
                                     + ", ".join(unresolved),
-                                    "required_action": "Выберите существующее помещение Project, соответствующее помещению в DWG.",
+                                    "required_action": (
+                                        "Выберите существующее помещение Project, "
+                                        "соответствующее помещению в DWG."
+                                    ),
                                     "fix_action": "SYNC_DWG",
                                 },
                             )
-                    if definition.key == "effective_m" and int(card.get("incomplete_segments") or 0):
+                    if (
+                        definition.key == "effective_m"
+                        and int(card.get("incomplete_segments") or 0)
+                    ):
                         item.setToolTip(
                             f"Не рассчитано участков: {int(card.get('incomplete_segments') or 0)}"
                         )
@@ -1099,7 +1115,10 @@ class LinesWorkspace(QWidget):
                                 f"{target.get('room_names') or 'Помещение'} не связано "
                                 "с каноническим помещением Project."
                             ),
-                            "required_action": "Выберите существующее помещение Project, соответствующее помещению в DWG.",
+                            "required_action": (
+                                "Выберите существующее помещение Project, "
+                                "соответствующее помещению в DWG."
+                            ),
                             "fix_action": "SYNC_DWG",
                         },
                     )
