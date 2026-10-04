@@ -560,6 +560,10 @@ def test_checks_primary_reason_is_human_and_raw_validator_text_is_tooltip_only(
     )
     issue = next(item for item in service.issues(project_id) if item.code == "UNKNOWN_BLOCK_NAME")
     assert "не распознано" in issue.reason
+    assert "101.01" in issue.title
+    assert "CUSTOM_UNKNOWN" in issue.title
+    assert "BLOCK_NAME" in issue.reason
+    assert "101.01" in issue.required_action
     assert raw_message not in issue.reason
     assert raw_message in issue.engineering.evidence
 
