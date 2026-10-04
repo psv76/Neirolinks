@@ -31,6 +31,7 @@ class _Rs485ResourceDialog(QDialog):
         title: str,
         designation_label: str,
         candidates: list[dict],
+        designation: str = "",
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -38,6 +39,7 @@ class _Rs485ResourceDialog(QDialog):
         self.setMinimumWidth(480)
         self.designation_edit = QLineEdit(self)
         self.designation_edit.setObjectName("rs485DesignationEdit")
+        self.designation_edit.setText(designation)
         self.resource_combo = QComboBox(self)
         self.resource_combo.setObjectName("rs485ResourceCombo")
         for candidate in candidates:
@@ -245,6 +247,9 @@ class BusWorkspaceDialog(QDialog):
         self._update_action_state()
 
     def _create_rs485_bus(self) -> None:
+        self.create_rs485_bus()
+
+    def create_rs485_bus(self, designation: str = "") -> bool:
         previous_bus_id = self._current_bus_id()
         candidates = [
             candidate
@@ -255,30 +260,32 @@ class BusWorkspaceDialog(QDialog):
             QMessageBox.warning(
                 self,
                 "Шина не создана",
-                "В текущем объекте нет доступного RS-485 source resource.",
+                "Нет свободного физического интерфейса RS-485.",
             )
-            return
+            return False
         dialog = _Rs485ResourceDialog(
             title="Создать RS-485",
             designation_label="Обозначение шины",
             candidates=candidates,
+            designation=designation,
             parent=self,
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        designation, resource_id = dialog.values()
+            return False
+        selected_designation, resource_id = dialog.values()
         try:
             receipt = self.service.create_rs485_bus(
                 project_id=self.project_id,
-                designation=designation,
+                designation=selected_designation,
                 root_resource_id=resource_id,
                 points=(),
             )
         except BusError as exc:
             QMessageBox.warning(self, "Шина не создана", str(exc))
             self.refresh(previous_bus_id)
-            return
+            return False
         self.refresh(receipt.bus_id)
+        return True
 
     def _add_rs485_endpoint(self) -> None:
         bus_id = self._current_rs485_bus_id()
