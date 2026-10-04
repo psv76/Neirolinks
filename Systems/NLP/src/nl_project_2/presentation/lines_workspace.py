@@ -188,15 +188,15 @@ class GroupedHeaderView(QHeaderView):
 
 
 COLUMNS = (
-    LineColumn("building_names", "Здание", group="ОТКУДА", default_visible=True),
-    LineColumn("board", "Щит", "BOARD", "ОТКУДА", True),
-    LineColumn("room_names", "Помещение", group="КУДА", default_visible=True),
-    LineColumn("designation", "Номер линии", group="КТО", default_visible=True),
-    LineColumn("load_name", "Назначение линии", group="КТО", default_visible=True),
-    LineColumn("cable_type", "Марка кабеля", "CABLE_TYPE", "ФИЗИКА", True),
-    LineColumn("mount_way", "Прокладка", group="ФИЗИКА", default_visible=True),
-    LineColumn("gofra_id", "Труба", group="ФИЗИКА", default_visible=True),
-    LineColumn("effective_m", "Длина", group="ФИЗИКА", default_visible=True),
+    LineColumn("building_names", "Здание", default_visible=True),
+    LineColumn("board", "Источник", "BOARD", default_visible=True),
+    LineColumn("room_names", "Помещение", default_visible=True),
+    LineColumn("designation", "ID", default_visible=True),
+    LineColumn("load_name", "Назначение", default_visible=True),
+    LineColumn("cable_type", "Марка кабеля", "CABLE_TYPE", default_visible=True),
+    LineColumn("mount_way", "Прокладка", default_visible=True),
+    LineColumn("gofra_id", "Труба", default_visible=True),
+    LineColumn("effective_m", "Длина, м", default_visible=True),
     LineColumn("user_status", "Состояние"),
     LineColumn("load_type", "Тип нагрузки"),
     LineColumn("system_kind", "Система"),
@@ -221,7 +221,7 @@ _DEFAULT_COLUMN_WIDTHS = {
     "resource_labels": 230,
 }
 
-LINES_LAYOUT_VERSION = 3
+LINES_LAYOUT_VERSION = 4
 
 
 def _column_index(key: str) -> int:
@@ -298,7 +298,6 @@ class LinesWorkspace(QWidget):
 
         self.table = SpreadsheetTable(0, len(COLUMNS), self)
         self.table.setObjectName("linesSpreadsheetTable")
-        self.table.setHorizontalHeader(GroupedHeaderView(COLUMNS, self.table))
         self.table.setHorizontalHeaderLabels([column.title for column in COLUMNS])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
         self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
@@ -316,11 +315,21 @@ class LinesWorkspace(QWidget):
         )
         header_font = self.table.horizontalHeader().font()
         header_font.setBold(True)
+        if header_font.pointSize() > 0:
+            header_font.setPointSize(header_font.pointSize() + 1)
         self.table.horizontalHeader().setFont(header_font)
-        self.table.horizontalHeader().setMinimumHeight(50)
-        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.table.horizontalHeader().setMinimumHeight(32)
+        self.table.horizontalHeader().setDefaultAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table.horizontalHeader().setStyleSheet(
+            "QHeaderView::section { border-right: 1px solid #d9dee7; padding: 5px 7px; }"
+        )
         self.table.itemSelectionChanged.connect(self._selection_changed)
         self.table.itemChanged.connect(self._item_changed)
+        self.table.itemClicked.connect(self._table_item_clicked)
+        self.table.itemDoubleClicked.connect(self._table_item_double_clicked)
         self.table.copyRequested.connect(self.copy_selection)
         self.table.pasteRequested.connect(self.paste_clipboard)
         self.table.fillDownRequested.connect(self.fill_down)
@@ -362,7 +371,6 @@ class LinesWorkspace(QWidget):
         top_layout.setContentsMargins(0, 0, 0, 0)
         top_layout.addLayout(filter_row)
         top_layout.addWidget(self.table, 1)
-        top_layout.addLayout(table_actions)
 
         self.card_title = QLabel("Линия не выбрана", self)
         self.card_title.setObjectName("lineCardTitle")
@@ -544,15 +552,13 @@ class LinesWorkspace(QWidget):
         physical_layout.addWidget(self.segment_gofra_id)
 
         self._segment_rows: list[dict] = []
+        self._expanded_line_ids: set[str] = set()
 
+        bottom.hide()
+        physical.hide()
         self.splitter = QSplitter(Qt.Orientation.Vertical, self)
         self.splitter.setObjectName("linesHorizontalSplitter")
         self.splitter.addWidget(top)
-        self.splitter.addWidget(bottom)
-        self.splitter.addWidget(physical)
-        self.splitter.setStretchFactor(0, 4)
-        self.splitter.setStretchFactor(1, 1)
-        self.splitter.setStretchFactor(2, 2)
         self.splitter.setChildrenCollapsible(False)
         self.splitter.splitterMoved.connect(lambda *_: self._save_state())
         layout = QVBoxLayout(self)
