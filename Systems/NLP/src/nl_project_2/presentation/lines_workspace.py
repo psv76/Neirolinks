@@ -818,6 +818,238 @@ class LinesWorkspace(QWidget):
                 return True
         return False
 
+    def _row_kind(self, row: int) -> str:
+        item = self.table.item(row, 0)
+        return "" if item is None else str(item.data(Qt.ItemDataRole.UserRole + 3) or "")
+
+    def _table_item_clicked(self, item: QTableWidgetItem) -> None:
+        row = item.row()
+        line_id = item.data(Qt.ItemDataRole.UserRole)
+        if not line_id:
+            return
+        if (
+            item.column() == _column_index("designation")
+            and self._row_kind(row) == "BASE"
+        ):
+            self._toggle_line_tree(row, str(line_id))
+            return
+        if "!" in item.text():
+            self.issueRequested.emit(str(line_id))
+
+    def _table_item_double_clicked(self, item: QTableWidgetItem) -> None:
+        line_id = item.data(Qt.ItemDataRole.UserRole)
+        if line_id:
+            self._open_line_details(str(line_id))
+
+    def _toggle_line_tree(self, base_row: int, line_id: str) -> None:
+        if line_id in self._expanded_line_ids:
+            self._collapse_line_tree(base_row, line_id)
+        else:
+            self._expand_line_tree(base_row, line_id)
+
+    def _expand_line_tree(self, base_row: int, line_id: str) -> None:
+        try:
+            topology = self.cables.topology(self.project_id, line_id)
+        except Exception as exc:
+            QMessageBox.warning(self, "Линия не раскрыта", str(exc))
+            return
+        edges = list(topology.get("edges") or ())
+        additions: list[dict] = []
+        reserve = Decimal(str(topology.get("board_reserve_m") or "0"))
+        additional = Decimal(str(topology.get("additional_m") or "0"))
+        manual = topology.get("manual_full_m")
+        if reserve:
+            additions.append({"label": "+ запас у щита", "length": reserve})
+        if additional:
+            additions.append({"label": "+ дополнительная длина", "length": additional})
+        if manual is not None:
+            additions.append({"label": "= полная ручная длина", "length": Decimal(str(manual))})
+        if not edges and not additions:
+            return
+
+        self.table.setSortingEnabled(False)
+        insert_at = base_row + 1
+        for edge in edges:
+            self.table.insertRow(insert_at)
+            target = dict(edge.get("target") or {})
+            depth = int(edge.get("depth") or 0)
+            description = str(target.get("description") or "").strip()
+            if not description and target.get("point_kind") == "EL_BOX":
+                description = "Распределительная коробка"
+            values = {
+                "building_names": target.get("building_names") or "",
+                "board": "",
+                "room_names": target.get("room_names") or "",
+                "designation": f"{'   ' * depth}└─ {target.get('label') or 'Точка'}",
+                "load_name": description,
+                "cable_type": "",
+                "mount_way": edge.get("mount_way") or "",
+                "gofra_id": edge.get("gofra_id")
+                or (
+                    f"{edge.get('gofra_type')} · без №"
+                    if edge.get("gofra_type")
+                    else "—"
+                ),
+                "effective_m": (
+                    _format_length(edge.get("cable_length_m"))
+                    if edge.get("cable_length_m") is not None
+                    else "—  !"
+                ),
+            }
+            if target.get("room_unresolved") and values["room_names"]:
+                values["room_names"] += "  !"
+            for column, definition in enumerate(COLUMNS):
+                value = values.get(definition.key, "")
+                child = NaturalSortItem(str(value))
+                child.setFlags(child.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                child.setData(Qt.ItemDataRole.UserRole, line_id)
+                child.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
+                child.setData(Qt.ItemDataRole.UserRole + 3, "CHILD")
+                child.setForeground(QBrush(QColor("#4b5563")))
+                if definition.key == "room_names" and target.get("room_unresolved"):
+                    child.setToolTip("Помещение не связано с каноническим помещением Project")
+                if definition.key == "effective_m" and edge.get("calculation_status") != "READY":
+                    child.setToolTip(edge.get("calculation_reason") or "Длина не рассчитана")
+                self.table.setItem(insert_at, column, child)
+            insert_at += 1
+
+        for addition in additions:
+            self.table.insertRow(insert_at)
+            for column, definition in enumerate(COLUMNS):
+                value = ""
+                if definition.key == "designation":
+                    value = addition["label"]
+                elif definition.key == "effective_m":
+                    value = _format_length(addition["length"])
+                child = NaturalSortItem(str(value))
+                child.setFlags(child.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                child.setData(Qt.ItemDataRole.UserRole, line_id)
+                child.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
+                child.setData(Qt.ItemDataRole.UserRole + 3, "ADJUSTMENT")
+                child.setForeground(QBrush(QColor("#5f6b7a")))
+                self.table.setItem(insert_at, column, child)
+            insert_at += 1
+
+        self._expanded_line_ids.add(line_id)
+        designation = self.table.item(base_row, _column_index("designation"))
+        if designation is not None:
+            designation.setText(f"▾ {self._cards_by_id[line_id]['designation']}")
+        self.apply_filters()
+
+    def _collapse_line_tree(self, base_row: int, line_id: str) -> None:
+        row = base_row + 1
+        while row < self.table.rowCount():
+            first = self.table.item(row, 0)
+            if (
+                first is None
+                or first.data(Qt.ItemDataRole.UserRole) != line_id
+                or self._row_kind(row) == "BASE"
+            ):
+                break
+            self.table.removeRow(row)
+        self._expanded_line_ids.discard(line_id)
+        designation = self.table.item(base_row, _column_index("designation"))
+        if designation is not None:
+            designation.setText(f"▸ {self._cards_by_id[line_id]['designation']}")
+        if not self._expanded_line_ids:
+            self.table.setSortingEnabled(True)
+        self.apply_filters()
+
+    def _open_line_details(self, line_id: str) -> None:
+        card = self._cards_by_id.get(line_id)
+        if card is None:
+            return
+        try:
+            topology = self.cables.topology(self.project_id, line_id)
+        except Exception as exc:
+            QMessageBox.warning(self, "Линия не открыта", str(exc))
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle(
+            f"{card['designation']} — {card['load_name'] or 'Линия'}"
+        )
+        dialog.resize(980, 620)
+        layout = QVBoxLayout(dialog)
+
+        summary = QLabel(
+            " · ".join(
+                value
+                for value in (
+                    card.get("building_names") or "",
+                    card.get("board") or "",
+                    format_cable_mark(card.get("cable_type") or ""),
+                    (
+                        f"{_format_length(card['effective_m'])} м"
+                        if card.get("effective_m") is not None
+                        else "длина не определена"
+                    ),
+                )
+                if value
+            ),
+            dialog,
+        )
+        layout.addWidget(summary)
+
+        edges = list(topology.get("edges") or ())
+        table = QTableWidget(len(edges), 6, dialog)
+        table.setHorizontalHeaderLabels(
+            ["Помещение", "ID", "Назначение", "Прокладка", "Труба", "Длина, м"]
+        )
+        header = table.horizontalHeader()
+        header_font = header.font()
+        header_font.setBold(True)
+        if header_font.pointSize() > 0:
+            header_font.setPointSize(header_font.pointSize() + 1)
+        header.setFont(header_font)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        for row, edge in enumerate(edges):
+            target = dict(edge.get("target") or {})
+            depth = int(edge.get("depth") or 0)
+            description = str(target.get("description") or "").strip()
+            if not description and target.get("point_kind") == "EL_BOX":
+                description = "Распределительная коробка"
+            values = (
+                target.get("room_names") or "",
+                f"{'   ' * depth}└─ {target.get('label') or 'Точка'}",
+                description,
+                edge.get("mount_way") or "",
+                edge.get("gofra_id")
+                or (
+                    f"{edge.get('gofra_type')} · без №"
+                    if edge.get("gofra_type")
+                    else "—"
+                ),
+                (
+                    _format_length(edge.get("cable_length_m"))
+                    if edge.get("cable_length_m") is not None
+                    else "—"
+                ),
+            )
+            for column, value in enumerate(values):
+                cell = QTableWidgetItem(str(value))
+                cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                table.setItem(row, column, cell)
+        layout.addWidget(table, 1)
+
+        adjustments = []
+        reserve = Decimal(str(topology.get("board_reserve_m") or "0"))
+        additional = Decimal(str(topology.get("additional_m") or "0"))
+        if reserve:
+            adjustments.append(f"+ запас у щита: {_format_length(reserve)} м")
+        if additional:
+            adjustments.append(f"+ дополнительная длина: {_format_length(additional)} м")
+        if topology.get("manual_full_m") is not None:
+            adjustments.append(
+                f"Полная ручная длина: {_format_length(topology['manual_full_m'])} м"
+            )
+        if adjustments:
+            layout.addWidget(QLabel(" · ".join(adjustments), dialog))
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, dialog)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.exec()
+
     def _selection_changed(self) -> None:
         self._highlight_current_row()
         self._update_card(self.current_line_id())
