@@ -480,7 +480,7 @@ def test_registry_four_tabs_room_color_and_time_controls(database, qtbot):
     assert color_item.data(ROOM_COLOR_ROLE) == "#336699"
     assert widget.time_button.text() == "Пауза"
     assert widget.time_tab_button.text() == "Пауза"
-    assert widget.sync_button.text() == "Синхронизация с DWG"
+    assert widget.sync_button.text() == "Обновить"
 
     with database.engine.connect() as connection:
         session_id = connection.scalar(
