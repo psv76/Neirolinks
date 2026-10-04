@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QMessageBox
 from sqlalchemy import func, select
 
+import nl_project_2.presentation.object_workspace as object_workspace_module
 from nl_project_2.cad_contract import (
     CadObservation,
     CadObservationBatch,
@@ -30,7 +31,6 @@ from nl_project_2.objects.service import ObjectService
 from nl_project_2.objects.time_tracking import WorkTimeService
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import project, work_session
-import nl_project_2.presentation.object_workspace as object_workspace_module
 from nl_project_2.presentation.object_workspace import (
     _SYNC_STATUS_TITLES,
     _VALIDATION_TITLES,
