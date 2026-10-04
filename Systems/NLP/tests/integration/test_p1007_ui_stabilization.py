@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -51,6 +52,12 @@ def _paths(tmp_path) -> PathConfig:
         user_projects_root=tmp_path / "projects",
         local_state_root=tmp_path / "state",
     )
+
+
+@dataclass(frozen=True)
+class _ProposalStub:
+    project_id: str
+    project_revision: int = 0
 
 
 def test_project_room_rename_refreshes_lines_in_same_session(qtbot, tmp_path, monkeypatch):
@@ -145,7 +152,7 @@ def test_successful_dwg_import_refreshes_lines_without_preview(qtbot, tmp_path, 
     monkeypatch.setattr(
         object_workspace_module,
         "build_dwg_update_plan",
-        lambda _proposal: SimpleNamespace(
+        lambda _proposal, **_kwargs: SimpleNamespace(
             import_paths=frozenset({"N1201:$"}),
             write_paths=frozenset(),
             conflicts=(),
@@ -178,7 +185,7 @@ def test_successful_dwg_import_refreshes_lines_without_preview(qtbot, tmp_path, 
         "information",
         lambda _parent, title, message: messages.append((title, message)),
     )
-    widget._review_sync_proposal(SimpleNamespace(project_id=project_id, project_revision=0))
+    widget._review_sync_proposal(_ProposalStub(project_id=project_id))
 
     widget.lines_workspace.search.setText("120")
     visible = [
@@ -217,12 +224,13 @@ def test_failed_automatic_dwg_apply_becomes_visible_problem(
     monkeypatch.setattr(
         object_workspace_module,
         "build_dwg_update_plan",
-        lambda _proposal: SimpleNamespace(
+        lambda _proposal, **_kwargs: SimpleNamespace(
             import_paths=frozenset({"E2:$"}),
             write_paths=frozenset(),
             conflicts=(),
             problems=(),
             blocked_lines=(),
+            missing_bus_roots=(),
         ),
     )
 
@@ -257,7 +265,7 @@ def test_failed_automatic_dwg_apply_becomes_visible_problem(
     monkeypatch.setattr(
         QMessageBox, "warning", lambda _parent, title, text: warnings.append((title, text))
     )
-    widget._review_sync_proposal(SimpleNamespace(project_id=pid, project_revision=0))
+    widget._review_sync_proposal(_ProposalStub(project_id=pid))
 
     assert warnings == []
     assert widget.sync_status_label.text() == "требует решения"

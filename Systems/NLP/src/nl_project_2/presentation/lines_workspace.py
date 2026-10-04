@@ -1586,7 +1586,7 @@ class LinesWorkspace(QWidget):
         dialog.exec()
 
     def _item_changed(self, item: QTableWidgetItem) -> None:
-        if self._refreshing:
+        if self._refreshing or self._row_kind(item.row()) != "BASE":
             return
         column = COLUMNS[item.column()]
         line_id = item.data(Qt.ItemDataRole.UserRole)

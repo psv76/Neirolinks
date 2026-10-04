@@ -50,17 +50,18 @@ def test_lines_keep_repair02_layout_and_present_room_chips(qtbot):
     assert len(item.data(ROOM_MARKERS_ROLE)) == 2
     assert "4. Гостиная" in item.toolTip()
     assert isinstance(widget.table.itemDelegateForColumn(room_column), RoomChipDelegate)
-    assert [column.group for column in COLUMNS[:9]] == [
-        "ОТКУДА",
-        "ОТКУДА",
-        "КУДА",
-        "КТО",
-        "КТО",
-        "ФИЗИКА",
-        "ФИЗИКА",
-        "ФИЗИКА",
-        "ФИЗИКА",
+    assert [column.title for column in COLUMNS[:9]] == [
+        "Здание",
+        "Источник",
+        "Помещение",
+        "ID",
+        "Назначение",
+        "Марка кабеля",
+        "Прокладка",
+        "Труба",
+        "Длина, м",
     ]
+    assert all(not column.group for column in COLUMNS[:9])
     widget.table.selectRow(0)
     assert item.isSelected()
 

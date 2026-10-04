@@ -362,7 +362,12 @@ def test_local_warning_click_keeps_exact_cell_and_segment_context(qtbot):
     assert captured[-1]["fix_action"] == "SYNC_DWG"
 
     workspace._toggle_line_tree(base_row, "line-1")
-    child_row = base_row + 1
+    child_row = next(
+        row
+        for row in range(workspace.table.rowCount())
+        if workspace._row_kind(row) == "CHILD"
+        and workspace.table.item(row, 0).data(Qt.ItemDataRole.UserRole) == "line-1"
+    )
     child_length = workspace.table.item(child_row, _column("effective_m"))
     assert "!" in child_length.text()
     workspace._table_item_clicked(child_length)
