@@ -1326,7 +1326,12 @@ class ObjectWorkspace(QWidget):
         fix_button = None
         if fix_action == "SYNC_DWG":
             fix_button = dialog.addButton(
-                "Обновить DWG",
+                (
+                    "Привязать помещение"
+                    if issue.get("issue_kind") == "ROOM"
+                    or "канонической связи" in reason
+                    else "Обновить"
+                ),
                 QMessageBox.ButtonRole.AcceptRole,
             )
         elif fix_action == "RECALCULATE":
