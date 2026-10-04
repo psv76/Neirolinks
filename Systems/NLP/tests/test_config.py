@@ -40,6 +40,7 @@ def test_default_roots_belong_to_product_line_3() -> None:
     assert paths.release_root == Path("D:/NLP_3_RELEASES")
     assert paths.user_projects_root == Path("D:/NL_Project_3_Data/Projects")
     assert paths.local_state_root == Path("C:/Users/example/AppData/Local/NL Project 3.0")
+    assert paths.cloud_backup_root is None
     assert DEFAULT_DATABASE_NAME == "nl_project_3.sqlite"
 
 
@@ -53,9 +54,11 @@ def test_legacy_nlp2_environment_does_not_redirect_product_line_3(tmp_path: Path
             "NLP2_PROJECTS_ROOT": str(tmp_path / "legacy-projects"),
             "NLP2_LOCAL_STATE_ROOT": str(tmp_path / "legacy-state"),
             "NLP3_PROJECTS_ROOT": str(tmp_path / "projects-3"),
+            "NLP3_CLOUD_BACKUP_ROOT": str(tmp_path / "YandexDisk" / "Backups"),
         }
     )
     assert paths.user_projects_root == tmp_path / "projects-3"
     assert paths.backup_root == Path("D:/NLP_3_BACKUPS")
     assert paths.release_root == Path("D:/NLP_3_RELEASES")
     assert paths.local_state_root == tmp_path / "local" / "NL Project 3.0"
+    assert paths.cloud_backup_root == tmp_path / "YandexDisk" / "Backups"

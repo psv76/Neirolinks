@@ -127,7 +127,10 @@ class ApplicationRuntime:
                 buses=buses,
             ),
             ui_state=UiStateStore(paths.local_state_root),
-            backup_service=BackupService(paths.backup_root / target.stem),
+            backup_service=BackupService(
+                paths.backup_root / target.stem,
+                cloud_root=paths.cloud_backup_root,
+            ),
             paths=paths,
             opening_database_sha256=hashlib.sha256(target.read_bytes()).hexdigest(),
             background_operations=BackgroundOperationManager(),
