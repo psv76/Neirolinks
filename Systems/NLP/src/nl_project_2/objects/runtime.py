@@ -14,7 +14,7 @@ from nl_project_2.cables import CableService
 from nl_project_2.cad_sync import AutoCadBridgeClient, DwgSyncService
 from nl_project_2.catalog.installer import CatalogInstaller
 from nl_project_2.catalog.payload import load_packaged_payload
-from nl_project_2.config import PathConfig
+from nl_project_2.config import DEFAULT_DATABASE_NAME, PathConfig
 from nl_project_2.constructor import ConstructorService
 from nl_project_2.distribution import DistributionService, distribution_relation_definitions
 from nl_project_2.equipment_actions import EquipmentActionService
@@ -73,7 +73,7 @@ class ApplicationRuntime:
         clock=None,
         local_timezone=None,
     ) -> ApplicationRuntime:
-        target = (database_path or paths.user_projects_root / "nl_project_2.sqlite").resolve()
+        target = (database_path or paths.user_projects_root / DEFAULT_DATABASE_NAME).resolve()
         manager = DatabaseManager()
         created = not target.exists()
         if not created:

@@ -25,8 +25,8 @@ def test_source_resources_resolve_from_repository() -> None:
 
 
 def test_frozen_resources_and_bridge_use_distribution_contract(monkeypatch, tmp_path: Path) -> None:
-    executable = tmp_path / "NLProject2" / "NLProject2.exe"
-    bundled = tmp_path / "NLProject2" / "_internal"
+    executable = tmp_path / "NLProject3" / "NLProject3.exe"
+    bundled = tmp_path / "NLProject3" / "_internal"
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "_MEIPASS", str(bundled), raising=False)
     monkeypatch.setattr(sys, "executable", str(executable))

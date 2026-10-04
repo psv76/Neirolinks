@@ -1,4 +1,4 @@
-# Техническая архитектура NL Project 2.0
+# Техническая архитектура NL Project 3.0
 
 **Статус:** `APPROVED`  
 **Основание:** принятые архитектурные решения ADR-001…ADR-007
@@ -7,11 +7,11 @@
 
 ## 1. Область действия
 
-Документ определяет обязательную техническую архитектуру MVP. Предметные правила находятся в [docs/product](../product), границы — в [MVP_SCOPE.md](MVP_SCOPE.md), критерии — в [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md). Этот документ не разрешает миграцию данных NL Project 1.0 и не делает `D:\NLP` источником для версии 2.0.
+Документ определяет обязательную техническую архитектуру MVP. Предметные правила находятся в [docs/product](../product), границы — в [MVP_SCOPE.md](MVP_SCOPE.md), критерии — в [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md). Этот документ не разрешает миграцию данных NL Project 1.0 и не делает `D:\NLP` источником для версии 3.0.
 
 Обязательные принципы:
 
-- единственный источник инженерной истины — связанная модель проекта в новой SQLite 2.0;
+- единственный источник инженерной истины — связанная модель проекта в новой SQLite NL Project 3.0;
 - таблицы, карточки, граф, компоновка, проверки и спецификация являются представлениями модели;
 - read operation не изменяет project data;
 - production-логика не ветвится по артикулам, моделям, кодам `301`, `401`, `901`, `A01`, `A02`, `WB.01` или объекту `05 44 Богданович`;
@@ -20,7 +20,7 @@
 
 ## 2. Утверждённый стек и форма приложения
 
-NL Project 2.0 — локальное Windows desktop-приложение в форме модульного монолита с портами и адаптерами.
+NL Project 3.0 — локальное Windows desktop-приложение в форме модульного монолита с портами и адаптерами.
 
 | Область | Утверждённое решение |
 |---|---|
@@ -42,7 +42,7 @@ application use cases / Unit of Work / operation coordinator
         ↓                              ↓
 domain modules                  query/read-model services
         ↓                              ↓
-SQLAlchemy repositories / SQLite 2.0
+SQLAlchemy repositories / SQLite NL Project 3.0
 
 CadPort ⇄ local named pipe ⇄ STA AutoCAD bridge ⇄ COM ⇄ active DWG
 ```
@@ -92,7 +92,7 @@ Factories, fakes и fixtures находятся в тестовом контур
 
 ## 5. Единая SQLite и транзакции
 
-Одна SQLite содержит registry объектов, все новые проекты, versioned catalog и operation metadata. Все project-owned rows имеют `project_id`. Вне БД находятся только UI settings, logs, temp и backups в собственных каталогах 2.0.
+Одна SQLite содержит registry объектов, все новые проекты, versioned catalog и operation metadata. Все project-owned rows имеют `project_id`. Вне БД находятся только UI settings, logs, temp и backups в собственных каталогах 3.0.
 
 Обязательные правила:
 
@@ -167,7 +167,7 @@ Bridge — отдельный Python x64 STA process. Он не знает пу�
 
 ### 8.2. Read/sync
 
-Bridge создаёт immutable scan snapshot. Application нормализует только контракт 2.0 и строит three-way diff `Project ↔ baseline ↔ DWG`. Пользователь явно выбирает разрешённые DWG→Project changes; они применяются одной project transaction.
+Bridge создаёт immutable scan snapshot. Application нормализует только контракт 3.0 и строит three-way diff `Project ↔ baseline ↔ DWG`. Пользователь явно выбирает разрешённые DWG→Project changes; они применяются одной project transaction.
 
 `CABLE_TYPE`, `BOARD`, базовый `CABLE_ID` и `LED_TYPE` (для LED) имеют line-level reconciliation. `MOUNT_WAY`/`GOFRA_*` имеют owner-aware reconciliation по входящему `CableSegment`/topology point и никогда не распространяются автоматически на остальные сегменты базовой линии. Используется одна cable/LED/conduit model без отдельной route-section подсистемы. Project-only data сохраняются.
 
@@ -199,10 +199,10 @@ Generic constructor и полная technical trace находятся в `Ин�
 ## 10. Config, logs, background и backup
 
 - project settings находятся в SQLite;
-- local UI state — versioned JSON в `%LOCALAPPDATA%\NL Project 2.0`, atomic replace;
+- local UI state — versioned JSON в `%LOCALAPPDATA%\NL Project 3.0`, atomic replace;
 - глобальный last-used preference хранится там же как versioned user/app setting, действует между проектами и никогда не записывается в Project как инженерное решение;
 - logs — structured JSONL с rotation, correlation ID, operation, duration, result и redaction;
-- пользователь видит operation log без stack trace; crash data находятся только в собственном каталоге 2.0;
+- пользователь видит operation log без stack trace; crash data находятся только в собственном каталоге 3.0;
 - temp/log/backup/generated не пишутся рядом с кодом, в [docs/product](../product) или `D:\NLP`;
 - cancellation не оставляет partial project write; stale background result отбрасывается по revision.
 
@@ -261,7 +261,7 @@ Data migration должна быть детерминированной и им�
 
 Запрещены:
 
-- доступ 2.0 к изменяемым данным/SQLite/DWG 1.0;
+- доступ 3.0 к изменяемым данным/SQLite/DWG 1.0/2.0;
 - feature-owned SQLite/JSON stores;
 - read-side writes, startup repair и materialization при просмотре;
 - второй persisted source для graph/specification/validation/load;

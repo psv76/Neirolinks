@@ -1,4 +1,4 @@
-"""Side-effect-free path configuration for the independent 2.0 application."""
+"""Side-effect-free path configuration for the independent 3.0 application."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from nl_project_2.runtime_resources import application_root
+
+DEFAULT_DATABASE_NAME = "nl_project_3.sqlite"
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,15 +27,11 @@ class PathConfig:
         local_app_data = Path(env.get("LOCALAPPDATA", user_profile / "AppData" / "Local"))
         return cls(
             app_root=app_root,
-            backup_root=Path(env.get("NLP2_BACKUP_ROOT", "D:/NLP_2_BACKUPS")),
-            release_root=Path(env.get("NLP2_RELEASE_ROOT", "D:/NLP_2_RELEASES")),
-            user_projects_root=Path(
-                env.get(
-                    "NLP2_PROJECTS_ROOT", user_profile / "Documents" / "NL Project 2.0" / "Projects"
-                )
-            ),
+            backup_root=Path(env.get("NLP3_BACKUP_ROOT", "D:/NLP_3_BACKUPS")),
+            release_root=Path(env.get("NLP3_RELEASE_ROOT", "D:/NLP_3_RELEASES")),
+            user_projects_root=Path(env.get("NLP3_PROJECTS_ROOT", "D:/NL_Project_3_Data/Projects")),
             local_state_root=Path(
-                env.get("NLP2_LOCAL_STATE_ROOT", local_app_data / "NL Project 2.0")
+                env.get("NLP3_LOCAL_STATE_ROOT", local_app_data / "NL Project 3.0")
             ),
         )
 

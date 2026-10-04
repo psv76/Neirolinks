@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-CAD_BRIDGE_MODE = "--nlp2-cad-bridge"
+CAD_BRIDGE_MODE = "--nlp3-cad-bridge"
 
 
 def is_frozen() -> bool:

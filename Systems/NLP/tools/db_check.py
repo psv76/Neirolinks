@@ -10,7 +10,7 @@ from nl_project_2.persistence.diagnostics import inspect_database
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("database", help="Path to an existing NL Project 2.0 SQLite file")
+    parser.add_argument("database", help="Path to an existing NL Project 3.0 SQLite file")
     arguments = parser.parse_args()
     result = inspect_database(arguments.database)
     print(json.dumps(result.as_dict(), ensure_ascii=False, indent=2))

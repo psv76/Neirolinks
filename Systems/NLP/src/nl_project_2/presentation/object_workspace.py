@@ -168,7 +168,7 @@ def _validation_issue_text(issue, observation) -> str:
     if issue.code in {"BLOCK_NAME_FORMAT", "UNKNOWN_BLOCK_NAME"}:
         name = "" if observation is None else observation.effective_name
         expectation = (
-            "Ожидается каноническое имя блока NL Project 2.0."
+            "Ожидается каноническое имя блока NL Project 3.0."
             if issue.code == "BLOCK_NAME_FORMAT"
             else "Имя должно присутствовать в каноническом каталоге блоков."
         )

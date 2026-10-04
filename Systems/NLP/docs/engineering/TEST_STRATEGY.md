@@ -1,4 +1,4 @@
-# Стратегия тестирования MVP NL Project 2.0
+# Стратегия тестирования MVP NL Project 3.0
 
 ## Актуализация Repair 08
 
@@ -97,7 +97,7 @@ Three contours:
 2. recorded sanitized protocol responses through fake bridge;
 3. separately marked live AutoCAD tests using temporary test DWG when needed.
 
-Test DWG geometry may be deliberately simple/arbitrary. It validates the CAD protocol and 2.0 machine-readable block contract and is not a canonical UGO library or source of product rules.
+Test DWG geometry may be deliberately simple/arbitrary. It validates the CAD protocol and 3.0 machine-readable block contract and is not a canonical UGO library or source of product rules.
 
 Changes to the CAD bridge require a read-only robustness contour: connect, timeout, kill, restart/reconnect, zero DWG/SQLite writes. A failed required check blocks the corresponding PR change.
 

@@ -1,4 +1,4 @@
-"""Small structured startup logger owned by the 2.0 application."""
+"""Small structured startup logger owned by the 3.0 application."""
 
 from __future__ import annotations
 

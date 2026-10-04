@@ -1,4 +1,4 @@
-"""Explicit, versioned creation and upgrade of NL Project 2.0 databases."""
+"""Explicit, versioned creation and upgrade of NL Project 3.0 databases."""
 
 from __future__ import annotations
 

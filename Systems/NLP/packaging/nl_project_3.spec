@@ -88,7 +88,7 @@ executable = EXE(
     analysis.scripts,
     [],
     exclude_binaries=True,
-    name="NLProject2",
+    name="NLProject3",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -102,5 +102,5 @@ collection = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="NLProject2",
+    name="NLProject3",
 )

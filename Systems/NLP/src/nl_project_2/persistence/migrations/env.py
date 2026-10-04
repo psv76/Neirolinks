@@ -1,4 +1,4 @@
-"""Alembic environment for the embedded NL Project 2.0 schema."""
+"""Alembic environment for the embedded NL Project 3.0 schema."""
 
 from __future__ import annotations
 

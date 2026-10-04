@@ -64,7 +64,7 @@ def test_bridge_timeout_kills_short_lived_process(tmp_path: Path):
 def test_frozen_bridge_starts_as_a_separate_executable_mode(monkeypatch, tmp_path: Path):
     import nl_project_2.runtime_resources as resources
 
-    executable = tmp_path / "NLProject2.exe"
+    executable = tmp_path / "NLProject3.exe"
     monkeypatch.setattr(resources.sys, "frozen", True, raising=False)
     monkeypatch.setattr(resources.sys, "executable", str(executable))
 
