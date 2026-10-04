@@ -1459,11 +1459,28 @@ class LinesWorkspace(QWidget):
             key=self.table.horizontalHeader().visualIndex,
         )
         selected = {(index.row(), index.column()) for index in indexes}
+        def cell_text(row: int, column: int) -> str:
+            if (row, column) not in selected:
+                return ""
+            item = self.table.item(row, column)
+            if item is None:
+                return ""
+            if COLUMNS[column].key == "designation":
+                kind = self._row_kind(row)
+                if kind == "BASE":
+                    line_id = item.data(Qt.ItemDataRole.UserRole)
+                    card = self._cards_by_id.get(line_id)
+                    if card is not None:
+                        return str(card["designation"])
+                value = item.text().strip()
+                for prefix in ("▸", "▾", "└─", "├─"):
+                    if value.startswith(prefix):
+                        value = value[len(prefix):].strip()
+                return value
+            return item.text()
+
         text = "\n".join(
-            "\t".join(
-                self.table.item(row, column).text() if (row, column) in selected else ""
-                for column in columns
-            )
+            "\t".join(cell_text(row, column) for column in columns)
             for row in rows
         )
         QApplication.clipboard().setText(text)
