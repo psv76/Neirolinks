@@ -684,10 +684,18 @@ class LinesWorkspace(QWidget):
                         )
                         item.setToolTip(technical)
                     if definition.key == "room_names":
-                        markers = tuple(card.get("room_markers") or ())
+                        markers = list(card.get("room_markers") or ())
                         unresolved = tuple(card.get("unresolved_room_names") or ())
-                        item.setData(ROOM_MARKERS_ROLE, markers)
-                        tooltip = [marker["name"] for marker in markers]
+                        markers.extend(
+                            {
+                                "id": f"unresolved:{name}",
+                                "name": f"{name} !",
+                                "color": "#FFF2D5",
+                            }
+                            for name in unresolved
+                        )
+                        item.setData(ROOM_MARKERS_ROLE, tuple(markers))
+                        tooltip = [marker["name"] for marker in markers if not str(marker["id"]).startswith("unresolved:")]
                         tooltip.extend(f"Не связано с помещением Project: {name}" for name in unresolved)
                         item.setToolTip("\n".join(tooltip))
                     if definition.key == "effective_m" and int(card.get("incomplete_segments") or 0):
@@ -1416,6 +1424,11 @@ class LinesWorkspace(QWidget):
             visual_anchor = visible_columns.index(anchor.column())
         except ValueError:
             return False
+        if self._row_kind(anchor.row()) != "BASE":
+            QMessageBox.warning(
+                self, "Вставка не выполнена", "Редактировать можно только строку линии"
+            )
+            return False
         rows_overflow = anchor.row() + len(matrix) > self.table.rowCount()
         columns_overflow = visual_anchor + len(matrix[0]) > len(visible_columns)
         if rows_overflow or columns_overflow:
@@ -1456,6 +1469,11 @@ class LinesWorkspace(QWidget):
         columns = sorted({index.column() for index in indexes})
         if rows != list(range(rows[0], rows[-1] + 1)):
             QMessageBox.warning(self, "Заполнение не выполнено", "Выберите непрерывный диапазон")
+            return False
+        if any(self._row_kind(row) != "BASE" for row in rows):
+            QMessageBox.warning(
+                self, "Заполнение не выполнено", "Редактировать можно только строки линий"
+            )
             return False
         edits = []
         for column in columns:
@@ -1603,7 +1621,6 @@ class LinesWorkspace(QWidget):
             "selected_line_id": self.current_line_id(),
             "vertical_scroll": self.table.verticalScrollBar().value(),
             "horizontal_scroll": self.table.horizontalScrollBar().value(),
-            "splitter_sizes": self.splitter.sizes(),
             "layout_version": LINES_LAYOUT_VERSION,
             "sort_column": COLUMNS[self.table.horizontalHeader().sortIndicatorSection()].key,
             "sort_order": int(self.table.horizontalHeader().sortIndicatorOrder().value),
@@ -1674,16 +1691,6 @@ class LinesWorkspace(QWidget):
                 else Qt.SortOrder.AscendingOrder
             )
             self.table.sortItems(sort_column, order)
-            sizes = state.get("splitter_sizes")
-            valid_sizes = (
-                isinstance(sizes, list)
-                and len(sizes) == 3
-                and all(isinstance(value, int) for value in sizes)
-            )
-            if valid_sizes and layout_current:
-                self.splitter.setSizes(sizes)
-            else:
-                self.splitter.setSizes([460, 180, 360])
             selected = state.get("selected_line_id")
             if selected in self._cards_by_id:
                 self.select_line(selected)
@@ -1698,7 +1705,6 @@ class LinesWorkspace(QWidget):
             self.table.setColumnWidth(logical, _DEFAULT_COLUMN_WIDTHS[column.key])
             self.table.setColumnHidden(logical, not column.default_visible)
             self.column_actions[column.key].setChecked(column.default_visible)
-        self.splitter.setSizes([460, 180, 360])
 
     def save_state(self) -> None:
         self._save_state()
