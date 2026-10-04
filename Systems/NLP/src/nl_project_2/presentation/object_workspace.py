@@ -1199,6 +1199,7 @@ class ObjectWorkspace(QWidget):
         )
         lines.resourceRequested.connect(self._navigate_line_to_resource)
         lines.issueRequested.connect(self._show_line_issue)
+        lines.busRequested.connect(self._show_bus_issue)
         lines.projectChanged.connect(self._refresh_related_working_views)
         equipment = EquipmentWorkspace(
             self.runtime.constructor,
@@ -1303,6 +1304,15 @@ class ObjectWorkspace(QWidget):
             return
         self.documents_workspace.show_issue_for("CABLE_LINE", line_id)
         self._switch_section("Документы")
+
+    def _show_bus_issue(self, bus_id: str) -> None:
+        project_id = self.runtime.current_project_id
+        service = self.runtime.buses
+        if project_id is None or service is None:
+            return
+        dialog = BusWorkspaceDialog(service, project_id, self)
+        dialog.refresh(bus_id)
+        dialog.exec()
 
     def _show_instance_issue(self, instance_id: str) -> None:
         if self.documents_workspace is None:
