@@ -348,7 +348,7 @@ def test_local_warning_click_keeps_exact_cell_and_segment_context(qtbot):
 
     base_row = _row(workspace, "line-1")
     room_item = workspace.table.item(base_row, _column("room_names"))
-    assert "!" in room_item.text()
+    assert not room_item.icon().isNull()
     workspace._table_item_clicked(room_item)
     assert captured[-1]["issue_kind"] == "ROOM"
     assert captured[-1]["column_key"] == "room_names"
@@ -369,7 +369,7 @@ def test_local_warning_click_keeps_exact_cell_and_segment_context(qtbot):
         and workspace.table.item(row, 0).data(Qt.ItemDataRole.UserRole) == "line-1"
     )
     child_length = workspace.table.item(child_row, _column("effective_m"))
-    assert "!" in child_length.text()
+    assert not child_length.icon().isNull()
     workspace._table_item_clicked(child_length)
     assert captured[-1]["row_kind"] == "CHILD"
     assert captured[-1]["segment_id"] == "segment-line-1"

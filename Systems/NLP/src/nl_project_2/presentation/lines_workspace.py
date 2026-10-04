@@ -6,8 +6,8 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
-from PySide6.QtCore import QItemSelectionModel, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QBrush, QColor, QKeySequence, QPainter
+from PySide6.QtCore import QItemSelectionModel, QPoint, QRect, QSize, Qt, Signal
+from PySide6.QtGui import QAction, QBrush, QColor, QIcon, QKeySequence, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -49,6 +49,21 @@ def _natural_key(value: str) -> tuple:
     return tuple(
         int(part) if part.isdigit() else part.casefold() for part in re.split(r"(\d+)", value)
     )
+
+
+def _warning_icon() -> QIcon:
+    pixmap = QPixmap(16, 16)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    painter.setPen(QPen(QColor("#9A6700"), 1))
+    painter.setBrush(QBrush(QColor("#F5C451")))
+    painter.drawPolygon((QPoint(8, 1), QPoint(15, 14), QPoint(1, 14)))
+    painter.setPen(QPen(QColor("#3B2A00"), 2))
+    painter.drawLine(8, 5, 8, 9)
+    painter.drawPoint(8, 12)
+    painter.end()
+    return QIcon(pixmap)
 
 
 class NaturalSortItem(QTableWidgetItem):
@@ -292,7 +307,10 @@ class LinesWorkspace(QWidget):
         self.view_button.setText("Вид")
         self.view_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         filter_row = QHBoxLayout()
-        filter_row.addWidget(QLabel("Фильтр / поиск", self))
+        filter_label = QLabel("Фильтр / поиск", self)
+        filter_label.setMinimumWidth(filter_label.sizeHint().width() + 8)
+        self.search.setMinimumWidth(320)
+        filter_row.addWidget(filter_label)
         filter_row.addWidget(self.search, 2)
         filter_row.addWidget(self.system_filter)
         filter_row.addWidget(self.room_filter)
@@ -667,11 +685,9 @@ class LinesWorkspace(QWidget):
                     elif definition.key == "effective_m":
                         if value is None:
                             known = _format_length(card.get("known_segment_m"))
-                            text = f"{known} + ?  !" if known not in {"", "0"} else "—  !"
+                            text = f"{known} + ?" if known not in {"", "0"} else "—"
                         else:
                             text = _format_length(value)
-                            if int(card.get("incomplete_segments") or 0):
-                                text += "  !"
                     elif definition.key == "room_names":
                         unresolved = tuple(card.get("unresolved_room_names") or ())
                         names = [
@@ -680,9 +696,7 @@ class LinesWorkspace(QWidget):
                         for name in unresolved:
                             if name not in names:
                                 names.append(name)
-                        text = ", ".join(names)
-                        if unresolved:
-                            text = (text + "  !").strip()
+                        text = ", ".join(names).strip()
                     elif definition.key == "gofra_id" and value == "MIXED":
                         count = int(card.get("conduit_count") or 0)
                         text = f"{count} труб" if count else "По участкам"
@@ -705,6 +719,16 @@ class LinesWorkspace(QWidget):
                         Qt.ItemDataRole.UserRole + 4,
                         card.get("network_kind", "CABLE"),
                     )
+                    if text:
+                        item.setToolTip(text)
+                    has_issue = (
+                        definition.key == "room_names" and bool(card.get("unresolved_room_names"))
+                    ) or (
+                        definition.key == "effective_m"
+                        and int(card.get("incomplete_segments") or 0) > 0
+                    )
+                    if has_issue:
+                        item.setIcon(_warning_icon())
                     if definition.key == "resource_labels":
                         technical = ", ".join(
                             assignment["technical_identity"]
@@ -717,7 +741,7 @@ class LinesWorkspace(QWidget):
                         markers.extend(
                             {
                                 "id": f"unresolved:{name}",
-                                "name": f"{name} !",
+                                "name": f"⚠ {name}",
                                 "color": "#FFF2D5",
                             }
                             for name in unresolved
@@ -1077,11 +1101,9 @@ class LinesWorkspace(QWidget):
                 "effective_m": (
                     _format_length(edge.get("cable_length_m"))
                     if edge.get("cable_length_m") is not None
-                    else "—  !"
+                    else "—"
                 ),
             }
-            if target.get("room_unresolved") and values["room_names"]:
-                values["room_names"] += "  !"
             for column, definition in enumerate(COLUMNS):
                 value = values.get(definition.key, "")
                 child = NaturalSortItem(str(value))
@@ -1090,6 +1112,17 @@ class LinesWorkspace(QWidget):
                 child.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
                 child.setData(Qt.ItemDataRole.UserRole + 3, "CHILD")
                 child.setForeground(QBrush(QColor("#4b5563")))
+                child_has_issue = (
+                    definition.key == "room_names" and bool(target.get("room_unresolved"))
+                ) or (definition.key == "effective_m" and edge.get("calculation_status") != "READY")
+                if child_has_issue:
+                    child.setIcon(
+                        QApplication.style().standardIcon(
+                            QStyle.StandardPixmap.SP_MessageBoxWarning
+                        )
+                    )
+                if str(value):
+                    child.setToolTip(str(value))
                 if definition.key == "room_names" and target.get("room_unresolved"):
                     child.setToolTip("Помещение не связано с каноническим помещением Project")
                     child.setData(
