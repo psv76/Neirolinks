@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import replace
 from decimal import Decimal, InvalidOperation
 
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -45,6 +46,7 @@ from nl_project_2.cad_sync import (
     DwgSyncError,
     SyncOwnerKind,
     atomic_line_import_groups,
+    build_dwg_update_plan,
 )
 from nl_project_2.objects.models import ProjectCard, ProjectSettings, TimeSummary
 from nl_project_2.objects.service import ObjectValidationError
@@ -694,6 +696,136 @@ class DwgSyncPreviewDialog(QDialog):
         }
 
 
+class DwgSyncResolutionDialog(QDialog):
+    """Only the DWG changes that still require a user decision."""
+
+    def __init__(self, proposal, plan, runtime_errors=(), parent=None) -> None:
+        super().__init__(parent)
+        self.proposal = proposal
+        self.plan = plan
+        self._import_paths: set[str] = set()
+        self._write_paths: set[str] = set()
+        self.open_checks_requested = False
+        self.setWindowTitle("Требуют решения")
+        self.resize(860, 520)
+
+        rows = [("CONFLICT", item) for item in plan.conflicts]
+        rows.extend(("PROBLEM", item) for item in plan.problems)
+        rows.extend(("RUNTIME", message) for message in runtime_errors)
+
+        self.table = QTableWidget(len(rows), 6, self)
+        self.table.setObjectName("dwgResolutionTable")
+        self.table.setHorizontalHeaderLabels(
+            ["Объект", "Поле", "Project", "DWG", "Причина", "Действие"]
+        )
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        header = self.table.horizontalHeader()
+        header_font = header.font()
+        header_font.setBold(True)
+        header.setFont(header_font)
+        for column, width in enumerate((165, 145, 150, 150, 270, 245)):
+            self.table.setColumnWidth(column, width)
+
+        observations = {
+            item.handle: item for item in proposal.batch.observations if item.handle
+        }
+        for row, (kind, payload) in enumerate(rows):
+            if kind == "RUNTIME":
+                values = ("Обновление DWG", "—", "—", "—", str(payload))
+                for column, value in enumerate(values):
+                    self.table.setItem(row, column, QTableWidgetItem(value))
+                action = QPushButton("Открыть проверки", self.table)
+                action.clicked.connect(self._request_checks)
+                self.table.setCellWidget(row, 5, action)
+                continue
+
+            change = payload
+            observation = observations.get(change.handle)
+            number, assignment, room_name, object_name, _block = _sync_human_context(
+                change, observation
+            )
+            subject = number or object_name or room_name or change.handle or "DWG"
+            reason, _technical = _change_reason_text(change, proposal.issues, observation)
+            values = (
+                subject,
+                _sync_field_title(change),
+                _sync_object_summary(change.project_value, observation),
+                _sync_object_summary(change.dwg_value, observation),
+                reason,
+            )
+            for column, value in enumerate(values):
+                self.table.setItem(row, column, QTableWidgetItem(str(value or "—")))
+
+            actions = QWidget(self.table)
+            actions_layout = QHBoxLayout(actions)
+            actions_layout.setContentsMargins(0, 0, 0, 0)
+            actions_layout.setSpacing(4)
+            if kind == "CONFLICT":
+                keep_project = QPushButton("Оставить Project", actions)
+                keep_dwg = QPushButton("Оставить DWG", actions)
+                keep_project.clicked.connect(
+                    lambda _checked=False, path=change.field_path, r=row: self._choose(
+                        r, path, "PROJECT"
+                    )
+                )
+                keep_dwg.clicked.connect(
+                    lambda _checked=False, path=change.field_path, r=row: self._choose(
+                        r, path, "DWG"
+                    )
+                )
+                actions_layout.addWidget(keep_project)
+                actions_layout.addWidget(keep_dwg)
+            elif change.detail_status == "ROOM_CANONICALIZATION":
+                link_room = QPushButton("Привязать помещение", actions)
+                link_room.clicked.connect(
+                    lambda _checked=False, path=change.field_path, r=row: self._choose(
+                        r, path, "DWG"
+                    )
+                )
+                actions_layout.addWidget(link_room)
+            else:
+                checks = QPushButton("Открыть проверки", actions)
+                checks.clicked.connect(self._request_checks)
+                actions_layout.addWidget(checks)
+            self.table.setCellWidget(row, 5, actions)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, self)
+        buttons.rejected.connect(self.reject)
+        buttons.accepted.connect(self.accept)
+        close = buttons.button(QDialogButtonBox.StandardButton.Close)
+        if close is not None:
+            close.setText("Закрыть")
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.table)
+        layout.addWidget(buttons)
+
+    def _choose(self, row: int, path: str, side: str) -> None:
+        self._import_paths.discard(path)
+        self._write_paths.discard(path)
+        if side == "DWG":
+            self._import_paths.add(path)
+        else:
+            self._write_paths.add(path)
+        item = self.table.item(row, 4)
+        if item is not None:
+            item.setText("Решение выбрано")
+        widget = self.table.cellWidget(row, 5)
+        if widget is not None:
+            widget.setEnabled(False)
+
+    def _request_checks(self) -> None:
+        self.open_checks_requested = True
+        self.accept()
+
+    def selected_import_paths(self) -> set[str]:
+        return set(self._import_paths)
+
+    def selected_write_paths(self) -> set[str]:
+        return set(self._write_paths)
+
+
 def _optional_decimal(text: str) -> Decimal | None:
     clean = text.strip().replace(",", ".")
     if not clean:
@@ -821,10 +953,12 @@ class ObjectWorkspace(QWidget):
         self.time_button = QPushButton("Play", self)
         self.time_button.setObjectName("timeToggleButton")
         self.time_button.clicked.connect(self._toggle_time)
-        self.sync_button = QPushButton("Синхронизация с DWG", self)
+        self.sync_button = QPushButton("Обновить", self)
         self.sync_button.setObjectName("dwgSyncButton")
         self.sync_button.setEnabled(False)
-        self.sync_button.setToolTip("Сканировать активный DWG и показать сравнение")
+        self.sync_button.setToolTip("Обновить данные из активного DWG и передать изменения Project в DWG")
+        self.sync_status_label = QLabel("", self)
+        self.sync_status_label.setObjectName("dwgSyncStatusLabel")
         self.sync_button.clicked.connect(self._sync_dwg)
         self.cables_button = QPushButton("Кабельные линии", self)
         self.cables_button.setObjectName("cableWorkspaceButton")
@@ -902,6 +1036,7 @@ class ObjectWorkspace(QWidget):
         second.addWidget(self.total_label)
         second.addWidget(self.time_button)
         second.addWidget(self.sync_button)
+        second.addWidget(self.sync_status_label)
         second.addStretch(1)
         second.addWidget(self.service_button)
         top.addLayout(second)
@@ -1624,20 +1759,6 @@ class ObjectWorkspace(QWidget):
     def _sync_identity_completed(self, result) -> None:
         self._finish_sync_scan()
         document = result.value
-        answer = QMessageBox.question(
-            self,
-            "Подтверждение целевого DWG",
-            "AutoCAD active document:\n"
-            f"{document.document_identity}\n\n"
-            f"Read-only: {'да' if document.read_only else 'нет'}; "
-            f"несохранённые изменения: {'нет' if document.saved else 'да'}; "
-            f"DBMOD={document.dbmod}.\n\n"
-            "Использовать именно этот DWG как цель текущей синхронизации?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if answer != QMessageBox.StandardButton.Yes:
-            return
         self._start_dwg_scan(document.document_identity)
 
     def _start_dwg_scan(self, document_identity: str) -> None:
@@ -1678,7 +1799,7 @@ class ObjectWorkspace(QWidget):
 
     def _finish_sync_scan(self) -> None:
         self._sync_in_progress = False
-        self.sync_button.setText("Синхронизация с DWG")
+        self.sync_button.setText("Обновить")
         if self._sync_progress_dialog is not None:
             self._sync_progress_dialog.close()
             self._sync_progress_dialog.deleteLater()
@@ -1698,56 +1819,127 @@ class ObjectWorkspace(QWidget):
 
     def _review_sync_proposal(self, proposal) -> None:
         service = self.runtime.dwg_sync
-        try:
-            dialog = DwgSyncPreviewDialog(proposal, self)
-            if dialog.exec() != QDialog.DialogCode.Accepted:
-                return
-            selected = dialog.selected_paths()
-            if not selected:
-                QMessageBox.information(self, "Синхронизация DWG", "Изменения не выбраны")
-                return
-            if dialog.direction.currentData() == "DWG_TO_PROJECT":
-                try:
-                    service.apply_dwg_to_project(
-                        proposal,
-                        selected_paths=selected,
-                        confirmed=True,
-                    )
-                except Exception as exc:
-                    logging.getLogger(__name__).exception("DWG apply failed")
-                    message = (
-                        _localized_sync_error(str(exc))
-                        if isinstance(exc, (BridgeError, DwgSyncError))
-                        else "Не удалось принять изменения DWG в Project. "
-                        "Изменения не применены. Подробности записаны в журнал программы."
-                    )
-                    QMessageBox.warning(self, "Синхронизация DWG не выполнена", message)
-                    return
-                QMessageBox.information(
-                    self,
-                    "Синхронизация DWG",
-                    "Изменения приняты в Project.",
-                )
-            else:
-                result = service.write_project_to_dwg(
-                    proposal,
-                    selected_paths=selected,
+        plan = build_dwg_update_plan(proposal)
+        working = proposal
+        imported = 0
+        written = 0
+        dwg_unsaved = False
+        runtime_errors: list[str] = []
+
+        if plan.import_paths:
+            try:
+                service.apply_dwg_to_project(
+                    working,
+                    selected_paths=plan.import_paths,
                     confirmed=True,
                 )
-                message = "Запись и обратное чтение выполнены."
-                if result.no_save_confirmed:
-                    message += " DWG изменён, но не сохранён; сохраните его в AutoCAD."
-                QMessageBox.information(self, "Синхронизация DWG", message)
-            self._detail = self.runtime.objects.get_project(proposal.project_id)
-            self._load_detail()
-            if self.lines_workspace is not None:
-                self.lines_workspace.refresh()
-        except (BridgeError, DwgSyncError) as exc:
-            QMessageBox.warning(
-                self,
-                "Синхронизация DWG не выполнена",
-                _localized_sync_error(str(exc)),
+                imported = len(plan.import_paths)
+                working = replace(working, project_revision=working.project_revision + 1)
+            except Exception as exc:
+                logging.getLogger(__name__).exception("Automatic DWG apply failed")
+                runtime_errors.append(
+                    _localized_sync_error(str(exc))
+                    if isinstance(exc, (BridgeError, DwgSyncError))
+                    else "Не удалось применить изменения DWG в Project."
+                )
+
+        if plan.write_paths:
+            try:
+                write_result = service.write_project_to_dwg(
+                    working,
+                    selected_paths=plan.write_paths,
+                    confirmed=True,
+                )
+                written = len(plan.write_paths)
+                dwg_unsaved = bool(write_result.no_save_confirmed)
+            except Exception as exc:
+                logging.getLogger(__name__).exception("Automatic Project to DWG write failed")
+                runtime_errors.append(
+                    _localized_sync_error(str(exc))
+                    if isinstance(exc, (BridgeError, DwgSyncError))
+                    else "Не удалось передать изменения Project в DWG."
+                )
+
+        needs_resolution = bool(
+            plan.conflicts or plan.problems or plan.blocked_lines or runtime_errors
+        )
+        if needs_resolution:
+            blocked = tuple(
+                f"Линия {number}: связанные изменения не применены автоматически."
+                for number in plan.blocked_lines
             )
+            dialog = DwgSyncResolutionDialog(
+                working,
+                plan,
+                runtime_errors=(*blocked, *runtime_errors),
+                parent=self,
+            )
+            dialog.exec()
+
+            selected_import = dialog.selected_import_paths()
+            if selected_import:
+                try:
+                    service.apply_dwg_to_project(
+                        working,
+                        selected_paths=selected_import,
+                        confirmed=True,
+                    )
+                    imported += len(selected_import)
+                    working = replace(working, project_revision=working.project_revision + 1)
+                except Exception as exc:
+                    logging.getLogger(__name__).exception("DWG decision apply failed")
+                    QMessageBox.warning(
+                        self,
+                        "Изменение не применено",
+                        _localized_sync_error(str(exc))
+                        if isinstance(exc, (BridgeError, DwgSyncError))
+                        else "Не удалось применить выбранное решение.",
+                    )
+
+            selected_write = dialog.selected_write_paths()
+            if selected_write:
+                try:
+                    write_result = service.write_project_to_dwg(
+                        working,
+                        selected_paths=selected_write,
+                        confirmed=True,
+                    )
+                    written += len(selected_write)
+                    dwg_unsaved = dwg_unsaved or bool(write_result.no_save_confirmed)
+                except Exception as exc:
+                    logging.getLogger(__name__).exception("DWG conflict write failed")
+                    QMessageBox.warning(
+                        self,
+                        "Изменение не применено",
+                        _localized_sync_error(str(exc))
+                        if isinstance(exc, (BridgeError, DwgSyncError))
+                        else "Не удалось применить выбранное решение.",
+                    )
+
+            if dialog.open_checks_requested:
+                self._open_validation_center()
+
+        self._detail = self.runtime.objects.get_project(proposal.project_id)
+        self._load_detail()
+        if self.lines_workspace is not None:
+            self.lines_workspace.refresh()
+        if self.equipment_workspace is not None:
+            self.equipment_workspace.refresh()
+
+        if imported == 0 and written == 0 and not needs_resolution:
+            self.sync_status_label.setText("Актуально")
+        else:
+            parts = []
+            if imported:
+                parts.append(f"из DWG: {imported}")
+            if written:
+                parts.append(f"в DWG: {written}")
+            if needs_resolution:
+                parts.append("требует решения")
+            if dwg_unsaved:
+                parts.append("DWG не сохранён")
+            self.sync_status_label.setText(" · ".join(parts) or "Обновлено")
+
 
     def _open_cables(self) -> None:
         project_id = self.runtime.current_project_id
