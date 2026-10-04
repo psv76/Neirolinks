@@ -143,3 +143,23 @@ def test_existing_project_bus_root_keeps_bus_points_in_automatic_plan():
 
     assert plan.missing_bus_roots == ()
     assert plan.import_paths == frozenset({"A:$"})
+
+
+def test_valid_standalone_new_insertion_is_auto_imported_even_when_structural():
+    proposal = _proposal(
+        (
+            _change(
+                "ROOT:$",
+                "ROOT",
+                "$",
+                ChangeClass.NEW_DWG_INSERTION,
+                structural=True,
+            ),
+        ),
+        (_observation("ROOT"),),
+    )
+
+    plan = build_dwg_update_plan(proposal)
+
+    assert plan.import_paths == frozenset({"ROOT:$"})
+    assert not plan.problems
