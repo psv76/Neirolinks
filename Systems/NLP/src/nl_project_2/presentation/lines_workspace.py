@@ -222,6 +222,7 @@ _DEFAULT_COLUMN_WIDTHS = {
 }
 
 LINES_LAYOUT_VERSION = 4
+_ISSUE_CONTEXT_ROLE = int(Qt.ItemDataRole.UserRole) + 5
 
 
 def _column_index(key: str) -> int:
@@ -240,7 +241,7 @@ def _format_length(value) -> str:
 
 class LinesWorkspace(QWidget):
     resourceRequested = Signal(str)
-    issueRequested = Signal(str)
+    issueRequested = Signal(object)
     busRequested = Signal(str)
     projectChanged = Signal()
 
@@ -725,9 +726,39 @@ class LinesWorkspace(QWidget):
                         tooltip = [marker["name"] for marker in markers if not str(marker["id"]).startswith("unresolved:")]
                         tooltip.extend(f"Не связано с помещением Project: {name}" for name in unresolved)
                         item.setToolTip("\n".join(tooltip))
+                        if unresolved:
+                            item.setData(
+                                _ISSUE_CONTEXT_ROLE,
+                                {
+                                    "issue_kind": "ROOM",
+                                    "line_id": card["id"],
+                                    "network_kind": card.get("network_kind", "CABLE"),
+                                    "column_key": "room_names",
+                                    "row_kind": "BASE",
+                                    "title": "Помещение не связано",
+                                    "reason": "Не связано с помещением Project: "
+                                    + ", ".join(unresolved),
+                                    "required_action": "Обновите DWG и выберите каноническое помещение.",
+                                    "fix_action": "SYNC_DWG",
+                                },
+                            )
                     if definition.key == "effective_m" and int(card.get("incomplete_segments") or 0):
                         item.setToolTip(
                             f"Не рассчитано участков: {int(card.get('incomplete_segments') or 0)}"
+                        )
+                        item.setData(
+                            _ISSUE_CONTEXT_ROLE,
+                            {
+                                "issue_kind": "LENGTH",
+                                "line_id": card["id"],
+                                "network_kind": card.get("network_kind", "CABLE"),
+                                "column_key": "effective_m",
+                                "row_kind": "BASE",
+                                "title": "Длина рассчитана не полностью",
+                                "reason": "",
+                                "required_action": "",
+                                "fix_action": "RECALCULATE",
+                            },
                         )
                     self.table.setItem(row, column, item)
             self._populate_filter(self.system_filter, (card["system_kind"] for card in self._cards))
@@ -898,12 +929,49 @@ class LinesWorkspace(QWidget):
         if item.column() == _column_index("designation") and row_kind == "BASE":
             self._toggle_line_tree(row, str(line_id))
             return
-        if "!" in item.text():
-            card = self._cards_by_id.get(str(line_id), {})
-            if card.get("network_kind") == "BUS":
-                self.busRequested.emit(str(line_id))
-            else:
-                self.issueRequested.emit(str(line_id))
+        context = item.data(_ISSUE_CONTEXT_ROLE)
+        if isinstance(context, dict):
+            self.issueRequested.emit(self._enrich_issue_context(dict(context)))
+
+    def _enrich_issue_context(self, context: dict) -> dict:
+        if context.get("issue_kind") != "LENGTH" or context.get("reason"):
+            return context
+        line_id = str(context.get("line_id") or "")
+        card = self._cards_by_id.get(line_id, {})
+        try:
+            topology = (
+                self.buses.journal_topology(self.project_id, line_id)
+                if card.get("network_kind") == "BUS" and self.buses is not None
+                else self.cables.topology(self.project_id, line_id)
+            )
+        except Exception as exc:
+            context["reason"] = str(exc)
+            context["required_action"] = "Откройте линию и проверьте исходные данные."
+            context["fix_action"] = "OPEN_LINE"
+            return context
+
+        incomplete = [
+            edge
+            for edge in topology.get("edges", ())
+            if edge.get("calculation_status") != "READY"
+        ]
+        details = []
+        for edge in incomplete:
+            source = str((edge.get("source") or {}).get("label") or "Источник")
+            target = str((edge.get("target") or {}).get("label") or "Точка")
+            reason = str(edge.get("calculation_reason") or "Длина не рассчитана")
+            details.append(f"{source} → {target}: {reason}")
+        context["reason"] = "\n".join(details) or "Длина линии не рассчитана."
+        if card.get("network_kind") == "BUS":
+            context["required_action"] = "Откройте шину и исправьте исходные данные участка."
+            context["fix_action"] = "OPEN_BUS"
+        elif "канонической связи" in context["reason"]:
+            context["required_action"] = "Сначала привяжите помещение, затем длина пересчитается."
+            context["fix_action"] = "SYNC_DWG"
+        else:
+            context["required_action"] = "Исправьте указанные исходные данные и пересчитайте длину."
+            context["fix_action"] = "RECALCULATE"
+        return context
 
     def _table_item_double_clicked(self, item: QTableWidgetItem) -> None:
         line_id = item.data(Qt.ItemDataRole.UserRole)
@@ -1016,8 +1084,56 @@ class LinesWorkspace(QWidget):
                 child.setForeground(QBrush(QColor("#4b5563")))
                 if definition.key == "room_names" and target.get("room_unresolved"):
                     child.setToolTip("Помещение не связано с каноническим помещением Project")
+                    child.setData(
+                        _ISSUE_CONTEXT_ROLE,
+                        {
+                            "issue_kind": "ROOM",
+                            "line_id": line_id,
+                            "network_kind": card.get("network_kind", "CABLE"),
+                            "column_key": "room_names",
+                            "row_kind": "CHILD",
+                            "segment_id": edge.get("segment_id"),
+                            "target_label": target.get("label") or "Точка",
+                            "title": f"{target.get('label') or 'Точка'} · помещение",
+                            "reason": (
+                                f"{target.get('room_names') or 'Помещение'} не связано "
+                                "с каноническим помещением Project."
+                            ),
+                            "required_action": "Обновите DWG и выберите каноническое помещение.",
+                            "fix_action": "SYNC_DWG",
+                        },
+                    )
                 if definition.key == "effective_m" and edge.get("calculation_status") != "READY":
-                    child.setToolTip(edge.get("calculation_reason") or "Длина не рассчитана")
+                    reason = edge.get("calculation_reason") or "Длина не рассчитана"
+                    child.setToolTip(reason)
+                    child.setData(
+                        _ISSUE_CONTEXT_ROLE,
+                        {
+                            "issue_kind": "LENGTH",
+                            "line_id": line_id,
+                            "network_kind": card.get("network_kind", "CABLE"),
+                            "column_key": "effective_m",
+                            "row_kind": "CHILD",
+                            "segment_id": edge.get("segment_id"),
+                            "target_label": target.get("label") or "Точка",
+                            "title": f"{target.get('label') or 'Участок'} · длина",
+                            "reason": reason,
+                            "required_action": (
+                                "Сначала привяжите помещение, затем длина пересчитается."
+                                if "канонической связи" in str(reason)
+                                else "Исправьте указанные исходные данные и пересчитайте участок."
+                            ),
+                            "fix_action": (
+                                "SYNC_DWG"
+                                if "канонической связи" in str(reason)
+                                else (
+                                    "OPEN_BUS"
+                                    if card.get("network_kind") == "BUS"
+                                    else "RECALCULATE"
+                                )
+                            ),
+                        },
+                    )
                 self.table.setItem(insert_at, column, child)
             insert_at += 1
 
