@@ -7,10 +7,15 @@ def _attr(tag, value):
     return SimpleNamespace(tag=tag, value=value)
 
 
-def _observation(handle, cable_id=""):
+def _observation(handle, cable_id="", bus_point_id=""):
+    attributes = []
+    if cable_id:
+        attributes.append(_attr("CABLE_ID", cable_id))
+    if bus_point_id:
+        attributes.append(_attr("BUS_POINT_ID", bus_point_id))
     return SimpleNamespace(
         handle=handle,
-        raw_attributes=(_attr("CABLE_ID", cable_id),) if cable_id else (),
+        raw_attributes=tuple(attributes),
     )
 
 
@@ -108,13 +113,12 @@ def test_missing_project_bus_root_is_explicit_and_bus_points_are_not_auto_applie
             _change("A:$", "A", "$", ChangeClass.NEW_DWG_INSERTION),
             _change("B:$", "B", "$", ChangeClass.NEW_DWG_INSERTION),
             _change("C:LOAD_NAME", "C", "LOAD_NAME", ChangeClass.DWG_CHANGED),
-        )
-    )
-    proposal.snapshot = SimpleNamespace(
-        bus_points=(
-            SimpleNamespace(handle="A", bus_id="903"),
-            SimpleNamespace(handle="B", bus_id="903"),
-        )
+        ),
+        (
+            _observation("A", bus_point_id="903.001"),
+            _observation("B", bus_point_id="903.002"),
+            _observation("C"),
+        ),
     )
 
     plan = build_dwg_update_plan(
@@ -128,10 +132,8 @@ def test_missing_project_bus_root_is_explicit_and_bus_points_are_not_auto_applie
 
 def test_existing_project_bus_root_keeps_bus_points_in_automatic_plan():
     proposal = _proposal(
-        (_change("A:$", "A", "$", ChangeClass.NEW_DWG_INSERTION),)
-    )
-    proposal.snapshot = SimpleNamespace(
-        bus_points=(SimpleNamespace(handle="A", bus_id="903"),)
+        (_change("A:$", "A", "$", ChangeClass.NEW_DWG_INSERTION),),
+        (_observation("A", bus_point_id="903.001"),),
     )
 
     plan = build_dwg_update_plan(
