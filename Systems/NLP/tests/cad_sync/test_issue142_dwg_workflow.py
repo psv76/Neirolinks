@@ -100,3 +100,44 @@ def test_room_canonicalization_and_unresolved_room_stay_explicit():
 
     assert not plan.import_paths
     assert {item.field_path for item in plan.problems} == {"A:ROOM", "B:ROOM"}
+
+
+def test_missing_project_bus_root_is_explicit_and_bus_points_are_not_auto_applied():
+    proposal = _proposal(
+        (
+            _change("A:$", "A", "$", ChangeClass.NEW_DWG_INSERTION),
+            _change("B:$", "B", "$", ChangeClass.NEW_DWG_INSERTION),
+            _change("C:LOAD_NAME", "C", "LOAD_NAME", ChangeClass.DWG_CHANGED),
+        )
+    )
+    proposal.snapshot = SimpleNamespace(
+        bus_points=(
+            SimpleNamespace(handle="A", bus_id="903"),
+            SimpleNamespace(handle="B", bus_id="903"),
+        )
+    )
+
+    plan = build_dwg_update_plan(
+        proposal,
+        existing_bus_designations=frozenset({"902"}),
+    )
+
+    assert plan.missing_bus_roots == ("903",)
+    assert plan.import_paths == frozenset({"C:LOAD_NAME"})
+
+
+def test_existing_project_bus_root_keeps_bus_points_in_automatic_plan():
+    proposal = _proposal(
+        (_change("A:$", "A", "$", ChangeClass.NEW_DWG_INSERTION),)
+    )
+    proposal.snapshot = SimpleNamespace(
+        bus_points=(SimpleNamespace(handle="A", bus_id="903"),)
+    )
+
+    plan = build_dwg_update_plan(
+        proposal,
+        existing_bus_designations=frozenset({"903"}),
+    )
+
+    assert plan.missing_bus_roots == ()
+    assert plan.import_paths == frozenset({"A:$"})
