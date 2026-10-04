@@ -41,20 +41,25 @@ def build_dwg_update_plan(
 
     by_path = {change.field_path: change for change in proposal.changes}
 
-    bus_points = tuple(getattr(getattr(proposal, "snapshot", None), "bus_points", ()) or ())
+    bus_by_handle: dict[str, str] = {}
+    for observation in proposal.batch.observations:
+        attributes = {item.tag: item.value for item in observation.raw_attributes}
+        point_id = str(attributes.get("BUS_POINT_ID") or "").strip()
+        if len(point_id) == 7 and point_id[:3].isdigit() and point_id[3] == ".":
+            bus_by_handle[str(observation.handle)] = point_id[:3]
     missing_bus_roots = tuple(
         sorted(
             {
-                str(point.bus_id)
-                for point in bus_points
-                if str(point.bus_id) not in existing_bus_designations
+                designation
+                for designation in bus_by_handle.values()
+                if designation not in existing_bus_designations
             }
         )
     )
     missing_bus_handles = {
-        str(point.handle)
-        for point in bus_points
-        if str(point.bus_id) in missing_bus_roots
+        handle
+        for handle, designation in bus_by_handle.items()
+        if designation in missing_bus_roots
     }
 
     groups = atomic_line_import_groups(proposal, set(_AUTO_IMPORT))
