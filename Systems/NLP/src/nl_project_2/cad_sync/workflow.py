@@ -100,12 +100,9 @@ def build_dwg_update_plan(
         if change.change_class in _AUTO_IMPORT:
             if change.handle in missing_bus_handles:
                 continue
-            if (
-                change.field_path not in grouped_paths
-                and not change.structural
-                and not explicit_room_link
-            ):
-                import_paths.add(change.field_path)
+            if change.field_path not in grouped_paths and not explicit_room_link:
+                if change.change_class is ChangeClass.NEW_DWG_INSERTION or not change.structural:
+                    import_paths.add(change.field_path)
             elif explicit_room_link:
                 problems.append(change)
             continue

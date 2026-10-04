@@ -46,6 +46,9 @@ class AutoCadBridgeClient:
     def __init__(self, bridge_script: Path | None = None, *, logger=None) -> None:
         self._bridge_script = bridge_script
         self._logger = logger
+        self._cached_batch: CadObservationBatch | None = None
+        self._cached_signatures: dict[str, str] | None = None
+        self._cached_order: tuple[str, ...] | None = None
 
     def inspect_active_document(self, *, deadline_seconds: float = 15.0) -> ActiveDocumentInfo:
         payload = self._call({"operation": "document_identity"}, deadline_seconds)
@@ -58,6 +61,114 @@ class AutoCadBridgeClient:
         )
 
     def read_observations(self, request: CadReadRequest) -> CadObservationBatch:
+        expected = request.expected_document_identity.strip()
+        cache_matches = (
+            self._cached_batch is not None
+            and self._cached_signatures is not None
+            and self._cached_order is not None
+            and (
+                not expected
+                or self._cached_batch.document_identity.casefold() == expected.casefold()
+            )
+        )
+        if cache_matches:
+            try:
+                fingerprint = self._fingerprint(request)
+                if (
+                    fingerprint["document_identity"].casefold()
+                    == self._cached_batch.document_identity.casefold()
+                ):
+                    current_signatures = {
+                        str(key): str(value) for key, value in fingerprint["signatures"].items()
+                    }
+                    current_order = tuple(str(value) for value in fingerprint["handles"])
+                    if current_signatures == self._cached_signatures:
+                        metadata = dict(fingerprint["source_metadata"])
+                        metadata["incremental_mode"] = "CACHE_HIT"
+                        return CadObservationBatch(
+                            document_identity=fingerprint["document_identity"],
+                            observations=self._cached_batch.observations,
+                            source_metadata=metadata,
+                        )
+
+                    old_handles = set(self._cached_signatures)
+                    current_handles = set(current_signatures)
+                    changed_handles = {
+                        handle
+                        for handle in current_handles & old_handles
+                        if current_signatures[handle] != self._cached_signatures[handle]
+                    }
+                    changed_handles.update(current_handles - old_handles)
+
+                    replacements: dict[str, CadObservation] = {}
+                    if changed_handles:
+                        delta_payload = self._call(
+                            {
+                                "operation": "scan_handles",
+                                "expected_document_identity": request.expected_document_identity,
+                                "definition_names": list(request.definition_names),
+                                "handles": sorted(changed_handles),
+                            },
+                            request.deadline_seconds,
+                        )
+                        delta_batch = _batch_from_payload(delta_payload)
+                        replacements = {
+                            observation.handle: observation
+                            for observation in delta_batch.observations
+                        }
+                        if set(replacements) != changed_handles:
+                            raise BridgeError(
+                                "Incremental scan did not return every changed/new handle"
+                            )
+
+                    verify = self._fingerprint(request)
+                    verify_signatures = {
+                        str(key): str(value) for key, value in verify["signatures"].items()
+                    }
+                    verify_order = tuple(str(value) for value in verify["handles"])
+                    if verify_signatures != current_signatures or verify_order != current_order:
+                        raise BridgeError(
+                            "AutoCAD changed while incremental observations were being read"
+                        )
+
+                    cached_by_handle = {
+                        observation.handle: observation
+                        for observation in self._cached_batch.observations
+                    }
+                    merged: list[CadObservation] = []
+                    for handle in current_order:
+                        if handle in replacements:
+                            merged.append(replacements[handle])
+                            continue
+                        existing = cached_by_handle.get(handle)
+                        if existing is None:
+                            raise BridgeError(
+                                f"Incremental cache is missing unchanged handle {handle}"
+                            )
+                        merged.append(existing)
+                    metadata = dict(verify["source_metadata"])
+                    metadata["incremental_mode"] = "DELTA"
+                    metadata["incremental_changed_handles"] = len(changed_handles)
+                    batch = CadObservationBatch(
+                        document_identity=verify["document_identity"],
+                        observations=tuple(merged),
+                        source_metadata=metadata,
+                    )
+                    self._set_cache(
+                        batch,
+                        signatures=verify_signatures,
+                        order=verify_order,
+                    )
+                    return batch
+            except (BridgeError, BridgeTimeout, KeyError, TypeError, ValueError):
+                self._clear_cache()
+
+        pre_scan_fingerprint: dict[str, Any] | None = None
+        try:
+            pre_scan_fingerprint = self._fingerprint(request)
+        except (BridgeError, BridgeTimeout, KeyError, TypeError, ValueError):
+            self._clear_cache()
+
         payload = self._call(
             {
                 "operation": "scan",
@@ -66,30 +177,67 @@ class AutoCadBridgeClient:
             },
             request.deadline_seconds,
         )
-        observations = tuple(
-            CadObservation.from_mapping(
-                effective_name=item["effective_name"],
-                layer=item["layer"],
-                raw_attributes=item["raw_attributes"],
-                x=item["x"],
-                y=item["y"],
-                handle=item["handle"],
-                definition=BlockDefinitionMetadata(
-                    attribute_definition_tags=(
-                        tuple(item["definition_tags"])
-                        if item.get("definition_tags") is not None
-                        else None
-                    ),
-                    is_dynamic=item.get("is_dynamic"),
-                ),
-            )
-            for item in payload["observations"]
+        batch = _batch_from_payload(payload)
+        if pre_scan_fingerprint is None:
+            self._clear_cache()
+            return batch
+
+        try:
+            post_scan_fingerprint = self._fingerprint(request)
+            pre_signatures = {
+                str(key): str(value) for key, value in pre_scan_fingerprint["signatures"].items()
+            }
+            post_signatures = {
+                str(key): str(value) for key, value in post_scan_fingerprint["signatures"].items()
+            }
+            pre_order = tuple(str(value) for value in pre_scan_fingerprint["handles"])
+            post_order = tuple(str(value) for value in post_scan_fingerprint["handles"])
+        except (BridgeError, BridgeTimeout, KeyError, TypeError, ValueError):
+            self._clear_cache()
+            return batch
+
+        batch_handles = {item.handle for item in batch.observations}
+        stable_full_read = (
+            pre_scan_fingerprint["document_identity"].casefold()
+            == batch.document_identity.casefold()
+            == post_scan_fingerprint["document_identity"].casefold()
+            and pre_signatures == post_signatures
+            and pre_order == post_order
+            and set(post_order) == batch_handles
+            and len(post_order) == len(batch.observations)
         )
-        return CadObservationBatch(
-            document_identity=payload["document_identity"],
-            observations=observations,
-            source_metadata=payload["source_metadata"],
+        if not stable_full_read:
+            self._clear_cache()
+            raise BridgeError("AutoCAD changed while full observations were being read")
+
+        self._set_cache(batch, signatures=post_signatures, order=post_order)
+        return batch
+
+    def _fingerprint(self, request: CadReadRequest) -> dict[str, Any]:
+        return self._call(
+            {
+                "operation": "fingerprint",
+                "expected_document_identity": request.expected_document_identity,
+                "timeout_seconds": min(15.0, request.deadline_seconds),
+            },
+            request.deadline_seconds,
         )
+
+    def _set_cache(
+        self,
+        batch: CadObservationBatch,
+        *,
+        signatures: dict[str, str],
+        order: tuple[str, ...],
+    ) -> None:
+        self._cached_batch = batch
+        self._cached_signatures = dict(signatures)
+        self._cached_order = tuple(order)
+
+    def _clear_cache(self) -> None:
+        self._cached_batch = None
+        self._cached_signatures = None
+        self._cached_order = None
 
     def write_attributes(
         self,
@@ -253,6 +401,33 @@ class AutoCadBridgeClient:
             error=error,
             summary=summary,
         )
+
+
+def _batch_from_payload(payload: dict[str, Any]) -> CadObservationBatch:
+    observations = tuple(
+        CadObservation.from_mapping(
+            effective_name=item["effective_name"],
+            layer=item["layer"],
+            raw_attributes=item["raw_attributes"],
+            x=item["x"],
+            y=item["y"],
+            handle=item["handle"],
+            definition=BlockDefinitionMetadata(
+                attribute_definition_tags=(
+                    tuple(item["definition_tags"])
+                    if item.get("definition_tags") is not None
+                    else None
+                ),
+                is_dynamic=item.get("is_dynamic"),
+            ),
+        )
+        for item in payload["observations"]
+    )
+    return CadObservationBatch(
+        document_identity=payload["document_identity"],
+        observations=observations,
+        source_metadata=payload["source_metadata"],
+    )
 
 
 def _bridge_failure(stdout: str, stderr: str, returncode: int | None) -> str:

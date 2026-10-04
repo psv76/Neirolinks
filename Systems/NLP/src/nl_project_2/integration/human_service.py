@@ -72,19 +72,48 @@ _DWG_RULE_TEXT = {
     "CABLE_ID_FORMAT": "Некорректно указан номер кабельной линии",
     "DUPLICATE_FULL_CABLE_ID": "Номер точки кабельной линии не уникален",
     "FRAME_IP44_POSTS_DEFICIT": "Для рамки IP44 недостаточно постов",
+    "GOFRA_TYPE_FORMAT": "Некорректно указан тип трубы",
+    "BUS_GOFRA_TYPE_FORMAT": "Некорректно указан тип трубы шины",
+    "KEY_TARGET_NOT_FOUND": "Назначение клавиши не найдено в DWG",
+    "SWITCH_CONDUCTOR_CAPACITY_UNKNOWN": "Не подтверждена ёмкость кабеля для клавиш",
+    "LINE_FIELDS_WITHOUT_CABLE_ID": "Параметры кабельной линии заполнены без CABLE_ID",
 }
+
+
+def _dwg_object_title(observation: dict) -> str:
+    attributes = dict(observation.get("raw_attributes_json") or {})
+    block = str(observation.get("effective_block_name") or "").strip()
+    handle = str(observation.get("entity_handle") or "").strip()
+    for field in ("CABLE_ID", "BUS_POINT_ID", "BOX_ID", "BOARD_ID"):
+        value = str(attributes.get(field) or "").strip()
+        if value:
+            return f"{value} · {block}" if block else value
+    return f"{block} · handle {handle}" if block and handle else block or handle or "DWG"
+
+
+def _dwg_required_action(diagnostic: dict, observation: dict) -> str:
+    field = str(diagnostic.get("field") or "").strip()
+    subject = _dwg_object_title(observation)
+    if field and field != "$":
+        return f"Исправьте {field} у {subject} в AutoCAD и снова нажмите «Обновить»"
+    return f"Исправьте {subject} в AutoCAD и снова нажмите «Обновить»"
 
 
 def _human_dwg_reason(code: str, diagnostic: dict, observation: dict) -> str:
     title = _DWG_RULE_TEXT.get(code, "Нарушено правило данных DWG")
-    block = str(observation.get("effective_block_name") or "").strip()
+    attributes = dict(observation.get("raw_attributes_json") or {})
     field = str(diagnostic.get("field") or "").strip()
-    details = []
-    if block:
-        details.append(f"блок {block}")
+    subject = _dwg_object_title(observation)
+    value = ""
     if field and field != "$":
-        details.append(f"поле {field}")
-    return title if not details else f"{title}: {', '.join(details)}"
+        value = str(
+            observation.get("layer_name") if field == "LAYER" else attributes.get(field) or ""
+        ).strip()
+    field_text = f"{field} = {value!r}" if value else field
+    parts = [title, subject]
+    if field_text:
+        parts.append(field_text)
+    return " · ".join(part for part in parts if part)
 
 
 class IntegratedUiService:
@@ -729,13 +758,13 @@ class IntegratedUiService:
                                 UserStatus.PROJECT_ERROR
                                 if blocking
                                 else UserStatus.ACTION_REQUIRED,
-                                "Проверка DWG",
+                                _dwg_object_title(row),
                                 _human_dwg_reason(code, diagnostic, row),
                                 "Данные DWG нельзя считать подтверждёнными"
                                 if blocking
                                 else "Требуется проверить чертёж",
                                 blocking,
-                                "Откройте раздел DWG и исправьте указанную вставку",
+                                _dwg_required_action(diagnostic, row),
                                 "DWG",
                                 code,
                                 "DWG_INSERTION",

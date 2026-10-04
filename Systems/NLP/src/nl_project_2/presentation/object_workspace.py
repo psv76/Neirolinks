@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QButtonGroup,
     QCheckBox,
     QComboBox,
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
+    QHeaderView,
     QInputDialog,
     QLabel,
     QLineEdit,
@@ -709,7 +711,7 @@ class DwgSyncResolutionDialog(QDialog):
         self._bus_roots: set[str] = set()
         self.open_checks_requested = False
         self.setWindowTitle("Требуют решения")
-        self.resize(860, 520)
+        self.resize(1180, 580)
 
         rows = [("CONFLICT", item) for item in plan.conflicts]
         rows.extend(("PROBLEM", item) for item in plan.problems)
@@ -727,8 +729,9 @@ class DwgSyncResolutionDialog(QDialog):
         header_font = header.font()
         header_font.setBold(True)
         header.setFont(header_font)
-        for column, width in enumerate((165, 145, 150, 150, 270, 245)):
+        for column, width in enumerate((180, 150, 180, 180, 360, 210)):
             self.table.setColumnWidth(column, width)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
 
         observations = {item.handle: item for item in proposal.batch.observations if item.handle}
         for row, (kind, payload) in enumerate(rows):
@@ -775,7 +778,10 @@ class DwgSyncResolutionDialog(QDialog):
                 reason,
             )
             for column, value in enumerate(values):
-                self.table.setItem(row, column, QTableWidgetItem(str(value or "—")))
+                cell_text = str(value or "—")
+                item = QTableWidgetItem(cell_text)
+                item.setToolTip(cell_text)
+                self.table.setItem(row, column, item)
 
             actions = QWidget(self.table)
             actions_layout = QHBoxLayout(actions)
@@ -1912,6 +1918,7 @@ class ObjectWorkspace(QWidget):
 
     def _sync_scan_completed(self, result) -> None:
         self._finish_sync_scan()
+        QApplication.beep()
         self._review_sync_proposal(result.value)
 
     def _review_sync_proposal(self, proposal) -> None:
