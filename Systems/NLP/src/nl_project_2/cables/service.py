@@ -557,8 +557,29 @@ class CableService:
                 )
                 .order_by(cable_point.c.cable_line_id, cable_point.c.ordinal)
             ).all()
+            unresolved_room_rows = connection.execute(
+                select(
+                    cable_point.c.cable_line_id,
+                    field_device.c.normalized_fields_json,
+                )
+                .join(
+                    cable_point_field_device,
+                    cable_point_field_device.c.cable_point_id == cable_point.c.id,
+                )
+                .join(
+                    field_device,
+                    field_device.c.id == cable_point_field_device.c.field_device_id,
+                )
+                .where(
+                    cable_point.c.project_id == project_id,
+                    field_device.c.lifecycle == "ACTIVE",
+                    field_device.c.room_id.is_(None),
+                )
+                .order_by(cable_point.c.cable_line_id, cable_point.c.ordinal)
+            ).all()
         room_markers_by_line: dict[str, dict[str, dict[str, str]]] = {}
         building_names_by_line: dict[str, list[str]] = {}
+        unresolved_room_names_by_line: dict[str, list[str]] = {}
         for cable_line_id, building_name, room_id, room_name, room_display in room_rows:
             clean_name = str(room_name or "").strip()
             if clean_name:
@@ -575,6 +596,13 @@ class CableService:
             names = building_names_by_line.setdefault(cable_line_id, [])
             if clean_building and clean_building not in names:
                 names.append(clean_building)
+        for cable_line_id, fields in unresolved_room_rows:
+            raw_room = str((fields or {}).get("ROOM") or "").strip()
+            if not raw_room:
+                continue
+            names = unresolved_room_names_by_line.setdefault(cable_line_id, [])
+            if raw_room not in names:
+                names.append(raw_room)
         cards = []
         for row in self.list_lines(project_id):
             facts = dict(row["cable_facts_json"] or {})
@@ -631,6 +659,7 @@ class CableService:
                 "building_names": ", ".join(building_names_by_line.get(row["id"], [])),
                 "room_names": ", ".join(item["name"] for item in room_markers),
                 "room_markers": room_markers,
+                "unresolved_room_names": tuple(unresolved_room_names_by_line.get(row["id"], [])),
                 "conduit_count": len(conduit_designations),
                 "incomplete_segments": incomplete_segments,
                 "automatic_m": None,
