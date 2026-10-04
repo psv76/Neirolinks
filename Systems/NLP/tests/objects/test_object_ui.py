@@ -30,6 +30,7 @@ from nl_project_2.objects.service import ObjectService
 from nl_project_2.objects.time_tracking import WorkTimeService
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import project, work_session
+import nl_project_2.presentation.object_workspace as object_workspace_module
 from nl_project_2.presentation.object_workspace import (
     _SYNC_STATUS_TITLES,
     _VALIDATION_TITLES,
@@ -577,3 +578,75 @@ def test_dwg_target_identity_requires_explicit_user_confirmation(database, qtbot
     )
     widget._sync_identity_completed(result)
     assert started == [identity]
+
+
+def test_local_line_room_warning_opens_direct_remediation(database, qtbot, monkeypatch):
+    objects = ObjectService(database.engine)
+    project_id = objects.create_project(ProjectCard(name="Local issue", project_code="LOCAL-1"))
+    runtime = ApplicationRuntime(
+        database,
+        objects,
+        WorkTimeService(database.engine, new_id()),
+    )
+    widget = ObjectWorkspace(runtime)
+    qtbot.addWidget(widget)
+    widget.open_project(project_id)
+
+    sync_calls = []
+    widget._sync_dwg = lambda: sync_calls.append("sync")
+    widget.documents_workspace.show_issue_for = lambda *_args: (_ for _ in ()).throw(
+        AssertionError("local warning must not open the generic validation list")
+    )
+
+    class FakeMessageBox:
+        class Icon:
+            Warning = object()
+
+        class ButtonRole:
+            AcceptRole = object()
+
+        class StandardButton:
+            Close = object()
+
+        def __init__(self, _parent=None):
+            self._clicked = None
+
+        def setWindowTitle(self, _value):
+            pass
+
+        def setIcon(self, _value):
+            pass
+
+        def setText(self, _value):
+            pass
+
+        def setInformativeText(self, _value):
+            pass
+
+        def addButton(self, value, *_args):
+            button = object()
+            if value == "Привязать помещение":
+                self._clicked = button
+            return button
+
+        def exec(self):
+            return 0
+
+        def clickedButton(self):
+            return self._clicked
+
+    monkeypatch.setattr(object_workspace_module, "QMessageBox", FakeMessageBox)
+
+    widget._show_line_issue(
+        {
+            "issue_kind": "ROOM",
+            "line_id": "line-106",
+            "column_key": "room_names",
+            "title": "BOX.011 · помещение",
+            "reason": "Дет. ванная 2 не связано с каноническим помещением Project.",
+            "required_action": "Выберите существующее помещение Project.",
+            "fix_action": "SYNC_DWG",
+        }
+    )
+
+    assert sync_calls == ["sync"]
