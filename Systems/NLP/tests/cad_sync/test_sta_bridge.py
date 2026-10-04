@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tools.autocad_sta_bridge import _scan, _write_attributes
+from tools.autocad_sta_bridge import _require_document, _scan, _write_attributes
 
 
 class _AttributeDefinition:
@@ -53,6 +53,39 @@ class _Document:
     def GetVariable(name):
         assert name == "DBMOD"
         return 0
+
+
+class _ApplicationWithBrokenDocumentsCollection:
+    ActiveDocument = _Document()
+
+    @property
+    def Documents(self):
+        raise AttributeError("Count")
+
+
+class _ApplicationWithoutDocument:
+    @property
+    def ActiveDocument(self):
+        raise RuntimeError("no document")
+
+
+def test_require_document_uses_active_document_without_documents_count():
+    document, identity = _require_document(
+        _ApplicationWithBrokenDocumentsCollection(),
+        "C:/fixture/fixture.dwg",
+    )
+
+    assert document is _ApplicationWithBrokenDocumentsCollection.ActiveDocument
+    assert identity == "C:/fixture/fixture.dwg"
+
+
+def test_require_document_rejects_missing_active_document():
+    try:
+        _require_document(_ApplicationWithoutDocument(), "")
+    except RuntimeError as exc:
+        assert str(exc) == "AutoCAD has no open document"
+    else:
+        raise AssertionError("missing ActiveDocument was accepted")
 
 
 def test_scan_caches_definition_metadata_and_tolerates_non_entity_proxy():

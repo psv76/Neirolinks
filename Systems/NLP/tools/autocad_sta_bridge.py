@@ -37,9 +37,12 @@ def _document_identity(document) -> str:
 
 
 def _require_document(application, expected: str):
-    if int(application.Documents.Count) < 1:
+    try:
+        document = application.ActiveDocument
+    except Exception as exc:
+        raise RuntimeError("AutoCAD has no open document") from exc
+    if document is None:
         raise RuntimeError("AutoCAD has no open document")
-    document = application.ActiveDocument
     identity = _document_identity(document)
     if expected and identity.casefold() != expected.casefold():
         raise RuntimeError(f"active DWG identity mismatch: expected {expected!r}, got {identity!r}")
