@@ -250,6 +250,10 @@ def test_failed_automatic_dwg_apply_becomes_visible_problem(
         def selected_write_paths():
             return set()
 
+        @staticmethod
+        def requested_bus_roots():
+            return set()
+
     warnings = []
     monkeypatch.setattr(object_workspace_module, "DwgSyncResolutionDialog", Resolution)
     monkeypatch.setattr(runtime.dwg_sync, "apply_dwg_to_project", fail)
