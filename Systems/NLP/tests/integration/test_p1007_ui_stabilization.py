@@ -153,6 +153,7 @@ def test_successful_dwg_import_refreshes_lines_without_preview(
             conflicts=(),
             problems=(),
             blocked_lines=(),
+            missing_bus_roots=(),
         ),
     )
 
