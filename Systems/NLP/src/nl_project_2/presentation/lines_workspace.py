@@ -253,6 +253,7 @@ class LinesWorkspace(QWidget):
         guided_service=None,
         bulk_service=None,
         status_service=None,
+        bus_service=None,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -263,6 +264,7 @@ class LinesWorkspace(QWidget):
         self.guided = guided_service
         self.bulk = bulk_service
         self.status_service = status_service
+        self.buses = bus_service
         self._cards: list[dict] = []
         self._cards_by_id: dict[str, dict] = {}
         self._assignments_by_line: dict[str, list[dict]] = {}
@@ -608,7 +610,15 @@ class LinesWorkspace(QWidget):
         self.table.setSortingEnabled(False)
         self.table.blockSignals(True)
         try:
-            self._cards = list(self.cables.line_cards(self.project_id)) if self.cables else []
+            cable_cards = list(self.cables.line_cards(self.project_id)) if self.cables else []
+            for card in cable_cards:
+                card["network_kind"] = "CABLE"
+            bus_cards = (
+                list(self.buses.journal_cards(self.project_id))
+                if self.buses is not None
+                else []
+            )
+            self._cards = cable_cards + bus_cards
             statuses = (
                 self.status_service.line_statuses(self.project_id)
                 if self.status_service is not None
@@ -625,6 +635,16 @@ class LinesWorkspace(QWidget):
                     assignment
                 )
             for card in self._cards:
+                if card.get("network_kind") == "BUS":
+                    card["status_summary"] = None
+                    card["user_status"] = (
+                        "Требуется действие"
+                        if int(card.get("incomplete_segments") or 0)
+                        or tuple(card.get("unresolved_room_names") or ())
+                        else "Готово"
+                    )
+                    card["resource_labels"] = ""
+                    continue
                 status = statuses.get(card["id"])
                 card["status_summary"] = status
                 card["user_status"] = (
@@ -675,10 +695,14 @@ class LinesWorkspace(QWidget):
                     item.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
                     item.setData(Qt.ItemDataRole.UserRole + 3, "BASE")
                     flags = item.flags()
-                    if definition.editable_field is None:
+                    if definition.editable_field is None or card.get("network_kind") != "CABLE":
                         flags &= ~Qt.ItemFlag.ItemIsEditable
                         item.setForeground(QBrush(QColor("#424a52")))
                     item.setFlags(flags)
+                    item.setData(
+                        Qt.ItemDataRole.UserRole + 4,
+                        card.get("network_kind", "CABLE"),
+                    )
                     if definition.key == "resource_labels":
                         technical = ", ".join(
                             assignment["technical_identity"]
@@ -888,8 +912,13 @@ class LinesWorkspace(QWidget):
             self._expand_line_tree(base_row, line_id)
 
     def _expand_line_tree(self, base_row: int, line_id: str) -> None:
+        card = self._cards_by_id.get(line_id, {})
         try:
-            topology = self.cables.topology(self.project_id, line_id)
+            topology = (
+                self.buses.journal_topology(self.project_id, line_id)
+                if card.get("network_kind") == "BUS" and self.buses is not None
+                else self.cables.topology(self.project_id, line_id)
+            )
         except Exception as exc:
             QMessageBox.warning(self, "Линия не раскрыта", str(exc))
             return
@@ -1038,7 +1067,11 @@ class LinesWorkspace(QWidget):
         if card is None:
             return
         try:
-            topology = self.cables.topology(self.project_id, line_id)
+            topology = (
+                self.buses.journal_topology(self.project_id, line_id)
+                if card.get("network_kind") == "BUS" and self.buses is not None
+                else self.cables.topology(self.project_id, line_id)
+            )
         except Exception as exc:
             QMessageBox.warning(self, "Линия не открыта", str(exc))
             return
@@ -1201,7 +1234,13 @@ class LinesWorkspace(QWidget):
             )
         self.open_resource.setEnabled(bool(assignments))
         self.show_issue.setEnabled(card["user_status"] != "Готово")
-        self._load_physical_route(line_id)
+        if card.get("network_kind") == "BUS":
+            for button in self.single_buttons.values():
+                button.setEnabled(False)
+            self.open_resource.setEnabled(False)
+            self._clear_physical_route()
+        else:
+            self._load_physical_route(line_id)
 
     def _clear_physical_route(self) -> None:
         self._segment_rows = []
@@ -1424,7 +1463,9 @@ class LinesWorkspace(QWidget):
         if self._refreshing:
             return
         column = COLUMNS[item.column()]
-        if column.editable_field is None:
+        line_id = item.data(Qt.ItemDataRole.UserRole)
+        card = self._cards_by_id.get(line_id)
+        if column.editable_field is None or card is None or card.get("network_kind") != "CABLE":
             return
         self._apply_edits(
             [
@@ -1530,6 +1571,12 @@ class LinesWorkspace(QWidget):
                     self, "Вставка не выполнена", "Редактировать можно только строки линий"
                 )
                 return False
+            target_line_id = self.table.item(target_row, 0).data(Qt.ItemDataRole.UserRole)
+            if self._cards_by_id[target_line_id].get("network_kind") != "CABLE":
+                QMessageBox.warning(
+                    self, "Вставка не выполнена", "Шина редактируется в разделе шин"
+                )
+                return False
             if self.table.isRowHidden(target_row):
                 QMessageBox.warning(self, "Вставка не выполнена", "Скрытые строки не изменяются")
                 return False
@@ -1568,6 +1615,16 @@ class LinesWorkspace(QWidget):
                 self, "Заполнение не выполнено", "Редактировать можно только строки линий"
             )
             return False
+        if any(
+            self._cards_by_id[
+                self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+            ].get("network_kind") != "CABLE"
+            for row in rows
+        ):
+            QMessageBox.warning(
+                self, "Заполнение не выполнено", "Шины редактируются отдельно"
+            )
+            return False
         edits = []
         for column in columns:
             definition = COLUMNS[column]
@@ -1598,7 +1655,11 @@ class LinesWorkspace(QWidget):
                 "Выберите изменяемую колонку BOARD или CABLE_TYPE",
             )
             return False
-        line_ids = self.selected_line_ids()
+        line_ids = tuple(
+            line_id
+            for line_id in self.selected_line_ids()
+            if self._cards_by_id[line_id].get("network_kind") == "CABLE"
+        )
         if not line_ids:
             return False
         if value is None:
@@ -1639,7 +1700,11 @@ class LinesWorkspace(QWidget):
 
     def run_guided_action(self, action: GuidedAction) -> None:
         line_id = self.current_line_id()
-        if line_id is None or self.guided is None:
+        if (
+            line_id is None
+            or self.guided is None
+            or self._cards_by_id.get(line_id, {}).get("network_kind") != "CABLE"
+        ):
             return
         if action == GuidedAction.OUTPUT:
             owner_id = line_id
