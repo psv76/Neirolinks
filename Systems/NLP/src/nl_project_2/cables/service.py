@@ -645,6 +645,14 @@ class CableService:
             incomplete_segments = sum(
                 1 for item in route_rows if item["calculated_length_m_decimal"] is None
             )
+            known_segment_m = sum(
+                (
+                    Decimal(item["calculated_length_m_decimal"])
+                    for item in route_rows
+                    if item["calculated_length_m_decimal"] is not None
+                ),
+                Decimal(0),
+            )
             card = {
                 **row,
                 "route_method": str(ROUTE_METHOD_BY_MOUNT_WAY.get(mount_way, "")),
@@ -662,6 +670,7 @@ class CableService:
                 "unresolved_room_names": tuple(unresolved_room_names_by_line.get(row["id"], [])),
                 "conduit_count": len(conduit_designations),
                 "incomplete_segments": incomplete_segments,
+                "known_segment_m": str(known_segment_m),
                 "automatic_m": None,
                 "additional_m": None,
                 "manual_full_m": None,
