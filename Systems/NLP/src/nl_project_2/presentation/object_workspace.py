@@ -706,12 +706,14 @@ class DwgSyncResolutionDialog(QDialog):
         self.plan = plan
         self._import_paths: set[str] = set()
         self._write_paths: set[str] = set()
+        self._bus_roots: set[str] = set()
         self.open_checks_requested = False
         self.setWindowTitle("Требуют решения")
         self.resize(860, 520)
 
         rows = [("CONFLICT", item) for item in plan.conflicts]
         rows.extend(("PROBLEM", item) for item in plan.problems)
+        rows.extend(("BUS_ROOT", designation) for designation in plan.missing_bus_roots)
         rows.extend(("RUNTIME", message) for message in runtime_errors)
 
         self.table = QTableWidget(len(rows), 6, self)
@@ -738,6 +740,25 @@ class DwgSyncResolutionDialog(QDialog):
                     self.table.setItem(row, column, QTableWidgetItem(value))
                 action = QPushButton("Открыть проверки", self.table)
                 action.clicked.connect(self._request_checks)
+                self.table.setCellWidget(row, 5, action)
+                continue
+            if kind == "BUS_ROOT":
+                designation = str(payload)
+                values = (
+                    designation,
+                    "Источник",
+                    "—",
+                    f"{designation}.001…",
+                    "В DWG найдены точки шины, но физический источник RS-485 не назначен.",
+                )
+                for column, value in enumerate(values):
+                    self.table.setItem(row, column, QTableWidgetItem(value))
+                action = QPushButton("Назначить источник", self.table)
+                action.clicked.connect(
+                    lambda _checked=False, value=designation, r=row: self._request_bus_root(
+                        r, value
+                    )
+                )
                 self.table.setCellWidget(row, 5, action)
                 continue
 
@@ -815,6 +836,18 @@ class DwgSyncResolutionDialog(QDialog):
         widget = self.table.cellWidget(row, 5)
         if widget is not None:
             widget.setEnabled(False)
+
+    def _request_bus_root(self, row: int, designation: str) -> None:
+        self._bus_roots.add(designation)
+        item = self.table.item(row, 4)
+        if item is not None:
+            item.setText("Источник будет назначен")
+        widget = self.table.cellWidget(row, 5)
+        if widget is not None:
+            widget.setEnabled(False)
+
+    def requested_bus_roots(self) -> set[str]:
+        return set(self._bus_roots)
 
     def _request_checks(self) -> None:
         self.open_checks_requested = True
@@ -1800,7 +1833,18 @@ class ObjectWorkspace(QWidget):
 
     def _review_sync_proposal(self, proposal) -> None:
         service = self.runtime.dwg_sync
-        plan = build_dwg_update_plan(proposal)
+        existing_buses = (
+            frozenset(
+                row["designation"]
+                for row in self.runtime.buses.list_buses(proposal.project_id)
+            )
+            if self.runtime.buses is not None
+            else frozenset()
+        )
+        plan = build_dwg_update_plan(
+            proposal,
+            existing_bus_designations=existing_buses,
+        )
         working = proposal
         imported = 0
         written = 0
@@ -1842,7 +1886,11 @@ class ObjectWorkspace(QWidget):
                 )
 
         needs_resolution = bool(
-            plan.conflicts or plan.problems or plan.blocked_lines or runtime_errors
+            plan.conflicts
+            or plan.problems
+            or plan.blocked_lines
+            or plan.missing_bus_roots
+            or runtime_errors
         )
         if needs_resolution:
             blocked = tuple(
@@ -1856,6 +1904,18 @@ class ObjectWorkspace(QWidget):
                 parent=self,
             )
             dialog.exec()
+
+            created_bus_root = False
+            if self.runtime.buses is not None:
+                for designation in sorted(dialog.requested_bus_roots()):
+                    bus_dialog = BusWorkspaceDialog(
+                        self.runtime.buses,
+                        proposal.project_id,
+                        self,
+                    )
+                    created_bus_root = (
+                        bus_dialog.create_rs485_bus(designation) or created_bus_root
+                    )
 
             selected_import = dialog.selected_import_paths()
             if selected_import:
@@ -1899,6 +1959,8 @@ class ObjectWorkspace(QWidget):
 
             if dialog.open_checks_requested:
                 self._open_validation_center()
+            if created_bus_root:
+                QTimer.singleShot(0, self._sync_dwg)
 
         self._detail = self.runtime.objects.get_project(proposal.project_id)
         self._load_detail()
