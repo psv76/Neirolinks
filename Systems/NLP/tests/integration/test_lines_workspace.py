@@ -312,3 +312,61 @@ def test_selected_line_shows_physical_segments_breakdown_and_edits_exact_segment
     assert route_method.value == "WALL"
     assert conduit_type == ""
     assert conduit_color == ""
+
+
+def test_local_warning_click_keeps_exact_cell_and_segment_context(qtbot):
+    service = FakeCableService()
+    card = next(item for item in service.cards if item["id"] == "line-1")
+    card["room_names"] = "Дет. ванная 2"
+    card["unresolved_room_names"] = ("Дет. ванная 2",)
+    card["effective_m"] = None
+    card["known_segment_m"] = "6"
+    card["incomplete_segments"] = 1
+
+    original_topology = service.topology
+
+    def topology(project_id, line_id):
+        value = deepcopy(original_topology(project_id, line_id))
+        edge = dict(value["edges"][0])
+        target = dict(edge["target"])
+        target["room_names"] = "Дет. ванная 2"
+        target["room_unresolved"] = True
+        edge["target"] = target
+        edge["cable_length_m"] = None
+        edge["physical_length_m"] = None
+        edge["calculation_status"] = "INCOMPLETE"
+        edge["calculation_reason"] = "Приёмник: нет помещения (канонической связи)"
+        value["edges"] = (edge,)
+        return value
+
+    service.topology = topology
+    workspace = LinesWorkspace(service, FakeConstructor(), "project")
+    qtbot.addWidget(workspace)
+    workspace.show()
+    captured = []
+    workspace.issueRequested.connect(captured.append)
+
+    base_row = _row(workspace, "line-1")
+    room_item = workspace.table.item(base_row, _column("room_names"))
+    assert "!" in room_item.text()
+    workspace._table_item_clicked(room_item)
+    assert captured[-1]["issue_kind"] == "ROOM"
+    assert captured[-1]["column_key"] == "room_names"
+    assert captured[-1]["line_id"] == "line-1"
+    assert captured[-1]["fix_action"] == "SYNC_DWG"
+
+    length_item = workspace.table.item(base_row, _column("effective_m"))
+    workspace._table_item_clicked(length_item)
+    assert captured[-1]["issue_kind"] == "LENGTH"
+    assert "Приёмник: нет помещения (канонической связи)" in captured[-1]["reason"]
+    assert captured[-1]["fix_action"] == "SYNC_DWG"
+
+    workspace._toggle_line_tree(base_row, "line-1")
+    child_row = base_row + 1
+    child_length = workspace.table.item(child_row, _column("effective_m"))
+    assert "!" in child_length.text()
+    workspace._table_item_clicked(child_length)
+    assert captured[-1]["row_kind"] == "CHILD"
+    assert captured[-1]["segment_id"] == "segment-line-1"
+    assert captured[-1]["target_label"] == "1.01"
+    assert captured[-1]["column_key"] == "effective_m"
