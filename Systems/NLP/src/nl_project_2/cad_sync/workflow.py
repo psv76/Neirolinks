@@ -24,9 +24,14 @@ class DwgUpdatePlan:
     conflicts: tuple[SyncChange, ...]
     problems: tuple[SyncChange, ...]
     blocked_lines: tuple[str, ...]
+    missing_bus_roots: tuple[str, ...]
 
 
-def build_dwg_update_plan(proposal) -> DwgUpdatePlan:
+def build_dwg_update_plan(
+    proposal,
+    *,
+    existing_bus_designations: frozenset[str] = frozenset(),
+) -> DwgUpdatePlan:
     """Build the normal one-click update plan from an immutable scan proposal.
 
     Safe one-sided changes are automatic.  True two-sided conflicts, structural
@@ -35,6 +40,22 @@ def build_dwg_update_plan(proposal) -> DwgUpdatePlan:
     """
 
     by_path = {change.field_path: change for change in proposal.changes}
+
+    bus_points = tuple(getattr(getattr(proposal, "snapshot", None), "bus_points", ()) or ())
+    missing_bus_roots = tuple(
+        sorted(
+            {
+                str(point.bus_id)
+                for point in bus_points
+                if str(point.bus_id) not in existing_bus_designations
+            }
+        )
+    )
+    missing_bus_handles = {
+        str(point.handle)
+        for point in bus_points
+        if str(point.bus_id) in missing_bus_roots
+    }
 
     groups = atomic_line_import_groups(proposal, set(_AUTO_IMPORT))
     grouped_paths = {path for group in groups for path in group.required_paths}
@@ -48,6 +69,14 @@ def build_dwg_update_plan(proposal) -> DwgUpdatePlan:
             if path in by_path
         )
         if group.blocked or explicit_only:
+            blocked_lines.append(group.line_number)
+            continue
+        safe_paths = {
+            path
+            for path in group.required_paths
+            if by_path.get(path) is None or by_path[path].handle not in missing_bus_handles
+        }
+        if safe_paths != set(group.required_paths):
             blocked_lines.append(group.line_number)
             continue
         import_paths.update(group.required_paths)
@@ -68,6 +97,8 @@ def build_dwg_update_plan(proposal) -> DwgUpdatePlan:
         explicit_room_link = change.detail_status == "ROOM_CANONICALIZATION"
 
         if change.change_class in _AUTO_IMPORT:
+            if change.handle in missing_bus_handles:
+                continue
             if (
                 change.field_path not in grouped_paths
                 and not change.structural
@@ -111,4 +142,5 @@ def build_dwg_update_plan(proposal) -> DwgUpdatePlan:
         conflicts=tuple(conflicts),
         problems=tuple(ordered_problems),
         blocked_lines=tuple(sorted(set(blocked_lines))),
+        missing_bus_roots=missing_bus_roots,
     )
