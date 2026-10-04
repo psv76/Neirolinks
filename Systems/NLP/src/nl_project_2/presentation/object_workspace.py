@@ -730,9 +730,7 @@ class DwgSyncResolutionDialog(QDialog):
         for column, width in enumerate((165, 145, 150, 150, 270, 245)):
             self.table.setColumnWidth(column, width)
 
-        observations = {
-            item.handle: item for item in proposal.batch.observations if item.handle
-        }
+        observations = {item.handle: item for item in proposal.batch.observations if item.handle}
         for row, (kind, payload) in enumerate(rows):
             if kind == "RUNTIME":
                 values = ("Обновление DWG", "—", "—", "—", str(payload))
@@ -1328,8 +1326,7 @@ class ObjectWorkspace(QWidget):
             fix_button = dialog.addButton(
                 (
                     "Привязать помещение"
-                    if issue.get("issue_kind") == "ROOM"
-                    or "канонической связи" in reason
+                    if issue.get("issue_kind") == "ROOM" or "канонической связи" in reason
                     else "Обновить"
                 ),
                 QMessageBox.ButtonRole.AcceptRole,
@@ -1921,8 +1918,7 @@ class ObjectWorkspace(QWidget):
         service = self.runtime.dwg_sync
         existing_buses = (
             frozenset(
-                row["designation"]
-                for row in self.runtime.buses.list_buses(proposal.project_id)
+                row["designation"] for row in self.runtime.buses.list_buses(proposal.project_id)
             )
             if self.runtime.buses is not None
             else frozenset()
@@ -1999,9 +1995,7 @@ class ObjectWorkspace(QWidget):
                         proposal.project_id,
                         self,
                     )
-                    created_bus_root = (
-                        bus_dialog.create_rs485_bus(designation) or created_bus_root
-                    )
+                    created_bus_root = bus_dialog.create_rs485_bus(designation) or created_bus_root
 
             selected_import = dialog.selected_import_paths()
             if selected_import:
@@ -2068,7 +2062,6 @@ class ObjectWorkspace(QWidget):
             if dwg_unsaved:
                 parts.append("DWG не сохранён")
             self.sync_status_label.setText(" · ".join(parts) or "Обновлено")
-
 
     def _open_cables(self) -> None:
         project_id = self.runtime.current_project_id

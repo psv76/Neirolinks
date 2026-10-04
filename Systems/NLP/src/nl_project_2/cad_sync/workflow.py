@@ -57,9 +57,7 @@ def build_dwg_update_plan(
         )
     )
     missing_bus_handles = {
-        handle
-        for handle, designation in bus_by_handle.items()
-        if designation in missing_bus_roots
+        handle for handle, designation in bus_by_handle.items() if designation in missing_bus_roots
     }
 
     groups = atomic_line_import_groups(proposal, set(_AUTO_IMPORT))
@@ -95,10 +93,9 @@ def build_dwg_update_plan(
             conflicts.append(change)
             continue
 
-        unresolved_room = (
-            change.field == "ROOM"
-            and str(change.display_context.get("room_name") or "").startswith("Не разрешено")
-        )
+        unresolved_room = change.field == "ROOM" and str(
+            change.display_context.get("room_name") or ""
+        ).startswith("Не разрешено")
         explicit_room_link = change.detail_status == "ROOM_CANONICALIZATION"
 
         if change.change_class in _AUTO_IMPORT:

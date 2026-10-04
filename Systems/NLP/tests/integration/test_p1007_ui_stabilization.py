@@ -132,9 +132,7 @@ def test_project_room_rename_refreshes_lines_in_same_session(qtbot, tmp_path, mo
     runtime.close()
 
 
-def test_successful_dwg_import_refreshes_lines_without_preview(
-    qtbot, tmp_path, monkeypatch
-):
+def test_successful_dwg_import_refreshes_lines_without_preview(qtbot, tmp_path, monkeypatch):
     runtime = ApplicationRuntime.open(_paths(tmp_path))
     project_id = runtime.objects.create_project(
         ProjectCard(name="Sync refresh", project_code="SYNC-REFRESH")
@@ -180,9 +178,7 @@ def test_successful_dwg_import_refreshes_lines_without_preview(
         "information",
         lambda _parent, title, message: messages.append((title, message)),
     )
-    widget._review_sync_proposal(
-        SimpleNamespace(project_id=project_id, project_revision=0)
-    )
+    widget._review_sync_proposal(SimpleNamespace(project_id=project_id, project_revision=0))
 
     widget.lines_workspace.search.setText("120")
     visible = [

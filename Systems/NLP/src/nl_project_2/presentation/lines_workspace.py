@@ -616,9 +616,7 @@ class LinesWorkspace(QWidget):
             for card in cable_cards:
                 card["network_kind"] = "CABLE"
             bus_cards = (
-                list(self.buses.journal_cards(self.project_id))
-                if self.buses is not None
-                else []
+                list(self.buses.journal_cards(self.project_id)) if self.buses is not None else []
             )
             self._cards = cable_cards + bus_cards
             statuses = (
@@ -677,9 +675,7 @@ class LinesWorkspace(QWidget):
                     elif definition.key == "room_names":
                         unresolved = tuple(card.get("unresolved_room_names") or ())
                         names = [
-                            part.strip()
-                            for part in str(value or "").split(",")
-                            if part.strip()
+                            part.strip() for part in str(value or "").split(",") if part.strip()
                         ]
                         for name in unresolved:
                             if name not in names:
@@ -755,9 +751,8 @@ class LinesWorkspace(QWidget):
                                     "fix_action": "SYNC_DWG",
                                 },
                             )
-                    if (
-                        definition.key == "effective_m"
-                        and int(card.get("incomplete_segments") or 0)
+                    if definition.key == "effective_m" and int(
+                        card.get("incomplete_segments") or 0
                     ):
                         item.setToolTip(
                             f"Не рассчитано участков: {int(card.get('incomplete_segments') or 0)}"
@@ -861,13 +856,16 @@ class LinesWorkspace(QWidget):
             )
             searchable = " ".join(
                 [
-                    *(str(card.get(key) or "") for key in (
-                        "designation",
-                        "load_name",
-                        "room_names",
-                        "board",
-                        "user_status",
-                    )),
+                    *(
+                        str(card.get(key) or "")
+                        for key in (
+                            "designation",
+                            "load_name",
+                            "room_names",
+                            "board",
+                            "user_status",
+                        )
+                    ),
                     row_text,
                 ]
             ).casefold()
@@ -967,9 +965,7 @@ class LinesWorkspace(QWidget):
             return context
 
         incomplete = [
-            edge
-            for edge in topology.get("edges", ())
-            if edge.get("calculation_status") != "READY"
+            edge for edge in topology.get("edges", ()) if edge.get("calculation_status") != "READY"
         ]
         details = []
         for edge in incomplete:
@@ -1077,11 +1073,7 @@ class LinesWorkspace(QWidget):
                 "cable_type": "",
                 "mount_way": edge.get("mount_way") or "",
                 "gofra_id": edge.get("gofra_id")
-                or (
-                    f"{edge.get('gofra_type')} · без №"
-                    if edge.get("gofra_type")
-                    else "—"
-                ),
+                or (f"{edge.get('gofra_type')} · без №" if edge.get("gofra_type") else "—"),
                 "effective_m": (
                     _format_length(edge.get("cable_length_m"))
                     if edge.get("cable_length_m") is not None
@@ -1216,9 +1208,7 @@ class LinesWorkspace(QWidget):
             QMessageBox.warning(self, "Линия не открыта", str(exc))
             return
         dialog = QDialog(self)
-        dialog.setWindowTitle(
-            f"{card['designation']} — {card['load_name'] or 'Линия'}"
-        )
+        dialog.setWindowTitle(f"{card['designation']} — {card['load_name'] or 'Линия'}")
         dialog.resize(980, 620)
         layout = QVBoxLayout(dialog)
 
@@ -1265,11 +1255,7 @@ class LinesWorkspace(QWidget):
                 description,
                 edge.get("mount_way") or "",
                 edge.get("gofra_id")
-                or (
-                    f"{edge.get('gofra_type')} · без №"
-                    if edge.get("gofra_type")
-                    else "—"
-                ),
+                or (f"{edge.get('gofra_type')} · без №" if edge.get("gofra_type") else "—"),
                 (
                     _format_length(edge.get("cable_length_m"))
                     if edge.get("cable_length_m") is not None
@@ -1640,6 +1626,7 @@ class LinesWorkspace(QWidget):
             key=self.table.horizontalHeader().visualIndex,
         )
         selected = {(index.row(), index.column()) for index in indexes}
+
         def cell_text(row: int, column: int) -> str:
             if (row, column) not in selected:
                 return ""
@@ -1656,14 +1643,11 @@ class LinesWorkspace(QWidget):
                 value = item.text().strip()
                 for prefix in ("▸", "▾", "└─", "├─"):
                     if value.startswith(prefix):
-                        value = value[len(prefix):].strip()
+                        value = value[len(prefix) :].strip()
                 return value
             return item.text()
 
-        text = "\n".join(
-            "\t".join(cell_text(row, column) for column in columns)
-            for row in rows
-        )
+        text = "\n".join("\t".join(cell_text(row, column) for column in columns) for row in rows)
         QApplication.clipboard().setText(text)
         return text
 
@@ -1756,14 +1740,13 @@ class LinesWorkspace(QWidget):
             )
             return False
         if any(
-            self._cards_by_id[
-                self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
-            ].get("network_kind") != "CABLE"
+            self._cards_by_id[self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)].get(
+                "network_kind"
+            )
+            != "CABLE"
             for row in rows
         ):
-            QMessageBox.warning(
-                self, "Заполнение не выполнено", "Шины редактируются отдельно"
-            )
+            QMessageBox.warning(self, "Заполнение не выполнено", "Шины редактируются отдельно")
             return False
         edits = []
         for column in columns:

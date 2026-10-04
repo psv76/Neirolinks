@@ -841,7 +841,9 @@ class BusService:
         def order_key(segment) -> tuple:
             target = endpoint_rows[segment["target_endpoint_id"]]
             return (
-                target.get("endpoint_order") if target.get("endpoint_order") is not None else 999999,
+                target.get("endpoint_order")
+                if target.get("endpoint_order") is not None
+                else 999999,
                 str(target.get("address") or ""),
             )
 
