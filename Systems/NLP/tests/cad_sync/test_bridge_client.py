@@ -119,3 +119,130 @@ def test_progress_identifies_timeout_stage_logs_safely_and_next_process_reconnec
     )
     info = AutoCadBridgeClient(success).inspect_active_document(deadline_seconds=2)
     assert info.document_identity == "C:/target.dwg"
+
+
+def _scan_payload(*, load_name: str = "Old"):
+    return {
+        "document_identity": "C:/fixture/working.dwg",
+        "source_metadata": {"protocol_version": "1.1"},
+        "observations": [
+            {
+                "effective_name": "SOCKET_IN",
+                "layer": "POWER",
+                "raw_attributes": {
+                    "CABLE_ID": "101",
+                    "LOAD_NAME": load_name,
+                },
+                "x": 10,
+                "y": 20,
+                "handle": "A10",
+                "definition_tags": ["CABLE_ID", "LOAD_NAME"],
+                "is_dynamic": False,
+            }
+        ],
+    }
+
+
+def _fingerprint_payload(signature: str):
+    return {
+        "document_identity": "C:/fixture/working.dwg",
+        "handles": ["A10"],
+        "signatures": {"A10": signature},
+        "source_metadata": {
+            "protocol_version": "1.1",
+            "adapter_version": "1.1",
+            "dbmod": 1,
+        },
+    }
+
+
+def test_repeat_read_uses_fingerprint_cache_without_full_rescan(monkeypatch):
+    client = AutoCadBridgeClient()
+    calls = []
+
+    def fake_call(request, _deadline):
+        calls.append(request["operation"])
+        if request["operation"] == "scan":
+            return _scan_payload()
+        if request["operation"] == "fingerprint":
+            return _fingerprint_payload("sig-1")
+        raise AssertionError(request)
+
+    monkeypatch.setattr(client, "_call", fake_call)
+    request = CadReadRequest("C:/fixture/working.dwg", 10.0)
+
+    first = client.read_observations(request)
+    second = client.read_observations(request)
+
+    assert calls == ["fingerprint", "scan", "fingerprint", "fingerprint"]
+    assert first.observations == second.observations
+    assert second.source_metadata["incremental_mode"] == "CACHE_HIT"
+
+
+def test_changed_handle_reads_only_delta_and_verifies_snapshot(monkeypatch):
+    client = AutoCadBridgeClient()
+    calls = []
+    fingerprints = iter(
+        (
+            _fingerprint_payload("sig-1"),
+            _fingerprint_payload("sig-1"),
+            _fingerprint_payload("sig-2"),
+            _fingerprint_payload("sig-2"),
+        )
+    )
+
+    def fake_call(request, _deadline):
+        calls.append(request["operation"])
+        if request["operation"] == "scan":
+            return _scan_payload()
+        if request["operation"] == "fingerprint":
+            return next(fingerprints)
+        if request["operation"] == "scan_handles":
+            assert request["handles"] == ["A10"]
+            return _scan_payload(load_name="Changed")
+        raise AssertionError(request)
+
+    monkeypatch.setattr(client, "_call", fake_call)
+    request = CadReadRequest("C:/fixture/working.dwg", 10.0)
+
+    client.read_observations(request)
+    changed = client.read_observations(request)
+
+    assert calls == [
+        "fingerprint",
+        "scan",
+        "fingerprint",
+        "fingerprint",
+        "scan_handles",
+        "fingerprint",
+    ]
+    attrs = {item.tag: item.value for item in changed.observations[0].raw_attributes}
+    assert attrs["LOAD_NAME"] == "Changed"
+    assert changed.source_metadata["incremental_mode"] == "DELTA"
+    assert changed.source_metadata["incremental_changed_handles"] == 1
+
+
+def test_full_scan_rejects_snapshot_if_dwg_changes_while_reading(monkeypatch):
+    client = AutoCadBridgeClient()
+    fingerprints = iter(
+        (
+            _fingerprint_payload("sig-before"),
+            _fingerprint_payload("sig-after"),
+        )
+    )
+
+    def fake_call(request, _deadline):
+        if request["operation"] == "fingerprint":
+            return next(fingerprints)
+        if request["operation"] == "scan":
+            return _scan_payload()
+        raise AssertionError(request)
+
+    monkeypatch.setattr(client, "_call", fake_call)
+
+    with pytest.raises(BridgeError, match="changed while full observations were being read"):
+        client.read_observations(CadReadRequest("C:/fixture/working.dwg", 10.0))
+
+    assert client._cached_batch is None
+    assert client._cached_signatures is None
+    assert client._cached_order is None
