@@ -9,11 +9,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
 )
 
-from nl_project_2.presentation.lines_workspace import (
-    COLUMNS,
-    GroupedHeaderView,
-    LinesWorkspace,
-)
+from nl_project_2.presentation.lines_workspace import COLUMNS, LinesWorkspace
 from nl_project_2.presentation.room_presentation import (
     ROOM_MARKERS_ROLE,
     RoomChipDelegate,
@@ -86,40 +82,25 @@ class _ConstructorStub:
         return []
 
 
-def test_grouped_header_has_real_default_spans_and_tracks_width_scroll(qtbot):
+def test_lines_header_is_single_level_and_manually_resizable(qtbot):
     widget = LinesWorkspace(_CableStub(), _ConstructorStub(), "project")
     qtbot.addWidget(widget)
     widget.resize(760, 520)
     widget.show()
     qtbot.wait(10)
-    widget.table.setFixedWidth(500)
-    QApplication.processEvents()
     header = widget.table.horizontalHeader()
-    assert isinstance(header, GroupedHeaderView)
-    spans = header.group_spans()
-    assert [(span.label, span.logical_sections) for span in spans] == [
-        ("ОТКУДА", (0, 1)),
-        ("КУДА", (2,)),
-        ("КТО", (3, 4)),
-        ("ФИЗИКА", (5, 6, 7, 8)),
-    ]
-    assert spans[0].width == widget.table.columnWidth(0) + widget.table.columnWidth(1)
-    old_left = spans[3].left
-    widget.table.setColumnWidth(5, widget.table.columnWidth(5) + 37)
-    assert header.group_spans()[3].width == spans[3].width + 37
-    scrollbar = widget.table.horizontalScrollBar()
-    assert scrollbar.maximum() > 0
-    scrollbar.setValue(scrollbar.maximum())
-    QApplication.processEvents()
-    assert header.group_spans()[3].left < old_left
+    assert header.sectionResizeMode(0) == header.ResizeMode.Interactive
+    original = widget.table.columnWidth(5)
+    widget.table.setColumnWidth(5, original + 37)
+    assert widget.table.columnWidth(5) == original + 37
     assert [COLUMNS[i].title for i in range(9)] == [
         "Здание",
-        "Щит",
+        "Источник",
         "Помещение",
-        "Номер линии",
-        "Назначение линии",
+        "ID",
+        "Назначение",
         "Марка кабеля",
         "Прокладка",
         "Труба",
-        "Длина",
+        "Длина, м",
     ]
