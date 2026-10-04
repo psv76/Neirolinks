@@ -1,0 +1,102 @@
+from types import SimpleNamespace
+
+from nl_project_2.cad_sync import ChangeClass, build_dwg_update_plan
+
+
+def _attr(tag, value):
+    return SimpleNamespace(tag=tag, value=value)
+
+
+def _observation(handle, cable_id=""):
+    return SimpleNamespace(
+        handle=handle,
+        raw_attributes=(_attr("CABLE_ID", cable_id),) if cable_id else (),
+    )
+
+
+def _change(
+    path,
+    handle,
+    field,
+    change_class,
+    *,
+    detail_status=None,
+    structural=False,
+    display_context=None,
+):
+    return SimpleNamespace(
+        field_path=path,
+        handle=handle,
+        field=field,
+        change_class=change_class,
+        detail_status=detail_status,
+        structural=structural,
+        display_context=display_context or {},
+    )
+
+
+def _proposal(changes, observations=()):
+    return SimpleNamespace(
+        changes=tuple(changes),
+        batch=SimpleNamespace(observations=tuple(observations)),
+    )
+
+
+def test_one_sided_changes_are_automatic_and_conflicts_are_not():
+    proposal = _proposal(
+        (
+            _change("A:LOAD_NAME", "A", "LOAD_NAME", ChangeClass.DWG_CHANGED),
+            _change("B:LOAD_NAME", "B", "LOAD_NAME", ChangeClass.PROJECT_CHANGED),
+            _change("C:LOAD_NAME", "C", "LOAD_NAME", ChangeClass.BOTH_CHANGED_CONFLICT),
+            _change("D:$", "D", "$", ChangeClass.INVALID_DWG_DATA),
+            _change("E:X", "E", "X", ChangeClass.PROJECT_CHANGED),
+        )
+    )
+
+    plan = build_dwg_update_plan(proposal)
+
+    assert plan.import_paths == frozenset({"A:LOAD_NAME"})
+    assert plan.write_paths == frozenset({"B:LOAD_NAME"})
+    assert [item.field_path for item in plan.conflicts] == ["C:LOAD_NAME"]
+    assert {item.field_path for item in plan.problems} == {"D:$", "E:X"}
+
+
+def test_new_line_is_never_partially_auto_imported_when_atomic_group_is_blocked():
+    proposal = _proposal(
+        (
+            _change("A:$", "A", "$", ChangeClass.NEW_DWG_INSERTION),
+            _change("B:$", "B", "$", ChangeClass.BOTH_CHANGED_CONFLICT),
+        ),
+        (
+            _observation("A", "106.01"),
+            _observation("B", "106.02"),
+        ),
+    )
+
+    plan = build_dwg_update_plan(proposal)
+
+    assert not plan.import_paths
+    assert plan.blocked_lines == ("106",)
+    assert [item.field_path for item in plan.conflicts] == ["B:$"]
+
+
+def test_room_canonicalization_and_unresolved_room_stay_explicit():
+    canonicalization = _change(
+        "A:ROOM",
+        "A",
+        "ROOM",
+        ChangeClass.DWG_CHANGED,
+        detail_status="ROOM_CANONICALIZATION",
+    )
+    unresolved = _change(
+        "B:ROOM",
+        "B",
+        "ROOM",
+        ChangeClass.EQUAL,
+        display_context={"room_name": "Не разрешено: Дет. ванная 2"},
+    )
+
+    plan = build_dwg_update_plan(_proposal((canonicalization, unresolved)))
+
+    assert not plan.import_paths
+    assert {item.field_path for item in plan.problems} == {"A:ROOM", "B:ROOM"}
