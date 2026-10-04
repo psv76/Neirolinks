@@ -634,16 +634,35 @@ class LinesWorkspace(QWidget):
                     for assignment in self._assignments_by_line.get(card["id"], [])
                 )
             self._cards_by_id = {card["id"]: card for card in self._cards}
+            self._expanded_line_ids.clear()
             self.table.setRowCount(len(self._cards))
             for row, card in enumerate(self._cards):
                 for column, definition in enumerate(COLUMNS):
                     value = card.get(definition.key)
-                    text = (
-                        (_format_length(value) if value is not None else "Нужны данные")
-                        if definition.key == "effective_m"
-                        else ("" if value is None else str(value))
-                    )
-                    if value == "MIXED" and definition.key in {"mount_way", "gofra_id"}:
+                    text = "" if value is None else str(value)
+                    if definition.key == "designation":
+                        text = f"▸ {card['designation']}"
+                    elif definition.key == "effective_m":
+                        if value is None:
+                            known = _format_length(card.get("known_segment_m"))
+                            text = f"{known} + ?  !" if known not in {"", "0"} else "—  !"
+                        else:
+                            text = _format_length(value)
+                            if int(card.get("incomplete_segments") or 0):
+                                text += "  !"
+                    elif definition.key == "room_names":
+                        unresolved = tuple(card.get("unresolved_room_names") or ())
+                        names = [part.strip() for part in str(value or "").split(",") if part.strip()]
+                        for name in unresolved:
+                            if name not in names:
+                                names.append(name)
+                        text = ", ".join(names)
+                        if unresolved:
+                            text = (text + "  !").strip()
+                    elif definition.key == "gofra_id" and value == "MIXED":
+                        count = int(card.get("conduit_count") or 0)
+                        text = f"{count} труб" if count else "По участкам"
+                    elif definition.key == "mount_way" and value == "MIXED":
                         text = "По участкам"
                     item = (
                         CableMarkItem(value)
@@ -652,6 +671,7 @@ class LinesWorkspace(QWidget):
                     )
                     item.setData(Qt.ItemDataRole.UserRole, card["id"])
                     item.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
+                    item.setData(Qt.ItemDataRole.UserRole + 3, "BASE")
                     flags = item.flags()
                     if definition.editable_field is None:
                         flags &= ~Qt.ItemFlag.ItemIsEditable
@@ -665,8 +685,15 @@ class LinesWorkspace(QWidget):
                         item.setToolTip(technical)
                     if definition.key == "room_names":
                         markers = tuple(card.get("room_markers") or ())
+                        unresolved = tuple(card.get("unresolved_room_names") or ())
                         item.setData(ROOM_MARKERS_ROLE, markers)
-                        item.setToolTip("\n".join(marker["name"] for marker in markers))
+                        tooltip = [marker["name"] for marker in markers]
+                        tooltip.extend(f"Не связано с помещением Project: {name}" for name in unresolved)
+                        item.setToolTip("\n".join(tooltip))
+                    if definition.key == "effective_m" and int(card.get("incomplete_segments") or 0):
+                        item.setToolTip(
+                            f"Не рассчитано участков: {int(card.get('incomplete_segments') or 0)}"
+                        )
                     self.table.setItem(row, column, item)
             self._populate_filter(self.system_filter, (card["system_kind"] for card in self._cards))
             self._populate_filter(self.room_filter, (card["room_names"] for card in self._cards))
@@ -864,7 +891,6 @@ class LinesWorkspace(QWidget):
             )
         self.open_resource.setEnabled(bool(assignments))
         self.show_issue.setEnabled(card["user_status"] != "Готово")
-        self._load_physical_route(line_id)
 
     def _clear_physical_route(self) -> None:
         self._segment_rows = []
