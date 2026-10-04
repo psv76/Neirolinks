@@ -24,6 +24,7 @@ NLP3_PROJECTS_ROOT
 NLP3_LOCAL_STATE_ROOT
 NLP3_BACKUP_ROOT
 NLP3_RELEASE_ROOT
+NLP3_CLOUD_BACKUP_ROOT
 ```
 
 Defaults:
@@ -34,9 +35,12 @@ Database:     nl_project_3.sqlite
 Local state:  %LOCALAPPDATA%\NL Project 3.0
 Backups:      D:\NLP_3_BACKUPS
 Releases:     D:\NLP_3_RELEASES
+Cloud backup: configured explicitly through NLP3_CLOUD_BACKUP_ROOT
 ```
 
 `NLP2_*` variables do not redirect the 3.0 runtime. Python package `nl_project_2` is retained temporarily only as an internal compatibility name.
+
+For the production workstation, set `NLP3_CLOUD_BACKUP_ROOT` to `D:\YandexDisk\05 NeiroLinks\NL Project 3.0\Backups`. Only finalized verified backup files are published there; the live SQLite database is never placed under Yandex Disk.
 
 ## Разработка и запуск
 

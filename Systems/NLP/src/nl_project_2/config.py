@@ -18,6 +18,7 @@ class PathConfig:
     release_root: Path
     user_projects_root: Path
     local_state_root: Path
+    cloud_backup_root: Path | None = None
 
     @classmethod
     def from_environment(cls, environment: dict[str, str] | None = None) -> PathConfig:
@@ -25,6 +26,7 @@ class PathConfig:
         app_root = application_root()
         user_profile = Path(env.get("USERPROFILE", str(Path.home())))
         local_app_data = Path(env.get("LOCALAPPDATA", user_profile / "AppData" / "Local"))
+        cloud_root = env.get("NLP3_CLOUD_BACKUP_ROOT")
         return cls(
             app_root=app_root,
             backup_root=Path(env.get("NLP3_BACKUP_ROOT", "D:/NLP_3_BACKUPS")),
@@ -33,6 +35,7 @@ class PathConfig:
             local_state_root=Path(
                 env.get("NLP3_LOCAL_STATE_ROOT", local_app_data / "NL Project 3.0")
             ),
+            cloud_backup_root=None if not cloud_root else Path(cloud_root),
         )
 
     @property

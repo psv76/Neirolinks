@@ -22,7 +22,8 @@
 - default database: `D:\NL_Project_3_Data\Projects\nl_project_3.sqlite`;
 - local state: `%LOCALAPPDATA%\NL Project 3.0`;
 - backups: `D:\NLP_3_BACKUPS`;
-- releases: `D:\NLP_3_RELEASES`.
+- releases: `D:\NLP_3_RELEASES`;
+- optional cloud backup root: `NLP3_CLOUD_BACKUP_ROOT`; production workstation target is `D:\YandexDisk\05 NeiroLinks\NL Project 3.0\Backups`.
 
 Внутренний Python package `nl_project_2` временно сохраняется для compatibility и не является user-facing identity.
 

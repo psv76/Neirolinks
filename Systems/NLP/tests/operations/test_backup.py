@@ -32,20 +32,45 @@ def test_manual_pre_migration_restore_and_corruption_rejection(database, tmp_pat
     assert not rejected_target.exists()
 
 
-def test_daily_runs_once_on_first_changed_close_day(database, tmp_path):
-    now = datetime(2026, 8, 9, 10, tzinfo=UTC)
-    service = BackupService(tmp_path / "backups", clock=lambda: now)
+def test_daily_refreshes_after_each_changed_close_and_keeps_newest_same_day(database, tmp_path):
+    now = [datetime(2026, 8, 9, 10, tzinfo=UTC)]
+    service = BackupService(tmp_path / "backups", clock=lambda: now[0])
     opening = hashlib.sha256(database.path.read_bytes()).hexdigest()
     assert service.create_daily_if_changed(database.path, opening_sha256=opening) is None
+
     with database.engine.begin() as connection:
         connection.execute(
             update(project).where(project.c.id == database.test_project_id).values(name="Changed")
         )
     first = service.create_daily_if_changed(database.path, opening_sha256=opening)
+    assert first is not None and first.created is True and first.path.is_file()
+
+    now[0] += timedelta(minutes=30)
+    with database.engine.begin() as connection:
+        connection.execute(
+            update(project)
+            .where(project.c.id == database.test_project_id)
+            .values(name="Changed again")
+        )
     second = service.create_daily_if_changed(database.path, opening_sha256=opening)
-    assert first.created is True
-    assert second.created is False
-    assert first.path == second.path
+
+    assert second is not None and second.created is True
+    assert second.path != first.path
+    assert second.path.is_file()
+    assert not first.path.exists()
+
+
+def test_cloud_publication_contains_only_verified_final_backup_files(database, tmp_path):
+    service = BackupService(
+        tmp_path / "backups",
+        cloud_root=tmp_path / "YandexDisk" / "NL Project 3.0" / "Backups",
+    )
+    receipt = service.create_manual(database.path)
+    assert receipt.cloud_path is not None
+    assert receipt.cloud_path.is_file()
+    assert receipt.cloud_path.read_bytes() == receipt.path.read_bytes()
+    assert not list(service.cloud_root.rglob("*.partial"))
+    assert not list(service.cloud_root.rglob("*.tmp"))
 
 
 def test_retention_keeps_union_14_daily_8_weekly_12_monthly_and_never_manual(tmp_path):

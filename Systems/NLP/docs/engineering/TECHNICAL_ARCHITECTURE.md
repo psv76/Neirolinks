@@ -208,12 +208,16 @@ Generic constructor и полная technical trace находятся в `Ин�
 
 Backup policy:
 
+- рабочая SQLite находится только на постоянном локальном диске;
 - verified backup перед каждой migration;
-- ежедневный backup при первом успешном закрытии изменённой БД;
+- после каждого успешного закрытия изменённой БД создаётся новый verified snapshot; в daily-наборе за сутки остаётся самый свежий;
+- retention daily archive: 14 ежедневных, 8 еженедельных, 12 ежемесячных;
 - ручная команда backup;
-- retention: 14 ежедневных, 8 еженедельных, 12 ежемесячных;
-- pre-migration backup хранится отдельно до успешной проверки upgrade;
-- manual backups не удаляются автоматической retention policy.
+- pre-migration backup хранится отдельно;
+- manual и pre-migration backups не удаляются daily retention policy;
+- cloud publication выполняется только из уже закрытого и verified local backup;
+- cloud target публикуется атомарным rename после staging/verification вне sync-каталога; live SQLite в sync-папке запрещена;
+- restore выполняется только в отдельный путь с integrity/FK/schema/reopen verification.
 
 ## 11. Migrations
 
