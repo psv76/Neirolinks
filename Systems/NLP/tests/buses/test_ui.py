@@ -392,3 +392,35 @@ def test_dali_workspace_shows_group_and_independent_states(database, qtbot):
     assert dialog.states_table.rowCount() == 5
     assert dialog.states_table.item(0, 1).text() == "VERIFIED"
     assert dialog.states_table.item(0, 2).text() == "MISSING"
+
+
+def test_bus_workspace_accepts_field_device_connection_state(database, qtbot, monkeypatch):
+    project_id = database.test_project_id
+    root, *endpoints = _rs485_resources(database)
+    service = BusService(database.engine)
+    service.create_rs485_bus(
+        project_id=project_id,
+        designation="901",
+        root_resource_id=root,
+        points=_points(endpoints),
+    )
+    original_states = service.connection_states
+
+    def mixed_states(pid, bus_id):
+        states = original_states(pid, bus_id)
+        return [
+            *states,
+            {
+                "endpoint_kind": "FIELD_DEVICE",
+                "field_device_id": "field-device-1",
+                "communication_state": "VERIFIED",
+                "power_state": "NOT_APPLICABLE",
+            },
+        ]
+
+    monkeypatch.setattr(service, "connection_states", mixed_states)
+    dialog = BusWorkspaceDialog(service, project_id)
+    qtbot.addWidget(dialog)
+    assert (
+        dialog.states_table.item(dialog.states_table.rowCount() - 1, 0).text() == "field-device-1"
+    )
