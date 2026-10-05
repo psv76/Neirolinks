@@ -352,6 +352,28 @@
       "required_product_data": ["ram_gb", "emmc_gb", "temperature_range_c", "communication_configuration", "dimensions_mm", "din_modules", "official_source"]
     },
     {
+      "id": "gateway.wirenboard.wb_mge_v3",
+      "passport_id": "gateway.wirenboard.wb_mge_v3",
+      "version": 1,
+      "name": "Wiren Board WB-MGE v.3",
+      "equipment_class": "WB_MGE_V3",
+      "functional_role": "Network gateway with two independent RS-485 ports, Ethernet, Wi-Fi and WBIO expansion",
+      "normative_basis": ["10_PRODUCT/10_EQUIPMENT_MODEL.md", "10_PRODUCT/23_DATA_BUS_TOPOLOGY.md"],
+      "project_characteristics": {"nominal_project_voltage_v_dc": 24, "rs485_port_count": 2},
+      "resources": [
+        {"resource_id": "VIN", "kind": "DC_POWER_INPUT", "direction": "IN", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"range_v": [9, 28], "project_value_v": 24}},
+        {"resource_id": "RS485", "kind": "RS485_INTERFACE", "direction": "BIDIRECTIONAL", "quantity": 2, "exclusive": true, "branching": "BUS_TOPOLOGY_ONLY", "labels": ["RS485-1", "RS485-2"], "constraints": {"protocols": ["MODBUS_RTU", "TRANSPARENT_RS485"], "isolated": false}},
+        {"resource_id": "ETHERNET", "kind": "ETHERNET_PORT", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": true, "branching": "FORBIDDEN", "constraints": {"speed_mbps": 100}},
+        {"resource_id": "WIFI", "kind": "WIFI_INTERFACE", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": false, "branching": "NETWORK_TOPOLOGY", "constraints": {"band_ghz": 2.4}},
+        {"resource_id": "WBIO", "kind": "EXTERNAL_IO_EXPANSION_PORT", "direction": "BIDIRECTIONAL", "quantity": 1, "exclusive": true, "branching": "VIA_SUPPORTED_WBIO_TOPOLOGY"},
+        {"resource_id": "VOUT", "kind": "SWITCHABLE_DC_POWER_OUTPUT", "direction": "OUT", "quantity": 2, "exclusive": false, "branching": "ONLY_THROUGH_DISTRIBUTION_NODE", "labels": ["Vout-1", "Vout-2"], "constraints": {"combined_maximum_current_a": 2.5}}
+      ],
+      "compatibility": {"electronics_power": "24_V_DC_PROJECT", "rs485": "TWO_INDEPENDENT_BUS_ROOTS", "wbio": "SIDE_EXPANSION_SUPPORTED"},
+      "validation_parameters": ["electronics_voltage_v", "rs485_port_occupancy", "rs485_bus_assignment", "port_occupancy"],
+      "din_layout": {"mounting": "DIN_RAIL_35_MM", "width_modules": 2},
+      "required_product_data": ["supply_voltage_range_v_dc", "power_consumption_w", "rs485_ports", "ethernet_ports", "wifi", "dimensions_mm", "din_modules", "official_source"]
+    },
+    {
       "id": "conduit.flexible_corrugated.pp",
       "passport_id": "conduit.flexible_corrugated.pp",
       "version": 1,

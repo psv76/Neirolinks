@@ -99,6 +99,7 @@ class CableWorkspaceDialog(QDialog):
         self.route_combo = QComboBox(tab)
         for method, title in (
             (RouteMethod.FLOOR, "По полу"),
+            (RouteMethod.SCREED, "В стяжке"),
             (RouteMethod.CEILING, "По потолку"),
             (RouteMethod.TIMBER, "В брусе"),
             (RouteMethod.CABLE_CHANNEL, "В кабель-канале"),

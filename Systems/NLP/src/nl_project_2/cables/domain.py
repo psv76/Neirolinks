@@ -14,6 +14,7 @@ class CableCalculationError(ValueError):
 
 class RouteMethod(StrEnum):
     FLOOR = "FLOOR"
+    SCREED = "SCREED"
     CEILING = "CEILING"
     WALL = "WALL"
     TIMBER = "TIMBER"
@@ -22,6 +23,7 @@ class RouteMethod(StrEnum):
 
 MOUNT_WAY_BY_ROUTE_METHOD = {
     RouteMethod.FLOOR: "По полу",
+    RouteMethod.SCREED: "В стяжке",
     RouteMethod.CEILING: "По потолку",
     RouteMethod.WALL: "В стене",
     RouteMethod.TIMBER: "В брусе",
@@ -84,6 +86,11 @@ def conduit_is_present(mount_way: str, conduit_type: str) -> bool:
             raise ConduitContractError("GOFRA_TYPE is required for MOUNT_WAY=По полу")
         conduit_type_suffix(conduit_type)
         return True
+    if mount_way == "В стяжке":
+        if not conduit_type:
+            raise ConduitContractError("GOFRA_TYPE is required for MOUNT_WAY=В стяжке")
+        conduit_type_suffix(conduit_type)
+        return True
     if mount_way == "По потолку":
         if conduit_type:
             conduit_type_suffix(conduit_type)
@@ -105,7 +112,7 @@ def conduit_is_present(mount_way: str, conduit_type: str) -> bool:
             raise ConduitContractError("GOFRA_TYPE must be empty for MOUNT_WAY=В кабель-канале")
         return False
     raise ConduitContractError(
-        "MOUNT_WAY must be По полу, По потолку, В стене, В брусе or В кабель-канале"
+        "MOUNT_WAY must be По полу, В стяжке, По потолку, В стене, В брусе or В кабель-канале"
     )
 
 
@@ -173,7 +180,7 @@ def calculate_segment_length(
         vertical_first = abs(first_ceiling - first.mount_height_mm)
         level_change = abs(second_ceiling - first_ceiling)
         vertical_second = abs(second_ceiling - second.mount_height_mm)
-    elif route_method in {RouteMethod.WALL, RouteMethod.TIMBER}:
+    elif route_method in {RouteMethod.SCREED, RouteMethod.WALL, RouteMethod.TIMBER}:
         vertical_first = Decimal(0)
         level_change = abs(second.mount_height_mm - first.mount_height_mm)
         vertical_second = Decimal(0)

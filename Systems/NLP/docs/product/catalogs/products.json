@@ -508,6 +508,23 @@
       "mvp_reference": true
     },
     {
+      "id": "product.wirenboard.wb_mge_v3",
+      "product_id": "product.wirenboard.wb_mge_v3",
+      "version": 1,
+      "name": "Wiren Board WB-MGE v.3",
+      "passport_id": "gateway.wirenboard.wb_mge_v3",
+      "manufacturer": "Wiren Board",
+      "series": "WB-MGE",
+      "model": "WB-MGE v.3",
+      "article": "WB-MGE v.3",
+      "parameters_used_by_project": {"supply_voltage_range_v_dc": [9, 28], "power_consumption_w_at_24v": 1, "rs485_ports": 2, "ethernet_ports": 1, "ethernet_speed_mbps": 100, "wifi_ghz": 2.4, "wbio": true, "vout_combined_max_current_a": 2.5, "temperature_range_c": [-40, 70]},
+      "dimensions_mm": {"width": 36, "height": 90, "depth": 58},
+      "din_modules": 2,
+      "official_source": {"type": "OFFICIAL_MANUFACTURER_WIKI_AND_PRODUCT_PAGE", "title": "Wiren Board WB-MGE v.3", "url": "https://wiki.wirenboard.com/wiki/WB-MGE_v.3_Modbus_Ethernet_Gateway", "catalog_url": "https://wirenboard.com/ru/contents/product/wb-mge-v3/", "checked_on": "2026-10-05"},
+      "mvp_reference": true,
+      "lifecycle_status": "CURRENT_PRODUCT"
+    },
+    {
       "id": "product.dkc.11525",
       "product_id": "product.dkc.11525",
       "version": 1,

@@ -90,8 +90,8 @@ def test_whole_mvp_recovery_contour_uses_one_temporary_sqlite(tmp_path):
         height_m=3,
         marking_color="#808080",
     )
-    assert release.passport_count == 18
-    assert release.product_count == 31
+    assert release.passport_count == 19
+    assert release.product_count == 32
 
     distribution = DistributionService(database.engine)
     constructor = distribution.constructor

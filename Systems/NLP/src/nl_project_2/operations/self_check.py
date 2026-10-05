@@ -114,9 +114,9 @@ class SelfCheckService:
         products = connection.execute(
             "SELECT COUNT(*) FROM product_definition WHERE lifecycle='ACTIVE'"
         ).fetchone()[0]
-        ok = (passports, products) == (18, 31)
+        ok = (passports, products) == (19, 32)
         return CheckResult(
-            "CATALOG_18_31",
+            "CATALOG_19_32",
             "PASS" if ok else "FAIL",
             f"passports={passports}; products={products}",
         )

@@ -9,7 +9,7 @@
 - Stage 0 / Issue #142 / PR #144 merged to `main`;
 - accepted Lines UI and one-click DWG workflow are canonical;
 - PR #144 Windows non-live/non-manual regression: **715 passed, 0 failed, 1 existing SQLite datetime adapter warning**;
-- schema head: `000000000012_timber_mount_way`;
+- schema head: `000000000013_screed_mount_way`;
 - AutoCAD machine contract: `3.0.0`, 71 canonical block definitions / 10 groups;
 - equipment catalog release `nlp2.mvp.equipment.2026-08-24.repair-05` сохраняет исходную immutable identity;
 - current product line: `3.0` development state.

@@ -21,10 +21,12 @@ def test_ac_033_exact_floor_ceiling_and_channel_formulas():
         ),
     )
     floor, floor_trace = calculate_automatic_length(points, RouteMethod.FLOOR)
+    screed, _ = calculate_automatic_length(points, RouteMethod.SCREED)
     ceiling, _ = calculate_automatic_length(points, RouteMethod.CEILING)
     timber, timber_trace = calculate_automatic_length(points, RouteMethod.TIMBER)
     channel, _ = calculate_automatic_length(points, RouteMethod.CABLE_CHANNEL)
     assert floor == Decimal("4.1")
+    assert screed == Decimal("3")
     assert ceiling == Decimal("8.4")
     assert timber == Decimal("3.5")
     assert channel == Decimal("3")

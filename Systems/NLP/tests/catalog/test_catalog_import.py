@@ -58,10 +58,10 @@ def test_canonical_payload_schema_hash_and_exact_coverage(catalog_dir):
     payload = load_payload(catalog_dir)
     validate_payload(payload)
     assert (
-        payload.content_sha256 == "f8d27710485e1d1f8b23070e6ffa693ddd304c05150996a3c7eeae455c4af4c5"
+        payload.content_sha256 == "e92935b0742367ecb83c3204fc2a49f4a67ace09ffb68d6c988c82cbde91858f"
     )
-    assert len(payload.passports["passports"]) == 18
-    assert len(payload.products["products"]) == 31
+    assert len(payload.passports["passports"]) == 19
+    assert len(payload.products["products"]) == 32
     passports = {item["id"]: item for item in payload.passports["passports"]}
     assert (
         sum(
@@ -77,6 +77,10 @@ def test_canonical_payload_schema_hash_and_exact_coverage(catalog_dir):
         )
         == 2
     )
+    wb_mge = passports["gateway.wirenboard.wb_mge_v3"]
+    rs485 = next(item for item in wb_mge["resources"] if item["resource_id"] == "RS485")
+    assert rs485["quantity"] == 2
+    assert rs485["labels"] == ["RS485-1", "RS485-2"]
     assert not (
         {"vendor alpha", "vendor beta", "vendor gamma"}
         & {item["manufacturer"].casefold() for item in payload.products["products"]}
@@ -130,14 +134,14 @@ def test_install_is_atomic_immutable_idempotent_and_sqlite_queryable(
     assert second.release_id == installed_catalog.release_id
     with database.engine.connect() as connection:
         assert connection.scalar(select(func.count()).select_from(catalog_release)) == 1
-        assert connection.scalar(select(func.count()).select_from(passport_definition)) == 18
-        assert connection.scalar(select(func.count()).select_from(product_definition)) == 31
+        assert connection.scalar(select(func.count()).select_from(passport_definition)) == 19
+        assert connection.scalar(select(func.count()).select_from(product_definition)) == 32
         assert (
             connection.scalar(select(func.count()).select_from(passport_resource_definition)) > 14
         )
     queries = CatalogQueries(database.engine)
-    assert len(queries.passports()) == 18
-    assert len(queries.products()) == 31
+    assert len(queries.passports()) == 19
+    assert len(queries.products()) == 32
     with pytest.raises(PermissionError, match="immutable"):
         ImmutableCatalogEditor().edit_published("anything")
 
