@@ -1483,6 +1483,24 @@ class DwgSyncService:
                         )
                     )
                 endpoint_ids[plan.key] = endpoint_id
+                desired_device_ids = {
+                    device_ids[handle] for handle in plan.handles if handle in device_ids
+                }
+                if desired_device_ids:
+                    uow.execute(
+                        delete(cable_point_field_device).where(
+                            cable_point_field_device.c.project_id == project_id,
+                            cable_point_field_device.c.cable_point_id == point_id,
+                            cable_point_field_device.c.field_device_id.not_in(desired_device_ids),
+                        )
+                    )
+                else:
+                    uow.execute(
+                        delete(cable_point_field_device).where(
+                            cable_point_field_device.c.project_id == project_id,
+                            cable_point_field_device.c.cable_point_id == point_id,
+                        )
+                    )
                 for handle in plan.handles:
                     if handle not in device_ids:
                         continue
