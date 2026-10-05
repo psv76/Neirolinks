@@ -24,7 +24,12 @@ class ProjectSettings:
     output_folder: str = ""
     versions_folder: str = ""
     initial_page_number: int | None = None
-    cable_reserve_at_board_m: Decimal | None = None
+    cable_reserve_at_board_m: Decimal | None = Decimal("3")
+    cable_reserve_at_distribution_box_m: Decimal | None = Decimal("0.2")
+    cable_reserve_at_endpoint_m: Decimal | None = Decimal("0.3")
+    cable_meander_percent: Decimal | None = Decimal("5")
+    cable_obstacle_percent: Decimal | None = Decimal("10")
+    cable_timber_segment_reserve_m: Decimal | None = Decimal("0.5")
 
 
 @dataclass(frozen=True, slots=True)

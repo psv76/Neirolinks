@@ -32,7 +32,7 @@ from nl_project_2.persistence.uow import UnitOfWork
 from nl_project_2.resource_labels import resource_technical_identity, resource_user_label
 
 from .domain import TopologyPoint, TopologyResult, branched_topology, rs485_topology
-from .recalculation import recalculate_bus_segments
+from .recalculation import bus_length_breakdown, recalculate_bus_segments
 
 _DALI_GROUP = re.compile(r"^D\.[0-9]{3}$")
 
@@ -681,7 +681,17 @@ class BusService:
                 if len(conduit_values) == 1
                 else ("MIXED" if conduit_values else "")
             )
-            effective = str(known_m) if edges and incomplete == 0 else None
+            automatic = None
+            effective = None
+            if edges and incomplete == 0:
+                try:
+                    with UnitOfWork(self._engine) as uow:
+                        length_breakdown = bus_length_breakdown(uow, project_id, stored["id"])
+                        uow.rollback()
+                    automatic = str(length_breakdown.unrounded_m)
+                    effective = str(length_breakdown.rounded_m)
+                except Exception:
+                    automatic = effective = None
             details = " / ".join(endpoint_kinds[:3])
             load_name = stored["bus_kind"]
             if details:
@@ -704,12 +714,15 @@ class BusService:
                     "conduit_count": len(conduit_ids),
                     "incomplete_segments": incomplete,
                     "known_segment_m": str(known_m),
-                    "automatic_m": effective,
+                    "automatic_m": automatic,
                     "additional_m": "0",
                     "manual_full_m": None,
                     "effective_m": effective,
                     "length_mode": "Автоматическая" if effective is not None else "Не рассчитана",
-                    "length_explanation": "Сумма физических участков шины",
+                    "length_explanation": (
+                        "Геометрия + объектовые запасы + проценты + запас «В брусе», "
+                        "округление вверх до 1 м"
+                    ),
                 }
             )
         return result
@@ -894,13 +907,51 @@ class BusService:
                 }
             )
 
+        length_breakdown = None
+        if edges and all(edge["cable_length_m"] is not None for edge in edges):
+            try:
+                with UnitOfWork(self._engine) as uow:
+                    length_breakdown = bus_length_breakdown(uow, project_id, bus_id)
+                    uow.rollback()
+            except ValueError:
+                length_breakdown = None
+
         return {
             "network_kind": "BUS",
             "bus_kind": stored["bus_kind"],
             "designation": stored["designation"],
             "root_endpoint": root,
             "edges": tuple(edges),
-            "board_reserve_m": "0",
+            "board_reserve_m": (
+                "0" if length_breakdown is None else str(length_breakdown.board_reserve_m)
+            ),
+            "distribution_box_reserve_m": "0",
+            "endpoint_reserve_m": (
+                "0" if length_breakdown is None else str(length_breakdown.endpoint_reserve_m)
+            ),
+            "meander_reserve_m": (
+                "0" if length_breakdown is None else str(length_breakdown.meander_reserve_m)
+            ),
+            "obstacle_reserve_m": (
+                "0" if length_breakdown is None else str(length_breakdown.obstacle_reserve_m)
+            ),
+            "timber_reserve_m": (
+                "0" if length_breakdown is None else str(length_breakdown.timber_reserve_m)
+            ),
+            "geometric_m": (
+                None if length_breakdown is None else str(length_breakdown.geometric_m)
+            ),
+            "unrounded_m": (
+                None if length_breakdown is None else str(length_breakdown.unrounded_m)
+            ),
+            "rounded_m": (None if length_breakdown is None else str(length_breakdown.rounded_m)),
+            "distribution_box_lines": 0,
+            "endpoint_mechanisms": (
+                0 if length_breakdown is None else length_breakdown.endpoint_mechanisms
+            ),
+            "timber_segments": (
+                0 if length_breakdown is None else length_breakdown.timber_segments
+            ),
             "additional_m": "0",
             "manual_full_m": None,
         }

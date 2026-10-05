@@ -1034,14 +1034,56 @@ class LinesWorkspace(QWidget):
         edges = list(topology.get("edges") or ())
         additions: list[dict] = []
         reserve = Decimal(str(topology.get("board_reserve_m") or "0"))
+        box_reserve = Decimal(str(topology.get("distribution_box_reserve_m") or "0"))
+        endpoint_reserve = Decimal(str(topology.get("endpoint_reserve_m") or "0"))
+        meander_reserve = Decimal(str(topology.get("meander_reserve_m") or "0"))
+        obstacle_reserve = Decimal(str(topology.get("obstacle_reserve_m") or "0"))
+        timber_reserve = Decimal(str(topology.get("timber_reserve_m") or "0"))
         additional = Decimal(str(topology.get("additional_m") or "0"))
+        unrounded = topology.get("unrounded_m")
+        rounded = topology.get("rounded_m")
         manual = topology.get("manual_full_m")
         if reserve:
-            additions.append({"label": "+ запас у щита", "length": reserve})
+            additions.append({"label": "+ подключение в щите", "length": reserve})
+        if box_reserve:
+            count = int(topology.get("distribution_box_lines") or 0)
+            additions.append(
+                {
+                    "label": f"+ коммутация в распредкоробках ({count} линий)",
+                    "length": box_reserve,
+                }
+            )
+        if endpoint_reserve:
+            count = int(topology.get("endpoint_mechanisms") or 0)
+            additions.append(
+                {
+                    "label": f"+ выводы из подрозетников ({count} механизмов)",
+                    "length": endpoint_reserve,
+                }
+            )
+        if meander_reserve:
+            additions.append(
+                {"label": "+ нелинейность кабеля («змейка»)", "length": meander_reserve}
+            )
+        if obstacle_reserve:
+            additions.append({"label": "+ обходы стен и балок", "length": obstacle_reserve})
+        if timber_reserve:
+            count = int(topology.get("timber_segments") or 0)
+            additions.append(
+                {
+                    "label": f"+ запас «В брусе» ({count} сегм.)",
+                    "length": timber_reserve,
+                }
+            )
         if additional:
             additions.append({"label": "+ дополнительная длина", "length": additional})
         if manual is not None:
             additions.append({"label": "= полная ручная длина", "length": Decimal(str(manual))})
+        elif unrounded is not None and rounded is not None:
+            additions.append({"label": "= до округления", "length": Decimal(str(unrounded))})
+            additions.append(
+                {"label": "= к выдаче (вверх до 1 м)", "length": Decimal(str(rounded))}
+            )
         if not edges and not additions:
             return
 

@@ -8,11 +8,11 @@ from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import Engine, delete, select, update
 
+from nl_project_2.buses.recalculation import bus_length_breakdown
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
     assembly_material_fact,
     bus,
-    bus_segment,
     cable_length_fact,
     cable_line,
     cable_line_product_selection,
@@ -554,47 +554,42 @@ class SpecificationService:
                         bus.c.id,
                         bus.c.designation,
                         bus.c.cable_type,
-                        bus_segment.c.length_m_decimal,
                     )
-                    .outerjoin(bus_segment, bus_segment.c.bus_id == bus.c.id)
                     .where(
                         bus.c.project_id == project_id,
                         bus.c.lifecycle == "ACTIVE",
                     )
-                    .order_by(bus.c.designation, bus_segment.c.id)
+                    .order_by(bus.c.designation)
                 ).mappings()
             )
 
-        grouped: dict[str, dict] = {}
-        for row in rows:
-            item = grouped.setdefault(
-                row["id"],
-                {
-                    "designation": row["designation"],
-                    "cable_type": str(row["cable_type"] or "").strip(),
-                    "lengths": [],
-                },
-            )
-            item["lengths"].append(_optional_decimal(row["length_m_decimal"]))
-
         output: list[SpecificationSource] = []
-        for bus_id, item in grouped.items():
-            cable_type = item["cable_type"]
+        for row in rows:
+            cable_type = str(row["cable_type"] or "").strip()
             if not cable_type:
                 continue
-            lengths = item["lengths"]
-            quantity = (
-                None
-                if not lengths or any(value is None for value in lengths)
-                else sum(lengths, Decimal())
-            )
-            override = context["overrides"].get(("BUS", bus_id), {})
+            try:
+                with UnitOfWork(self._engine) as uow:
+                    breakdown = bus_length_breakdown(uow, project_id, row["id"])
+                    uow.rollback()
+                quantity = breakdown.rounded_m
+                trace = (
+                    f"Шина {row['designation']}; "
+                    f"геометрическая длина {breakdown.geometric_m} m; "
+                    f"расчётная до округления {breakdown.unrounded_m} m; "
+                    f"к выдаче {breakdown.rounded_m} m"
+                )
+            except ValueError:
+                quantity = None
+                trace = f"Шина {row['designation']}; длина Нужны данные"
+
+            override = context["overrides"].get(("BUS", row["id"]), {})
             scope = _override_value(override, "supply_scope", "NEIROLINKS")
             included = _override_value(override, "included", True)
             output.append(
                 SpecificationSource(
                     "BUS",
-                    bus_id,
+                    row["id"],
                     f"CABLE_DEMAND:{cable_type}:UNSELECTED",
                     f"Требуется кабель: {cable_type}",
                     None,
@@ -607,21 +602,20 @@ class SpecificationService:
                         _override_value(override, "note", None),
                         "Нужны данные: точное кабельное изделие не выбрано",
                     ),
-                    trace=(
-                        f"Шина {item['designation']}; "
-                        f"физическая длина {'Нужны данные' if quantity is None else quantity} m"
-                    ),
+                    trace=trace,
                 )
             )
         return output
 
     def _effective_cable_length(self, project_id: str, row) -> Decimal | None:
-        if self._cables is not None:
-            try:
+        try:
+            if self._cables is not None:
                 return self._cables.effective_length(project_id, row["id"]).effective_m
-            except Exception:
-                pass
-        return _effective_cable_length(row)
+            from nl_project_2.cables.service import CableService
+
+            return CableService(self._engine).effective_length(project_id, row["id"]).effective_m
+        except Exception:
+            return None
 
     @staticmethod
     def _data_issues(sources: tuple[SpecificationSource, ...]):

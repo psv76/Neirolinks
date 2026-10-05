@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_CEILING, Decimal, InvalidOperation
 
 from sqlalchemy import select, update
 
@@ -12,6 +12,11 @@ from nl_project_2.cables.domain import (
     CablePointInput,
     RouteMethod,
     calculate_segment_length,
+    conduit_length_from_segment_length,
+)
+from nl_project_2.cables.recalculation import (
+    CableLengthBreakdown,
+    cable_length_policy,
 )
 from nl_project_2.persistence.schema import (
     board,
@@ -75,6 +80,107 @@ def recalculate_bus_segments(
             )
             changed.append(segment["id"])
     return tuple(changed)
+
+
+def bus_length_breakdown(uow, project_id: str, bus_id: str) -> CableLengthBreakdown:
+    policy = cable_length_policy(uow, project_id)
+    bus_row = (
+        uow.execute(
+            select(bus.c.root_resource_id).where(
+                bus.c.id == bus_id,
+                bus.c.project_id == project_id,
+                bus.c.lifecycle == "ACTIVE",
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if bus_row is None:
+        raise ValueError("Bus not found")
+
+    segments = [
+        dict(row)
+        for row in uow.execute(
+            select(bus_segment).where(
+                bus_segment.c.project_id == project_id,
+                bus_segment.c.bus_id == bus_id,
+            )
+        ).mappings()
+    ]
+    if not segments or any(row["length_m_decimal"] is None for row in segments):
+        raise ValueError("Bus length is incomplete")
+
+    route_geometry = Decimal(0)
+    timber_segments = 0
+    for segment in segments:
+        route = _route_method(segment.get("mount_way"))
+        if route is None:
+            raise ValueError("Bus mount way is incomplete")
+        length = Decimal(str(segment["length_m_decimal"]))
+        route_geometry += conduit_length_from_segment_length(length, route)
+        if route is RouteMethod.TIMBER:
+            timber_segments += 1
+
+    owner_board_id = uow.execute(
+        select(project_instance.c.board_id)
+        .join(
+            instance_resource,
+            instance_resource.c.project_instance_id == project_instance.c.id,
+        )
+        .where(
+            instance_resource.c.id == bus_row["root_resource_id"],
+            instance_resource.c.project_id == project_id,
+            project_instance.c.project_id == project_id,
+            project_instance.c.lifecycle == "ACTIVE",
+        )
+    ).scalar_one_or_none()
+    board_reserve = policy.board_reserve_m if owner_board_id is not None else Decimal(0)
+
+    endpoint_rows = uow.execute(
+        select(field_device.c.normalized_fields_json)
+        .select_from(
+            bus_endpoint.join(
+                field_device,
+                field_device.c.id == bus_endpoint.c.field_device_id,
+            )
+        )
+        .where(
+            bus_endpoint.c.project_id == project_id,
+            bus_endpoint.c.bus_id == bus_id,
+            bus_endpoint.c.endpoint_kind == "FIELD_DEVICE",
+            field_device.c.lifecycle == "ACTIVE",
+        )
+    ).scalars()
+    endpoint_mechanisms = sum(
+        1
+        for fields in endpoint_rows
+        if str((fields or {}).get("DEVICE_TYPE") or "").strip().upper()
+        in {"SOCKET", "SWITCH", "BUTTON"}
+    )
+    endpoint_reserve = policy.endpoint_reserve_m * endpoint_mechanisms
+    geometric = route_geometry + board_reserve + endpoint_reserve
+    meander = geometric * policy.meander_percent / Decimal(100)
+    obstacle = geometric * policy.obstacle_percent / Decimal(100)
+    timber = policy.timber_segment_reserve_m * timber_segments
+    unrounded = geometric + meander + obstacle + timber
+    rounded = unrounded.to_integral_value(rounding=ROUND_CEILING)
+
+    return CableLengthBreakdown(
+        route_geometry_m=route_geometry,
+        board_reserve_m=board_reserve,
+        distribution_box_reserve_m=Decimal(0),
+        endpoint_reserve_m=endpoint_reserve,
+        geometric_m=geometric,
+        meander_reserve_m=meander,
+        obstacle_reserve_m=obstacle,
+        timber_reserve_m=timber,
+        additional_m=Decimal(0),
+        unrounded_m=unrounded,
+        rounded_m=rounded,
+        distribution_box_lines=0,
+        endpoint_mechanisms=endpoint_mechanisms,
+        timber_segments=timber_segments,
+    )
 
 
 def _route_method(value: str | None) -> RouteMethod | None:

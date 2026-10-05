@@ -56,7 +56,17 @@ def _project(database):
         height_m="3.0",
         marking_color="#FFFFFF",
     )
-    objects.save_settings(project_id, ProjectSettings(cable_reserve_at_board_m=Decimal("1.5")))
+    objects.save_settings(
+        project_id,
+        ProjectSettings(
+            cable_reserve_at_board_m=Decimal("1.5"),
+            cable_reserve_at_distribution_box_m=Decimal("0"),
+            cable_reserve_at_endpoint_m=Decimal("0"),
+            cable_meander_percent=Decimal("0"),
+            cable_obstacle_percent=Decimal("0"),
+            cable_timber_segment_reserve_m=Decimal("0.5"),
+        ),
+    )
     return objects, project_id, room_a, room_b, building_id
 
 
@@ -84,7 +94,11 @@ def _point(uow, project_id, line_id, room_id, ordinal, x, y, h=300, *, mechanism
                 project_id=project_id,
                 block_kind="SOCKET_IN",
                 room_id=room_id,
-                normalized_fields_json={"MOUNT_HEIGHT": str(h), "MECHANISM": index},
+                normalized_fields_json={
+                    "DEVICE_TYPE": "SOCKET",
+                    "MOUNT_HEIGHT": str(h),
+                    "MECHANISM": index,
+                },
             )
         )
         uow.execute(
@@ -381,7 +395,7 @@ def test_manual_precedence_and_geometry_independence(database):
     conduit_before = _rows(database)[2][0]["length_m_decimal"]
     assert service.set_line_length_adjustments(
         project_id=project_id, cable_line_id=line_id, additional_m=2
-    ).effective_m == Decimal("6.1")
+    ).effective_m == Decimal("7")
     assert (
         service.set_line_length_adjustments(
             project_id=project_id, cable_line_id=line_id, additional_m=99, manual_full_m=5
@@ -631,9 +645,9 @@ def test_internal_board_root_uses_dwg_board_geometry_and_board_reserve(database)
     segment = next(row for row in _rows(database)[0] if row["id"] == segments[0])
     assert Decimal(segment["calculated_length_m_decimal"]) == Decimal("4.1")
     result = service.effective_length(project_id, line_id)
-    assert result.automatic_m == Decimal("4.1")
+    assert result.automatic_m == Decimal("5.6")
     assert result.board_reserve_m == Decimal("1.5")
-    assert result.effective_m == Decimal("5.6")
+    assert result.effective_m == Decimal("6")
 
 
 def test_topology_exposes_segment_chain_and_mount_way_breakdown(database):
@@ -659,7 +673,8 @@ def test_topology_exposes_segment_chain_and_mount_way_breakdown(database):
     assert Decimal(breakdown["По полу"]["physical_m"]) == Decimal("4.1")
     assert Decimal(breakdown["По полу"]["cable_m"]) == Decimal("4.1")
     assert Decimal(breakdown["В брусе"]["physical_m"]) == Decimal("1.3")
-    assert Decimal(breakdown["В брусе"]["cable_m"]) == Decimal("1.8")
+    assert Decimal(breakdown["В брусе"]["cable_m"]) == Decimal("1.3")
+    assert Decimal(topology["timber_reserve_m"]) == Decimal("0.5")
 
 
 def test_topology_reports_exact_incomplete_geometry_reason(database):
@@ -680,3 +695,155 @@ def test_topology_reports_exact_incomplete_geometry_reason(database):
     assert edge["calculation_status"] == "INCOMPLETE"
     assert "Источник: нет координаты X" in edge["calculation_reason"]
     assert "Источник: нет координаты Y" in edge["calculation_reason"]
+
+
+def test_new_project_cable_length_policy_defaults(database):
+    objects = ObjectService(database.engine)
+    project_id = objects.create_project(ProjectCard(name="Defaults", project_code="DEFAULTS"))
+    settings = objects.get_project(project_id).settings
+    assert settings.cable_reserve_at_board_m == Decimal("3")
+    assert settings.cable_reserve_at_distribution_box_m == Decimal("0.2")
+    assert settings.cable_reserve_at_endpoint_m == Decimal("0.3")
+    assert settings.cable_meander_percent == Decimal("5")
+    assert settings.cable_obstacle_percent == Decimal("10")
+    assert settings.cable_timber_segment_reserve_m == Decimal("0.5")
+
+
+def test_distribution_box_reserve_counts_only_real_branching_box(database):
+    objects, project_id, room_a, room_b, _building = _project(database)
+    objects.save_settings(
+        project_id,
+        ProjectSettings(
+            cable_reserve_at_board_m=Decimal("0"),
+            cable_reserve_at_distribution_box_m=Decimal("0.2"),
+            cable_reserve_at_endpoint_m=Decimal("0"),
+            cable_meander_percent=Decimal("0"),
+            cable_obstacle_percent=Decimal("0"),
+            cable_timber_segment_reserve_m=Decimal("0"),
+        ),
+    )
+    service = CableService(database.engine)
+
+    branched_id, branched_segments, _ = _graph(
+        database,
+        project_id,
+        (room_a, room_b),
+        coords=[(0, 0, 300), (1000, 0, 300), (2000, 0, 300), (1000, 1000, 300)],
+        routes=[
+            (0, 1, "В кабель-канале", ""),
+            (1, 2, "В кабель-канале", ""),
+            (1, 3, "В кабель-канале", ""),
+        ],
+    )
+    with database.engine.begin() as connection:
+        middle = connection.scalar(
+            select(cable_point.c.id).where(
+                cable_point.c.cable_line_id == branched_id,
+                cable_point.c.ordinal == 1,
+            )
+        )
+        connection.execute(
+            update(cable_point).where(cable_point.c.id == middle).values(point_kind="EL_BOX")
+        )
+    service.recalculate(project_id=project_id, segment_ids=branched_segments)
+    branched = service.topology(project_id, branched_id)
+    assert branched["distribution_box_lines"] == 3
+    assert Decimal(branched["distribution_box_reserve_m"]) == Decimal("0.6")
+
+    through_id, through_segments, _ = _graph(
+        database,
+        project_id,
+        (room_a, room_b),
+        coords=[(0, 2000, 300), (1000, 2000, 300), (2000, 2000, 300)],
+        routes=[
+            (0, 1, "В кабель-канале", ""),
+            (1, 2, "В кабель-канале", ""),
+        ],
+    )
+    with database.engine.begin() as connection:
+        middle = connection.scalar(
+            select(cable_point.c.id).where(
+                cable_point.c.cable_line_id == through_id,
+                cable_point.c.ordinal == 1,
+            )
+        )
+        connection.execute(
+            update(cable_point).where(cable_point.c.id == middle).values(point_kind="EL_BOX")
+        )
+    service.recalculate(project_id=project_id, segment_ids=through_segments)
+    through = service.topology(project_id, through_id)
+    assert through["distribution_box_lines"] == 0
+    assert Decimal(through["distribution_box_reserve_m"]) == Decimal("0")
+
+
+def test_endpoint_reserve_counts_only_underbox_mechanisms(database):
+    objects, project_id, room_a, room_b, _building = _project(database)
+    objects.save_settings(
+        project_id,
+        ProjectSettings(
+            cable_reserve_at_board_m=Decimal("0"),
+            cable_reserve_at_distribution_box_m=Decimal("0"),
+            cable_reserve_at_endpoint_m=Decimal("0.3"),
+            cable_meander_percent=Decimal("0"),
+            cable_obstacle_percent=Decimal("0"),
+            cable_timber_segment_reserve_m=Decimal("0"),
+        ),
+    )
+    line_id, segments, _ = _graph(
+        database,
+        project_id,
+        (room_a, room_b),
+        coords=[(0, 0, 300), (1000, 0, 300)],
+        routes=[(0, 1, "В кабель-канале", "")],
+        shared_mechanisms=2,
+    )
+    with database.engine.begin() as connection:
+        device_id, fields = connection.execute(
+            select(field_device.c.id, field_device.c.normalized_fields_json)
+            .where(field_device.c.project_id == project_id)
+            .limit(1)
+        ).one()
+        changed = dict(fields)
+        changed["DEVICE_TYPE"] = "LIGHT"
+        connection.execute(
+            update(field_device)
+            .where(field_device.c.id == device_id)
+            .values(normalized_fields_json=changed)
+        )
+
+    service = CableService(database.engine)
+    service.recalculate(project_id=project_id, segment_ids=segments)
+    topology = service.topology(project_id, line_id)
+    assert topology["endpoint_mechanisms"] == 2
+    assert Decimal(topology["endpoint_reserve_m"]) == Decimal("0.6")
+
+
+def test_percentage_reserves_then_round_up_once_per_line(database):
+    objects, project_id, room_a, room_b, _building = _project(database)
+    objects.save_settings(
+        project_id,
+        ProjectSettings(
+            cable_reserve_at_board_m=Decimal("0"),
+            cable_reserve_at_distribution_box_m=Decimal("0"),
+            cable_reserve_at_endpoint_m=Decimal("0"),
+            cable_meander_percent=Decimal("5"),
+            cable_obstacle_percent=Decimal("10"),
+            cable_timber_segment_reserve_m=Decimal("0"),
+        ),
+    )
+    line_id, segments, _ = _graph(
+        database,
+        project_id,
+        (room_a, room_b),
+        coords=[(0, 0, 300), (3000, 0, 300)],
+        routes=[(0, 1, "В кабель-канале", "")],
+    )
+    service = CableService(database.engine)
+    service.recalculate(project_id=project_id, segment_ids=segments)
+    topology = service.topology(project_id, line_id)
+    assert Decimal(topology["geometric_m"]) == Decimal("3")
+    assert Decimal(topology["meander_reserve_m"]) == Decimal("0.15")
+    assert Decimal(topology["obstacle_reserve_m"]) == Decimal("0.30")
+    assert Decimal(topology["unrounded_m"]) == Decimal("3.45")
+    assert Decimal(topology["rounded_m"]) == Decimal("4")
+    assert service.effective_length(project_id, line_id).effective_m == Decimal("4")

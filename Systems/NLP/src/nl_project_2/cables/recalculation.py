@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_CEILING, Decimal, InvalidOperation
 
 from sqlalchemy import delete, func, select, update
 
@@ -58,6 +58,217 @@ class RecalculationResult:
     segment_ids: tuple[str, ...]
     line_ids: tuple[str, ...]
     incomplete_segment_ids: tuple[str, ...]
+
+
+DEFAULT_CABLE_LENGTH_SETTINGS = {
+    "cable_reserve_at_board_m": Decimal("3"),
+    "cable_reserve_at_distribution_box_m": Decimal("0.2"),
+    "cable_reserve_at_endpoint_m": Decimal("0.3"),
+    "cable_meander_percent": Decimal("5"),
+    "cable_obstacle_percent": Decimal("10"),
+    "cable_timber_segment_reserve_m": Decimal("0.5"),
+}
+
+
+@dataclass(frozen=True, slots=True)
+class CableLengthPolicy:
+    board_reserve_m: Decimal
+    distribution_box_reserve_m: Decimal
+    endpoint_reserve_m: Decimal
+    meander_percent: Decimal
+    obstacle_percent: Decimal
+    timber_segment_reserve_m: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class CableLengthBreakdown:
+    route_geometry_m: Decimal
+    board_reserve_m: Decimal
+    distribution_box_reserve_m: Decimal
+    endpoint_reserve_m: Decimal
+    geometric_m: Decimal
+    meander_reserve_m: Decimal
+    obstacle_reserve_m: Decimal
+    timber_reserve_m: Decimal
+    additional_m: Decimal
+    unrounded_m: Decimal
+    rounded_m: Decimal
+    distribution_box_lines: int
+    endpoint_mechanisms: int
+    timber_segments: int
+
+
+def cable_length_policy(uow, project_id: str) -> CableLengthPolicy:
+    rows = dict(
+        uow.execute(
+            select(project_setting.c.setting_key, project_setting.c.value_json).where(
+                project_setting.c.project_id == project_id,
+                project_setting.c.setting_key.in_(tuple(DEFAULT_CABLE_LENGTH_SETTINGS)),
+            )
+        ).all()
+    )
+
+    def value(key: str) -> Decimal:
+        raw = rows.get(key, DEFAULT_CABLE_LENGTH_SETTINGS[key])
+        if raw in (None, ""):
+            return DEFAULT_CABLE_LENGTH_SETTINGS[key]
+        try:
+            result = Decimal(str(raw))
+        except InvalidOperation as exc:
+            raise RecalculationError(f"Invalid project cable setting: {key}") from exc
+        if result < 0:
+            raise RecalculationError(f"Project cable setting must be non-negative: {key}")
+        return result
+
+    return CableLengthPolicy(
+        board_reserve_m=value("cable_reserve_at_board_m"),
+        distribution_box_reserve_m=value("cable_reserve_at_distribution_box_m"),
+        endpoint_reserve_m=value("cable_reserve_at_endpoint_m"),
+        meander_percent=value("cable_meander_percent"),
+        obstacle_percent=value("cable_obstacle_percent"),
+        timber_segment_reserve_m=value("cable_timber_segment_reserve_m"),
+    )
+
+
+def cable_line_length_breakdown(
+    uow,
+    project_id: str,
+    line_id: str,
+    *,
+    additional_m=0,
+) -> CableLengthBreakdown:
+    policy = cable_length_policy(uow, project_id)
+    segments = [
+        dict(row)
+        for row in uow.execute(
+            select(cable_segment).where(
+                cable_segment.c.project_id == project_id,
+                cable_segment.c.cable_line_id == line_id,
+            )
+        ).mappings()
+    ]
+    if not segments or any(row["calculated_length_m_decimal"] is None for row in segments):
+        raise RecalculationError("Cable length is incomplete")
+
+    route_geometry = Decimal(0)
+    timber_segments = 0
+    for segment in segments:
+        route = _route_method(segment["mount_way"])
+        length = Decimal(str(segment["calculated_length_m_decimal"]))
+        route_geometry += conduit_length_from_segment_length(length, route)
+        if route is RouteMethod.TIMBER:
+            timber_segments += 1
+
+    board_reserve = board_reserve_for_line(
+        uow,
+        project_id,
+        line_id,
+        policy=policy,
+    )
+    distribution_lines = _distribution_box_line_count(uow, project_id, line_id)
+    distribution_reserve = policy.distribution_box_reserve_m * distribution_lines
+    endpoint_mechanisms = _endpoint_mechanism_count(uow, project_id, line_id)
+    endpoint_reserve = policy.endpoint_reserve_m * endpoint_mechanisms
+
+    geometric = route_geometry + board_reserve + distribution_reserve + endpoint_reserve
+    meander = geometric * policy.meander_percent / Decimal(100)
+    obstacle = geometric * policy.obstacle_percent / Decimal(100)
+    timber = policy.timber_segment_reserve_m * timber_segments
+    additional = Decimal(str(additional_m or 0))
+    unrounded = geometric + meander + obstacle + timber + additional
+    rounded = unrounded.to_integral_value(rounding=ROUND_CEILING)
+
+    return CableLengthBreakdown(
+        route_geometry_m=route_geometry,
+        board_reserve_m=board_reserve,
+        distribution_box_reserve_m=distribution_reserve,
+        endpoint_reserve_m=endpoint_reserve,
+        geometric_m=geometric,
+        meander_reserve_m=meander,
+        obstacle_reserve_m=obstacle,
+        timber_reserve_m=timber,
+        additional_m=additional,
+        unrounded_m=unrounded,
+        rounded_m=rounded,
+        distribution_box_lines=distribution_lines,
+        endpoint_mechanisms=endpoint_mechanisms,
+        timber_segments=timber_segments,
+    )
+
+
+def _distribution_box_line_count(uow, project_id: str, line_id: str) -> int:
+    """Count physical cable ends that are actually commutated in branching EL_BOX nodes."""
+
+    point_ids = list(
+        uow.execute(
+            select(cable_point.c.id).where(
+                cable_point.c.project_id == project_id,
+                cable_point.c.cable_line_id == line_id,
+                cable_point.c.point_kind == "EL_BOX",
+            )
+        ).scalars()
+    )
+    total = 0
+    for point_id in point_ids:
+        endpoint_id = uow.execute(
+            select(cable_topology_endpoint.c.id).where(
+                cable_topology_endpoint.c.project_id == project_id,
+                cable_topology_endpoint.c.cable_line_id == line_id,
+                cable_topology_endpoint.c.cable_point_id == point_id,
+            )
+        ).scalar_one_or_none()
+        if endpoint_id is None:
+            continue
+        incident_segments = int(
+            uow.execute(
+                select(func.count())
+                .select_from(cable_segment)
+                .where(
+                    cable_segment.c.project_id == project_id,
+                    cable_segment.c.cable_line_id == line_id,
+                    (
+                        (cable_segment.c.source_endpoint_id == endpoint_id)
+                        | (cable_segment.c.target_endpoint_id == endpoint_id)
+                    ),
+                )
+            ).scalar_one()
+        )
+        # A two-segment EL_BOX is only a pull-through point: cable enters and leaves
+        # without a distribution splice. A real branching junction has 3+ physical
+        # line ends, and every one of those ends receives the configured reserve.
+        if incident_segments >= 3:
+            total += incident_segments
+    return total
+
+
+def _is_underbox_mechanism(fields: dict | None) -> bool:
+    return str((fields or {}).get("DEVICE_TYPE") or "").strip().upper() in {
+        "SOCKET",
+        "SWITCH",
+        "BUTTON",
+    }
+
+
+def _endpoint_mechanism_count(uow, project_id: str, line_id: str) -> int:
+    rows = uow.execute(
+        select(field_device.c.normalized_fields_json)
+        .join(
+            cable_point_field_device,
+            cable_point_field_device.c.field_device_id == field_device.c.id,
+        )
+        .join(
+            cable_point,
+            cable_point.c.id == cable_point_field_device.c.cable_point_id,
+        )
+        .where(
+            cable_point_field_device.c.project_id == project_id,
+            cable_point.c.project_id == project_id,
+            cable_point.c.cable_line_id == line_id,
+            cable_point.c.point_kind.in_(("DEVICE_POINT", "INSTALLATION_GROUP")),
+            field_device.c.lifecycle == "ACTIVE",
+        )
+    ).scalars()
+    return sum(1 for fields in rows if _is_underbox_mechanism(fields))
 
 
 def recalculate_segments(
@@ -506,7 +717,7 @@ def _recalculate_line_fact(uow, project_id: str, line_id: str, now: datetime) ->
         "calculation_revision": CALCULATION_REVISION,
         "additional_length_m_decimal": additional,
         "manual_full_length_m_decimal": manual,
-        "rounding_policy": "NONE",
+        "rounding_policy": "ROUND_UP_TO_1M",
         "knowledge_status": status,
     }
     if existing is None:
@@ -523,7 +734,13 @@ def _recalculate_line_fact(uow, project_id: str, line_id: str, now: datetime) ->
         )
 
 
-def board_reserve_for_line(uow, project_id: str, line_id: str) -> Decimal:
+def board_reserve_for_line(
+    uow,
+    project_id: str,
+    line_id: str,
+    *,
+    policy: CableLengthPolicy | None = None,
+) -> Decimal:
     """Return reserve when the physical graph root is owned by the line board."""
 
     target_ids = select(cable_segment.c.target_endpoint_id).where(
@@ -579,13 +796,8 @@ def board_reserve_for_line(uow, project_id: str, line_id: str) -> Decimal:
                     break
     if not board_owned:
         return Decimal(0)
-    value = uow.execute(
-        select(project_setting.c.value_json).where(
-            project_setting.c.project_id == project_id,
-            project_setting.c.setting_key == "cable_reserve_at_board_m",
-        )
-    ).scalar_one_or_none()
-    return Decimal(str(value or 0))
+    active_policy = policy or cable_length_policy(uow, project_id)
+    return active_policy.board_reserve_m
 
 
 def _reconcile_segment_conduit(uow, project_id: str, segment_row: dict, now: datetime) -> None:

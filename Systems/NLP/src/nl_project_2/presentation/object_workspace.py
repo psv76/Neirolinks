@@ -1542,6 +1542,11 @@ class ObjectWorkspace(QWidget):
             "output_folder": QLineEdit(tab),
             "versions_folder": QLineEdit(tab),
             "cable_reserve_at_board_m": QLineEdit(tab),
+            "cable_reserve_at_distribution_box_m": QLineEdit(tab),
+            "cable_reserve_at_endpoint_m": QLineEdit(tab),
+            "cable_meander_percent": QLineEdit(tab),
+            "cable_obstacle_percent": QLineEdit(tab),
+            "cable_timber_segment_reserve_m": QLineEdit(tab),
         }
         self.initial_page = QSpinBox(tab)
         self.initial_page.setRange(0, 999999)
@@ -1551,7 +1556,25 @@ class ObjectWorkspace(QWidget):
         form.addRow("Папка вывода", self.setting_fields["output_folder"])
         form.addRow("Папка версий", self.setting_fields["versions_folder"])
         form.addRow("Начальный номер страниц", self.initial_page)
-        form.addRow("Запас кабеля у щита, м", self.setting_fields["cable_reserve_at_board_m"])
+        form.addRow(
+            "Подключение в щите, м / линия", self.setting_fields["cable_reserve_at_board_m"]
+        )
+        form.addRow(
+            "Коммутация в распределительной коробке, м / линия",
+            self.setting_fields["cable_reserve_at_distribution_box_m"],
+        )
+        form.addRow(
+            "Вывод из подрозетника, м / механизм",
+            self.setting_fields["cable_reserve_at_endpoint_m"],
+        )
+        form.addRow(
+            "Нелинейность кабеля («змейка»), %", self.setting_fields["cable_meander_percent"]
+        )
+        form.addRow("Обходы стен и балок, %", self.setting_fields["cable_obstacle_percent"])
+        form.addRow(
+            "Запас «В брусе», м / сегмент",
+            self.setting_fields["cable_timber_segment_reserve_m"],
+        )
         save = QPushButton("Сохранить настройки", tab)
         save.clicked.connect(self._save_settings)
         layout = QVBoxLayout(tab)
@@ -1694,11 +1717,16 @@ class ObjectWorkspace(QWidget):
         settings = self._detail.settings
         for key in ("project_folder", "output_folder", "versions_folder"):
             self.setting_fields[key].setText(getattr(settings, key))
-        self.setting_fields["cable_reserve_at_board_m"].setText(
-            ""
-            if settings.cable_reserve_at_board_m is None
-            else str(settings.cable_reserve_at_board_m)
-        )
+        for key in (
+            "cable_reserve_at_board_m",
+            "cable_reserve_at_distribution_box_m",
+            "cable_reserve_at_endpoint_m",
+            "cable_meander_percent",
+            "cable_obstacle_percent",
+            "cable_timber_segment_reserve_m",
+        ):
+            value = getattr(settings, key)
+            self.setting_fields[key].setText("" if value is None else str(value))
         self.initial_page.setValue(settings.initial_page_number or 0)
         self.rooms_table.setRowCount(len(self._detail.rooms))
         for row_index, item in enumerate(self._detail.rooms):
@@ -1819,6 +1847,21 @@ class ObjectWorkspace(QWidget):
                 initial_page_number=self.initial_page.value() or None,
                 cable_reserve_at_board_m=_optional_decimal(
                     self.setting_fields["cable_reserve_at_board_m"].text()
+                ),
+                cable_reserve_at_distribution_box_m=_optional_decimal(
+                    self.setting_fields["cable_reserve_at_distribution_box_m"].text()
+                ),
+                cable_reserve_at_endpoint_m=_optional_decimal(
+                    self.setting_fields["cable_reserve_at_endpoint_m"].text()
+                ),
+                cable_meander_percent=_optional_decimal(
+                    self.setting_fields["cable_meander_percent"].text()
+                ),
+                cable_obstacle_percent=_optional_decimal(
+                    self.setting_fields["cable_obstacle_percent"].text()
+                ),
+                cable_timber_segment_reserve_m=_optional_decimal(
+                    self.setting_fields["cable_timber_segment_reserve_m"].text()
                 ),
             )
             self.runtime.objects.save_settings(self._detail.id, settings)

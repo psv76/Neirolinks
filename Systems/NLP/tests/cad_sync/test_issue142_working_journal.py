@@ -138,21 +138,21 @@ def test_branched_import_chain_lengths_breakdown_and_reopen(database):
     assert all(e["calculation_status"] == "READY" for e in topology["edges"])
     groups = {g["mount_way"]: g for g in topology["route_breakdown"]}
     assert Decimal(groups["В брусе"]["physical_m"]) == 1
-    assert Decimal(groups["В брусе"]["cable_m"]) == Decimal("1.5")
-    assert service.effective_length(pid, line_id).automatic_m == Decimal("6.5")
-    assert service.effective_length(pid, line_id).effective_m == 8
+    assert Decimal(groups["В брусе"]["cable_m"]) == Decimal("1.0")
+    assert service.effective_length(pid, line_id).automatic_m == Decimal("10.505")
+    assert service.effective_length(pid, line_id).effective_m == 11
     service.set_line_length_adjustments(project_id=pid, cable_line_id=line_id, additional_m="2")
-    assert service.effective_length(pid, line_id).effective_m == 10
+    assert service.effective_length(pid, line_id).effective_m == 13
     before = snapshot(database)
     report = service.project_route_breakdown(pid)
     assert len(report["routes"]) == 6
     assert sum(Decimal(g["physical_m"]) for g in report["routes"]) == 6
-    assert report["effective_m"] == "10.0"
+    assert report["effective_m"] == "13"
     assert snapshot(database) == before  # read models are read-only
     with DatabaseManager().open_existing(database.path) as reopened:
         other = CableService(reopened.engine)
         assert other.topology(pid, line_id)["edges"] == topology["edges"]
-        assert other.effective_length(pid, line_id).effective_m == 10
+        assert other.effective_length(pid, line_id).effective_m == 13
         proposal = DwgSyncService(reopened.engine).preview(project_id=pid, batch=batch)
         assert not [
             c for c in proposal.changes if c.change_class == ChangeClass.BOTH_CHANGED_CONFLICT
@@ -192,7 +192,7 @@ def test_exact_segment_edit_assignment_and_three_way_preserve_neighbors(database
         "ППЛ25",
         "Синий",
     )
-    assert Decimal(edge["cable_length_m"]) == Decimal("1.5")
+    assert Decimal(edge["cable_length_m"]) == Decimal("1.0")
     assert Decimal(edge["conduit_length_m"]) == 1
     preview = DwgSyncService(database.engine).preview(project_id=pid, batch=batch)
     changes = [
@@ -310,7 +310,7 @@ def test_room_canonicalization_recalculates_accepted_geometry_without_importing_
     assert [r["normalized_fields_json"] for r in after["field_device"]] == [
         r["normalized_fields_json"] for r in before["field_device"]
     ]
-    assert CableService(database.engine).effective_length(pid, line_id).effective_m == 8
+    assert CableService(database.engine).effective_length(pid, line_id).effective_m == 11
 
 
 def test_real_lines_widget_edits_exact_segment_and_preserves_selection(database, qtbot):
@@ -347,8 +347,8 @@ def test_object_breakdown_is_available_from_lines(database, qtbot, monkeypatch):
         table = dialog.findChild(QTableWidget)
         assert table.rowCount() == 6
         assert sum(Decimal(table.item(i, 1).text()) for i in range(6)) == 6
-        assert sum(Decimal(table.item(i, 2).text()) for i in range(6)) == Decimal("6.5")
-        assert "8.0 м" in " ".join(label.text() for label in dialog.findChildren(QLabel))
+        assert sum(Decimal(table.item(i, 2).text()) for i in range(6)) == Decimal("6.0")
+        assert "11 м" in " ".join(label.text() for label in dialog.findChildren(QLabel))
         inspected.append(True)
         return QDialog.DialogCode.Accepted
 
@@ -357,7 +357,7 @@ def test_object_breakdown_is_available_from_lines(database, qtbot, monkeypatch):
     assert inspected
 
 
-@pytest.mark.parametrize(("handle", "x", "expected"), [("B0", -1000, "9"), ("E1", 1500, "8.5")])
+@pytest.mark.parametrize(("handle", "x", "expected"), [("B0", -1000, "11"), ("E1", 1500, "12")])
 def test_rescan_source_geometry_recalculates_downstream_dependents(database, handle, x, expected):
     _, pid, _, _, line_id, batch = journal_project(database)
     changed = replace(
@@ -386,7 +386,7 @@ def test_manual_length_does_not_change_physical_or_conduit_meters(database):
     report = service.project_route_breakdown(pid)
     assert Decimal(report["effective_m"]) == 30
     assert sum(Decimal(r["physical_m"]) for r in report["routes"]) == 6
-    assert sum(Decimal(r["cable_m"]) for r in report["routes"]) == Decimal("6.5")
+    assert sum(Decimal(r["cable_m"]) for r in report["routes"]) == Decimal("6.0")
     assert snapshot(database)["conduit"] == before["conduit"]
     assert snapshot(database)["cable_segment"] == before["cable_segment"]
 
