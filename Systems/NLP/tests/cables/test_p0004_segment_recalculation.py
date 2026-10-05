@@ -13,6 +13,7 @@ from nl_project_2.cables import (
     calculate_segment_length,
     conduit_is_present,
 )
+from nl_project_2.cables.recalculation import board_reserve_for_line
 from nl_project_2.objects.models import ProjectCard, ProjectSettings
 from nl_project_2.objects.service import ObjectService
 from nl_project_2.persistence.ids import new_id
@@ -350,6 +351,46 @@ def test_board_reserve_depends_on_physical_source(database, board_owned, reserve
     CableService(database.engine).recalculate(project_id=project_id, segment_ids=segments)
     result = CableService(database.engine).effective_length(project_id, line_id)
     assert result.board_reserve_m == Decimal(reserve)
+
+
+def test_internal_source_always_gets_board_connection_reserve(database):
+    _objects, project_id, room_a, room_b, _building = _project(database)
+    line_id, segments, _ = _graph(
+        database, project_id, (room_a, room_b), routes=[(0, 1, "В кабель-канале", "")]
+    )
+    with UnitOfWork(database.engine) as uow:
+        point_id = new_id()
+        endpoint_id = new_id()
+        uow.execute(
+            cable_point.insert().values(
+                id=point_id,
+                project_id=project_id,
+                cable_line_id=line_id,
+                field_device_id=None,
+                point_kind="INTERNAL_SOURCE",
+                ordinal=99,
+                logical_identity=f"internal:{line_id}:source",
+                origin_kind="PROJECT",
+                migration_state="CONFIRMED",
+                location_json={},
+            )
+        )
+        uow.execute(
+            cable_topology_endpoint.insert().values(
+                id=endpoint_id,
+                project_id=project_id,
+                cable_line_id=line_id,
+                endpoint_kind="TOPOLOGY_POINT",
+                cable_point_id=point_id,
+            )
+        )
+        uow.execute(
+            update(cable_segment)
+            .where(cable_segment.c.id == segments[0])
+            .values(source_endpoint_id=endpoint_id)
+        )
+        assert board_reserve_for_line(uow, project_id, line_id) == Decimal("1.5")
+        uow.rollback()
 
 
 @pytest.mark.parametrize(
