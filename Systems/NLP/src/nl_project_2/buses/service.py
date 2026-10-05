@@ -32,6 +32,7 @@ from nl_project_2.persistence.uow import UnitOfWork
 from nl_project_2.resource_labels import resource_technical_identity, resource_user_label
 
 from .domain import TopologyPoint, TopologyResult, branched_topology, rs485_topology
+from .recalculation import recalculate_bus_segments
 
 _DALI_GROUP = re.compile(r"^D\.[0-9]{3}$")
 
@@ -298,6 +299,16 @@ class BusService:
             if result.rowcount != 1:
                 raise BusError("RS-485 bus not found")
             uow.commit()
+
+    def recalculate_lengths(
+        self, project_id: str, *, bus_ids: set[str] | None = None
+    ) -> tuple[str, ...]:
+        """Refresh derived physical bus-segment lengths from accepted Project geometry."""
+
+        with UnitOfWork(self._engine) as uow:
+            changed = recalculate_bus_segments(uow, project_id, bus_ids=bus_ids)
+            uow.commit()
+        return changed
 
     def list_rs485_resource_candidates(self, project_id: str) -> list[dict]:
         """Return active Project RS-485 resources for future source/endpoint selectors."""

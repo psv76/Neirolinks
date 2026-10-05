@@ -100,12 +100,15 @@ class ApplicationRuntime:
         specification = SpecificationService(database.engine, automation, cables)
         distribution = DistributionService(database.engine)
         buses = BusService(database.engine)
+        object_service = ObjectService(database.engine)
+        for project_summary in object_service.list_projects():
+            buses.recalculate_lengths(project_summary.id)
         equipment_actions = EquipmentActionService(database.engine)
         bridge_logger = StructuredLogger(paths.log_root / "operations.jsonl")
         local_profile = LocalApplicationProfile(paths.local_state_root)
         return cls(
             database=database,
-            objects=ObjectService(database.engine),
+            objects=object_service,
             work_time=work_time,
             dwg_sync=DwgSyncService(database.engine, AutoCadBridgeClient(logger=bridge_logger)),
             cables=cables,
