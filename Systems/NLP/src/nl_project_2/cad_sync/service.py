@@ -667,7 +667,7 @@ class DwgSyncService:
                 line_ids=line_ids,
                 active_handles=active_handles,
             )
-            device_ids = self._upsert_devices(
+            device_ids, previous_bases = self._upsert_devices(
                 uow,
                 proposal.project_id,
                 binding_id,
@@ -675,6 +675,18 @@ class DwgSyncService:
                 expanded_selected,
                 active_handles,
             )
+            for previous_base in previous_bases:
+                if previous_base in line_ids:
+                    continue
+                previous_line_id = uow.execute(
+                    select(cable_line.c.id).where(
+                        cable_line.c.project_id == proposal.project_id,
+                        cable_line.c.designation == previous_base,
+                        cable_line.c.lifecycle == "ACTIVE",
+                    )
+                ).scalar_one_or_none()
+                if previous_line_id is not None:
+                    line_ids[previous_base] = previous_line_id
             all_snapshot_handles = {item.observation.handle for item in validated.values()}
             for row in uow.execute(
                 select(field_device.c.id, field_device.c.entity_handle).where(
@@ -698,9 +710,7 @@ class DwgSyncService:
                 recalculate_segments(
                     uow,
                     proposal.project_id,
-                    device_ids={
-                        device_ids[handle] for handle in active_handles if handle in device_ids
-                    },
+                    line_ids=set(line_ids.values()),
                     reconcile_conduits=False,
                 )
             operation_id = new_id()
@@ -1304,6 +1314,7 @@ class DwgSyncService:
 
     def _upsert_devices(self, uow, project_id, binding_id, validated, selected, active_handles):
         result: dict[str, str] = {}
+        previous_bases: set[str] = set()
         for handle, item in validated.items():
             if handle not in active_handles:
                 continue
@@ -1321,12 +1332,21 @@ class DwgSyncService:
             )
             dwg_fields = _fields(item)
             values = dict(existing["normalized_fields_json"] or {}) if existing else {}
+            previous_cable_id = str(values.get("CABLE_ID") or "").strip()
+            if previous_cable_id:
+                previous_bases.add(previous_cable_id.split(".", 1)[0])
             if existing is None or f"{handle}:$" in selected:
                 values.update(dwg_fields)
             else:
                 for field, value in dwg_fields.items():
                     if f"{handle}:{field}" in selected:
                         values[field] = value
+                # CABLE_ID is also a topology identity. A line renumber creates
+                # base_line/segment owner changes rather than an insertion-field
+                # change, so an accepted active handle must carry the current DWG
+                # identity into the persisted field-device evidence as well.
+                if "CABLE_ID" in dwg_fields:
+                    values["CABLE_ID"] = dwg_fields["CABLE_ID"]
             room_fields_selected = (
                 existing is None
                 or f"{handle}:$" in selected
@@ -1365,7 +1385,7 @@ class DwgSyncService:
                     )
                 )
             result[handle] = identifier
-        return result
+        return result, previous_bases
 
     def _ensure_room(self, uow, project_id, values):
         return _resolve_project_room_id(uow, project_id, values)
@@ -1422,9 +1442,17 @@ class DwgSyncService:
 
         endpoint_ids: dict[str, str] = {}
         points_by_base: dict[str, list] = defaultdict(list)
+        desired_identities_by_base: dict[str, set[str]] = defaultdict(set)
         for point in snapshot.points:
+            desired_identities_by_base[point.base].add(point.logical_identity)
             if set(point.handles) & active_handles:
                 points_by_base[point.base].append(point)
+        self._prune_stale_snapshot_points(
+            uow,
+            project_id=project_id,
+            line_ids=line_ids,
+            desired_identities_by_base=desired_identities_by_base,
+        )
         for base, plans in sorted(points_by_base.items()):
             line_id = line_ids[base]
             for plan in sorted(plans, key=lambda item: item.logical_identity):
@@ -1713,6 +1741,57 @@ class DwgSyncService:
                         review_state="MIGRATION_REVIEW_REQUIRED",
                     )
                 )
+
+    def _prune_stale_snapshot_points(
+        self,
+        uow,
+        *,
+        project_id: str,
+        line_ids: dict[str, str],
+        desired_identities_by_base: dict[str, set[str]],
+    ) -> None:
+        """Remove obsolete DWG-owned device/box points from affected lines."""
+
+        for base, line_id in line_ids.items():
+            desired = desired_identities_by_base.get(base, set())
+            stale_points = list(
+                uow.execute(
+                    select(cable_point.c.id).where(
+                        cable_point.c.project_id == project_id,
+                        cable_point.c.cable_line_id == line_id,
+                        cable_point.c.point_kind != "INTERNAL_SOURCE",
+                        ~cable_point.c.logical_identity.in_(desired),
+                    )
+                ).scalars()
+            )
+            if not stale_points:
+                continue
+            endpoint_ids = list(
+                uow.execute(
+                    select(cable_topology_endpoint.c.id).where(
+                        cable_topology_endpoint.c.project_id == project_id,
+                        cable_topology_endpoint.c.cable_line_id == line_id,
+                        cable_topology_endpoint.c.cable_point_id.in_(stale_points),
+                    )
+                ).scalars()
+            )
+            if endpoint_ids:
+                uow.execute(
+                    delete(cable_segment).where(
+                        cable_segment.c.project_id == project_id,
+                        cable_segment.c.cable_line_id == line_id,
+                        (
+                            cable_segment.c.source_endpoint_id.in_(endpoint_ids)
+                            | cable_segment.c.target_endpoint_id.in_(endpoint_ids)
+                        ),
+                    )
+                )
+                uow.execute(
+                    delete(cable_topology_endpoint).where(
+                        cable_topology_endpoint.c.id.in_(endpoint_ids)
+                    )
+                )
+            uow.execute(delete(cable_point).where(cable_point.c.id.in_(stale_points)))
 
     def _find_snapshot_point(self, uow, project_id, line_id, plan, *, adopt):
         row = (

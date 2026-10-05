@@ -11,7 +11,6 @@ from nl_project_2.automation import AutomationService
 from nl_project_2.bulk_actions import BulkActionService
 from nl_project_2.buses import BusService
 from nl_project_2.cables import CableService
-from nl_project_2.cables.recalculation import repair_device_point_memberships
 from nl_project_2.cad_sync import AutoCadBridgeClient, DwgSyncService
 from nl_project_2.catalog.installer import CatalogInstaller
 from nl_project_2.catalog.payload import load_packaged_payload
@@ -32,7 +31,6 @@ from nl_project_2.operations import (
 from nl_project_2.panels import PanelService
 from nl_project_2.persistence.database import DatabaseHandle, DatabaseManager
 from nl_project_2.persistence.ids import new_id
-from nl_project_2.persistence.uow import UnitOfWork
 from nl_project_2.specification import SpecificationService
 
 from .service import ObjectService
@@ -104,14 +102,6 @@ class ApplicationRuntime:
         buses = BusService(database.engine)
         object_service = ObjectService(database.engine)
         for project_summary in object_service.list_projects():
-            with UnitOfWork(database.engine) as uow:
-                affected_lines = repair_device_point_memberships(uow, project_summary.id)
-                uow.commit()
-            if affected_lines:
-                cables.recalculate(
-                    project_id=project_summary.id,
-                    cable_line_ids=affected_lines,
-                )
             buses.recalculate_lengths(project_summary.id)
         equipment_actions = EquipmentActionService(database.engine)
         bridge_logger = StructuredLogger(paths.log_root / "operations.jsonl")

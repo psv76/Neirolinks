@@ -732,3 +732,67 @@ def test_selected_validation_keeps_truly_global_unscoped_issue_blocking():
 
     with pytest.raises(DwgSyncError, match="GLOBAL_INVALID"):
         service._check_selected_validation(proposal, {"B469:$"})
+
+
+def test_cable_id_renumber_moves_memberships_and_prunes_stale_points(database):
+    project_id = _project(database)
+    service = DwgSyncService(database.engine)
+
+    first_batch = _batch(
+        _socket(handle="H118", cable_id="118", gofra_id="018.PND25"),
+        _socket(handle="H119", cable_id="119", gofra_id="019.PND25"),
+    )
+    first = service.preview(project_id=project_id, batch=first_batch)
+    service.apply_dwg_to_project(first, selected_paths=_applicable(first), confirmed=True)
+
+    second_batch = _batch(
+        _socket(handle="H118", cable_id="119", gofra_id="018.PND25"),
+        _socket(handle="H119", cable_id="120", gofra_id="019.PND25"),
+    )
+    second = service.preview(project_id=project_id, batch=second_batch)
+    service.apply_dwg_to_project(second, selected_paths=_applicable(second), confirmed=True)
+
+    with database.engine.connect() as connection:
+        devices = {
+            row["entity_handle"]: (row["normalized_fields_json"] or {}).get("CABLE_ID")
+            for row in connection.execute(
+                select(field_device).where(
+                    field_device.c.project_id == project_id,
+                    field_device.c.entity_handle.in_(("H118", "H119")),
+                )
+            ).mappings()
+        }
+        assert devices == {"H118": "119", "H119": "120"}
+
+        rows = list(
+            connection.execute(
+                select(
+                    cable_line.c.designation,
+                    cable_point.c.logical_identity,
+                    field_device.c.entity_handle,
+                )
+                .select_from(cable_line)
+                .join(cable_point, cable_point.c.cable_line_id == cable_line.c.id)
+                .outerjoin(
+                    cable_point_field_device,
+                    cable_point_field_device.c.cable_point_id == cable_point.c.id,
+                )
+                .outerjoin(
+                    field_device,
+                    field_device.c.id == cable_point_field_device.c.field_device_id,
+                )
+                .where(
+                    cable_line.c.project_id == project_id,
+                    cable_line.c.designation.in_(("118", "119", "120")),
+                    cable_point.c.point_kind != "INTERNAL_SOURCE",
+                )
+                .order_by(cable_line.c.designation, cable_point.c.logical_identity)
+            ).mappings()
+        )
+
+    assert [
+        (row["designation"], row["logical_identity"], row["entity_handle"]) for row in rows
+    ] == [
+        ("119", "119", "H118"),
+        ("120", "120", "H119"),
+    ]
