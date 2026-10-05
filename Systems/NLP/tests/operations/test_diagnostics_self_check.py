@@ -31,7 +31,7 @@ def test_self_check_is_read_only_and_complete(database, tmp_path):
         "SCHEMA_REVISION",
         "SQLITE_INTEGRITY",
         "FOREIGN_KEYS",
-        "CATALOG_18_31",
+        "CATALOG_19_32",
         "INSTANCE_RESOURCES",
         "READ_ONLY_INVARIANT",
     }

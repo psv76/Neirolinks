@@ -47,3 +47,19 @@ def test_noncanonical_or_malformed_conduit_type_is_rejected(value):
 def test_pp_id_keeps_material_code_instead_of_russian_prefix_transliteration():
     with pytest.raises(ConduitContractError, match="suffix must be PP25"):
         parse_conduit_id("001.PPL25", "ППЛ25")
+
+
+def test_screed_route_is_distinct_and_requires_conduit():
+    assert validate_line_conduit_fields(
+        mount_way="В стяжке",
+        conduit_type="МПТ16",
+        conduit_color="",
+        conduit_id="003.MPT16",
+    )
+    with pytest.raises(ConduitContractError, match="required"):
+        validate_line_conduit_fields(
+            mount_way="В стяжке",
+            conduit_type="",
+            conduit_color="",
+            conduit_id="",
+        )

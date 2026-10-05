@@ -45,7 +45,7 @@ def test_source_target_preview_commit_and_workspace_availability(database, qtbot
 
     dialog = ConstructorWorkspaceDialog(service, project_id)
     qtbot.addWidget(dialog)
-    assert dialog.passport_combo.count() == 18
+    assert dialog.passport_combo.count() == 19
     assert dialog.instances_table.rowCount() == 2
     assert dialog.resources_table.rowCount() == 4
     dialog.source_combo.setCurrentIndex(dialog.source_combo.findData(source["id"]))

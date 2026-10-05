@@ -145,7 +145,7 @@ def test_branched_import_chain_lengths_breakdown_and_reopen(database):
     assert service.effective_length(pid, line_id).effective_m == 10
     before = snapshot(database)
     report = service.project_route_breakdown(pid)
-    assert len(report["routes"]) == 5
+    assert len(report["routes"]) == 6
     assert sum(Decimal(g["physical_m"]) for g in report["routes"]) == 6
     assert report["effective_m"] == "10.0"
     assert snapshot(database) == before  # read models are read-only
@@ -345,9 +345,9 @@ def test_object_breakdown_is_available_from_lines(database, qtbot, monkeypatch):
 
     def inspect(dialog):
         table = dialog.findChild(QTableWidget)
-        assert table.rowCount() == 5
-        assert sum(Decimal(table.item(i, 1).text()) for i in range(5)) == 6
-        assert sum(Decimal(table.item(i, 2).text()) for i in range(5)) == Decimal("6.5")
+        assert table.rowCount() == 6
+        assert sum(Decimal(table.item(i, 1).text()) for i in range(6)) == 6
+        assert sum(Decimal(table.item(i, 2).text()) for i in range(6)) == Decimal("6.5")
         assert "8.0 м" in " ".join(label.text() for label in dialog.findChildren(QLabel))
         inspected.append(True)
         return QDialog.DialogCode.Accepted
