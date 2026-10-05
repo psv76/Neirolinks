@@ -14,6 +14,7 @@ from typing import Any
 
 from sqlalchemy import Engine, delete, func, select, update
 
+from nl_project_2.buses.recalculation import recalculate_bus_segments
 from nl_project_2.cables.domain import (
     ConduitContractError,
     format_conduit_id,
@@ -1410,13 +1411,14 @@ class DwgSyncService:
     ) -> None:
         """Materialize validated points/edges/keys/ports from one immutable snapshot."""
 
-        self._materialize_bus_snapshot(
+        affected_bus_ids = self._materialize_bus_snapshot(
             uow,
             project_id=project_id,
             snapshot=snapshot,
             device_ids=device_ids,
             active_handles=active_handles,
         )
+        recalculate_bus_segments(uow, project_id, bus_ids=affected_bus_ids)
 
         endpoint_ids: dict[str, str] = {}
         points_by_base: dict[str, list] = defaultdict(list)
@@ -1764,7 +1766,8 @@ class DwgSyncService:
 
     def _materialize_bus_snapshot(
         self, uow, *, project_id, snapshot, device_ids, active_handles
-    ) -> None:
+    ) -> set[str]:
+        affected_bus_ids: set[str] = set()
         grouped: dict[str, list] = defaultdict(list)
         for plan in snapshot.bus_points:
             if plan.handle in active_handles and plan.handle in device_ids:
@@ -1806,6 +1809,7 @@ class DwgSyncService:
                     update(bus).where(bus.c.id == bus_row["id"]).values(cable_type=cable_type)
                 )
 
+            affected_bus_ids.add(bus_row["id"])
             endpoint_by_address = {
                 row["address"]: row["id"]
                 for row in uow.execute(
@@ -1889,6 +1893,7 @@ class DwgSyncService:
                     connection_kind=plan.connection_kind,
                     route=route,
                 )
+        return affected_bus_ids
 
     def _materialize_bus_segment_conduit(
         self, uow, *, project_id, segment_id, connection_kind, route
