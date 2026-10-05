@@ -284,10 +284,17 @@ class DwgSyncService:
         changes: list[SyncChange] = []
         issues_by_handle: dict[str, list] = defaultdict(list)
         for issue in validation.issues:
-            if issue.handle:
-                issues_by_handle[issue.handle].append(issue)
+            scoped_handles = tuple(
+                handle for handle in (issue.handle, *issue.related_handles) if handle
+            )
+            for handle in scoped_handles:
+                issues_by_handle[handle].append(issue)
         invalid_handles = {
-            issue.handle for issue in validation.issues if issue.blocks_acceptance and issue.handle
+            handle
+            for issue in validation.issues
+            if issue.blocks_acceptance
+            for handle in (issue.handle, *issue.related_handles)
+            if handle
         }
         for handle in sorted(invalid_handles):
             changes.append(
@@ -2449,9 +2456,9 @@ class DwgSyncService:
             for issue in proposal.issues
             if issue.blocks_acceptance
             and (
-                issue.handle is None
-                or issue.handle in selected_handles
-                or selected_handles.intersection(issue.related_handles)
+                issue.handle in selected_handles
+                or bool(selected_handles.intersection(issue.related_handles))
+                or (issue.handle is None and not issue.related_handles)
             )
         ]
         if blocking:

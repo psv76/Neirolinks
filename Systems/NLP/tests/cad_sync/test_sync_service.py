@@ -9,9 +9,12 @@ from nl_project_2.cad_contract import (
     BlockDefinitionMetadata,
     CadObservation,
     CadObservationBatch,
+    IssueSeverity,
+    ValidationIssue,
     load_contract,
 )
 from nl_project_2.cad_sync import ChangeClass, DwgSyncError, DwgSyncService, WriteResult
+from nl_project_2.cad_sync.models import ScanProposal, SyncSummary
 from nl_project_2.objects.models import ProjectCard
 from nl_project_2.objects.service import ObjectService
 from nl_project_2.persistence.database import DatabaseManager
@@ -652,3 +655,80 @@ def test_646_unselected_invalid_rows_do_not_block_three_selected_insertions(data
     assert handles == {"5FF12", "60B36", "60B61"}
     assert points == 2
     assert memberships == 3
+
+
+def test_selected_validation_does_not_block_unrelated_scoped_global_issue():
+    service = object.__new__(DwgSyncService)
+    proposal = ScanProposal(
+        project_id="P1",
+        batch=CadObservationBatch("test.dwg", ()),
+        changes=(),
+        issues=(
+            ValidationIssue(
+                code="DUPLICATE_BOX_ID",
+                message="BOX_ID BOX.035 occurs twice",
+                severity=IssueSeverity.ERROR,
+                blocks_acceptance=True,
+                handle=None,
+                field="BOX_ID",
+                related_handles=("43F4C", "44AB0"),
+            ),
+        ),
+        summary=SyncSummary(),
+        project_revision=0,
+        binding_id=None,
+    )
+
+    service._check_selected_validation(proposal, {"B469:$"})
+
+
+def test_selected_validation_blocks_scoped_issue_when_related_handle_is_selected():
+    service = object.__new__(DwgSyncService)
+    proposal = ScanProposal(
+        project_id="P1",
+        batch=CadObservationBatch("test.dwg", ()),
+        changes=(),
+        issues=(
+            ValidationIssue(
+                code="DUPLICATE_BOX_ID",
+                message="BOX_ID BOX.035 occurs twice",
+                severity=IssueSeverity.ERROR,
+                blocks_acceptance=True,
+                handle=None,
+                field="BOX_ID",
+                related_handles=("43F4C", "44AB0"),
+            ),
+        ),
+        summary=SyncSummary(),
+        project_revision=0,
+        binding_id=None,
+    )
+
+    with pytest.raises(DwgSyncError, match="DUPLICATE_BOX_ID"):
+        service._check_selected_validation(proposal, {"43F4C:$"})
+
+
+def test_selected_validation_keeps_truly_global_unscoped_issue_blocking():
+    service = object.__new__(DwgSyncService)
+    proposal = ScanProposal(
+        project_id="P1",
+        batch=CadObservationBatch("test.dwg", ()),
+        changes=(),
+        issues=(
+            ValidationIssue(
+                code="GLOBAL_INVALID",
+                message="document-level invariant failed",
+                severity=IssueSeverity.ERROR,
+                blocks_acceptance=True,
+                handle=None,
+                field=None,
+                related_handles=(),
+            ),
+        ),
+        summary=SyncSummary(),
+        project_revision=0,
+        binding_id=None,
+    )
+
+    with pytest.raises(DwgSyncError, match="GLOBAL_INVALID"):
+        service._check_selected_validation(proposal, {"B469:$"})

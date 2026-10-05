@@ -8,6 +8,7 @@ from test_p0003_reconciliation import _apply_new, _batch, _observation, _project
 from nl_project_2.buses import BusService
 from nl_project_2.cables.service import CableService
 from nl_project_2.cad_sync import ChangeClass, DwgSyncError, DwgSyncService
+from nl_project_2.cad_sync.workflow import build_dwg_update_plan
 from nl_project_2.catalog.equipment import EquipmentService
 from nl_project_2.persistence.database import DatabaseManager
 from nl_project_2.persistence.schema import (
@@ -403,3 +404,58 @@ def test_legacy_single_box_identity_is_adopted_without_duplicate_or_schema_chang
     assert {change.change_class for change in repeated.changes if change.field != "LOAD_NAME"} == {
         ChangeClass.EQUAL
     }
+
+
+def test_unrelated_duplicate_boxes_do_not_block_safe_new_insertion(database):
+    pid = _project(database)
+    service = DwgSyncService(database.engine)
+
+    box_a = _observation(
+        "EL_BOX_OUT_100x100",
+        handle="DUP1",
+        cable_id="111",
+        attributes={
+            "BOX_ID": "BOX.035",
+            "CABLE_SOURCE": "",
+            "BUS_POINT_ID": "",
+            "BUS_SOURCE": "",
+        },
+        x=100,
+    )
+    box_b = _observation(
+        "EL_BOX_OUT_100x100",
+        handle="DUP2",
+        cable_id="112",
+        attributes={
+            "BOX_ID": "BOX.035",
+            "CABLE_SOURCE": "",
+            "BUS_POINT_ID": "",
+            "BUS_SOURCE": "",
+        },
+        x=200,
+    )
+    safe = _observation("SOCKET_IN", handle="SAFE1", cable_id="121.01", x=300)
+
+    proposal = service.preview(project_id=pid, batch=_batch(box_a, box_b, safe))
+    by_handle = {change.handle: change for change in proposal.changes if change.field == "$"}
+
+    assert by_handle["DUP1"].change_class is ChangeClass.INVALID_DWG_DATA
+    assert by_handle["DUP2"].change_class is ChangeClass.INVALID_DWG_DATA
+    assert by_handle["SAFE1"].change_class is ChangeClass.NEW_DWG_INSERTION
+
+    plan = build_dwg_update_plan(proposal)
+    assert "SAFE1:$" in plan.import_paths
+    assert "DUP1:$" not in plan.import_paths
+    assert "DUP2:$" not in plan.import_paths
+
+    service.apply_dwg_to_project(proposal, selected_paths=plan.import_paths, confirmed=True)
+
+    with database.engine.connect() as connection:
+        handles = set(
+            connection.execute(
+                select(field_device.c.entity_handle).where(field_device.c.lifecycle == "ACTIVE")
+            ).scalars()
+        )
+    assert "SAFE1" in handles
+    assert "DUP1" not in handles
+    assert "DUP2" not in handles
