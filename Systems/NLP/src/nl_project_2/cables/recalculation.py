@@ -785,15 +785,12 @@ def board_reserve_for_line(
                 )
             ).scalar_one_or_none()
             if point_kind == "INTERNAL_SOURCE":
-                line_board_id = uow.execute(
-                    select(cable_line.c.board_id).where(
-                        cable_line.c.id == line_id,
-                        cable_line.c.project_id == project_id,
-                    )
-                ).scalar_one_or_none()
-                if line_board_id is not None:
-                    board_owned = True
-                    break
+                # INTERNAL_SOURCE is the canonical topology root for a physical
+                # CableLine that leaves the distribution board. The line may not
+                # have cable_line.board_id materialized yet; that technical
+                # relation must not suppress the physical termination allowance.
+                board_owned = True
+                break
     if not board_owned:
         return Decimal(0)
     active_policy = policy or cable_length_policy(uow, project_id)
