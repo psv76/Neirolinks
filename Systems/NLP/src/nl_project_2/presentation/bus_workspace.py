@@ -227,18 +227,37 @@ class BusWorkspaceDialog(QDialog):
             )
             self.groups_table.setItem(index, 1, member_item)
         states = self.service.connection_states(self.project_id, bus_id)
+        field_device_labels = {
+            str(endpoint.get("field_device_id")): str(
+                endpoint.get("address") or endpoint.get("field_device_id")
+            )
+            for endpoint in endpoints
+            if endpoint.get("endpoint_kind") == "FIELD_DEVICE" and endpoint.get("field_device_id")
+        }
         self.states_table.setRowCount(len(states))
         for index, state in enumerate(states):
+            resource_id = state.get("resource_id")
+            field_device_id = state.get("field_device_id")
+            if resource_id:
+                owner_label = self._resource_label(resource_id)
+                owner_tooltip = self._resource_tooltip(resource_id)
+            else:
+                owner_label = field_device_labels.get(
+                    str(field_device_id), str(field_device_id or "FIELD_DEVICE")
+                )
+                owner_tooltip = (
+                    f"FIELD_DEVICE {field_device_id}" if field_device_id else "FIELD_DEVICE"
+                )
             for column, value in enumerate(
                 (
-                    self._resource_label(state["resource_id"]),
+                    owner_label,
                     state["communication_state"],
                     state["power_state"],
                 )
             ):
-                item = QTableWidgetItem(value)
+                item = QTableWidgetItem(str(value))
                 if column == 0:
-                    item.setToolTip(self._resource_tooltip(state["resource_id"]))
+                    item.setToolTip(owner_tooltip)
                 self.states_table.setItem(index, column, item)
         errors = ", ".join(topology.errors) if topology.errors else "нет"
         self.status_label.setText(
