@@ -420,7 +420,7 @@ def test_lines_default_and_persisted_layout_header_and_tree(qtbot, tmp_path):
     assert "101.01" in first.table.item(1, _column("designation")).text()
     assert first.table.item(1, _column("room_names")).text() == "Кухня"
     assert first.table.item(1, _column("effective_m")).text() == "16.16"
-    assert first.table.item(2, _column("designation")).text() == "+ запас у щита"
+    assert first.table.item(2, _column("designation")).text() == "+ подключение в щите"
     assert first.table.item(2, _column("effective_m")).text() == "2"
     first._toggle_line_tree(0, "line-1")
     assert first.table.rowCount() == 1

@@ -8,7 +8,7 @@ import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_CEILING, Decimal, InvalidOperation
 
 from sqlalchemy import Engine, delete, func, select, update
 from sqlalchemy.exc import IntegrityError
@@ -50,7 +50,6 @@ from .domain import (
     ConduitContractError,
     LengthResult,
     RouteMethod,
-    calculate_effective_length,
     conduit_length_from_segment_length,
     conduit_type_suffix,
     format_conduit_id,
@@ -61,6 +60,7 @@ from .recalculation import (
     RecalculationError,
     _remove_assignment_and_empty_auto,
     board_reserve_for_line,
+    cable_line_length_breakdown,
     recalculate_segments,
     refresh_conduit_length,
     segment_geometry_diagnostics,
@@ -325,10 +325,21 @@ class CableService:
             }
 
         diagnostics: dict[str, dict] = {}
+        length_breakdown = None
         with UnitOfWork(self._engine) as uow:
             for row in segments:
                 diagnostics[row["id"]] = segment_geometry_diagnostics(uow, project_id, row)
             board_reserve = board_reserve_for_line(uow, project_id, cable_line_id)
+            if length_row is not None and length_row["knowledge_status"] == "KNOWN":
+                try:
+                    length_breakdown = cable_line_length_breakdown(
+                        uow,
+                        project_id,
+                        cable_line_id,
+                        additional_m=length_row["additional_length_m_decimal"] or 0,
+                    )
+                except RecalculationError:
+                    length_breakdown = None
             uow.rollback()
 
         def missing_text(codes: tuple[str, ...]) -> str:
@@ -425,7 +436,7 @@ class CableService:
                 summary["incomplete_segments"] = int(summary["incomplete_segments"]) + 1
             else:
                 summary["physical_m"] = Decimal(summary["physical_m"]) + physical_length
-                summary["cable_m"] = Decimal(summary["cable_m"]) + cable_length
+                summary["cable_m"] = Decimal(summary["cable_m"]) + physical_length
             conduit_info = conduit_rows.get(row["id"], {})
             edges.append(
                 {
@@ -445,7 +456,7 @@ class CableService:
                     "physical_length_m": (
                         None if physical_length is None else str(physical_length)
                     ),
-                    "cable_length_m": (None if cable_length is None else str(cable_length)),
+                    "cable_length_m": (None if physical_length is None else str(physical_length)),
                     "calculation_status": "READY" if diag["complete"] else "INCOMPLETE",
                     "calculation_reason": (
                         "" if diag["complete"] else missing_text(diag["missing"])
@@ -468,6 +479,39 @@ class CableService:
                 for _key, value in sorted(breakdown.items())
             ),
             "board_reserve_m": str(board_reserve),
+            "distribution_box_reserve_m": (
+                "0"
+                if length_breakdown is None
+                else str(length_breakdown.distribution_box_reserve_m)
+            ),
+            "endpoint_reserve_m": (
+                "0" if length_breakdown is None else str(length_breakdown.endpoint_reserve_m)
+            ),
+            "meander_reserve_m": (
+                "0" if length_breakdown is None else str(length_breakdown.meander_reserve_m)
+            ),
+            "obstacle_reserve_m": (
+                "0" if length_breakdown is None else str(length_breakdown.obstacle_reserve_m)
+            ),
+            "timber_reserve_m": (
+                "0" if length_breakdown is None else str(length_breakdown.timber_reserve_m)
+            ),
+            "geometric_m": (
+                None if length_breakdown is None else str(length_breakdown.geometric_m)
+            ),
+            "unrounded_m": (
+                None if length_breakdown is None else str(length_breakdown.unrounded_m)
+            ),
+            "rounded_m": (None if length_breakdown is None else str(length_breakdown.rounded_m)),
+            "distribution_box_lines": (
+                0 if length_breakdown is None else length_breakdown.distribution_box_lines
+            ),
+            "endpoint_mechanisms": (
+                0 if length_breakdown is None else length_breakdown.endpoint_mechanisms
+            ),
+            "timber_segments": (
+                0 if length_breakdown is None else length_breakdown.timber_segments
+            ),
             "additional_m": (
                 "0" if length_row is None else str(length_row["additional_length_m_decimal"] or "0")
             ),
@@ -509,8 +553,9 @@ class CableService:
                 if value is None or route is None:
                     group["incomplete_segments"] += 1
                 else:
-                    group["cable_m"] += Decimal(value)
-                    group["physical_m"] += conduit_length_from_segment_length(value, route)
+                    physical = conduit_length_from_segment_length(value, route)
+                    group["cable_m"] += physical
+                    group["physical_m"] += physical
         cards = self.line_cards(project_id)
         return {
             "routes": tuple(
@@ -694,19 +739,28 @@ class CableService:
                 additional = Decimal(length["additional_length_m_decimal"] or "0")
                 if manual is not None:
                     mode = "Полная ручная"
-                    explanation = "Полная ручная длина заменяет автоматический расчёт и запас"
+                    explanation = "Полная ручная длина заменяет автоматический расчёт"
                 elif additional:
                     mode = "Автоматическая + дополнительная"
-                    explanation = "Сумма сегментов, дополнительная длина и применимый запас у щита"
+                    explanation = (
+                        "Геометрия + объектовые запасы + проценты + запас «В брусе» "
+                        "+ дополнительная длина, округление вверх до 1 м"
+                    )
                 else:
                     mode = "Автоматическая"
-                    explanation = "Сумма уникальных физических сегментов и применимый запас у щита"
+                    explanation = (
+                        "Геометрия + объектовые запасы + проценты + запас «В брусе», "
+                        "округление вверх до 1 м"
+                    )
                 try:
-                    effective = str(self.effective_length(project_id, row["id"]).effective_m)
+                    length_result = self.effective_length(project_id, row["id"])
+                    effective = str(length_result.effective_m)
+                    automatic = str(length_result.automatic_m)
                 except CableError:
                     effective = None
+                    automatic = None
                 card.update(
-                    automatic_m=length["calculated_length_m_decimal"],
+                    automatic_m=automatic,
                     additional_m=length["additional_length_m_decimal"],
                     manual_full_m=length["manual_full_length_m_decimal"],
                     effective_m=effective,
@@ -1165,7 +1219,7 @@ class CableService:
                         calculated_length_m_decimal=None,
                         calculation_source=None,
                         calculation_revision=None,
-                        rounding_policy="NONE",
+                        rounding_policy="ROUND_UP_TO_1M",
                         knowledge_status="INCOMPLETE",
                         **values,
                     )
@@ -1354,7 +1408,7 @@ class CableService:
                         calculation_revision=None,
                         additional_length_m_decimal=additional,
                         manual_full_length_m_decimal=manual,
-                        rounding_policy="NONE",
+                        rounding_policy="ROUND_UP_TO_1M",
                         knowledge_status="KNOWN" if manual is not None else "INCOMPLETE",
                     )
                 )
@@ -1421,13 +1475,97 @@ class CableService:
             row["knowledge_status"] != "KNOWN" and row["manual_full_length_m_decimal"] is None
         ):
             raise CableError("Cable length is incomplete")
+        manual = row["manual_full_length_m_decimal"]
+        additional = Decimal(str(row["additional_length_m_decimal"] or 0))
+        if manual is not None and row["knowledge_status"] != "KNOWN":
+            with UnitOfWork(self._engine) as uow:
+                reserve = board_reserve_for_line(uow, project_id, cable_line_id)
+            manual_value = Decimal(str(manual))
+            return LengthResult(
+                Decimal(str(row["calculated_length_m_decimal"] or 0)),
+                additional,
+                reserve,
+                manual_value,
+                manual_value,
+                (),
+            )
+
+        with self._engine.connect() as connection:
+            segment_count = int(
+                connection.scalar(
+                    select(func.count())
+                    .select_from(cable_segment)
+                    .where(
+                        cable_segment.c.project_id == project_id,
+                        cable_segment.c.cable_line_id == cable_line_id,
+                    )
+                )
+                or 0
+            )
+        if segment_count == 0:
+            # AV/legacy project lines may own a direct known length without a physical
+            # CableSegment graph. Preserve that explicit fact while using the same
+            # final whole-metre delivery rule for the automatic value.
+            automatic = Decimal(str(row["calculated_length_m_decimal"] or 0))
+            unrounded = automatic + additional
+            rounded = unrounded.to_integral_value(rounding=ROUND_CEILING)
+            manual_value = None if manual is None else Decimal(str(manual))
+            effective = manual_value if manual_value is not None else rounded
+            return LengthResult(
+                automatic,
+                additional,
+                Decimal(0),
+                manual_value,
+                effective,
+                (
+                    {"kind": "direct_known_length", "m": str(automatic)},
+                    {"kind": "unrounded", "m": str(unrounded)},
+                    {"kind": "rounded_up_to_1m", "m": str(rounded)},
+                ),
+            )
+
         with UnitOfWork(self._engine) as uow:
-            reserve = board_reserve_for_line(uow, project_id, cable_line_id)
-        return calculate_effective_length(
-            automatic_m=row["calculated_length_m_decimal"] or 0,
-            additional_m=row["additional_length_m_decimal"] or 0,
-            board_reserve_m=reserve,
-            manual_full_m=row["manual_full_length_m_decimal"],
+            try:
+                breakdown = cable_line_length_breakdown(
+                    uow,
+                    project_id,
+                    cable_line_id,
+                    additional_m=additional,
+                )
+            except RecalculationError as exc:
+                raise CableError(str(exc)) from exc
+        effective = Decimal(str(manual)) if manual is not None else breakdown.rounded_m
+        automatic = breakdown.unrounded_m - additional
+        trace = (
+            {"kind": "route_geometry", "m": str(breakdown.route_geometry_m)},
+            {"kind": "board_reserve", "m": str(breakdown.board_reserve_m)},
+            {
+                "kind": "distribution_box_reserve",
+                "m": str(breakdown.distribution_box_reserve_m),
+                "lines": str(breakdown.distribution_box_lines),
+            },
+            {
+                "kind": "endpoint_reserve",
+                "m": str(breakdown.endpoint_reserve_m),
+                "mechanisms": str(breakdown.endpoint_mechanisms),
+            },
+            {"kind": "meander_reserve", "m": str(breakdown.meander_reserve_m)},
+            {"kind": "obstacle_reserve", "m": str(breakdown.obstacle_reserve_m)},
+            {
+                "kind": "timber_reserve",
+                "m": str(breakdown.timber_reserve_m),
+                "segments": str(breakdown.timber_segments),
+            },
+            {"kind": "unrounded", "m": str(breakdown.unrounded_m)},
+            {"kind": "rounded_up_to_1m", "m": str(breakdown.rounded_m)},
+        )
+        return LengthResult(
+            automatic,
+            additional,
+            breakdown.board_reserve_m,
+            None if manual is None else Decimal(str(manual)),
+            effective,
+            trace,
         )
 
     def create_empty_conduit(

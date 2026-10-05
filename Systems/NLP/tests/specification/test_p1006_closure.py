@@ -416,7 +416,7 @@ def test_bus_lengths_join_same_unselected_cable_demand_row(database):
     result = SpecificationService(database.engine).build(project_id)
     row = next(row for row in result["rows"] if row.item_key == "CABLE_DEMAND:FTP 5e:UNSELECTED")
 
-    assert row.quantity == Decimal("15")
+    assert row.quantity == Decimal("16")
     assert ("CABLE_LINE", line_id) in row.source_refs
     assert ("BUS", bus_id) in row.source_refs
     assert any("Шина 904" in trace for trace in row.trace)

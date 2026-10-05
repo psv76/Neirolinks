@@ -53,6 +53,20 @@ SETTING_KEYS = {
     "versions_folder": "STRING",
     "initial_page_number": "INTEGER",
     "cable_reserve_at_board_m": "DECIMAL",
+    "cable_reserve_at_distribution_box_m": "DECIMAL",
+    "cable_reserve_at_endpoint_m": "DECIMAL",
+    "cable_meander_percent": "DECIMAL",
+    "cable_obstacle_percent": "DECIMAL",
+    "cable_timber_segment_reserve_m": "DECIMAL",
+}
+
+CABLE_SETTING_DEFAULTS = {
+    "cable_reserve_at_board_m": Decimal("3"),
+    "cable_reserve_at_distribution_box_m": Decimal("0.2"),
+    "cable_reserve_at_endpoint_m": Decimal("0.3"),
+    "cable_meander_percent": Decimal("5"),
+    "cable_obstacle_percent": Decimal("10"),
+    "cable_timber_segment_reserve_m": Decimal("0.5"),
 }
 
 
@@ -804,25 +818,19 @@ class ObjectService:
             "output_folder": settings.output_folder.strip(),
             "versions_folder": settings.versions_folder.strip(),
             "initial_page_number": settings.initial_page_number,
-            "cable_reserve_at_board_m": (
-                None
-                if settings.cable_reserve_at_board_m is None
-                else str(
-                    _decimal(
-                        settings.cable_reserve_at_board_m,
-                        "cable_reserve",
-                        non_negative=True,
-                    )
-                )
-            ),
         }
+        for key in CABLE_SETTING_DEFAULTS:
+            raw = getattr(settings, key)
+            values[key] = None if raw is None else str(_decimal(raw, key, non_negative=True))
         with UnitOfWork(self._engine) as uow:
-            prior_reserve = uow.execute(
-                select(project_setting.c.value_json).where(
-                    project_setting.c.project_id == project_id,
-                    project_setting.c.setting_key == "cable_reserve_at_board_m",
-                )
-            ).scalar_one_or_none()
+            prior_values = dict(
+                uow.execute(
+                    select(project_setting.c.setting_key, project_setting.c.value_json).where(
+                        project_setting.c.project_id == project_id,
+                        project_setting.c.setting_key.in_(tuple(CABLE_SETTING_DEFAULTS)),
+                    )
+                ).all()
+            )
             for key, value in values.items():
                 existing = uow.execute(
                     select(project_setting.c.id).where(
@@ -851,7 +859,7 @@ class ObjectService:
                             value_json=value,
                         )
                     )
-            if prior_reserve != values["cable_reserve_at_board_m"]:
+            if any(prior_values.get(key) != values[key] for key in CABLE_SETTING_DEFAULTS):
                 line_ids = set(
                     uow.execute(
                         select(cable_line.c.id).where(cable_line.c.project_id == project_id)
@@ -913,7 +921,46 @@ class ObjectService:
             versions_folder=settings_map.get("versions_folder") or "",
             initial_page_number=settings_map.get("initial_page_number"),
             cable_reserve_at_board_m=_decimal(
-                settings_map.get("cable_reserve_at_board_m"), "cable_reserve_at_board_m"
+                settings_map.get(
+                    "cable_reserve_at_board_m",
+                    str(CABLE_SETTING_DEFAULTS["cable_reserve_at_board_m"]),
+                ),
+                "cable_reserve_at_board_m",
+            ),
+            cable_reserve_at_distribution_box_m=_decimal(
+                settings_map.get(
+                    "cable_reserve_at_distribution_box_m",
+                    str(CABLE_SETTING_DEFAULTS["cable_reserve_at_distribution_box_m"]),
+                ),
+                "cable_reserve_at_distribution_box_m",
+            ),
+            cable_reserve_at_endpoint_m=_decimal(
+                settings_map.get(
+                    "cable_reserve_at_endpoint_m",
+                    str(CABLE_SETTING_DEFAULTS["cable_reserve_at_endpoint_m"]),
+                ),
+                "cable_reserve_at_endpoint_m",
+            ),
+            cable_meander_percent=_decimal(
+                settings_map.get(
+                    "cable_meander_percent",
+                    str(CABLE_SETTING_DEFAULTS["cable_meander_percent"]),
+                ),
+                "cable_meander_percent",
+            ),
+            cable_obstacle_percent=_decimal(
+                settings_map.get(
+                    "cable_obstacle_percent",
+                    str(CABLE_SETTING_DEFAULTS["cable_obstacle_percent"]),
+                ),
+                "cable_obstacle_percent",
+            ),
+            cable_timber_segment_reserve_m=_decimal(
+                settings_map.get(
+                    "cable_timber_segment_reserve_m",
+                    str(CABLE_SETTING_DEFAULTS["cable_timber_segment_reserve_m"]),
+                ),
+                "cable_timber_segment_reserve_m",
             ),
         )
         room_records = [

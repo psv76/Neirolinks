@@ -239,8 +239,9 @@ def test_bus_segment_lengths_use_board_root_and_ordered_field_device_geometry(da
         for item in BusService(database.engine).journal_cards(project_id)
         if item["designation"] == "904"
     )
-    assert Decimal(card["automatic_m"]) == Decimal("9.1")
-    assert card["effective_m"] == card["automatic_m"]
+    assert Decimal(card["automatic_m"]) == Decimal("13.915")
+    assert Decimal(card["effective_m"]) == Decimal("14")
+    assert Decimal(card["effective_m"]) > Decimal(card["automatic_m"])
     assert card["incomplete_segments"] == 0
 
 

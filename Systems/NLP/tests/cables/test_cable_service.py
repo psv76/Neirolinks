@@ -149,9 +149,10 @@ def test_lengths_manual_priority_auto_conduit_and_reopen(database):
         route_method=RouteMethod.FLOOR,
         additional_m="0.4",
     )
-    assert result.automatic_m == Decimal("4.1")
+    assert result.automatic_m == Decimal("4.715")
     # A line label naming a board is not a physical board-owned source endpoint.
-    assert result.effective_m == Decimal("4.5")
+    # Project defaults add 5% + 10% cable reserves and round the delivered line up once.
+    assert result.effective_m == Decimal("6")
     with database.engine.connect() as connection:
         tube = connection.execute(select(conduit)).mappings().one()
     assert Decimal(tube["length_m_decimal"]) == Decimal("4.1")
@@ -435,7 +436,7 @@ def test_av_identity_catalog_hdmi_selection_and_length_change(database):
         )
     service.publish_catalog(draft)
     selected = service.auto_select_hdmi(project_id=project_id, cable_line_id=hdmi_line)
-    assert selected.required_length_m == Decimal("3")
+    assert selected.required_length_m == Decimal("4")
     assert selected.factory_length_m == Decimal("5")
     assert selected.warning is None
     short = service.select_hdmi_manually(
