@@ -5,15 +5,20 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import select
 
+from nl_project_2.automation import AutomationService
 from nl_project_2.field_model.service import FieldModelError, TopologyPersistenceService
 from nl_project_2.persistence.database import DatabaseManager
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
+    bus,
+    bus_endpoint,
+    bus_segment,
     cable_length_fact,
     cable_line,
     catalog_release,
     field_device,
     field_device_product_selection,
+    instance_resource,
     passport_definition,
     product_definition,
 )
@@ -269,3 +274,237 @@ def test_catalog_driven_msw_configuration_grouping_reopen_and_stale_safety(datab
         ).one()
     assert physical.block_kind == "SENSOR_MSW"
     assert physical.normalized_fields_json["DEVICE_TYPE"] == "SENSOR_MSW"
+
+
+def test_bus_lengths_join_same_unselected_cable_demand_row(database):
+    project_id = database.test_project_id
+    line_id = new_id()
+    bus_id = new_id()
+    endpoint_1 = new_id()
+    endpoint_2 = new_id()
+    device_1 = new_id()
+    device_2 = new_id()
+
+    automation = AutomationService(database.engine)
+    receipt = automation.constructor.create_instance(
+        project_id=project_id,
+        designation="MGE.SPEC",
+        passport_key="gateway.wirenboard.wb_mge_v3",
+        product_key="product.wirenboard.wb_mge_v3",
+        supply_scope="NEIROLINKS",
+    )
+    with database.engine.connect() as connection:
+        root_resource_id = connection.scalar(
+            select(instance_resource.c.id).where(
+                instance_resource.c.project_instance_id == receipt.instance_id,
+                instance_resource.c.resource_kind == "RS485_INTERFACE",
+                instance_resource.c.ordinal == 0,
+            )
+        )
+    assert root_resource_id is not None
+
+    with database.engine.begin() as connection:
+        connection.execute(
+            cable_line.insert().values(
+                id=line_id,
+                project_id=project_id,
+                designation="201",
+                system_kind="CONTROL",
+                cable_facts_json={"CABLE_TYPE": "FTP 5e"},
+                lifecycle="ACTIVE",
+            )
+        )
+        connection.execute(
+            cable_length_fact.insert().values(
+                id=new_id(),
+                project_id=project_id,
+                cable_line_id=line_id,
+                calculated_length_m_decimal="10",
+                additional_length_m_decimal="0",
+                rounding_policy="NONE",
+                knowledge_status="KNOWN",
+            )
+        )
+        connection.execute(
+            field_device.insert(),
+            [
+                {
+                    "id": device_1,
+                    "project_id": project_id,
+                    "block_kind": "SENSOR_MSW",
+                    "normalized_fields_json": {"BUS_POINT_ID": "904.001"},
+                    "entity_handle": "BUSSPEC1",
+                    "lifecycle": "ACTIVE",
+                },
+                {
+                    "id": device_2,
+                    "project_id": project_id,
+                    "block_kind": "SENSOR_MSW",
+                    "normalized_fields_json": {"BUS_POINT_ID": "904.002"},
+                    "entity_handle": "BUSSPEC2",
+                    "lifecycle": "ACTIVE",
+                },
+            ],
+        )
+        connection.execute(
+            bus.insert().values(
+                id=bus_id,
+                project_id=project_id,
+                bus_kind="RS485",
+                designation="904",
+                root_resource_id=root_resource_id,
+                topology_policy="LINEAR_SUFFIX_ORDER",
+                cable_type="FTP 5e",
+                lifecycle="ACTIVE",
+            )
+        )
+        connection.execute(
+            bus_endpoint.insert(),
+            [
+                {
+                    "id": endpoint_1,
+                    "project_id": project_id,
+                    "bus_id": bus_id,
+                    "endpoint_kind": "FIELD_DEVICE",
+                    "field_device_id": device_1,
+                    "endpoint_role": "DEVICE",
+                    "address": "904.001",
+                    "endpoint_order": 1,
+                },
+                {
+                    "id": endpoint_2,
+                    "project_id": project_id,
+                    "bus_id": bus_id,
+                    "endpoint_kind": "FIELD_DEVICE",
+                    "field_device_id": device_2,
+                    "endpoint_role": "DEVICE",
+                    "address": "904.002",
+                    "endpoint_order": 2,
+                },
+            ],
+        )
+        connection.execute(
+            bus_segment.insert(),
+            [
+                {
+                    "id": new_id(),
+                    "project_id": project_id,
+                    "bus_id": bus_id,
+                    "source_endpoint_id": None,
+                    "target_endpoint_id": endpoint_1,
+                    "connection_kind": "CABLE",
+                    "mount_way": "По полу",
+                    "length_m_decimal": "2",
+                    "origin_kind": "PROJECT",
+                    "migration_state": "CONFIRMED",
+                },
+                {
+                    "id": new_id(),
+                    "project_id": project_id,
+                    "bus_id": bus_id,
+                    "source_endpoint_id": endpoint_1,
+                    "target_endpoint_id": endpoint_2,
+                    "connection_kind": "CABLE",
+                    "mount_way": "По полу",
+                    "length_m_decimal": "3",
+                    "origin_kind": "PROJECT",
+                    "migration_state": "CONFIRMED",
+                },
+            ],
+        )
+
+    result = SpecificationService(database.engine).build(project_id)
+    row = next(row for row in result["rows"] if row.item_key == "CABLE_DEMAND:FTP 5e:UNSELECTED")
+
+    assert row.quantity == Decimal("15")
+    assert ("CABLE_LINE", line_id) in row.source_refs
+    assert ("BUS", bus_id) in row.source_refs
+    assert any("Шина 904" in trace for trace in row.trace)
+    assert any(
+        issue.code == "CABLE_PRODUCT_REQUIRED"
+        and issue.source_kind == "BUS"
+        and issue.source_id == bus_id
+        for issue in result["issues"]
+    )
+
+
+def test_incomplete_bus_length_keeps_grouped_cable_quantity_unknown(database):
+    project_id = database.test_project_id
+    bus_id = new_id()
+    endpoint_id = new_id()
+    device_id = new_id()
+
+    automation = AutomationService(database.engine)
+    receipt = automation.constructor.create_instance(
+        project_id=project_id,
+        designation="MGE.SPEC.UNKNOWN",
+        passport_key="gateway.wirenboard.wb_mge_v3",
+        product_key="product.wirenboard.wb_mge_v3",
+        supply_scope="NEIROLINKS",
+    )
+    with database.engine.connect() as connection:
+        root_resource_id = connection.scalar(
+            select(instance_resource.c.id).where(
+                instance_resource.c.project_instance_id == receipt.instance_id,
+                instance_resource.c.resource_kind == "RS485_INTERFACE",
+                instance_resource.c.ordinal == 0,
+            )
+        )
+    assert root_resource_id is not None
+
+    with database.engine.begin() as connection:
+        connection.execute(
+            field_device.insert().values(
+                id=device_id,
+                project_id=project_id,
+                block_kind="SENSOR_MSW",
+                normalized_fields_json={"BUS_POINT_ID": "905.001"},
+                entity_handle="BUSSPECUNKNOWN",
+                lifecycle="ACTIVE",
+            )
+        )
+        connection.execute(
+            bus.insert().values(
+                id=bus_id,
+                project_id=project_id,
+                bus_kind="RS485",
+                designation="905",
+                root_resource_id=root_resource_id,
+                topology_policy="LINEAR_SUFFIX_ORDER",
+                cable_type="FTP 5e",
+                lifecycle="ACTIVE",
+            )
+        )
+        connection.execute(
+            bus_endpoint.insert().values(
+                id=endpoint_id,
+                project_id=project_id,
+                bus_id=bus_id,
+                endpoint_kind="FIELD_DEVICE",
+                field_device_id=device_id,
+                endpoint_role="DEVICE",
+                address="905.001",
+                endpoint_order=1,
+            )
+        )
+        connection.execute(
+            bus_segment.insert().values(
+                id=new_id(),
+                project_id=project_id,
+                bus_id=bus_id,
+                source_endpoint_id=None,
+                target_endpoint_id=endpoint_id,
+                connection_kind="CABLE",
+                mount_way="По полу",
+                length_m_decimal=None,
+                origin_kind="PROJECT",
+                migration_state="CONFIRMED",
+            )
+        )
+
+    row = next(
+        row
+        for row in SpecificationService(database.engine).build(project_id)["rows"]
+        if row.item_key == "CABLE_DEMAND:FTP 5e:UNSELECTED"
+    )
+    assert row.quantity is None
