@@ -376,9 +376,13 @@ class DwgSyncService:
                 status = ChangeClass.DWG_CHANGED
                 detail_status = "ROOM_CANONICALIZATION"
                 reason = "Existing Project room can be linked; canonical room_id is missing"
+            safe_dwg_source_change = (
+                fact.field == "CABLE_SOURCE"
+                and status is ChangeClass.DWG_CHANGED
+            )
             if fact.structural and status not in {
                 ChangeClass.EQUAL,
-            }:
+            } and not safe_dwg_source_change:
                 status = ChangeClass.IDENTITY_COLLISION
                 detail_status = "STRUCTURAL_IDENTITY_REVIEW"
                 reason = "Structural identity/topology change requires explicit structural apply"
@@ -396,7 +400,7 @@ class DwgSyncService:
                     fact.owner_key,
                     fact.owner_path,
                     fact.affected_handles,
-                    fact.structural,
+                    fact.structural and not safe_dwg_source_change,
                     detail_status,
                 )
             )
