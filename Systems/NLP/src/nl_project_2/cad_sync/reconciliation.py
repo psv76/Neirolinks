@@ -300,11 +300,18 @@ def normalize_validated_snapshot(
     for base, items in sorted(by_base.items()):
         handles = tuple(sorted(item.observation.handle for item in items))
         sample = items[0]
+        load_names = sorted(
+            {
+                str(item.normalized_attributes.get("LOAD_NAME", "")).strip()
+                for item in items
+                if str(item.normalized_attributes.get("LOAD_NAME", "")).strip()
+            }
+        )
         line_values = {
             "CABLE_TYPE": sample.normalized_attributes.get("CABLE_TYPE", ""),
             "BOARD": sample.normalized_attributes.get("BOARD", ""),
             "FUNCTION_GROUP": sample.function_group,
-            "LOAD_NAME": sample.normalized_attributes.get("LOAD_NAME", ""),
+            "LOAD_NAME": load_names[0] if load_names else "",
         }
         led_values = {
             item.read_payload.led_type
