@@ -10,9 +10,11 @@ from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -22,6 +24,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from nl_project_2.integration.cable_journal_export import export_cable_journal_xlsx
 
 from .specification_workspace import SpecificationWorkspace
 from .validation_center import ValidationCenterWidget
@@ -99,9 +103,13 @@ class CableJournalWidget(QWidget):
         copy_button = QPushButton("Копировать видимый текст", self)
         copy_button.setObjectName("cableJournalCopyButton")
         copy_button.clicked.connect(self.copy_visible_text)
+        export_button = QPushButton("Экспорт в Excel", self)
+        export_button.setObjectName("cableJournalExportExcelButton")
+        export_button.clicked.connect(self.export_excel)
         actions = QHBoxLayout()
         actions.addWidget(open_line)
         actions.addWidget(copy_button)
+        actions.addWidget(export_button)
         actions.addStretch(1)
         layout = QVBoxLayout(self)
         layout.addLayout(filters)
@@ -204,6 +212,28 @@ class CableJournalWidget(QWidget):
         text = "\n".join(lines)
         QApplication.clipboard().setText(text)
         return text
+
+    def export_excel(self) -> None:
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Экспорт кабельного журнала",
+            "Кабельный журнал.xlsx",
+            "Excel (*.xlsx)",
+        )
+        if not filename:
+            return
+        if not filename.lower().endswith(".xlsx"):
+            filename += ".xlsx"
+        try:
+            export_cable_journal_xlsx(self.service, self.project_id, filename)
+        except Exception as exc:
+            QMessageBox.critical(self, "Экспорт кабельного журнала", str(exc))
+            return
+        QMessageBox.information(
+            self,
+            "Экспорт кабельного журнала",
+            f"Файл сохранён:\n{filename}",
+        )
 
     def keyPressEvent(self, event) -> None:
         if event.matches(QKeySequence.StandardKey.Copy):
