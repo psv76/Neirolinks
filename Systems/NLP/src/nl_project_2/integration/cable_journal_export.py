@@ -218,8 +218,8 @@ def _worksheet_xml(
 <sheetViews><sheetView workbookViewId="0"><pane ySplit="2" topLeftCell="A3" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
 <cols>{cols}</cols>
 <sheetData>{rows_xml}</sheetData>
-<mergeCells count="1"><mergeCell ref="{merge}"/></mergeCells>
 <autoFilter ref="{autofilter}"/>
+<mergeCells count="1"><mergeCell ref="{merge}"/></mergeCells>
 <pageMargins left="0.25" right="0.25" top="0.5" bottom="0.5" header="0.2" footer="0.2"/>
 <pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/>
 </worksheet>'''
