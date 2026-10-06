@@ -245,18 +245,44 @@ class DwgSyncService:
                         )
                     ).mappings()
                 }
+            active_line_designations = set(
+                connection.execute(
+                    select(cable_line.c.designation).where(
+                        cable_line.c.project_id == project_id,
+                        cable_line.c.lifecycle == "ACTIVE",
+                    )
+                ).scalars()
+            )
+            base_renames, safe_cable_id_handles = _safe_cable_id_base_renames(
+                validation.observations,
+                devices,
+                active_line_designations=active_line_designations,
+            )
+            renamed_base_sources = {
+                new_base: old_base for old_base, new_base in base_renames.items()
+            }
             for fact in snapshot.facts:
                 legacy_path = _legacy_box_owner_path(
                     fact.owner_key, fact.field, devices.get(fact.primary_handle, {})
                 )
                 if legacy_path in baselines and fact.owner_path not in baselines:
                     baselines[fact.owner_path] = baselines[legacy_path]
+                if (
+                    fact.owner_kind is SyncOwnerKind.BASE_LINE
+                    and fact.owner_key in renamed_base_sources
+                ):
+                    previous_path = (
+                        f"base_line:{renamed_base_sources[fact.owner_key]}:{fact.field}"
+                    )
+                    if previous_path in baselines and fact.owner_path not in baselines:
+                        baselines[fact.owner_path] = baselines[previous_path]
             project_owner_values = _load_project_owner_values(
                 connection,
                 project_id=project_id,
                 snapshot=snapshot,
                 devices=devices,
                 baselines=baselines,
+                renamed_base_sources=renamed_base_sources,
             )
             snapshot = reconcile_snapshot_edge_projections(snapshot, baselines)
             display_contexts = _preview_display_contexts(
@@ -368,6 +394,37 @@ class DwgSyncService:
                 if reason == "Both sides changed to the same normalized value"
                 else ""
             )
+            safe_dwg_cable_id_change = False
+            if fact.field == "CABLE_ID":
+                affected = tuple(fact.affected_handles or (fact.primary_handle,))
+                old_values = {
+                    str(devices.get(handle, {}).get("CABLE_ID") or "").strip()
+                    for handle in affected
+                    if str(devices.get(handle, {}).get("CABLE_ID") or "").strip()
+                }
+                changed_by_handle = bool(old_values) and any(
+                    old_value != str(fact.value or "").strip() for old_value in old_values
+                )
+                if changed_by_handle:
+                    if (
+                        len(old_values) == 1
+                        and affected
+                        and set(affected) <= safe_cable_id_handles
+                    ):
+                        old_value = next(iter(old_values))
+                        project_value = old_value
+                        baseline = old_value
+                        status = ChangeClass.DWG_CHANGED
+                        reason = "Stable DWG handles identify a safe one-sided CABLE_ID rename"
+                        detail_status = "CABLE_ID_RENAME"
+                        safe_dwg_cable_id_change = True
+                    else:
+                        status = ChangeClass.IDENTITY_COLLISION
+                        reason = (
+                            "CABLE_ID change would split, merge, or collide with "
+                            "another active line"
+                        )
+                        detail_status = "CABLE_ID_RENAME_REQUIRES_ATTENTION"
             if (
                 fact.field == "ROOM"
                 and status is ChangeClass.EQUAL
@@ -380,9 +437,10 @@ class DwgSyncService:
                 fact.field == "CABLE_SOURCE"
                 and status is ChangeClass.DWG_CHANGED
             )
+            safe_structural_change = safe_dwg_source_change or safe_dwg_cable_id_change
             if fact.structural and status not in {
                 ChangeClass.EQUAL,
-            } and not safe_dwg_source_change:
+            } and not safe_structural_change:
                 status = ChangeClass.IDENTITY_COLLISION
                 detail_status = "STRUCTURAL_IDENTITY_REVIEW"
                 reason = "Structural identity/topology change requires explicit structural apply"
@@ -400,7 +458,7 @@ class DwgSyncService:
                     fact.owner_key,
                     fact.owner_path,
                     fact.affected_handles,
-                    fact.structural and not safe_dwg_source_change,
+                    fact.structural and not safe_structural_change,
                     detail_status,
                 )
             )
@@ -661,6 +719,21 @@ class DwgSyncService:
                 )
                 active_handles.clear()
             board_ids = self._upsert_boards(uow, proposal.project_id, validated, active_handles)
+            rename_changes = tuple(
+                by_path[path]
+                for path in selected
+                if by_path[path].field == "CABLE_ID"
+                and by_path[path].detail_status == "CABLE_ID_RENAME"
+            )
+            if rename_changes:
+                self._rename_selected_cable_lines(
+                    uow,
+                    project_id=proposal.project_id,
+                    binding_id=binding_id,
+                    validated=validated,
+                    changes=rename_changes,
+                    now=now,
+                )
             line_ids = self._upsert_lines(
                 uow,
                 proposal.project_id,
@@ -1126,6 +1199,114 @@ class DwgSyncService:
                 )
             )
         return scan_id, ids
+
+    def _rename_selected_cable_lines(
+        self,
+        uow,
+        *,
+        project_id: str,
+        binding_id: str,
+        validated: dict[str, ValidatedObservation],
+        changes: tuple[SyncChange, ...],
+        now: datetime,
+    ) -> None:
+        selected_handles = {
+            handle
+            for change in changes
+            for handle in (change.affected_handles or (change.handle,))
+        }
+        device_rows = list(
+            uow.execute(
+                select(
+                    field_device.c.entity_handle,
+                    field_device.c.normalized_fields_json,
+                ).where(
+                    field_device.c.project_id == project_id,
+                    field_device.c.dwg_document_binding_id == binding_id,
+                    field_device.c.lifecycle == "ACTIVE",
+                )
+            ).mappings()
+        )
+        devices = {
+            row["entity_handle"]: dict(row["normalized_fields_json"] or {})
+            for row in device_rows
+        }
+        active_line_designations = set(
+            uow.execute(
+                select(cable_line.c.designation).where(
+                    cable_line.c.project_id == project_id,
+                    cable_line.c.lifecycle == "ACTIVE",
+                )
+            ).scalars()
+        )
+        base_renames, _safe_handles = _safe_cable_id_base_renames(
+            tuple(validated.values()),
+            devices,
+            active_line_designations=active_line_designations,
+        )
+        handles_by_old_base: dict[str, set[str]] = defaultdict(set)
+        for handle, fields in devices.items():
+            cable_id = str(fields.get("CABLE_ID") or "").strip()
+            if cable_id:
+                handles_by_old_base[cable_id.split(".", 1)[0]].add(handle)
+
+        selected_renames: dict[str, str] = {}
+        for old_base, new_base in base_renames.items():
+            old_handles = handles_by_old_base.get(old_base, set())
+            overlap = old_handles & selected_handles
+            if overlap and overlap != old_handles:
+                raise DwgSyncError(f"Partial base CABLE_ID import is forbidden for {old_base}")
+            if old_handles and old_handles <= selected_handles:
+                selected_renames[old_base] = new_base
+
+        if not selected_renames:
+            return
+
+        old_bases = set(selected_renames)
+        target_bases = set(selected_renames.values())
+        rows = {
+            row["designation"]: row
+            for row in uow.execute(
+                select(cable_line).where(
+                    cable_line.c.project_id == project_id,
+                    cable_line.c.designation.in_(old_bases | target_bases),
+                    cable_line.c.lifecycle == "ACTIVE",
+                )
+            ).mappings()
+        }
+        for old_base, new_base in selected_renames.items():
+            if old_base not in rows:
+                raise DwgSyncError(f"Existing cable line {old_base} is missing during rename")
+            if new_base in rows and new_base not in old_bases:
+                raise DwgSyncError(
+                    f"CABLE_ID rename {old_base} -> {new_base} collides with an active line"
+                )
+
+        temporary: dict[str, str] = {}
+        for old_base in sorted(old_bases):
+            row = rows[old_base]
+            temp = f"__REN_{uuid.uuid4().hex[:20]}"
+            temporary[old_base] = temp
+            uow.execute(
+                update(cable_line)
+                .where(cable_line.c.id == row["id"])
+                .values(
+                    designation=temp,
+                    updated_at_utc=now,
+                    row_version=cable_line.c.row_version + 1,
+                )
+            )
+        for old_base, new_base in sorted(selected_renames.items()):
+            row = rows[old_base]
+            uow.execute(
+                update(cable_line)
+                .where(cable_line.c.id == row["id"])
+                .values(
+                    designation=new_base,
+                    updated_at_utc=now,
+                    row_version=cable_line.c.row_version + 2,
+                )
+            )
 
     def _upsert_boards(self, uow, project_id, validated, active_handles):
         result: dict[str, str] = {}
@@ -2435,11 +2616,19 @@ class DwgSyncService:
             if change.change_class is ChangeClass.NEW_DWG_INSERTION:
                 continue
             owner_path = change.owner_path or change.field_path
+            baseline_owner_path = owner_path
+            if change.detail_status == "CABLE_ID_RENAME" and change.project_value:
+                old_id = str(change.project_value)
+                old_base = old_id.split(".", 1)[0]
+                if change.owner_kind is SyncOwnerKind.BASE_LINE:
+                    baseline_owner_path = f"base_line:{old_base}:CABLE_ID"
+                elif change.owner_kind is SyncOwnerKind.TOPOLOGY_POINT:
+                    baseline_owner_path = f"topology_point:{old_base}/{old_id}:CABLE_ID"
             current = uow.execute(
                 select(dwg_baseline.c.accepted_value_json).where(
                     dwg_baseline.c.project_id == proposal.project_id,
                     dwg_baseline.c.dwg_document_binding_id == proposal.binding_id,
-                    dwg_baseline.c.field_path == owner_path,
+                    dwg_baseline.c.field_path == baseline_owner_path,
                 )
             ).scalar_one_or_none()
             if current is None:
@@ -2996,6 +3185,77 @@ def _fields(item: ValidatedObservation) -> dict[str, Any]:
     return values
 
 
+def _safe_cable_id_base_renames(
+    observations: Iterable[ValidatedObservation],
+    devices: dict[str, dict[str, Any]],
+    *,
+    active_line_designations: set[str] | None = None,
+) -> tuple[dict[str, str], set[str]]:
+    snapshot_ids: dict[str, str] = {}
+    for item in observations:
+        if item.ignored_project_data or item.read_payload is None:
+            continue
+        identity = item.read_payload.cable_identity
+        if identity is None or not item.observation.handle:
+            continue
+        snapshot_ids[item.observation.handle] = identity.raw
+
+    project_ids = {
+        handle: str(fields.get("CABLE_ID") or "").strip()
+        for handle, fields in devices.items()
+        if str(fields.get("CABLE_ID") or "").strip()
+    }
+    project_handles_by_base: dict[str, set[str]] = defaultdict(set)
+    for handle, cable_id in project_ids.items():
+        project_handles_by_base[cable_id.split(".", 1)[0]].add(handle)
+
+    observed_handles_by_old_base: dict[str, set[str]] = defaultdict(set)
+    target_bases_by_old_base: dict[str, set[str]] = defaultdict(set)
+    for handle, current_dwg_id in snapshot_ids.items():
+        old_id = project_ids.get(handle)
+        if not old_id:
+            continue
+        old_base = old_id.split(".", 1)[0]
+        new_base = current_dwg_id.split(".", 1)[0]
+        observed_handles_by_old_base[old_base].add(handle)
+        target_bases_by_old_base[old_base].add(new_base)
+
+    candidates: dict[str, str] = {}
+    for old_base, target_bases in target_bases_by_old_base.items():
+        if len(target_bases) != 1:
+            continue
+        new_base = next(iter(target_bases))
+        if new_base == old_base:
+            continue
+        if project_handles_by_base.get(old_base, set()) != observed_handles_by_old_base.get(
+            old_base, set()
+        ):
+            continue
+        candidates[old_base] = new_base
+
+    target_counts = Counter(candidates.values())
+    safe = {
+        old_base: new_base
+        for old_base, new_base in candidates.items()
+        if target_counts[new_base] == 1
+    }
+    occupied = set(active_line_designations or project_handles_by_base)
+    changed = True
+    while changed:
+        changed = False
+        for old_base, new_base in tuple(safe.items()):
+            if new_base in occupied and new_base not in safe:
+                safe.pop(old_base)
+                changed = True
+
+    safe_handles = {
+        handle
+        for old_base in safe
+        for handle in project_handles_by_base.get(old_base, set())
+    }
+    return safe, safe_handles
+
+
 def _legacy_box_owner_path(owner_key: str, field: str, fields: dict) -> str | None:
     base, _, identity = owner_key.partition("/")
     if not identity.startswith("BOX.") or fields.get("BOX_ID") != identity:
@@ -3016,6 +3276,7 @@ def _load_project_owner_values(
     snapshot: NormalizedCadSnapshot,
     devices: dict[str, dict[str, Any]],
     baselines: dict[str, Any],
+    renamed_base_sources: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Read each Project value from its schema-7 authoritative owner."""
 
@@ -3172,7 +3433,8 @@ def _load_project_owner_values(
     }
     for fact in snapshot.facts:
         if fact.owner_kind is SyncOwnerKind.BASE_LINE:
-            row = line_rows.get(fact.owner_key)
+            source_base = (renamed_base_sources or {}).get(fact.owner_key, fact.owner_key)
+            row = line_rows.get(source_base)
             if row is None:
                 continue
             if fact.field == "FUNCTION_GROUP":
