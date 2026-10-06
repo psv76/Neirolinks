@@ -39,6 +39,7 @@ class SpecificationWorkspace(QWidget):
         self.project_id = project_id
         self.ui_state = ui_state
         self._rows = ()
+        self._expanded_keys: set[str] = set()
         self._restoring = False
         self.setObjectName("specificationWorkspace")
 
@@ -98,12 +99,8 @@ class SpecificationWorkspace(QWidget):
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setSortingEnabled(True)
         self.table.itemSelectionChanged.connect(self._selection_changed)
-        self.trace = QLabel("Выберите строку для трассы расчёта", tab)
-        self.trace.setObjectName("specificationTrace")
-        self.trace.setWordWrap(True)
-        navigate = QPushButton("Перейти к источнику", tab)
-        navigate.setObjectName("specificationNavigateButton")
-        navigate.clicked.connect(self._navigate)
+        self.table.itemClicked.connect(self._table_item_clicked)
+        self.table.itemDoubleClicked.connect(self._table_item_double_clicked)
         self.search.textChanged.connect(self._filters_changed)
         self.supply_filter.currentIndexChanged.connect(self._filters_changed)
         self.incomplete_filter.currentIndexChanged.connect(self._filters_changed)
@@ -113,8 +110,6 @@ class SpecificationWorkspace(QWidget):
         layout.addWidget(self.summary)
         layout.addLayout(filters)
         layout.addWidget(self.table)
-        layout.addWidget(self.trace)
-        layout.addWidget(navigate)
         return tab
 
     def _build_workshop(self) -> QWidget:
@@ -142,6 +137,7 @@ class SpecificationWorkspace(QWidget):
 
     def refresh(self) -> None:
         selected_key = self._selected_key()
+        self._expanded_keys.clear()
         result = self.service.build(self.project_id)
         self._rows = result["rows"]
         self.summary.setText(
@@ -150,13 +146,16 @@ class SpecificationWorkspace(QWidget):
             f"проверок: {len(result['issues'])}"
         )
         self.table.setSortingEnabled(False)
+        self.table.clearSpans()
         self.table.setRowCount(len(self._rows))
         selected_table_row = -1
         for index, row in enumerate(self._rows):
             status = _row_status(row)
             key = _row_key(row)
+            expandable = bool(row.source_refs)
+            position = f"▸ {row.name}" if expandable else row.name
             values = (
-                row.name,
+                position,
                 row.article or "Нужны данные",
                 "Нужны данные" if row.quantity is None else row.quantity,
                 row.unit,
@@ -174,6 +173,7 @@ class SpecificationWorkspace(QWidget):
                 item.setData(Qt.ItemDataRole.UserRole + 1, key)
                 item.setData(Qt.ItemDataRole.UserRole + 2, row.supply_scope or "MISSING")
                 item.setData(Qt.ItemDataRole.UserRole + 3, status)
+                item.setData(Qt.ItemDataRole.UserRole + 4, "BASE")
                 self.table.setItem(index, column, item)
             if key == selected_key:
                 selected_table_row = index
@@ -233,42 +233,113 @@ class SpecificationWorkspace(QWidget):
         phrase = self.search.text().strip().casefold()
         supply = str(self.supply_filter.currentData() or "")
         incomplete = str(self.incomplete_filter.currentData() or "")
+        parent_visible = True
         for table_row in range(self.table.rowCount()):
             first = self.table.item(table_row, 0)
+            if first is None:
+                continue
+            row_kind = str(first.data(Qt.ItemDataRole.UserRole + 4) or "BASE")
+            if row_kind == "SOURCE":
+                self.table.setRowHidden(table_row, not parent_visible)
+                continue
             searchable = " ".join(
-                self.table.item(table_row, column).text() for column in (0, 1, 4, 5, 10)
+                self.table.item(table_row, column).text()
+                for column in (0, 1, 4, 5, 10)
+                if self.table.item(table_row, column) is not None
             )
-            visible = not phrase or phrase in searchable.casefold()
-            visible = visible and (not supply or first.data(Qt.ItemDataRole.UserRole + 2) == supply)
-            visible = visible and (
+            parent_visible = not phrase or phrase in searchable.casefold()
+            parent_visible = parent_visible and (
+                not supply or first.data(Qt.ItemDataRole.UserRole + 2) == supply
+            )
+            parent_visible = parent_visible and (
                 not incomplete or first.data(Qt.ItemDataRole.UserRole + 3) == "Нужны данные"
             )
-            self.table.setRowHidden(table_row, not visible)
+            self.table.setRowHidden(table_row, not parent_visible)
 
     def _selected_row(self):
         selected = self.table.selectedItems()
         if not selected:
             return None
-        return self._rows[int(selected[0].data(Qt.ItemDataRole.UserRole))]
+        first = selected[0]
+        if str(first.data(Qt.ItemDataRole.UserRole + 4) or "BASE") != "BASE":
+            return None
+        index = first.data(Qt.ItemDataRole.UserRole)
+        return None if index is None else self._rows[int(index)]
 
     def _selected_key(self):
         selected = self.table.selectedItems()
         return None if not selected else selected[0].data(Qt.ItemDataRole.UserRole + 1)
 
     def _selection_changed(self) -> None:
-        row = self._selected_row()
-        if row is not None:
-            self.trace.setText("\n".join(row.trace))
         self._save_state()
 
-    def _navigate(self) -> None:
-        row = self._selected_row()
-        if row is None:
+    def _table_item_clicked(self, item: QTableWidgetItem) -> None:
+        if item.column() != 0:
             return
+        if str(item.data(Qt.ItemDataRole.UserRole + 4) or "BASE") != "BASE":
+            return
+        index = item.data(Qt.ItemDataRole.UserRole)
+        if index is None:
+            return
+        row = self._rows[int(index)]
+        if not row.source_refs:
+            return
+        key = _row_key(row)
+        if key in self._expanded_keys:
+            self._collapse_sources(item.row(), key, row)
+        else:
+            self._expand_sources(item.row(), key, row)
+
+    def _table_item_double_clicked(self, item: QTableWidgetItem) -> None:
+        if str(item.data(Qt.ItemDataRole.UserRole + 4) or "") != "SOURCE":
+            return
+        source_kind = item.data(Qt.ItemDataRole.UserRole + 5)
+        source_id = item.data(Qt.ItemDataRole.UserRole + 6)
+        if source_kind and source_id:
+            self.sourceRequested.emit(str(source_kind), str(source_id))
+
+    def _expand_sources(self, base_row: int, key: str, row) -> None:
         sources = self.service.source_navigation(self.project_id, row)
-        self.trace.setText("\n".join(item["trace"] for item in sources))
-        if sources:
-            self.sourceRequested.emit(sources[0]["source_kind"], sources[0]["source_id"])
+        if not sources:
+            return
+        self.table.setSortingEnabled(False)
+        insert_at = base_row + 1
+        for source in sources:
+            self.table.insertRow(insert_at)
+            trace = str(source.get("trace") or "Источник")
+            child = QTableWidgetItem(f"   └─ {trace}")
+            child.setFlags(child.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            child.setData(Qt.ItemDataRole.UserRole, self._rows.index(row))
+            child.setData(Qt.ItemDataRole.UserRole + 1, key)
+            child.setData(Qt.ItemDataRole.UserRole + 4, "SOURCE")
+            child.setData(Qt.ItemDataRole.UserRole + 5, source.get("source_kind"))
+            child.setData(Qt.ItemDataRole.UserRole + 6, source.get("source_id"))
+            child.setToolTip("Двойной щелчок — перейти к источнику")
+            self.table.setItem(insert_at, 0, child)
+            self.table.setSpan(insert_at, 0, 1, self.table.columnCount())
+            insert_at += 1
+        self._expanded_keys.add(key)
+        first = self.table.item(base_row, 0)
+        if first is not None:
+            first.setText(f"▾ {row.name}")
+        self.apply_filters()
+
+    def _collapse_sources(self, base_row: int, key: str, row) -> None:
+        child_row = base_row + 1
+        while child_row < self.table.rowCount():
+            first = self.table.item(child_row, 0)
+            if first is None or str(first.data(Qt.ItemDataRole.UserRole + 4) or "") != "SOURCE":
+                break
+            if first.data(Qt.ItemDataRole.UserRole + 1) != key:
+                break
+            self.table.removeRow(child_row)
+        self._expanded_keys.discard(key)
+        first = self.table.item(base_row, 0)
+        if first is not None:
+            first.setText(f"▸ {row.name}")
+        if not self._expanded_keys:
+            self.table.setSortingEnabled(True)
+        self.apply_filters()
 
     def _filters_changed(self, *_args) -> None:
         self.apply_filters()
