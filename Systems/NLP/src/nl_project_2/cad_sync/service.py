@@ -1303,6 +1303,20 @@ class DwgSyncService:
                     row_version=cable_line.c.row_version + 1,
                 )
             )
+            uow.execute(
+                update(cable_point)
+                .where(
+                    cable_point.c.project_id == project_id,
+                    cable_point.c.cable_line_id == row["id"],
+                    cable_point.c.point_kind == "INTERNAL_SOURCE",
+                    cable_point.c.logical_identity == f"internal:{old_base}:source",
+                )
+                .values(
+                    logical_identity=f"internal:{temp}:source",
+                    updated_at_utc=now,
+                    row_version=cable_point.c.row_version + 1,
+                )
+            )
         for old_base, new_base in sorted(selected_renames.items()):
             row = rows[old_base]
             uow.execute(
@@ -1312,6 +1326,21 @@ class DwgSyncService:
                     designation=new_base,
                     updated_at_utc=now,
                     row_version=cable_line.c.row_version + 2,
+                )
+            )
+            uow.execute(
+                update(cable_point)
+                .where(
+                    cable_point.c.project_id == project_id,
+                    cable_point.c.cable_line_id == row["id"],
+                    cable_point.c.point_kind == "INTERNAL_SOURCE",
+                    cable_point.c.logical_identity
+                    == f"internal:{temporary[old_base]}:source",
+                )
+                .values(
+                    logical_identity=f"internal:{new_base}:source",
+                    updated_at_utc=now,
+                    row_version=cable_point.c.row_version + 2,
                 )
             )
 
