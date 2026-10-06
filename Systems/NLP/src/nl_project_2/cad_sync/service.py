@@ -267,15 +267,22 @@ class DwgSyncService:
                 )
                 if legacy_path in baselines and fact.owner_path not in baselines:
                     baselines[fact.owner_path] = baselines[legacy_path]
+                previous_path = _previous_rename_owner_path(
+                    owner_kind=fact.owner_kind,
+                    owner_key=fact.owner_key,
+                    field=fact.field,
+                    current_owner_path=fact.owner_path,
+                    renamed_base_sources=renamed_base_sources,
+                    previous_cable_id=str(
+                        devices.get(fact.primary_handle, {}).get("CABLE_ID") or ""
+                    ).strip(),
+                )
                 if (
-                    fact.owner_kind is SyncOwnerKind.BASE_LINE
-                    and fact.owner_key in renamed_base_sources
+                    previous_path
+                    and previous_path in baselines
+                    and fact.owner_path not in baselines
                 ):
-                    previous_path = (
-                        f"base_line:{renamed_base_sources[fact.owner_key]}:{fact.field}"
-                    )
-                    if previous_path in baselines and fact.owner_path not in baselines:
-                        baselines[fact.owner_path] = baselines[previous_path]
+                    baselines[fact.owner_path] = baselines[previous_path]
             project_owner_values = _load_project_owner_values(
                 connection,
                 project_id=project_id,
@@ -1370,7 +1377,17 @@ class DwgSyncService:
                     or f"{item.observation.handle}:$" in selected
                     for item in items
                 ):
-                    facts[field] = sample.normalized_attributes.get(field)
+                    if field == "LOAD_NAME":
+                        values = sorted(
+                            {
+                                str(item.normalized_attributes.get(field, "")).strip()
+                                for item in items
+                                if str(item.normalized_attributes.get(field, "")).strip()
+                            }
+                        )
+                        facts[field] = values[0] if values else ""
+                    else:
+                        facts[field] = sample.normalized_attributes.get(field)
             facts["FUNCTION_GROUP"] = sample.function_group
             board_id = board_ids.get(
                 sample.normalized_attributes.get("BOARD", ""),
@@ -1786,12 +1803,44 @@ class DwgSyncService:
                 if source_plan is None:
                     raise DwgSyncError("Источник участка отсутствует в проверенном снимке DWG.")
                 if source_plan.base != plan.base:
-                    raise DwgSyncError(
-                        f"Источник {plan.source_reference} принадлежит линии {source_plan.base}, "
-                        f"а участок — линии {plan.base}. Независимая линия должна выходить "
-                        "из щита или физического порта устройства."
-                    )
-                source_endpoint = endpoint_ids.get(plan.source_point_key)
+                    if source_plan.point_kind != "EL_BOX":
+                        raise DwgSyncError(
+                            f"Источник {plan.source_reference} принадлежит линии "
+                            f"{source_plan.base}, а участок — линии {plan.base}. "
+                            "Независимая линия должна выходить "
+                            "из щита, физического порта устройства или распределительной коробки."
+                        )
+                    owner_endpoint = endpoint_ids.get(plan.source_point_key)
+                    if owner_endpoint is None:
+                        raise DwgSyncError(
+                            f"Распределительная коробка {plan.source_reference} "
+                            "ещё не принята в Project."
+                        )
+                    source_point_id = uow.execute(
+                        select(cable_topology_endpoint.c.cable_point_id).where(
+                            cable_topology_endpoint.c.id == owner_endpoint
+                        )
+                    ).scalar_one()
+                    source_endpoint = uow.execute(
+                        select(cable_topology_endpoint.c.id).where(
+                            cable_topology_endpoint.c.project_id == project_id,
+                            cable_topology_endpoint.c.cable_line_id == line_id,
+                            cable_topology_endpoint.c.cable_point_id == source_point_id,
+                        )
+                    ).scalar_one_or_none()
+                    if source_endpoint is None:
+                        source_endpoint = new_id()
+                        uow.execute(
+                            cable_topology_endpoint.insert().values(
+                                id=source_endpoint,
+                                project_id=project_id,
+                                cable_line_id=line_id,
+                                endpoint_kind="TOPOLOGY_POINT",
+                                cable_point_id=source_point_id,
+                            )
+                        )
+                else:
+                    source_endpoint = endpoint_ids.get(plan.source_point_key)
                 if source_endpoint is None:
                     source_point_id = self._find_snapshot_point(
                         uow, project_id, line_id, source_plan, adopt=False
@@ -2072,10 +2121,11 @@ class DwgSyncService:
                 .one_or_none()
             )
             if bus_row is None:
-                raise DwgSyncError(
-                    f"BUS_ROOT_BINDING_REQUIRED:{designation}; "
-                    "create/bind the Project bus root first"
-                )
+                # The device itself may still be required as the physical
+                # source of an ordinary cable via W/K/etc. ports. Keep its
+                # field device/ports materializable and defer only BUS topology
+                # until a Project bus root (for example MGE) is assigned.
+                continue
             kinds = {plan.bus_kind for plan in plans}
             if kinds != {bus_row["bus_kind"]}:
                 raise DwgSyncError(
@@ -2611,19 +2661,41 @@ class DwgSyncService:
         if not proposal.binding_id:
             return
         by_path = {change.field_path: change for change in proposal.changes}
+        identity_renames: dict[str, str] = {}
+        base_renames: dict[str, str] = {}
+        for candidate in proposal.changes:
+            if candidate.detail_status != "CABLE_ID_RENAME":
+                continue
+            old_id = str(candidate.project_value or "").strip()
+            new_id = str(candidate.dwg_value or "").strip()
+            if not old_id or not new_id:
+                continue
+            identity_renames[new_id] = old_id
+            if candidate.owner_kind is SyncOwnerKind.BASE_LINE:
+                base_renames[new_id.split(".", 1)[0]] = old_id.split(".", 1)[0]
+
         for path in selected:
             change = by_path[path]
             if change.change_class is ChangeClass.NEW_DWG_INSERTION:
                 continue
             owner_path = change.owner_path or change.field_path
             baseline_owner_path = owner_path
-            if change.detail_status == "CABLE_ID_RENAME" and change.project_value:
-                old_id = str(change.project_value)
-                old_base = old_id.split(".", 1)[0]
-                if change.owner_kind is SyncOwnerKind.BASE_LINE:
-                    baseline_owner_path = f"base_line:{old_base}:CABLE_ID"
-                elif change.owner_kind is SyncOwnerKind.TOPOLOGY_POINT:
-                    baseline_owner_path = f"topology_point:{old_base}/{old_id}:CABLE_ID"
+
+            owner_key = str(change.owner_key or "")
+            new_base, separator, new_identity = owner_key.partition("/")
+            old_base = base_renames.get(new_base)
+            old_identity = identity_renames.get(new_identity, new_identity) if separator else None
+            if change.owner_kind is SyncOwnerKind.BASE_LINE and old_base:
+                baseline_owner_path = f"base_line:{old_base}:{change.field}"
+            elif change.owner_kind is SyncOwnerKind.TOPOLOGY_POINT and old_base and old_identity:
+                baseline_owner_path = (
+                    f"topology_point:{old_base}/{old_identity}:{change.field}"
+                )
+            elif change.owner_kind is SyncOwnerKind.SEGMENT and old_base and old_identity:
+                if change.field == "CABLE_SOURCE":
+                    baseline_owner_path = f"edge:{old_identity}:CABLE_SOURCE"
+                else:
+                    baseline_owner_path = f"segment:{old_base}/{old_identity}:{change.field}"
             current = uow.execute(
                 select(dwg_baseline.c.accepted_value_json).where(
                     dwg_baseline.c.project_id == proposal.project_id,
@@ -3254,6 +3326,40 @@ def _safe_cable_id_base_renames(
         for handle in project_handles_by_base.get(old_base, set())
     }
     return safe, safe_handles
+
+
+def _previous_rename_owner_path(
+    *,
+    owner_kind: SyncOwnerKind,
+    owner_key: str,
+    field: str,
+    current_owner_path: str,
+    renamed_base_sources: dict[str, str],
+    previous_cable_id: str,
+) -> str | None:
+    new_base, separator, current_identity = str(owner_key or "").partition("/")
+    old_base = renamed_base_sources.get(new_base)
+    if old_base is None:
+        return None
+    if owner_kind is SyncOwnerKind.BASE_LINE:
+        return f"base_line:{old_base}:{field}"
+    if not separator:
+        return None
+    if current_identity.startswith("BOX."):
+        old_identity = current_identity
+    elif previous_cable_id:
+        old_identity = previous_cable_id
+    elif current_identity.startswith(f"{new_base}."):
+        old_identity = f"{old_base}{current_identity[len(new_base):]}"
+    else:
+        old_identity = current_identity
+    if owner_kind is SyncOwnerKind.TOPOLOGY_POINT:
+        return f"topology_point:{old_base}/{old_identity}:{field}"
+    if owner_kind is SyncOwnerKind.SEGMENT:
+        if field == "CABLE_SOURCE":
+            return f"edge:{old_identity}:CABLE_SOURCE"
+        return f"segment:{old_base}/{old_identity}:{field}"
+    return current_owner_path
 
 
 def _legacy_box_owner_path(owner_key: str, field: str, fields: dict) -> str | None:

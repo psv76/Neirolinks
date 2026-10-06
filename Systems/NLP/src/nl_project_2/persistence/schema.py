@@ -919,8 +919,8 @@ cable_topology_endpoint = Table(
         ondelete="CASCADE",
     ),
     ForeignKeyConstraint(
-        ["cable_point_id", "project_id", "cable_line_id"],
-        ["cable_point.id", "cable_point.project_id", "cable_point.cable_line_id"],
+        ["cable_point_id", "project_id"],
+        ["cable_point.id", "cable_point.project_id"],
         ondelete="CASCADE",
     ),
     ForeignKeyConstraint(
