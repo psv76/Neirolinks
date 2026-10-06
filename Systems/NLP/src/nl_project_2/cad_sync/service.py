@@ -413,11 +413,7 @@ class DwgSyncService:
                     old_value != str(fact.value or "").strip() for old_value in old_values
                 )
                 if changed_by_handle:
-                    if (
-                        len(old_values) == 1
-                        and affected
-                        and set(affected) <= safe_cable_id_handles
-                    ):
+                    if len(old_values) == 1 and affected and set(affected) <= safe_cable_id_handles:
                         old_value = next(iter(old_values))
                         project_value = old_value
                         baseline = old_value
@@ -441,13 +437,17 @@ class DwgSyncService:
                 detail_status = "ROOM_CANONICALIZATION"
                 reason = "Existing Project room can be linked; canonical room_id is missing"
             safe_dwg_source_change = (
-                fact.field == "CABLE_SOURCE"
-                and status is ChangeClass.DWG_CHANGED
+                fact.field == "CABLE_SOURCE" and status is ChangeClass.DWG_CHANGED
             )
             safe_structural_change = safe_dwg_source_change or safe_dwg_cable_id_change
-            if fact.structural and status not in {
-                ChangeClass.EQUAL,
-            } and not safe_structural_change:
+            if (
+                fact.structural
+                and status
+                not in {
+                    ChangeClass.EQUAL,
+                }
+                and not safe_structural_change
+            ):
                 status = ChangeClass.IDENTITY_COLLISION
                 detail_status = "STRUCTURAL_IDENTITY_REVIEW"
                 reason = "Structural identity/topology change requires explicit structural apply"
@@ -1218,9 +1218,7 @@ class DwgSyncService:
         now: datetime,
     ) -> None:
         selected_handles = {
-            handle
-            for change in changes
-            for handle in (change.affected_handles or (change.handle,))
+            handle for change in changes for handle in (change.affected_handles or (change.handle,))
         }
         device_rows = list(
             uow.execute(
@@ -1235,8 +1233,7 @@ class DwgSyncService:
             ).mappings()
         )
         devices = {
-            row["entity_handle"]: dict(row["normalized_fields_json"] or {})
-            for row in device_rows
+            row["entity_handle"]: dict(row["normalized_fields_json"] or {}) for row in device_rows
         }
         active_line_designations = set(
             uow.execute(
@@ -1334,8 +1331,7 @@ class DwgSyncService:
                     cable_point.c.project_id == project_id,
                     cable_point.c.cable_line_id == row["id"],
                     cable_point.c.point_kind == "INTERNAL_SOURCE",
-                    cable_point.c.logical_identity
-                    == f"internal:{temporary[old_base]}:source",
+                    cable_point.c.logical_identity == f"internal:{temporary[old_base]}:source",
                 )
                 .values(
                     logical_identity=f"internal:{new_base}:source",
@@ -2134,9 +2130,57 @@ class DwgSyncService:
     ) -> set[str]:
         affected_bus_ids: set[str] = set()
         grouped: dict[str, list] = defaultdict(list)
+
+        persisted_bus_fields_by_device_id = {
+            row["id"]: dict(row["normalized_fields_json"] or {})
+            for row in uow.execute(
+                select(field_device.c.id, field_device.c.normalized_fields_json).where(
+                    field_device.c.project_id == project_id,
+                    field_device.c.id.in_(set(device_ids.values())),
+                    field_device.c.lifecycle == "ACTIVE",
+                )
+            ).mappings()
+        }
+
         for plan in snapshot.bus_points:
-            if plan.handle in active_handles and plan.handle in device_ids:
+            device_id = device_ids.get(plan.handle)
+            if device_id is None:
+                continue
+            if plan.handle in active_handles:
                 grouped[plan.bus_id].append(plan)
+                continue
+
+            # A BUS-capable field device may already be accepted in Project before
+            # its Bus/root exists (for example because an ordinary CableLine uses
+            # one of its physical W/K ports). When the bus root is created later,
+            # the next Update must attach that already accepted device to the Bus
+            # without importing any unselected DWG changes. Rebuild the bus plan
+            # strictly from persisted accepted Project evidence and only when the
+            # current DWG point identity still matches that accepted identity.
+            fields = persisted_bus_fields_by_device_id.get(device_id, {})
+            if (
+                str(fields.get("BUS_POINT_ID") or "").strip() != plan.point_id
+                or str(fields.get("BUS_ID") or "").strip() != plan.bus_id
+                or str(fields.get("BUS_TYPE") or "").strip() != plan.bus_kind
+            ):
+                continue
+            grouped[plan.bus_id].append(
+                replace(
+                    plan,
+                    source=str(fields.get("BUS_SOURCE") or "").strip() or None,
+                    cable_type=str(fields.get("BUS_CABLE_TYPE") or "").strip(),
+                    connection_kind=str(fields.get("BUS_LINK") or "CABLE").strip() or "CABLE",
+                    route=tuple(
+                        (tag, str(fields.get(tag) or "").strip())
+                        for tag in (
+                            "BUS_MOUNT_WAY",
+                            "BUS_GOFRA_TYPE",
+                            "BUS_GOFRA_COLOR",
+                            "BUS_GOFRA_ID",
+                        )
+                    ),
+                )
+            )
         for designation, plans in sorted(grouped.items()):
             bus_row = (
                 uow.execute(
@@ -2717,9 +2761,7 @@ class DwgSyncService:
             if change.owner_kind is SyncOwnerKind.BASE_LINE and old_base:
                 baseline_owner_path = f"base_line:{old_base}:{change.field}"
             elif change.owner_kind is SyncOwnerKind.TOPOLOGY_POINT and old_base and old_identity:
-                baseline_owner_path = (
-                    f"topology_point:{old_base}/{old_identity}:{change.field}"
-                )
+                baseline_owner_path = f"topology_point:{old_base}/{old_identity}:{change.field}"
             elif change.owner_kind is SyncOwnerKind.SEGMENT and old_base and old_identity:
                 if change.field == "CABLE_SOURCE":
                     baseline_owner_path = f"edge:{old_identity}:CABLE_SOURCE"
@@ -3350,9 +3392,7 @@ def _safe_cable_id_base_renames(
                 changed = True
 
     safe_handles = {
-        handle
-        for old_base in safe
-        for handle in project_handles_by_base.get(old_base, set())
+        handle for old_base in safe for handle in project_handles_by_base.get(old_base, set())
     }
     return safe, safe_handles
 
@@ -3379,7 +3419,7 @@ def _previous_rename_owner_path(
     elif previous_cable_id:
         old_identity = previous_cable_id
     elif current_identity.startswith(f"{new_base}."):
-        old_identity = f"{old_base}{current_identity[len(new_base):]}"
+        old_identity = f"{old_base}{current_identity[len(new_base) :]}"
     else:
         old_identity = current_identity
     if owner_kind is SyncOwnerKind.TOPOLOGY_POINT:
