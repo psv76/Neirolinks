@@ -1,3 +1,4 @@
+import uuid
 from dataclasses import replace
 
 import pytest
@@ -8,10 +9,14 @@ from test_p0003_reconciliation import _apply_new, _batch, _observation, _project
 from nl_project_2.buses import BusService
 from nl_project_2.cables.service import CableService
 from nl_project_2.cad_sync import ChangeClass, DwgSyncError, DwgSyncService
+from nl_project_2.cad_sync.reconciliation import BusPointPlan, NormalizedCadSnapshot
 from nl_project_2.cad_sync.workflow import build_dwg_update_plan
 from nl_project_2.catalog.equipment import EquipmentService
 from nl_project_2.persistence.database import DatabaseManager
 from nl_project_2.persistence.schema import (
+    bus,
+    bus_endpoint,
+    bus_segment,
     cable_line,
     cable_point,
     cable_segment,
@@ -459,3 +464,126 @@ def test_unrelated_duplicate_boxes_do_not_block_safe_new_insertion(database):
     assert "SAFE1" in handles
     assert "DUP1" not in handles
     assert "DUP2" not in handles
+
+
+def test_existing_bus_devices_attach_after_root_is_created_without_reimporting_dwg_changes(
+    database,
+):
+    pid = _project(database)
+    _rs485_root(database, pid)
+    service = DwgSyncService(database.engine)
+
+    accepted_fields = {
+        "BLOCK_NAME": "SENSOR_MSW",
+        "BUS_POINT_ID": "902.001",
+        "BUS_ID": "902",
+        "BUS_TYPE": "RS485",
+        "BUS_CABLE_TYPE": "FTP 5e",
+        "BUS_LINK": "CABLE",
+        "BUS_SOURCE": "",
+        "BUS_MOUNT_WAY": "\u041f\u043e \u043f\u043e\u0442\u043e\u043b\u043a\u0443",
+        "BUS_GOFRA_TYPE": "",
+        "BUS_GOFRA_COLOR": "",
+        "BUS_GOFRA_ID": "",
+    }
+    with UnitOfWork(database.engine) as uow:
+        device_id = str(uuid.uuid4())
+        uow.execute(
+            field_device.insert().values(
+                id=device_id,
+                project_id=pid,
+                block_kind="SENSOR_MSW",
+                normalized_fields_json=accepted_fields,
+                entity_handle="BUS1",
+                lifecycle="ACTIVE",
+            )
+        )
+        uow.commit()
+
+    # Current DWG may contain a different, not-yet-selected route. The repair
+    # must attach the already accepted device but must not import that pending
+    # route merely because the bus root now exists.
+    current_plan = BusPointPlan(
+        bus_id="902",
+        point_id="902.001",
+        source=None,
+        bus_kind="RS485",
+        handle="BUS1",
+        cable_type="FTP 6e",
+        connection_kind="CABLE",
+        route=(
+            ("BUS_MOUNT_WAY", "\u041f\u043e \u043f\u043e\u0442\u043e\u043b\u043a\u0443"),
+            ("BUS_GOFRA_TYPE", ""),
+            ("BUS_GOFRA_COLOR", ""),
+            ("BUS_GOFRA_ID", ""),
+        ),
+    )
+    snapshot = NormalizedCadSnapshot(
+        facts=(),
+        points=(),
+        segments=(),
+        ports=(),
+        keys=(),
+        bus_points=(current_plan,),
+        structural_reviews=(),
+        point_key_by_handle=(),
+    )
+
+    with UnitOfWork(database.engine) as uow:
+        affected = service._materialize_bus_snapshot(
+            uow,
+            project_id=pid,
+            snapshot=snapshot,
+            device_ids={"BUS1": device_id},
+            active_handles=set(),
+        )
+        uow.commit()
+
+    with database.engine.connect() as connection:
+        bus_row = (
+            connection.execute(
+                select(bus).where(bus.c.project_id == pid, bus.c.designation == "902")
+            )
+            .mappings()
+            .one()
+        )
+        endpoint = (
+            connection.execute(
+                select(bus_endpoint).where(
+                    bus_endpoint.c.bus_id == bus_row["id"],
+                    bus_endpoint.c.address == "902.001",
+                )
+            )
+            .mappings()
+            .one()
+        )
+        segment = (
+            connection.execute(select(cable_segment).where(cable_segment.c.project_id == pid))
+            .mappings()
+            .first()
+        )
+
+    assert affected == {bus_row["id"]}
+    assert endpoint["field_device_id"] == device_id
+    assert segment is None  # ordinary cable table remains untouched
+
+    with database.engine.connect() as connection:
+        bus_segment_row = (
+            connection.execute(
+                select(bus_segment).where(
+                    bus_segment.c.bus_id == bus_row["id"],
+                    bus_segment.c.target_endpoint_id == endpoint["id"],
+                )
+            )
+            .mappings()
+            .one()
+        )
+    assert bus_segment_row["mount_way"] == "\u041f\u043e \u043f\u043e\u0442\u043e\u043b\u043a\u0443"
+    assert bus_segment_row["gofra_type"] is None
+    with database.engine.connect() as connection:
+        assert (
+            connection.execute(
+                select(bus.c.cable_type).where(bus.c.id == bus_row["id"])
+            ).scalar_one()
+            == "FTP 5e"
+        )
