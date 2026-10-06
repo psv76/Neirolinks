@@ -547,15 +547,20 @@ class DwgSyncService:
         }
         if not selected <= applicable:
             raise DwgSyncError("Selection contains a non-applicable or implicit change")
-        selected_handles = {
+        selected_projection_handles = {
             handle
             for change in proposal.changes
             if change.field_path in selected
+            and (
+                change.field == "CABLE_SOURCE"
+                or change.owner_kind is SyncOwnerKind.FIELD_PORT
+                or change.detail_status == "DUAL_PROJECTION_REQUIRES_ATTENTION"
+            )
             for handle in (change.affected_handles or (change.handle,))
         }
         if any(
             change.detail_status == "DUAL_PROJECTION_REQUIRES_ATTENTION"
-            and selected_handles.intersection(change.affected_handles)
+            and selected_projection_handles.intersection(change.affected_handles)
             for change in proposal.changes
         ):
             raise DwgSyncError(

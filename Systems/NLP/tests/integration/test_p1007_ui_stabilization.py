@@ -578,3 +578,36 @@ def test_checks_primary_reason_is_human_and_raw_validator_text_is_tooltip_only(
     restored = ValidationCenterWidget(service, project_id, ui_state=state)
     qtbot.addWidget(restored)
     assert restored.table.columnWidth(2) == 377
+
+
+def test_saving_cable_settings_refreshes_lines_and_related_views(qtbot, tmp_path, monkeypatch):
+    runtime = ApplicationRuntime.open(_paths(tmp_path))
+    project_id = runtime.objects.create_project(
+        ProjectCard(name="Settings refresh", project_code="SETTINGS-REFRESH")
+    )
+    widget = ObjectWorkspace(runtime)
+    qtbot.addWidget(widget)
+    widget.open_project(project_id)
+
+    calls = {"lines": 0, "related": 0}
+    monkeypatch.setattr(
+        widget.lines_workspace,
+        "refresh",
+        lambda **_kwargs: calls.__setitem__("lines", calls["lines"] + 1),
+    )
+    monkeypatch.setattr(
+        widget,
+        "_refresh_related_working_views",
+        lambda: calls.__setitem__("related", calls["related"] + 1),
+    )
+    widget.setting_fields["cable_meander_percent"].setText("2")
+    widget.setting_fields["cable_obstacle_percent"].setText("5")
+
+    widget._save_settings()
+
+    assert calls == {"lines": 1, "related": 1}
+    settings = runtime.objects.get_project(project_id).settings
+    assert str(settings.cable_meander_percent) == "2"
+    assert str(settings.cable_obstacle_percent) == "5"
+    widget.close()
+    runtime.close()
