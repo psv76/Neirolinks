@@ -125,6 +125,41 @@ def build_dwg_update_plan(
         if unresolved_room or explicit_room_link:
             problems.append(change)
 
+    # A selected ordinary cable may depend on a physical port of a BUS device
+    # whose own bus root is not configured yet. Import the source device as a
+    # dependency so its physical ports can exist; its bus topology remains deferred.
+    bus_point_handle: dict[str, str] = {}
+    insertion_by_handle: dict[str, SyncChange] = {}
+    for change in proposal.changes:
+        if change.field == "$" and change.change_class is ChangeClass.NEW_DWG_INSERTION:
+            insertion_by_handle[change.handle] = change
+            if isinstance(change.dwg_value, dict):
+                point_id = str(change.dwg_value.get("BUS_POINT_ID") or "").strip()
+                if point_id:
+                    bus_point_handle[point_id] = change.handle
+
+    dependent_handles: set[str] = set()
+    for path in tuple(import_paths):
+        change = by_path.get(path)
+        if change is None:
+            continue
+        source = ""
+        if change.field == "$" and isinstance(change.dwg_value, dict):
+            source = str(change.dwg_value.get("CABLE_SOURCE") or "").strip()
+        elif change.field == "CABLE_SOURCE":
+            source = str(change.dwg_value or "").strip()
+        if "/" not in source:
+            continue
+        point_id = source.split("/", 1)[0]
+        handle = bus_point_handle.get(point_id)
+        if handle:
+            dependent_handles.add(handle)
+
+    for handle in dependent_handles:
+        dependency = insertion_by_handle.get(handle)
+        if dependency is not None:
+            import_paths.add(dependency.field_path)
+
     # Preserve source order and avoid duplicate issue rows.
     seen: set[str] = set()
     ordered_problems = []
