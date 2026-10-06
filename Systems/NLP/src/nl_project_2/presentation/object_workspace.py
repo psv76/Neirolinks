@@ -1153,10 +1153,34 @@ class ObjectWorkspace(QWidget):
         self.navigation_buttons["Проект"].setChecked(True)
 
         self.refresh_registry()
+        self._restore_last_project()
         self._timer = QTimer(self)
         self._timer.setInterval(1000)
         self._timer.timeout.connect(self.refresh_time)
         self._timer.start()
+
+    def _restore_last_project(self) -> None:
+        if self.runtime.ui_state is None:
+            return
+        state = self.runtime.ui_state.load()
+        active_projects = self.runtime.objects.list_projects()
+        active_ids = {item.id for item in active_projects}
+        if "last_project_id" not in state:
+            project_id = active_projects[0].id if len(active_projects) == 1 else None
+            self.runtime.ui_state.update(last_project_id=project_id)
+        else:
+            project_id = state.get("last_project_id")
+            if project_id is None:
+                return
+            if not isinstance(project_id, str) or project_id not in active_ids:
+                self.runtime.ui_state.update(last_project_id=None)
+                return
+        if project_id is None:
+            return
+        self.open_project(project_id)
+        section = state.get("active_main_section")
+        if isinstance(section, str) and section in self.section_pages:
+            self._switch_section(section, save=False)
 
     def _build_section_adapter(self, section: str) -> QWidget:
         page = QWidget(self)
@@ -1617,6 +1641,8 @@ class ObjectWorkspace(QWidget):
         geometry = top_level.geometry() if preserve_window else None
         was_maximized = top_level.isMaximized() if preserve_window else False
         self._detail = self.runtime.open_project(project_id)
+        if self.runtime.ui_state is not None:
+            self.runtime.ui_state.update(last_project_id=project_id)
         self._load_detail()
         self.refresh_registry()
         self.refresh_time()
@@ -1672,6 +1698,8 @@ class ObjectWorkspace(QWidget):
         if self.lines_workspace is not None:
             self.lines_workspace.save_state()
         self.runtime.close_project()
+        if self.runtime.ui_state is not None:
+            self.runtime.ui_state.update(last_project_id=None)
         self._detail = None
         self.tree.blockSignals(True)
         self.tree.clearSelection()
