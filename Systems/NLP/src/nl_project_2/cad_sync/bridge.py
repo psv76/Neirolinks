@@ -169,18 +169,29 @@ class AutoCadBridgeClient:
         except (BridgeError, BridgeTimeout, KeyError, TypeError, ValueError):
             self._clear_cache()
 
-        payload = self._call(
-            {
-                "operation": "scan",
-                "expected_document_identity": request.expected_document_identity,
-                "definition_names": list(request.definition_names),
-            },
-            request.deadline_seconds,
-        )
-        batch = _batch_from_payload(payload)
-        if pre_scan_fingerprint is None:
-            self._clear_cache()
-            return batch
+        batch: CadObservationBatch | None = None
+        if pre_scan_fingerprint is not None:
+            try:
+                batch = _batch_from_fingerprint(
+                    pre_scan_fingerprint,
+                    definition_names=set(request.definition_names),
+                )
+            except (KeyError, TypeError, ValueError):
+                batch = None
+
+        if batch is None:
+            payload = self._call(
+                {
+                    "operation": "scan",
+                    "expected_document_identity": request.expected_document_identity,
+                    "definition_names": list(request.definition_names),
+                },
+                request.deadline_seconds,
+            )
+            batch = _batch_from_payload(payload)
+            if pre_scan_fingerprint is None:
+                self._clear_cache()
+                return batch
 
         try:
             post_scan_fingerprint = self._fingerprint(request)
@@ -401,6 +412,137 @@ class AutoCadBridgeClient:
             error=error,
             summary=summary,
         )
+
+
+def _batch_from_fingerprint(
+    payload: dict[str, Any], *, definition_names: set[str] | None = None
+) -> CadObservationBatch:
+    observations: list[CadObservation] = []
+    order = tuple(str(value) for value in payload["handles"])
+    signatures = {str(key): str(value) for key, value in payload["signatures"].items()}
+    if set(order) != set(signatures):
+        raise ValueError("Fingerprint handles/signatures mismatch")
+    for handle in order:
+        item = _parse_fingerprint_signature(signatures[handle])
+        name = str(item[0])
+        layer = str(item[1])
+        point = item[2]
+        dynamic = item[3]
+        attrs = item[4]
+        definition_tags = item[5]
+        if not isinstance(point, list) or len(point) < 2:
+            raise ValueError(f"Malformed fingerprint point for handle {handle}")
+        if attrs is None:
+            attrs = []
+        if not isinstance(attrs, list):
+            raise ValueError(f"Malformed fingerprint attributes for handle {handle}")
+        if definition_tags is not None and not isinstance(definition_tags, list):
+            raise ValueError(f"Malformed fingerprint definition for handle {handle}")
+        raw_attributes: dict[str, str] = {}
+        for pair in attrs:
+            if not isinstance(pair, list) or len(pair) != 2:
+                raise ValueError(f"Malformed fingerprint attribute pair for handle {handle}")
+            raw_attributes[str(pair[0])] = str(pair[1])
+        observations.append(
+            CadObservation.from_mapping(
+                effective_name=name,
+                layer=layer,
+                raw_attributes=raw_attributes,
+                x=float(point[0]),
+                y=float(point[1]),
+                handle=handle,
+                definition=BlockDefinitionMetadata(
+                    attribute_definition_tags=(
+                        tuple(str(value) for value in definition_tags)
+                        if definition_tags is not None
+                        and (definition_names is None or name in definition_names)
+                        else None
+                    ),
+                    is_dynamic=dynamic if isinstance(dynamic, bool) else None,
+                ),
+            )
+        )
+    metadata = dict(payload["source_metadata"])
+    metadata["incremental_mode"] = "FINGERPRINT_COLD"
+    return CadObservationBatch(
+        document_identity=payload["document_identity"],
+        observations=tuple(observations),
+        source_metadata=metadata,
+    )
+
+
+def _parse_fingerprint_signature(text: str) -> list[Any]:
+    index = 0
+    length = len(text)
+
+    def skip_ws() -> None:
+        nonlocal index
+        while index < length and text[index].isspace():
+            index += 1
+
+    def parse_string() -> str:
+        nonlocal index
+        index += 1
+        out: list[str] = []
+        while index < length:
+            char = text[index]
+            index += 1
+            if char == '"':
+                return "".join(out)
+            if char == "\\" and index < length:
+                escaped = text[index]
+                index += 1
+                out.append(escaped)
+            else:
+                out.append(char)
+        raise ValueError("Unterminated fingerprint string")
+
+    def parse_atom() -> Any:
+        nonlocal index
+        start = index
+        while index < length and not text[index].isspace() and text[index] not in "()":
+            index += 1
+        token = text[start:index]
+        lowered = token.casefold()
+        if lowered == ":vlax-true":
+            return True
+        if lowered == ":vlax-false":
+            return False
+        if lowered == "nil":
+            return None
+        try:
+            return float(token) if any(mark in token for mark in ".eE") else int(token)
+        except ValueError:
+            return token
+
+    def parse_value() -> Any:
+        nonlocal index
+        skip_ws()
+        if index >= length:
+            raise ValueError("Unexpected end of fingerprint signature")
+        char = text[index]
+        if char == '"':
+            return parse_string()
+        if char == "(":
+            index += 1
+            values: list[Any] = []
+            while True:
+                skip_ws()
+                if index >= length:
+                    raise ValueError("Unterminated fingerprint list")
+                if text[index] == ")":
+                    index += 1
+                    return values
+                values.append(parse_value())
+        if char == ")":
+            raise ValueError("Unexpected closing parenthesis in fingerprint signature")
+        return parse_atom()
+
+    value = parse_value()
+    skip_ws()
+    if index != length or not isinstance(value, list) or len(value) != 6:
+        raise ValueError("Malformed fingerprint signature")
+    return value
 
 
 def _batch_from_payload(payload: dict[str, Any]) -> CadObservationBatch:

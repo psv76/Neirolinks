@@ -246,3 +246,42 @@ def test_full_scan_rejects_snapshot_if_dwg_changes_while_reading(monkeypatch):
     assert client._cached_batch is None
     assert client._cached_signatures is None
     assert client._cached_order is None
+
+
+def test_cold_read_builds_observations_from_fingerprint_without_full_scan(monkeypatch):
+    client = AutoCadBridgeClient()
+    calls = []
+    signature = (
+        '("SOCKET_IN" "POWER" (10.0 20.0 0.0) :vlax-false '
+        '(("CABLE_ID" "101") ("LOAD_NAME" "General sockets")) '
+        '("CABLE_ID" "LOAD_NAME"))'
+    )
+
+    def fake_call(request, _deadline):
+        calls.append(request["operation"])
+        if request["operation"] == "fingerprint":
+            return _fingerprint_payload(signature)
+        raise AssertionError(request)
+
+    monkeypatch.setattr(client, "_call", fake_call)
+    request = CadReadRequest(
+        "C:/fixture/working.dwg",
+        10.0,
+        definition_names=("SOCKET_IN",),
+    )
+
+    batch = client.read_observations(request)
+
+    assert calls == ["fingerprint", "fingerprint"]
+    assert len(batch.observations) == 1
+    observation = batch.observations[0]
+    assert observation.effective_name == "SOCKET_IN"
+    assert observation.layer == "POWER"
+    assert observation.handle == "A10"
+    assert observation.x == 10.0
+    assert observation.y == 20.0
+    attrs = {item.tag: item.value for item in observation.raw_attributes}
+    assert attrs == {"CABLE_ID": "101", "LOAD_NAME": "General sockets"}
+    assert observation.definition.attribute_definition_tags == ("CABLE_ID", "LOAD_NAME")
+    assert observation.definition.is_dynamic is False
+    assert batch.source_metadata["incremental_mode"] == "FINGERPRINT_COLD"
