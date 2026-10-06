@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy import and_, select
 
+from nl_project_2.cables.presentation import format_cable_mark
 from nl_project_2.persistence.schema import (
     background_job,
     cable_point,
@@ -250,7 +251,7 @@ class IntegratedUiService:
                     board=str(card.get("board") or ""),
                     building=str(card.get("building_names") or ""),
                     room=str(card.get("room_names") or ""),
-                    cable_type=str(card.get("cable_type") or ""),
+                    cable_type=format_cable_mark(card.get("cable_type")),
                     mount_way=str(card.get("mount_way") or ""),
                     conduit=str(card.get("gofra_id") or ""),
                     total_length_m=(

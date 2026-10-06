@@ -9,6 +9,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 from sqlalchemy import select
 
+from nl_project_2.cables.presentation import format_cable_mark
 from nl_project_2.persistence.schema import board, bus, instance_resource, project_instance
 
 _HEADERS = (
@@ -66,7 +67,7 @@ def _journal_rows(service, project_id: str) -> list[tuple]:
                 str(card.get("room_names") or ""),
                 str(card.get("designation") or ""),
                 str(card.get("load_name") or ""),
-                str(card.get("cable_type") or ""),
+                format_cable_mark(card.get("cable_type")),
                 str(card.get("mount_way") or ""),
                 _decimal(card.get("effective_m")),
                 str(card.get("system_kind") or ""),
@@ -84,7 +85,7 @@ def _journal_rows(service, project_id: str) -> list[tuple]:
                     str(card.get("room_names") or ""),
                     str(card.get("designation") or ""),
                     str(card.get("load_name") or ""),
-                    str(card.get("cable_type") or ""),
+                    format_cable_mark(card.get("cable_type")),
                     str(card.get("mount_way") or ""),
                     _decimal(card.get("effective_m")),
                     str(card.get("system_kind") or card.get("bus_kind") or ""),

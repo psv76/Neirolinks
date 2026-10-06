@@ -6,9 +6,11 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -16,6 +18,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from nl_project_2.integration.specification_export import export_specification_xlsx
 
 _SCOPE_LABELS = {
     "NEIROLINKS": "Поставка NEIROLINKS",
@@ -64,10 +68,14 @@ class SpecificationWorkspace(QWidget):
         self.incomplete_filter.setObjectName("specificationIncompleteFilter")
         self.incomplete_filter.addItem("Все позиции", "")
         self.incomplete_filter.addItem("Только «Нужны данные»", "NEEDS_DATA")
+        export_button = QPushButton("Экспорт в Excel", tab)
+        export_button.setObjectName("specificationExportExcelButton")
+        export_button.clicked.connect(self.export_excel)
         filters = QHBoxLayout()
         filters.addWidget(self.search, 1)
         filters.addWidget(self.supply_filter)
         filters.addWidget(self.incomplete_filter)
+        filters.addWidget(export_button)
 
         self.table = QTableWidget(0, 11, tab)
         self.table.setObjectName("specificationTable")
@@ -174,6 +182,28 @@ class SpecificationWorkspace(QWidget):
             self.table.selectRow(selected_table_row)
         self._load_workshop(result["workshop"])
         self.apply_filters()
+
+    def export_excel(self) -> None:
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Экспорт спецификации",
+            "Спецификация.xlsx",
+            "Excel (*.xlsx)",
+        )
+        if not filename:
+            return
+        if not filename.lower().endswith(".xlsx"):
+            filename += ".xlsx"
+        try:
+            export_specification_xlsx(self.service, self.project_id, filename)
+        except Exception as exc:
+            QMessageBox.critical(self, "Экспорт спецификации", str(exc))
+            return
+        QMessageBox.information(
+            self,
+            "Экспорт спецификации",
+            f"Файл сохранён:\n{filename}",
+        )
 
     def _load_workshop(self, rows) -> None:
         self.workshop.setRowCount(len(rows))

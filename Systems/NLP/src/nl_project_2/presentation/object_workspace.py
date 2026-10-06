@@ -2099,8 +2099,7 @@ class ObjectWorkspace(QWidget):
         self._load_detail()
         if self.lines_workspace is not None:
             self.lines_workspace.refresh()
-        if self.equipment_workspace is not None:
-            self.equipment_workspace.refresh()
+        self._refresh_related_working_views()
 
         if imported == 0 and written == 0 and not needs_resolution:
             self.sync_status_label.setText("Актуально")
