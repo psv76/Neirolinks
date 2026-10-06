@@ -9,10 +9,12 @@ from decimal import Decimal, InvalidOperation
 from sqlalchemy import Engine, delete, select, update
 
 from nl_project_2.buses.recalculation import bus_length_breakdown
+from nl_project_2.cables.presentation import format_cable_mark
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
     assembly_material_fact,
     bus,
+    bus_segment,
     cable_length_fact,
     cable_line,
     cable_line_product_selection,
@@ -253,6 +255,7 @@ class SpecificationService:
             + self._cable_sources(project_id, context)
             + self._bus_cable_sources(project_id, context)
             + self._conduit_sources(project_id, context)
+            + self._bus_conduit_sources(project_id, context)
             + self._led_sources(project_id, context)
             + self._material_sources(project_id, context)
         )
@@ -508,15 +511,18 @@ class SpecificationService:
             else:
                 quantity, unit = self._effective_cable_length(project_id, row), "m"
                 demand = facts.get("CABLE_TYPE") or facts.get("LOAD_TYPE") or row["system_kind"]
+                display_demand = format_cable_mark(demand)
                 name = (
                     row["model"]
                     or row["article"]
                     or row["product_key"]
-                    or f"Требуется кабель: {demand}"
+                    or f"Требуется кабель: {display_demand}"
                 )
                 trace = f"Кабель {row['designation']}; эффективная длина {quantity} m"
             selected = row["product_key"] is not None
-            demand_key = facts.get("CABLE_TYPE") or facts.get("LOAD_TYPE") or row["system_kind"]
+            demand_key = format_cable_mark(
+                facts.get("CABLE_TYPE") or facts.get("LOAD_TYPE") or row["system_kind"]
+            )
             output.append(
                 SpecificationSource(
                     "CABLE_LINE",
@@ -568,6 +574,7 @@ class SpecificationService:
             cable_type = str(row["cable_type"] or "").strip()
             if not cable_type:
                 continue
+            display_cable_type = format_cable_mark(cable_type)
             try:
                 with UnitOfWork(self._engine) as uow:
                     breakdown = bus_length_breakdown(uow, project_id, row["id"])
@@ -590,8 +597,8 @@ class SpecificationService:
                 SpecificationSource(
                     "BUS",
                     row["id"],
-                    f"CABLE_DEMAND:{cable_type}:UNSELECTED",
-                    f"Требуется кабель: {cable_type}",
+                    f"CABLE_DEMAND:{display_cable_type}:UNSELECTED",
+                    f"Требуется кабель: {display_cable_type}",
                     None,
                     _corrected_quantity(quantity, override),
                     "m",
@@ -663,10 +670,17 @@ class SpecificationService:
             )
         output = []
         for row in rows:
+            path = row["path_json"] or {}
+            if path.get("origin") == "AUTO_BUS_SEGMENT":
+                # Legacy rows created for bus segments did not receive their derived
+                # length. Bus conduit demand is now derived directly from bus_segment.
+                continue
             override = context["overrides"].get(("CONDUIT", row["id"]), {})
             scope = _override_value(override, "supply_scope", row["supply_scope"] or "NEIROLINKS")
             included = _override_value(override, "included", True)
-            diameter = row["diameter_mm_decimal"] or "?"
+            diameter = row["diameter_mm_decimal"] or _diameter_from_conduit_type(
+                row["conduit_type"]
+            )
             product_id = row["product_definition_id"]
             price, currency = context["product_prices"].get(product_id, (None, None))
             output.append(
@@ -678,7 +692,7 @@ class SpecificationService:
                         if product_id
                         else f"CONDUIT:{row['conduit_type']}:{diameter}"
                     ),
-                    row["product_name"] or f"Труба {row['conduit_type']} Ø{diameter} mm",
+                    row["product_name"] or f"Труба {row['conduit_type']} Ø{diameter} мм",
                     row["product_article"],
                     _corrected_quantity(_optional_decimal(row["length_m_decimal"]), override),
                     "m",
@@ -691,6 +705,47 @@ class SpecificationService:
                     trace=(
                         f"Трасса {row['designation']}; сохранённая длина "
                         f"{row['length_m_decimal']} m"
+                    ),
+                )
+            )
+        return output
+
+    def _bus_conduit_sources(self, project_id: str, context: dict) -> list[SpecificationSource]:
+        with self._engine.connect() as connection:
+            rows = list(
+                connection.execute(
+                    select(
+                        bus_segment.c.id,
+                        bus_segment.c.bus_id,
+                        bus_segment.c.gofra_type,
+                        bus_segment.c.length_m_decimal,
+                    ).where(
+                        bus_segment.c.project_id == project_id,
+                        bus_segment.c.gofra_type.is_not(None),
+                    )
+                ).mappings()
+            )
+        output: list[SpecificationSource] = []
+        for row in rows:
+            conduit_type = str(row["gofra_type"] or "").strip()
+            if not conduit_type:
+                continue
+            diameter = _diameter_from_conduit_type(conduit_type)
+            output.append(
+                SpecificationSource(
+                    "BUS_SEGMENT_CONDUIT",
+                    row["id"],
+                    f"CONDUIT:{conduit_type}:{diameter}",
+                    f"Труба {conduit_type} Ø{diameter} мм",
+                    None,
+                    _optional_decimal(row["length_m_decimal"]),
+                    "m",
+                    "NEIROLINKS",
+                    True,
+                    True,
+                    trace=(
+                        f"Сегмент шины {row['bus_id']}; "
+                        f"длина трубы {row['length_m_decimal']} m"
                     ),
                 )
             )
@@ -1056,6 +1111,12 @@ def _override_value(override: dict, key: str, default):
 def _corrected_quantity(value: Decimal | None, override: dict) -> Decimal | None:
     correction = _optional_decimal(override.get("quantity_correction_decimal"))
     return correction if correction is not None else value
+
+
+def _diameter_from_conduit_type(value) -> str:
+    raw = str(value or "").strip()
+    digits = "".join(character for character in raw if character.isdigit() or character in ".,")
+    return digits.replace(",", ".") or "?"
 
 
 def _optional_decimal(value) -> Decimal | None:
