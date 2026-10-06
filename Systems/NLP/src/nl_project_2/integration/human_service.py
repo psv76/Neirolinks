@@ -77,6 +77,9 @@ _DWG_RULE_TEXT = {
     "BUS_GOFRA_TYPE_FORMAT": "Некорректно указан тип трубы шины",
     "KEY_TARGET_NOT_FOUND": "Назначение клавиши не найдено в DWG",
     "SWITCH_CONDUCTOR_CAPACITY_UNKNOWN": "Не подтверждена ёмкость кабеля для клавиш",
+    "SWITCH_POINT_SUFFIX_REQUIRED": (
+        "Групповая линия выключателей не имеет физических суффиксов .ZZ"
+    ),
     "LINE_FIELDS_WITHOUT_CABLE_ID": "Параметры кабельной линии заполнены без CABLE_ID",
 }
 
@@ -92,15 +95,41 @@ def _dwg_object_title(observation: dict) -> str:
     return f"{block} · handle {handle}" if block and handle else block or handle or "DWG"
 
 
+def _dwg_issue_title(code: str, observation: dict) -> str:
+    if code == "SWITCH_POINT_SUFFIX_REQUIRED":
+        attributes = dict(observation.get("raw_attributes_json") or {})
+        cable_id = str(attributes.get("CABLE_ID") or "").strip()
+        base = cable_id.split(".", 1)[0] if cable_id else "?"
+        return f"Линия {base} не импортирована"
+    return _dwg_object_title(observation)
+
+
 def _dwg_required_action(diagnostic: dict, observation: dict) -> str:
+    code = str(diagnostic.get("code") or "")
     field = str(diagnostic.get("field") or "").strip()
     subject = _dwg_object_title(observation)
+    if code == "SWITCH_POINT_SUFFIX_REQUIRED":
+        attributes = dict(observation.get("raw_attributes_json") or {})
+        cable_id = str(attributes.get("CABLE_ID") or "").strip()
+        base = cable_id.split(".", 1)[0] if cable_id else "линии"
+        return (
+            f"Назначьте выключателям этой физической линии отдельные CABLE_ID "
+            f"{base}.01, {base}.02… в AutoCAD и снова нажмите «Обновить»"
+        )
     if field and field != "$":
         return f"Исправьте {field} у {subject} в AutoCAD и снова нажмите «Обновить»"
     return f"Исправьте {subject} в AutoCAD и снова нажмите «Обновить»"
 
 
 def _human_dwg_reason(code: str, diagnostic: dict, observation: dict) -> str:
+    if code == "SWITCH_POINT_SUFFIX_REQUIRED":
+        attributes = dict(observation.get("raw_attributes_json") or {})
+        cable_id = str(attributes.get("CABLE_ID") or "").strip()
+        base = cable_id.split(".", 1)[0] if cable_id else "?"
+        return (
+            f"Линия {base} содержит несколько выключателей, но их CABLE_ID не имеют "
+            f"отдельных физических точек {base}.01, {base}.02…"
+        )
     title = _DWG_RULE_TEXT.get(code, "Нарушено правило данных DWG")
     attributes = dict(observation.get("raw_attributes_json") or {})
     field = str(diagnostic.get("field") or "").strip()
@@ -759,7 +788,7 @@ class IntegratedUiService:
                                 UserStatus.PROJECT_ERROR
                                 if blocking
                                 else UserStatus.ACTION_REQUIRED,
-                                _dwg_object_title(row),
+                                _dwg_issue_title(code, row),
                                 _human_dwg_reason(code, diagnostic, row),
                                 "Данные DWG нельзя считать подтверждёнными"
                                 if blocking
