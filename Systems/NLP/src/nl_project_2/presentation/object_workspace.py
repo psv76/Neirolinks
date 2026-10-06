@@ -1866,6 +1866,9 @@ class ObjectWorkspace(QWidget):
             )
             self.runtime.objects.save_settings(self._detail.id, settings)
             self._detail = self.runtime.objects.get_project(self._detail.id)
+            if self.lines_workspace is not None:
+                self.lines_workspace.refresh()
+            self._refresh_related_working_views()
         except ObjectValidationError as exc:
             QMessageBox.warning(self, "Настройки не сохранены", str(exc))
 

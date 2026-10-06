@@ -16,6 +16,7 @@ from nl_project_2.cad_sync import (
     ChangeClass,
     DwgSyncError,
     DwgSyncService,
+    SyncChange,
     SyncOwnerKind,
     WriteResult,
 )
@@ -1012,3 +1013,51 @@ def test_new_handle_is_candidate_plus_missing_and_never_auto_remapped(database):
     assert remap.owner_key == "OLD->NEW"
     with database.engine.connect() as connection:
         assert connection.scalar(select(func.count()).select_from(field_device)) == 1
+
+
+def test_dual_projection_problem_does_not_block_independent_cable_type_import(database):
+    project_id = _project(database)
+    service = DwgSyncService(database.engine)
+    original = _observation("LIGHT_IN_230V", handle="L1", cable_id="301")
+    initial = service.preview(project_id=project_id, batch=_batch(original))
+    _apply_new(service, initial)
+
+    changed = replace(
+        original,
+        raw_attributes=tuple(
+            replace(attribute, value="UPDATED CABLE")
+            if attribute.tag == "CABLE_TYPE"
+            else attribute
+            for attribute in original.raw_attributes
+        ),
+    )
+    proposal = service.preview(project_id=project_id, batch=_batch(changed))
+    cable_change = next(change for change in proposal.changes if change.field == "CABLE_TYPE")
+    assert cable_change.change_class is ChangeClass.DWG_CHANGED
+    dual_projection = SyncChange(
+        field_path="structural:301:DUAL_PROJECTION_CONFLICT:301.01",
+        handle="L1",
+        field="$STRUCTURE",
+        baseline_value=None,
+        project_value=None,
+        dwg_value="301:DUAL_PROJECTION_CONFLICT:301.01",
+        change_class=ChangeClass.IDENTITY_COLLISION,
+        reason="projection conflict",
+        owner_kind=SyncOwnerKind.BASE_LINE,
+        owner_key="301",
+        owner_path="structure:301:DUAL_PROJECTION_CONFLICT:301.01",
+        affected_handles=("L1",),
+        structural=True,
+        detail_status="DUAL_PROJECTION_REQUIRES_ATTENTION",
+    )
+    proposal = replace(proposal, changes=proposal.changes + (dual_projection,))
+    service.apply_dwg_to_project(
+        proposal,
+        selected_paths={cable_change.field_path},
+        confirmed=True,
+    )
+    with database.engine.connect() as connection:
+        facts = connection.execute(
+            select(cable_line.c.cable_facts_json).where(cable_line.c.designation == "301")
+        ).scalar_one()
+    assert facts["CABLE_TYPE"] == "UPDATED CABLE"
