@@ -20,6 +20,7 @@ from nl_project_2.cad_sync import (
     SyncOwnerKind,
     WriteResult,
 )
+from nl_project_2.cad_sync.workflow import build_dwg_update_plan
 from nl_project_2.objects.models import ProjectCard
 from nl_project_2.objects.service import ObjectService
 from nl_project_2.persistence.ids import new_id
@@ -1061,3 +1062,107 @@ def test_dual_projection_problem_does_not_block_independent_cable_type_import(da
             select(cable_line.c.cable_facts_json).where(cable_line.c.designation == "301")
         ).scalar_one()
     assert facts["CABLE_TYPE"] == "UPDATED CABLE"
+
+
+def test_existing_el_boxes_can_move_from_one_active_line_to_another(database):
+    project_id = _project(database)
+    sync = DwgSyncService(database.engine)
+    box11 = _observation(
+        "EL_BOX_OUT_100x100",
+        handle="B11",
+        cable_id="106",
+        attributes={"BOX_ID": "BOX.011", "CABLE_SOURCE": "", "BUS_POINT_ID": "", "BUS_SOURCE": ""},
+    )
+    box16 = _observation(
+        "EL_BOX_OUT_100x100",
+        handle="B16",
+        cable_id="106",
+        attributes={
+            "BOX_ID": "BOX.016",
+            "CABLE_SOURCE": "BOX.011",
+            "BUS_POINT_ID": "",
+            "BUS_SOURCE": "",
+        },
+    )
+    target = _observation("SOCKET_IN", handle="S113", cable_id="113.01")
+    initial = sync.preview(project_id=project_id, batch=_batch(box11, box16, target))
+    _apply_new(sync, initial)
+
+    moved11 = replace(
+        box11,
+        raw_attributes=tuple(
+            replace(item, value="113") if item.tag == "CABLE_ID" else item
+            for item in box11.raw_attributes
+        ),
+    )
+    moved16 = replace(
+        box16,
+        raw_attributes=tuple(
+            replace(item, value="113") if item.tag == "CABLE_ID" else item
+            for item in box16.raw_attributes
+        ),
+    )
+    batch = _batch(moved11, moved16, target)
+    proposal = sync.preview(project_id=project_id, batch=batch)
+    plan = build_dwg_update_plan(proposal)
+    changes = [
+        change
+        for change in proposal.changes
+        if change.field == "CABLE_ID" and set(change.affected_handles).intersection({"B11", "B16"})
+    ]
+    assert len(changes) == 1
+    assert changes[0].change_class is ChangeClass.DWG_CHANGED
+    assert changes[0].detail_status == "CABLE_ID_MEMBERSHIP_REASSIGNMENT"
+    assert changes[0].field_path in plan.import_paths
+
+    sync.apply_dwg_to_project(
+        proposal,
+        selected_paths=plan.import_paths,
+        confirmed=True,
+    )
+
+    with database.engine.connect() as connection:
+        line106 = connection.scalar(
+            select(cable_line.c.id).where(cable_line.c.designation == "106")
+        )
+        line113 = connection.scalar(
+            select(cable_line.c.id).where(cable_line.c.designation == "113")
+        )
+        boxes106 = set(
+            connection.execute(
+                select(cable_point.c.logical_identity).where(
+                    cable_point.c.cable_line_id == line106,
+                    cable_point.c.point_kind == "EL_BOX",
+                )
+            ).scalars()
+        )
+        boxes113 = set(
+            connection.execute(
+                select(cable_point.c.logical_identity).where(
+                    cable_point.c.cable_line_id == line113,
+                    cable_point.c.point_kind == "EL_BOX",
+                )
+            ).scalars()
+        )
+        device_fields = {
+            row["entity_handle"]: row["normalized_fields_json"]
+            for row in connection.execute(
+                select(field_device.c.entity_handle, field_device.c.normalized_fields_json).where(
+                    field_device.c.entity_handle.in_(("B11", "B16"))
+                )
+            ).mappings()
+        }
+    assert "BOX.011" not in boxes106
+    assert "BOX.016" not in boxes106
+    assert {"BOX.011", "BOX.016"} <= boxes113
+    assert device_fields["B11"]["CABLE_ID"] == "113"
+    assert device_fields["B16"]["CABLE_ID"] == "113"
+
+    second = sync.preview(project_id=project_id, batch=batch)
+    assert not [
+        change
+        for change in second.changes
+        if change.field == "CABLE_ID"
+        and set(change.affected_handles).intersection({"B11", "B16"})
+        and change.change_class is not ChangeClass.EQUAL
+    ]

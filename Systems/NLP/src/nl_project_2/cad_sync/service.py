@@ -413,6 +413,17 @@ class DwgSyncService:
                     old_value != str(fact.value or "").strip() for old_value in old_values
                 )
                 if changed_by_handle:
+                    target_base = str(fact.value or "").strip().split(".", 1)[0]
+                    box_membership_reassignment = (
+                        len(old_values) == 1
+                        and bool(affected)
+                        and target_base in active_line_designations
+                        and all(
+                            str(devices.get(handle, {}).get("DEVICE_TYPE") or "").strip()
+                            == "EL_BOX"
+                            for handle in affected
+                        )
+                    )
                     if len(old_values) == 1 and affected and set(affected) <= safe_cable_id_handles:
                         old_value = next(iter(old_values))
                         project_value = old_value
@@ -420,6 +431,17 @@ class DwgSyncService:
                         status = ChangeClass.DWG_CHANGED
                         reason = "Stable DWG handles identify a safe one-sided CABLE_ID rename"
                         detail_status = "CABLE_ID_RENAME"
+                        safe_dwg_cable_id_change = True
+                    elif box_membership_reassignment:
+                        old_value = next(iter(old_values))
+                        project_value = old_value
+                        baseline = old_value
+                        status = ChangeClass.DWG_CHANGED
+                        reason = (
+                            "Existing EL_BOX handles identify a safe reassignment "
+                            "to another active cable line"
+                        )
+                        detail_status = "CABLE_ID_MEMBERSHIP_REASSIGNMENT"
                         safe_dwg_cable_id_change = True
                     else:
                         status = ChangeClass.IDENTITY_COLLISION
@@ -1679,6 +1701,45 @@ class DwgSyncService:
             desired_identities_by_base[point.base].add(point.logical_identity)
             if set(point.handles) & active_handles:
                 points_by_base[point.base].append(point)
+        # A physical distribution box may change its owning CableLine when its
+        # CABLE_ID changes in DWG. Move the existing canonical CablePoint before
+        # stale-point pruning so cross-line endpoints that reference the same
+        # physical box remain intact.
+        for base, plans in sorted(points_by_base.items()):
+            target_line_id = line_ids.get(base)
+            if target_line_id is None:
+                continue
+            for plan in plans:
+                if plan.point_kind != "EL_BOX" or not plan.logical_identity.startswith("BOX."):
+                    continue
+                existing = (
+                    uow.execute(
+                        select(cable_point.c.id, cable_point.c.cable_line_id).where(
+                            cable_point.c.project_id == project_id,
+                            cable_point.c.logical_identity == plan.logical_identity,
+                        )
+                    )
+                    .mappings()
+                    .one_or_none()
+                )
+                if existing is None or existing["cable_line_id"] == target_line_id:
+                    continue
+                maximum = uow.execute(
+                    select(func.max(cable_point.c.ordinal)).where(
+                        cable_point.c.cable_line_id == target_line_id
+                    )
+                ).scalar_one()
+                uow.execute(
+                    update(cable_point)
+                    .where(cable_point.c.id == existing["id"])
+                    .values(
+                        cable_line_id=target_line_id,
+                        ordinal=0 if maximum is None else maximum + 1,
+                        updated_at_utc=datetime.now(UTC),
+                        row_version=cable_point.c.row_version + 1,
+                    )
+                )
+
         self._prune_stale_snapshot_points(
             uow,
             project_id=project_id,
@@ -2751,8 +2812,41 @@ class DwgSyncService:
             change = by_path[path]
             if change.change_class is ChangeClass.NEW_DWG_INSERTION:
                 continue
+            if change.detail_status == "CABLE_ID_MEMBERSHIP_REASSIGNMENT":
+                expected_old = str(change.project_value or "").strip()
+                handles = tuple(change.affected_handles or (change.handle,))
+                rows = list(
+                    uow.execute(
+                        select(
+                            field_device.c.entity_handle,
+                            field_device.c.normalized_fields_json,
+                        ).where(
+                            field_device.c.project_id == proposal.project_id,
+                            field_device.c.dwg_document_binding_id == proposal.binding_id,
+                            field_device.c.entity_handle.in_(handles),
+                            field_device.c.lifecycle == "ACTIVE",
+                        )
+                    ).mappings()
+                )
+                current_by_handle = {
+                    row["entity_handle"]: str(
+                        (row["normalized_fields_json"] or {}).get("CABLE_ID") or ""
+                    ).strip()
+                    for row in rows
+                }
+                if set(current_by_handle) != set(handles) or any(
+                    current_by_handle.get(handle) != expected_old for handle in handles
+                ):
+                    raise StaleProposalError(
+                        f"Project CABLE_ID changed after preview for {change.owner_path}"
+                    )
+                continue
             owner_path = change.owner_path or change.field_path
-            baseline_owner_path = owner_path
+            baseline_owner_path = (
+                change.field_path
+                if change.detail_status == "CABLE_ID_MEMBERSHIP_REASSIGNMENT"
+                else owner_path
+            )
 
             owner_key = str(change.owner_key or "")
             new_base, separator, new_identity = owner_key.partition("/")
@@ -2880,7 +2974,9 @@ class DwgSyncService:
                 and bool(set(by_path[path].affected_handles or (by_path[path].handle,)) & handles)
             ]
             base_changed = any(
-                str(change.project_value).split(".", 1)[0] != str(change.dwg_value).split(".", 1)[0]
+                change.detail_status != "CABLE_ID_MEMBERSHIP_REASSIGNMENT"
+                and str(change.project_value).split(".", 1)[0]
+                != str(change.dwg_value).split(".", 1)[0]
                 for change in cable_changes
                 if change.project_value is not None
             )
