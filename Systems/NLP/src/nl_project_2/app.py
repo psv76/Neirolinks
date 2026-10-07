@@ -41,7 +41,7 @@ def run(argv: Sequence[str] | None = None) -> int:
     app.setApplicationVersion(PRODUCT_LINE)
     runtime = ApplicationRuntime.open(PathConfig.from_environment(), database_path=args.database)
     window = MainWindow(runtime)
-    window.show()
+    window.showMaximized()
     if args.auto_close_ms:
         QTimer.singleShot(args.auto_close_ms, window.close)
     return app.exec()
