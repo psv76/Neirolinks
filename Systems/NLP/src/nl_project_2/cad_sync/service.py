@@ -309,6 +309,11 @@ class DwgSyncService:
                 )
                 and _resolve_project_room_id(connection, project_id, _fields(item)) is not None
             }
+            stale_topology_endpoints = _stale_topology_endpoints(
+                connection,
+                project_id=project_id,
+                snapshot=snapshot,
+            )
 
         valid_by_handle = {
             item.observation.handle: item
@@ -582,6 +587,26 @@ class DwgSyncService:
                     )
                 )
 
+        for base, stale_identities in sorted(stale_topology_endpoints.items()):
+            changes.append(
+                SyncChange(
+                    f"topology-repair:{base}",
+                    "",
+                    "TOPOLOGY_SYNC",
+                    None,
+                    tuple(sorted(stale_identities)),
+                    tuple(),
+                    ChangeClass.DWG_CHANGED,
+                    "Project topology contains endpoints absent from current DWG topology",
+                    SyncOwnerKind.BASE_LINE,
+                    base,
+                    f"topology:{base}:endpoints",
+                    (),
+                    False,
+                    "TOPOLOGY_STALE_ENDPOINT_REPAIR",
+                )
+            )
+
         counts = Counter(change.change_class for change in changes)
         summary = SyncSummary(
             new=counts[ChangeClass.NEW_DWG_INSERTION],
@@ -684,6 +709,8 @@ class DwgSyncService:
         active_handles: set[str] = set()
         for path in selected:
             change = by_path[path]
+            if change.detail_status == "TOPOLOGY_STALE_ENDPOINT_REPAIR":
+                continue
             active_handles.update(change.affected_handles or (change.handle,))
             if change.field != "$":
                 expanded_selected.update(
@@ -726,6 +753,18 @@ class DwgSyncService:
             self._check_baseline_preconditions(uow, proposal, selected)
             binding_id = self._ensure_binding(uow, proposal, now)
             scan_id, observations = self._persist_scan(uow, proposal, binding_id, now)
+            topology_repair_bases = {
+                by_path[path].owner_key
+                for path in selected
+                if by_path[path].detail_status == "TOPOLOGY_STALE_ENDPOINT_REPAIR"
+            }
+            if topology_repair_bases:
+                self._repair_stale_topology_endpoints(
+                    uow,
+                    project_id=proposal.project_id,
+                    snapshot=snapshot,
+                    bases=topology_repair_bases,
+                )
             # A relation-only acceptance must not materialize unselected DWG facts/topology.
             for handle in tuple(active_handles):
                 handle_changes = [
@@ -1740,6 +1779,12 @@ class DwgSyncService:
                     )
                 )
 
+        self._repair_stale_topology_endpoints(
+            uow,
+            project_id=project_id,
+            snapshot=snapshot,
+            bases=set(line_ids),
+        )
         self._prune_stale_snapshot_points(
             uow,
             project_id=project_id,
@@ -2066,6 +2111,66 @@ class DwgSyncService:
                         review_state="MIGRATION_REVIEW_REQUIRED",
                     )
                 )
+
+    def _repair_stale_topology_endpoints(
+        self,
+        uow,
+        *,
+        project_id: str,
+        snapshot: NormalizedCadSnapshot,
+        bases: set[str],
+    ) -> None:
+        desired_by_base = _desired_topology_point_identities(snapshot)
+        for base in sorted(bases):
+            line_id = uow.execute(
+                select(cable_line.c.id).where(
+                    cable_line.c.project_id == project_id,
+                    cable_line.c.designation == base,
+                    cable_line.c.lifecycle == "ACTIVE",
+                )
+            ).scalar_one_or_none()
+            if line_id is None:
+                continue
+            desired = desired_by_base.get(base, set())
+            stale_endpoint_ids = list(
+                uow.execute(
+                    select(cable_topology_endpoint.c.id)
+                    .join(
+                        cable_point,
+                        cable_point.c.id == cable_topology_endpoint.c.cable_point_id,
+                    )
+                    .where(
+                        cable_topology_endpoint.c.project_id == project_id,
+                        cable_topology_endpoint.c.cable_line_id == line_id,
+                        cable_topology_endpoint.c.endpoint_kind == "TOPOLOGY_POINT",
+                        cable_point.c.point_kind != "INTERNAL_SOURCE",
+                        ~cable_point.c.logical_identity.in_(desired),
+                    )
+                ).scalars()
+            )
+            if not stale_endpoint_ids:
+                continue
+            uow.execute(
+                delete(cable_segment).where(
+                    cable_segment.c.project_id == project_id,
+                    cable_segment.c.cable_line_id == line_id,
+                    (
+                        cable_segment.c.source_endpoint_id.in_(stale_endpoint_ids)
+                        | cable_segment.c.target_endpoint_id.in_(stale_endpoint_ids)
+                    ),
+                )
+            )
+            uow.execute(
+                delete(cable_topology_endpoint).where(
+                    cable_topology_endpoint.c.id.in_(stale_endpoint_ids)
+                )
+            )
+            recalculate_segments(
+                uow,
+                project_id,
+                line_ids={line_id},
+                reconcile_conduits=False,
+            )
 
     def _prune_stale_snapshot_points(
         self,
@@ -2757,7 +2862,11 @@ class DwgSyncService:
         owner_values: dict[str, Any] = {}
         for path in selected:
             change = by_path[path]
-            if change.field != "$" and change.owner_path:
+            if (
+                change.field != "$"
+                and change.owner_path
+                and change.detail_status != "TOPOLOGY_STALE_ENDPOINT_REPAIR"
+            ):
                 owner_values[change.owner_path] = change.dwg_value
         for fact in snapshot.facts:
             if fact.affected_handles and set(fact.affected_handles) <= selected_new_handles:
@@ -2811,6 +2920,8 @@ class DwgSyncService:
         for path in selected:
             change = by_path[path]
             if change.change_class is ChangeClass.NEW_DWG_INSERTION:
+                continue
+            if change.detail_status == "TOPOLOGY_STALE_ENDPOINT_REPAIR":
                 continue
             if change.detail_status == "CABLE_ID_MEMBERSHIP_REASSIGNMENT":
                 expected_old = str(change.project_value or "").strip()
@@ -3422,6 +3533,64 @@ def _fields(item: ValidatedObservation) -> dict[str, Any]:
             values["BUS_ID"] = payload.bus_id
             values["BUS_TYPE"] = payload.bus_type
     return values
+
+
+def _desired_topology_point_identities(
+    snapshot: NormalizedCadSnapshot,
+) -> dict[str, set[str]]:
+    desired: dict[str, set[str]] = defaultdict(set)
+    points_by_key = {point.key: point for point in snapshot.points}
+    for point in snapshot.points:
+        desired[point.base].add(point.logical_identity)
+    for segment in snapshot.segments:
+        if segment.source_point_key is None:
+            continue
+        source = points_by_key.get(segment.source_point_key)
+        if source is not None:
+            desired[segment.base].add(source.logical_identity)
+    return desired
+
+
+def _stale_topology_endpoints(
+    connection,
+    *,
+    project_id: str,
+    snapshot: NormalizedCadSnapshot,
+) -> dict[str, set[str]]:
+    desired = _desired_topology_point_identities(snapshot)
+    if not desired:
+        return {}
+    line_rows = {
+        row["designation"]: row["id"]
+        for row in connection.execute(
+            select(cable_line.c.id, cable_line.c.designation).where(
+                cable_line.c.project_id == project_id,
+                cable_line.c.designation.in_(set(desired)),
+                cable_line.c.lifecycle == "ACTIVE",
+            )
+        ).mappings()
+    }
+    stale: dict[str, set[str]] = {}
+    for base, line_id in line_rows.items():
+        persisted = set(
+            connection.execute(
+                select(cable_point.c.logical_identity)
+                .join(
+                    cable_topology_endpoint,
+                    cable_topology_endpoint.c.cable_point_id == cable_point.c.id,
+                )
+                .where(
+                    cable_topology_endpoint.c.project_id == project_id,
+                    cable_topology_endpoint.c.cable_line_id == line_id,
+                    cable_topology_endpoint.c.endpoint_kind == "TOPOLOGY_POINT",
+                    cable_point.c.point_kind != "INTERNAL_SOURCE",
+                )
+            ).scalars()
+        )
+        extra = persisted - desired.get(base, set())
+        if extra:
+            stale[base] = extra
+    return stale
 
 
 def _safe_cable_id_base_renames(

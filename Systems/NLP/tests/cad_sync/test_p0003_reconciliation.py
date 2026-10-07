@@ -1157,6 +1157,8 @@ def test_existing_el_boxes_can_move_from_one_active_line_to_another(database):
     assert {"BOX.011", "BOX.016"} <= boxes113
     assert device_fields["B11"]["CABLE_ID"] == "113"
     assert device_fields["B16"]["CABLE_ID"] == "113"
+    assert CableService(database.engine).topology(project_id, line106)["designation"] == "106"
+    assert CableService(database.engine).topology(project_id, line113)["edges"]
 
     second = sync.preview(project_id=project_id, batch=batch)
     assert not [
