@@ -19,6 +19,7 @@ ROUTE_FIELDS = ("MOUNT_WAY", "GOFRA_TYPE", "GOFRA_COLOR", "GOFRA_ID")
 KEY_FIELDS = frozenset({"KEY_1", "KEY_2", "KEY_3", "KEY_4"})
 OUTPUT_FIELDS = frozenset()
 PORT_FIELDS = frozenset({"COM1", "COM2", "W1", "W2", "K1", "K2", "IN_1", "IN_2"})
+RECIPROCAL_CABLE_PORT_FIELDS = frozenset({"K1", "K2", "W1", "W2"})
 SPECIAL_FIELDS = KEY_FIELDS | OUTPUT_FIELDS | PORT_FIELDS
 
 
@@ -405,9 +406,20 @@ def normalize_validated_snapshot(
                 ),
             )
             previous: str | None = None
+            derived_sources: dict[str, str] = {}
             for point in ordered:
                 segments.append(_segment(previous, None, point, rows_by_handle))
+                derived_sources[f"edge:{point.logical_identity}:CABLE_SOURCE"] = (
+                    "" if previous is None else points_by_key[previous].logical_identity
+                )
                 previous = point.key
+            if derived_sources:
+                facts = [
+                    replace(fact, value=derived_sources[fact.owner_path])
+                    if fact.owner_path in derived_sources
+                    else fact
+                    for fact in facts
+                ]
             continue
         for point in sorted(line_points, key=lambda item: item.key):
             item = rows_by_handle[point.handles[0]]
@@ -426,7 +438,7 @@ def normalize_validated_snapshot(
         for index, segment in enumerate(segments)
     }
     for port in ports:
-        if port.tag not in {"K1", "K2"} or not port.value:
+        if port.tag not in RECIPROCAL_CABLE_PORT_FIELDS or not port.value:
             continue
         bus_point_id = bus_point_by_handle.get(port.handle)
         segment_position = segment_index.get(port.value)
@@ -457,14 +469,14 @@ def reconcile_snapshot_edge_projections(
     snapshot: NormalizedCadSnapshot,
     baselines: dict[str, object],
 ) -> NormalizedCadSnapshot:
-    """Resolve reciprocal K-port/CABLE_SOURCE projections against accepted baselines."""
+    """Resolve reciprocal field-port/CABLE_SOURCE projections against accepted baselines."""
 
     points_by_key = {point.key: point for point in snapshot.points}
     bus_point_by_handle = {point.handle: point.point_id for point in snapshot.bus_points}
     current_ports: dict[str, set[str]] = {}
     baseline_ports: dict[str, set[str]] = {}
     for port in snapshot.ports:
-        if port.tag not in {"K1", "K2"}:
+        if port.tag not in RECIPROCAL_CABLE_PORT_FIELDS:
             continue
         bus_point_id = bus_point_by_handle.get(port.handle)
         if not bus_point_id:

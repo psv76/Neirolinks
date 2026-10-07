@@ -5,6 +5,7 @@ from dataclasses import replace
 import pytest
 from sqlalchemy import func, select, update
 
+from nl_project_2.buses import BusService
 from nl_project_2.cables.service import CableService
 from nl_project_2.cad_contract import (
     BlockDefinitionMetadata,
@@ -21,6 +22,7 @@ from nl_project_2.cad_sync import (
     WriteResult,
 )
 from nl_project_2.cad_sync.workflow import build_dwg_update_plan
+from nl_project_2.catalog.equipment import EquipmentService
 from nl_project_2.objects.models import ProjectCard
 from nl_project_2.objects.service import ObjectService
 from nl_project_2.persistence.ids import new_id
@@ -36,6 +38,7 @@ from nl_project_2.persistence.schema import (
     field_control_key,
     field_device,
     field_port,
+    instance_resource,
     led_line_profile,
     project,
 )
@@ -1168,3 +1171,101 @@ def test_existing_el_boxes_can_move_from_one_active_line_to_another(database):
         and set(change.affected_handles).intersection({"B11", "B16"})
         and change.change_class is not ChangeClass.EQUAL
     ]
+
+
+def _rs485_root_903(database, project_id: str) -> None:
+    receipt = EquipmentService(database.engine).create_instance(
+        project_id=project_id,
+        designation="WB.TEST",
+        passport_key="module.wirenboard.wb_mcm8",
+        product_key="product.wirenboard.wb_mcm8",
+        supply_scope="NEIROLINKS",
+    )
+    with database.engine.connect() as connection:
+        root = (
+            connection.execute(
+                select(instance_resource.c.id).where(
+                    instance_resource.c.project_instance_id == receipt.instance_id,
+                    instance_resource.c.resource_kind == "RS485_INTERFACE",
+                )
+            )
+            .scalars()
+            .first()
+        )
+    BusService(database.engine).create_rs485_bus(
+        project_id=project_id,
+        designation="903",
+        root_resource_id=root,
+        points=(),
+    )
+
+
+def test_m1w2_w_port_and_cable_source_are_reciprocal_without_false_conflict(database):
+    project_id = _project(database)
+    _rs485_root_903(database, project_id)
+    service = DwgSyncService(database.engine)
+    m1w2 = _observation(
+        "WB_M1W2",
+        handle="W903",
+        cable_id="",
+        attributes={
+            "BUS_POINT_ID": "903.002",
+            "W1": "501",
+            "W2": "",
+        },
+    )
+    sensor = _observation(
+        "SENSOR_1WIRE",
+        handle="S501",
+        cable_id="501",
+        attributes={"CABLE_SOURCE": "903.002/W1"},
+    )
+    source_initial = service.preview(project_id=project_id, batch=_batch(m1w2))
+    _apply_new(service, source_initial)
+    target_initial = service.preview(project_id=project_id, batch=_batch(m1w2, sensor))
+    service.apply_dwg_to_project(
+        target_initial,
+        selected_paths={"S501:$"},
+        confirmed=True,
+    )
+
+    second = service.preview(project_id=project_id, batch=_batch(m1w2, sensor))
+    assert not [
+        change
+        for change in second.changes
+        if change.detail_status == "DUAL_PROJECTION_REQUIRES_ATTENTION"
+    ]
+    cable_source = next(
+        change for change in second.changes if change.owner_path == "edge:501:CABLE_SOURCE"
+    )
+    assert cable_source.change_class is ChangeClass.EQUAL
+
+
+def test_grouped_switch_chain_source_is_derived_from_suffix_order(database):
+    project_id = _project(database)
+    service = DwgSyncService(database.engine)
+    first = _observation(
+        "BTN_IN_2",
+        handle="B201A",
+        cable_id="201.01",
+    )
+    second = _observation(
+        "BTN_IN_2",
+        handle="B201B",
+        cable_id="201.02",
+    )
+    initial = service.preview(project_id=project_id, batch=_batch(first, second))
+    _apply_new(service, initial)
+
+    proposal = service.preview(project_id=project_id, batch=_batch(first, second))
+    source_first = next(
+        change for change in proposal.changes if change.owner_path == "edge:201.01:CABLE_SOURCE"
+    )
+    source_second = next(
+        change for change in proposal.changes if change.owner_path == "edge:201.02:CABLE_SOURCE"
+    )
+    assert source_first.change_class is ChangeClass.EQUAL
+    assert source_first.dwg_value == ""
+    assert source_second.change_class is ChangeClass.EQUAL
+    assert source_second.project_value == "201.01"
+    assert source_second.dwg_value == "201.01"

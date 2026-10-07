@@ -2037,7 +2037,7 @@ class DwgSyncService:
                 else None
             )
             for port in snapshot.ports:
-                if port.tag not in {"K1", "K2"} or port.handle not in device_ids:
+                if port.tag not in {"K1", "K2", "W1", "W2"} or port.handle not in device_ids:
                     continue
                 bus_point_id = bus_point_by_handle.get(port.handle)
                 if not bus_point_id:
