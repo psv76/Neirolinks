@@ -1637,7 +1637,7 @@ class ObjectWorkspace(QWidget):
 
     def open_project(self, project_id: str) -> None:
         top_level = self.window()
-        preserve_window = isinstance(top_level, QMainWindow)
+        preserve_window = isinstance(top_level, QMainWindow) and top_level.isVisible()
         geometry = top_level.geometry() if preserve_window else None
         was_maximized = top_level.isMaximized() if preserve_window else False
         self._detail = self.runtime.open_project(project_id)

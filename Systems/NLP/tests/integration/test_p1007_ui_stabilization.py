@@ -278,6 +278,17 @@ def test_failed_automatic_dwg_apply_becomes_visible_problem(
     runtime.close()
 
 
+def test_startup_auto_open_does_not_cancel_maximized_state(qtbot, tmp_path):
+    runtime = ApplicationRuntime.open(_paths(tmp_path))
+    runtime.objects.create_project(ProjectCard(name="Only", project_code="ONE"))
+    window = MainWindow(runtime)
+    qtbot.addWidget(window)
+    window.showMaximized()
+    qtbot.wait(50)
+    assert window.isMaximized()
+    window.close()
+
+
 def test_project_open_preserves_normal_and_maximized_main_window(qtbot, tmp_path):
     runtime = ApplicationRuntime.open(_paths(tmp_path))
     first = runtime.objects.create_project(ProjectCard(name="First", project_code="GEO-1"))
