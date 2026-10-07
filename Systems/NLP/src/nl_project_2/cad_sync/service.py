@@ -877,10 +877,32 @@ class DwgSyncService:
                     created_at_utc=now,
                 )
             )
+            recorded_changes: dict[str, tuple[object, object, object, ChangeClass]] = {}
             for change in proposal.changes:
                 if change.field_path not in selected:
                     continue
-                self._record_change(uow, proposal.project_id, operation_id, change, "ACCEPT_DWG")
+                canonical_path = change.owner_path or change.field_path
+                signature = (
+                    change.baseline_value,
+                    change.project_value,
+                    change.dwg_value,
+                    change.change_class,
+                )
+                previous = recorded_changes.get(canonical_path)
+                if previous is not None:
+                    if previous != signature:
+                        raise DwgSyncError(
+                            f"Selected DWG changes disagree for canonical owner {canonical_path}"
+                        )
+                    continue
+                recorded_changes[canonical_path] = signature
+                self._record_change(
+                    uow,
+                    proposal.project_id,
+                    operation_id,
+                    change,
+                    "ACCEPT_DWG",
+                )
             if failure_hook:
                 failure_hook()
             uow.execute(

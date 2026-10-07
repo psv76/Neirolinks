@@ -34,6 +34,7 @@ from nl_project_2.persistence.schema import (
     cable_topology_endpoint,
     dwg_baseline,
     dwg_scan,
+    dwg_sync_change,
     dwg_sync_operation,
     field_control_key,
     field_device,
@@ -1269,3 +1270,91 @@ def test_grouped_switch_chain_source_is_derived_from_suffix_order(database):
     assert source_second.change_class is ChangeClass.EQUAL
     assert source_second.project_value == "201.01"
     assert source_second.dwg_value == "201.01"
+
+
+def test_duplicate_physical_insertions_of_one_point_record_one_canonical_change(database):
+    project_id = _project(database)
+    service = DwgSyncService(database.engine)
+    target_a = _observation(
+        "SOCKET_IN",
+        handle="T118A",
+        cable_id="118.01",
+        attributes={"CABLE_SOURCE": "118.02"},
+        x=100,
+        y=100,
+    )
+    target_b = _observation(
+        "SOCKET_IN",
+        handle="T118B",
+        cable_id="118.01",
+        attributes={"CABLE_SOURCE": "118.02"},
+        x=100,
+        y=120,
+    )
+    source_old = _observation(
+        "SOCKET_IN",
+        handle="S118OLD",
+        cable_id="118.02",
+        attributes={"CABLE_SOURCE": ""},
+        x=200,
+        y=100,
+    )
+    source_new = _observation(
+        "SOCKET_IN",
+        handle="S118NEW",
+        cable_id="118.03",
+        attributes={"CABLE_SOURCE": ""},
+        x=300,
+        y=100,
+    )
+    initial_batch = _batch(target_a, target_b, source_old, source_new)
+    initial = service.preview(project_id=project_id, batch=initial_batch)
+    _apply_new(service, initial)
+
+    changed_a = replace(
+        target_a,
+        raw_attributes=tuple(
+            replace(item, value="118.03") if item.tag == "CABLE_SOURCE" else item
+            for item in target_a.raw_attributes
+        ),
+    )
+    changed_b = replace(
+        target_b,
+        raw_attributes=tuple(
+            replace(item, value="118.03") if item.tag == "CABLE_SOURCE" else item
+            for item in target_b.raw_attributes
+        ),
+    )
+    changed_batch = _batch(changed_a, changed_b, source_old, source_new)
+    proposal = service.preview(project_id=project_id, batch=changed_batch)
+    plan = build_dwg_update_plan(proposal)
+    source_changes = [
+        change for change in proposal.changes if change.owner_path == "edge:118.01:CABLE_SOURCE"
+    ]
+    assert len(source_changes) == 2
+    assert all(change.change_class is ChangeClass.DWG_CHANGED for change in source_changes)
+    assert all(change.field_path in plan.import_paths for change in source_changes)
+
+    operation_id = service.apply_dwg_to_project(
+        proposal,
+        selected_paths=plan.import_paths,
+        confirmed=True,
+    )
+
+    with database.engine.connect() as connection:
+        rows = list(
+            connection.execute(
+                select(dwg_sync_change.c.field_path).where(
+                    dwg_sync_change.c.dwg_sync_operation_id == operation_id,
+                    dwg_sync_change.c.field_path == "edge:118.01:CABLE_SOURCE",
+                )
+            ).scalars()
+        )
+    assert rows == ["edge:118.01:CABLE_SOURCE"]
+
+    second = service.preview(project_id=project_id, batch=changed_batch)
+    second_sources = [
+        change for change in second.changes if change.owner_path == "edge:118.01:CABLE_SOURCE"
+    ]
+    assert len(second_sources) == 2
+    assert all(change.change_class is ChangeClass.EQUAL for change in second_sources)
