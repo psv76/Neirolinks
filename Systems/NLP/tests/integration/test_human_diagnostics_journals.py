@@ -149,7 +149,7 @@ class _DocumentsService:
         )
 
 
-def test_documents_workspace_has_working_in_app_cable_journal_without_export(qtbot):
+def test_documents_workspace_has_working_in_app_cable_journal_and_excel_export(qtbot):
     widget = DocumentsWorkspace(_DocumentsService(), "project")
     qtbot.addWidget(widget)
     assert [widget.tabs.tabText(index) for index in range(widget.tabs.count())] == [
@@ -171,9 +171,9 @@ def test_documents_workspace_has_working_in_app_cable_journal_without_export(qtb
     assert all(
         branched.child(index).data(0, Qt.ItemDataRole.UserRole) == "line-10" for index in range(2)
     )
-    assert not any(
-        "экспорт" in button.text().casefold() for button in widget.findChildren(QPushButton)
-    )
+    export_button = widget.findChild(QPushButton, "cableJournalExportExcelButton")
+    assert export_button is not None
+    assert export_button.text() == "Экспорт в Excel"
 
     widget.cable_journal.search.setText("кухня")
     assert not branched.isHidden()

@@ -70,7 +70,7 @@ def _cell(ref: str, value, *, style: int = 0) -> str:
     text = "" if value is None else str(value)
     return (
         f'<c r="{ref}" t="inlineStr"{style_attr}><is><t xml:space="preserve">'
-        f'{escape(text)}</t></is></c>'
+        f"{escape(text)}</t></is></c>"
     )
 
 
@@ -102,7 +102,7 @@ def _sheet_xml(rows: list[tuple]) -> str:
         f'<col min="{index}" max="{index}" width="{width}" customWidth="1"/>'
         for index, width in enumerate((42, 20, 14, 10, 22, 18, 16, 12, 18, 18, 44), 1)
     )
-    return f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <dimension ref="A1:K{last}"/>
 <sheetViews><sheetView workbookViewId="0"><pane ySplit="2" topLeftCell="A3" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
@@ -112,7 +112,7 @@ def _sheet_xml(rows: list[tuple]) -> str:
 <mergeCells count="1"><mergeCell ref="A1:K1"/></mergeCells>
 <pageMargins left="0.25" right="0.25" top="0.5" bottom="0.5" header="0.2" footer="0.2"/>
 <pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/>
-</worksheet>'''
+</worksheet>"""
 
 
 def _write_xlsx(path: Path, rows: list[tuple]) -> None:
@@ -126,32 +126,32 @@ def _write_xlsx(path: Path, rows: list[tuple]) -> None:
         archive.writestr("xl/worksheets/sheet1.xml", _sheet_xml(rows))
 
 
-_CONTENT_TYPES = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+_CONTENT_TYPES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
 <Default Extension="xml" ContentType="application/xml"/>
 <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
 <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
 <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
-</Types>'''
+</Types>"""
 
-_ROOT_RELS = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+_ROOT_RELS = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
-</Relationships>'''
+</Relationships>"""
 
-_WORKBOOK = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+_WORKBOOK = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
 <sheets><sheet name="Спецификация" sheetId="1" r:id="rId1"/></sheets>
-</workbook>'''
+</workbook>"""
 
-_WORKBOOK_RELS = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+_WORKBOOK_RELS = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
 <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
-</Relationships>'''
+</Relationships>"""
 
-_STYLES = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+_STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <fonts count="3">
 <font><sz val="10"/><name val="Arial"/></font>
@@ -176,4 +176,4 @@ _STYLES = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xf numFmtId="1" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
 </cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
-</styleSheet>'''
+</styleSheet>"""

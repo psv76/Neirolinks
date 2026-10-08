@@ -104,7 +104,9 @@ def _bus_board_designations(engine, project_id: str) -> dict[str, str]:
             select(bus.c.id, board.c.designation)
             .select_from(bus)
             .join(instance_resource, instance_resource.c.id == bus.c.root_resource_id)
-            .join(project_instance, project_instance.c.id == instance_resource.c.project_instance_id)
+            .join(
+                project_instance, project_instance.c.id == instance_resource.c.project_instance_id
+            )
             .outerjoin(board, board.c.id == project_instance.c.board_id)
             .where(bus.c.project_id == project_id, bus.c.lifecycle == "ACTIVE")
         ).all()
@@ -123,7 +125,9 @@ def _decimal(value) -> Decimal | None:
 def _natural_key(value: str) -> tuple:
     import re
 
-    return tuple(int(part) if part.isdigit() else part.casefold() for part in re.split(r"(\d+)", value))
+    return tuple(
+        int(part) if part.isdigit() else part.casefold() for part in re.split(r"(\d+)", value)
+    )
 
 
 def _cell(ref: str, value, *, style: int = 0) -> str:
@@ -135,7 +139,7 @@ def _cell(ref: str, value, *, style: int = 0) -> str:
     text = "" if value is None else str(value)
     return (
         f'<c r="{ref}" t="inlineStr"{style_attr}><is><t xml:space="preserve">'
-        f'{escape(text)}</t></is></c>'
+        f"{escape(text)}</t></is></c>"
     )
 
 
@@ -176,9 +180,7 @@ def _journal_sheet_xml(rows: list[tuple]) -> str:
 def _summary_sheet_xml(rows: list[tuple[str, Decimal, int]]) -> str:
     headers = ("Тип кабеля", "Итого, м", "Количество линий")
     xml_rows = [
-        '<row r="1" ht="27" customHeight="1">'
-        + _cell("A1", "Итоги по кабелю", style=1)
-        + "</row>",
+        '<row r="1" ht="27" customHeight="1">' + _cell("A1", "Итоги по кабелю", style=1) + "</row>",
         '<row r="2" ht="28" customHeight="1">'
         + "".join(_cell(f"{_col_name(i)}2", value, style=2) for i, value in enumerate(headers, 1))
         + "</row>",
@@ -238,7 +240,7 @@ def _write_xlsx(path: Path, rows: list[tuple], summary_rows: list[tuple]) -> Non
         archive.writestr("xl/worksheets/sheet2.xml", _summary_sheet_xml(summary_rows))
 
 
-_CONTENT_TYPES = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+_CONTENT_TYPES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
 <Default Extension="xml" ContentType="application/xml"/>
@@ -246,29 +248,29 @@ _CONTENT_TYPES = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
 <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
 <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
-</Types>'''
+</Types>"""
 
-_ROOT_RELS = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+_ROOT_RELS = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
-</Relationships>'''
+</Relationships>"""
 
-_WORKBOOK = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+_WORKBOOK = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
 <sheets>
 <sheet name="Кабельный журнал" sheetId="1" r:id="rId1"/>
 <sheet name="Итоги по кабелю" sheetId="2" r:id="rId2"/>
 </sheets>
-</workbook>'''
+</workbook>"""
 
-_WORKBOOK_RELS = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+_WORKBOOK_RELS = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
 <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
 <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
-</Relationships>'''
+</Relationships>"""
 
-_STYLES = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+_STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <fonts count="3">
 <font><sz val="10"/><name val="Arial"/></font>
@@ -293,4 +295,4 @@ _STYLES = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xf numFmtId="1" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
 </cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
-</styleSheet>'''
+</styleSheet>"""

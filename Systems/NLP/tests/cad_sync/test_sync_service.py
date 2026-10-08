@@ -750,6 +750,11 @@ def test_cable_id_renumber_moves_memberships_and_prunes_stale_points(database):
         _socket(handle="H119", cable_id="120", gofra_id="019.PND25"),
     )
     second = service.preview(project_id=project_id, batch=second_batch)
+    for change in second.changes:
+        if change.field == "GOFRA_ID":
+            expected = "018.PND25" if change.handle == "H118" else "019.PND25"
+            assert change.baseline_value == change.project_value == change.dwg_value == expected
+            assert change.change_class is ChangeClass.EQUAL
     service.apply_dwg_to_project(second, selected_paths=_applicable(second), confirmed=True)
 
     with database.engine.connect() as connection:
@@ -796,3 +801,43 @@ def test_cable_id_renumber_moves_memberships_and_prunes_stale_points(database):
         ("119", "119", "H118"),
         ("120", "120", "H119"),
     ]
+
+
+def test_chained_rename_rejects_baseline_changed_after_preview(database):
+    project_id = _project(database)
+    service = DwgSyncService(database.engine)
+    original_batch = _batch(
+        _socket(handle="H118", cable_id="118", gofra_id="018.PND25"),
+        _socket(handle="H119", cable_id="119", gofra_id="019.PND25"),
+    )
+    initial = service.preview(project_id=project_id, batch=original_batch)
+    service.apply_dwg_to_project(initial, selected_paths=_applicable(initial), confirmed=True)
+    renamed = service.preview(
+        project_id=project_id,
+        batch=_batch(
+            _socket(handle="H118", cable_id="119", gofra_id="028.PND25"),
+            _socket(handle="H119", cable_id="120", gofra_id="019.PND25"),
+        ),
+    )
+    route = next(
+        change
+        for change in renamed.changes
+        if change.field == "GOFRA_ID" and change.handle == "H118"
+    )
+    assert route.baseline_value == "018.PND25"
+    with UnitOfWork(database.engine) as uow:
+        uow.execute(
+            update(dwg_baseline)
+            .where(dwg_baseline.c.field_path == "segment:118/118:GOFRA_ID")
+            .values(accepted_value_json="changed-after-preview")
+        )
+        uow.commit()
+    with database.engine.connect() as connection:
+        scan_count = connection.scalar(select(func.count()).select_from(dwg_scan))
+    with pytest.raises(DwgSyncError, match="Baseline changed after preview"):
+        service.apply_dwg_to_project(renamed, selected_paths=_applicable(renamed), confirmed=True)
+    with database.engine.connect() as connection:
+        assert connection.scalar(select(func.count()).select_from(dwg_scan)) == scan_count
+        assert set(connection.execute(select(cable_line.c.designation)).scalars()) == {"118", "119"}
+        fields = list(connection.execute(select(field_device.c.normalized_fields_json)).scalars())
+        assert {item["CABLE_ID"] for item in fields} == {"118", "119"}
