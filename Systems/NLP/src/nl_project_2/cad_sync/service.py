@@ -261,6 +261,7 @@ class DwgSyncService:
             renamed_base_sources = {
                 new_base: old_base for old_base, new_base in base_renames.items()
             }
+            accepted_baselines = dict(baselines)
             for fact in snapshot.facts:
                 legacy_path = _legacy_box_owner_path(
                     fact.owner_key, fact.field, devices.get(fact.primary_handle, {})
@@ -277,12 +278,10 @@ class DwgSyncService:
                         devices.get(fact.primary_handle, {}).get("CABLE_ID") or ""
                     ).strip(),
                 )
-                if (
-                    previous_path
-                    and previous_path in baselines
-                    and fact.owner_path not in baselines
-                ):
-                    baselines[fact.owner_path] = baselines[previous_path]
+                if previous_path and previous_path in accepted_baselines:
+                    # A rename chain may reuse another moving line's old path.
+                    # Resolve every alias from the immutable accepted snapshot.
+                    baselines[fact.owner_path] = accepted_baselines[previous_path]
             project_owner_values = _load_project_owner_values(
                 connection,
                 project_id=project_id,
@@ -1783,7 +1782,12 @@ class DwgSyncService:
                     .mappings()
                     .one_or_none()
                 )
-                if existing is None or existing["cable_line_id"] == target_line_id:
+                if existing is None:
+                    # Adopt an unambiguous legacy identity before stale pruning
+                    # removes its point, memberships and incoming endpoints.
+                    self._find_snapshot_point(uow, project_id, target_line_id, plan, adopt=True)
+                    continue
+                if existing["cable_line_id"] == target_line_id:
                     continue
                 maximum = uow.execute(
                     select(func.max(cable_point.c.ordinal)).where(
@@ -3911,13 +3915,25 @@ def _load_project_owner_values(
             legacy_path = _legacy_box_owner_path(
                 fact.owner_key, fact.field, devices.get(fact.primary_handle, {})
             )
+            previous_path = _previous_rename_owner_path(
+                owner_kind=fact.owner_kind,
+                owner_key=fact.owner_key,
+                field=fact.field,
+                current_owner_path=fact.owner_path,
+                renamed_base_sources=renamed_base_sources or {},
+                previous_cable_id=str(
+                    devices.get(fact.primary_handle, {}).get("CABLE_ID") or ""
+                ).strip(),
+            )
+            source_path = previous_path or fact.owner_path
             if fact.field == "CABLE_SOURCE":
-                if fact.owner_path in canonical_sources:
-                    result[fact.owner_path] = canonical_sources[fact.owner_path]
+                if source_path in canonical_sources:
+                    result[fact.owner_path] = canonical_sources[source_path]
                 elif legacy_path in canonical_sources:
                     result[fact.owner_path] = canonical_sources[legacy_path]
                 continue
-            row = segment_rows.get(fact.owner_key)
+            segment_key = previous_path.split(":")[1] if previous_path else fact.owner_key
+            row = segment_rows.get(segment_key)
             if row is None and legacy_path:
                 row = segment_rows.get(legacy_path.split(":")[1])
             if row is None:

@@ -744,8 +744,7 @@ class SpecificationService:
                     True,
                     True,
                     trace=(
-                        f"Сегмент шины {row['bus_id']}; "
-                        f"длина трубы {row['length_m_decimal']} m"
+                        f"Сегмент шины {row['bus_id']}; длина трубы {row['length_m_decimal']} m"
                     ),
                 )
             )

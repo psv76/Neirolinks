@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from nl_project_2.cad_sync import ChangeClass, build_dwg_update_plan
+from nl_project_2.cad_sync.models import SyncChange
 
 
 def _attr(tag, value):
@@ -29,11 +30,15 @@ def _change(
     structural=False,
     display_context=None,
 ):
-    return SimpleNamespace(
+    return SyncChange(
         field_path=path,
         handle=handle,
         field=field,
+        baseline_value=None,
+        project_value=None,
+        dwg_value=None,
         change_class=change_class,
+        reason="Workflow fixture",
         detail_status=detail_status,
         structural=structural,
         display_context=display_context or {},

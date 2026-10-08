@@ -77,7 +77,16 @@ def test_permanent_specification_unknown_cost_filters_navigation_and_back(qtbot,
     )
     specification.table.selectRow(target_row)
     selected_key = specification._selected_key()
-    specification._navigate()
+    # Expand the selected aggregate and follow its actual source row.
+    specification._table_item_clicked(specification.table.item(target_row, 0))
+    source_item = next(
+        specification.table.item(row, 0)
+        for row in range(specification.table.rowCount())
+        if specification.table.item(row, 0).data(Qt.ItemDataRole.UserRole + 5) == "PROJECT_INSTANCE"
+        and specification.table.item(row, 0).data(Qt.ItemDataRole.UserRole + 6)
+        == instance.instance_id
+    )
+    specification._table_item_double_clicked(source_item)
     assert workspace.section_stack.currentWidget() is workspace.equipment_workspace
     assert workspace.equipment_workspace._selected_instance_id() == instance.instance_id
     workspace._navigate_back()

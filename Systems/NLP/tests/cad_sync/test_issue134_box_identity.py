@@ -179,14 +179,14 @@ def test_selective_missing_source_is_domain_error_and_imports_no_dependency(data
         assert connection.scalar(select(func.count()).select_from(dwg_scan)) == scans
 
 
-def test_invalid_cross_line_box_source_is_domain_error_not_keyerror(database):
+def test_unaccepted_cross_line_box_source_is_domain_error_not_keyerror(database):
     pid = _project(database)
     service = DwgSyncService(database.engine)
     target = _observation(
         "SOCKET_IN", handle="S1", cable_id="112", attributes={"CABLE_SOURCE": "BOX.021"}
     )
     proposal = service.preview(project_id=pid, batch=_batch(_box(1), target))
-    with pytest.raises(DwgSyncError, match="физического порта"):
+    with pytest.raises(DwgSyncError, match=r"коробка BOX\.021.*не принята в Project"):
         service.apply_dwg_to_project(proposal, selected_paths={"S1:$"}, confirmed=True)
     with database.engine.connect() as connection:
         assert connection.scalar(select(func.count()).select_from(cable_line)) == 0
@@ -372,6 +372,13 @@ def test_legacy_single_box_identity_is_adopted_without_duplicate_or_schema_chang
         point_id = uow.execute(
             select(cable_point.c.id).where(cable_point.c.logical_identity == "BOX.021")
         ).scalar_one()
+        endpoint_ids = set(
+            uow.execute(
+                select(cable_topology_endpoint.c.id).where(
+                    cable_topology_endpoint.c.cable_point_id == point_id
+                )
+            ).scalars()
+        )
         uow.execute(
             update(cable_point).where(cable_point.c.id == point_id).values(logical_identity="111")
         )
@@ -402,6 +409,16 @@ def test_legacy_single_box_identity_is_adopted_without_duplicate_or_schema_chang
                 select(cable_point.c.id).where(cable_point.c.logical_identity == "BOX.021")
             ).scalar_one()
             == point_id
+        )
+        assert (
+            set(
+                connection.execute(
+                    select(cable_topology_endpoint.c.id).where(
+                        cable_topology_endpoint.c.cable_point_id == point_id
+                    )
+                ).scalars()
+            )
+            == endpoint_ids
         )
         assert connection.scalar(select(func.count()).select_from(cable_segment)) == 1
         assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
