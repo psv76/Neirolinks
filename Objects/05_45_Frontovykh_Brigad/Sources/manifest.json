@@ -1,0 +1,26 @@
+{
+  "object": "05 45 Фронтовых бригад",
+  "recorded_date": "2026-10-12",
+  "source_filename": "wb-webui (5).conf",
+  "source_sha256": "faa01dbfca6d15ea2fd82181d7fe0c53f7afbcbbd3b7e2a72af7cc453fbed9fe",
+  "source_bytes": 507558,
+  "export_time": null,
+  "controller_identity": null,
+  "live_verified": false,
+  "plan_source_pointer": "/dashboards/6/svg/current",
+  "plan_sha256": "a038f9592cf8b56c97e02317a7d33d643aca1d969302fe3179a7ab466bdaee20",
+  "plan_original": {},
+  "plan_params": [],
+  "counts": {
+    "dashboards": 7,
+    "widgets": 17,
+    "widget_channel_occurrences": 128,
+    "separator_cells": 28,
+    "svg_channel_occurrences": 123,
+    "unique_channels": 134,
+    "object_channels": 100,
+    "object_discrete_channels": 98,
+    "demo_service_channels": 34,
+    "enabled_svg_write_occurrences": 26
+  }
+}

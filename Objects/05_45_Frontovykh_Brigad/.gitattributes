@@ -1,0 +1,5 @@
+Sources/*.conf -text
+SVG/*.svg -text
+*.md text eol=lf
+*.json text eol=lf
+*.py text eol=lf
