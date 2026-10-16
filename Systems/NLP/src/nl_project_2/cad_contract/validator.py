@@ -1463,6 +1463,21 @@ class CadContractValidator:
                 )
             )
 
+        bus_point_handles: dict[str, list[str]] = defaultdict(list)
+        for handle, point, _source, _kind, _cable_type in facts.bus_rows:
+            bus_point_handles[point].append(handle)
+        for point, handles in sorted(bus_point_handles.items()):
+            if len(handles) > 1:
+                for handle in handles:
+                    issues.append(
+                        self._issue(
+                            "DUPLICATE_BUS_POINT_ID",
+                            (f"BUS_POINT_ID {point} duplicates at handles: {tuple(handles)}"),
+                            handle=handle,
+                            field="BUS_POINT_ID",
+                            related_handles=tuple(handles),
+                        )
+                    )
         cable_types: dict[str, set[str]] = defaultdict(set)
         for _handle, point, _source, _kind, cable_type in facts.bus_rows:
             if cable_type:

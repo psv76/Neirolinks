@@ -136,6 +136,7 @@ _VALIDATION_TITLES = {
     "CABLE_ID_FORMAT": "Некорректный CABLE_ID",
     "CABLE_GROUP_PREFIX_MISMATCH": "CABLE_ID не соответствует функциональной группе",
     "DUPLICATE_BOARD_ID": "Идентификатор щита не уникален",
+    "DUPLICATE_BUS_POINT_ID": "Duplicate RS-485/DALI BUS_POINT_ID",
     "DUPLICATE_FULL_CABLE_ID": "Полный CABLE_ID точки не уникален",
     "CONDUIT_TYPE_INCONSISTENT": "Различаются типы общей трубы",
     "CONDUIT_COLOR_INCONSISTENT": "Различаются цвета общей трубы",

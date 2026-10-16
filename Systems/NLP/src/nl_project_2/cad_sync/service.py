@@ -2577,6 +2577,13 @@ class DwgSyncService:
                 )
             )
         for designation, plans in sorted(grouped.items()):
+            # Do not rewrite a persisted bus when an unselected DWG insertion
+            # duplicates an accepted BUS_POINT_ID. All independent cable
+            # changes remain applicable; duplicate points are validator issues.
+            point_ids = [plan.point_id for plan in plans]
+            if len(point_ids) != len(set(point_ids)):
+                continue
+
             bus_row = (
                 uow.execute(
                     select(bus).where(

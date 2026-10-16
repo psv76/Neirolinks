@@ -312,3 +312,14 @@ def test_bus_cable_type_is_line_owned_and_routes_stay_independent(block_contract
     assert {fact.tag: fact.value for fact in payload.bus_route_fields}[
         "BUS_MOUNT_WAY"
     ] == "По потолку"
+
+
+def test_duplicate_bus_point_id_blocks_both_insertions(block_contract, make_observation):
+    observations = (
+        make_observation("SENSOR_MSW", handle="44A03", attributes={"BUS_POINT_ID": "906.001"}),
+        make_observation("SENSOR_MSW", handle="7E3A5", attributes={"BUS_POINT_ID": "906.001"}),
+    )
+    result = CadContractValidator(block_contract).validate(CadObservationBatch("doc", observations))
+    duplicate_issues = [issue for issue in result.issues if issue.code == "DUPLICATE_BUS_POINT_ID"]
+    assert {issue.handle for issue in duplicate_issues} == {"44A03", "7E3A5"}
+    assert all(issue.blocks_acceptance for issue in duplicate_issues)
