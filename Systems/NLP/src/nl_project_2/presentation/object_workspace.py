@@ -51,9 +51,11 @@ from nl_project_2.cad_sync import (
     atomic_line_import_groups,
     build_dwg_update_plan,
 )
+from nl_project_2.config import PathConfig
 from nl_project_2.objects.models import ProjectCard, ProjectSettings, TimeSummary
 from nl_project_2.objects.service import ObjectValidationError
 from nl_project_2.operations import OperationSnapshot
+from nl_project_2.operations.diagnostics import StructuredLogger
 
 from .automation_workspace import AutomationWorkspaceDialog
 from .background_operation import BackgroundOperationController
@@ -2025,10 +2027,27 @@ class ObjectWorkspace(QWidget):
                 working = replace(working, project_revision=working.project_revision + 1)
             except Exception as exc:
                 logging.getLogger(__name__).exception("Automatic DWG apply failed")
+                try:
+                    StructuredLogger(
+                        PathConfig.from_environment().log_root / "sync-apply.jsonl"
+                    ).record(
+                        level="ERROR",
+                        component="dwg_sync",
+                        operation="automatic_apply",
+                        result="failed",
+                        duration_ms=0,
+                        error=exc,
+                        summary={
+                            "selected_count": len(plan.import_paths),
+                            "project_revision": working.project_revision,
+                            "reason": str(exc)[:1200],
+                        },
+                    )
+                except OSError:
+                    logging.getLogger(__name__).exception("DWG apply diagnostic logging failed")
                 runtime_errors.append(
-                    _localized_sync_error(str(exc))
-                    if isinstance(exc, (BridgeError, DwgSyncError))
-                    else "Не удалось применить изменения DWG в Project."
+                    f"DWG apply failed ({type(exc).__name__}): {str(exc)[:350]}. "
+                    "See sync-apply.jsonl in local application logs."
                 )
 
         if plan.write_paths:
