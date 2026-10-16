@@ -1,5 +1,14 @@
 # Объект: 05 16 Исеть Западная 26
 
+## Актуальная работа / точка входа
+
+**[Issue #192 — 05 16 Исеть: объектовый навигатор, ПНР, все проблемы и связанные задачи](https://github.com/psv76/Neirolinks/issues/192).**
+
+Новые объектные задачи: [#193 отопление](https://github.com/psv76/Neirolinks/issues/193) · [#194 тёплый пол и ремонт 16.10.2026](https://github.com/psv76/Neirolinks/issues/194) · [#195 WB-M1W2/история](https://github.com/psv76/Neirolinks/issues/195) · [#196 WB WebUI/виртуальные устройства](https://github.com/psv76/Neirolinks/issues/196) · [#197 вентиляция](https://github.com/psv76/Neirolinks/issues/197) · [#198 Vilpe v3](https://github.com/psv76/Neirolinks/issues/198) · [#199 журнал](https://github.com/psv76/Neirolinks/issues/199) · [#200 as-built/синхронизация](https://github.com/psv76/Neirolinks/issues/200).
+
+**Важно (октябрь 2026):** состояние `main` **не соответствует** полному текущему набору HM 2.0 и WB-M1W2 на живом контроллере. Не использовать текущие файлы из GitHub для автоматического восстановления/деплоя без сверки с live snapshot. [PR #53](https://github.com/psv76/Neirolinks/pull/53) — сентябрьский незавершённый кандидат; ремонт смесителя от 16.10 отслеживается в #194 и ещё требует live-приёмки.
+
+
 **Тип объекта:** частный дом
 **Особенность:** приточный воздух подаётся через внутрипольные конвекторы без собственных вентиляторов.
 
