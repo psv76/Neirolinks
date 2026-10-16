@@ -1,0 +1,79 @@
+--- a/objects/05_16_Iset/Wirenboard/wb-rules/21_heating_floor_manager.js
++++ b/objects/05_16_Iset/Wirenboard/wb-rules/21_heating_floor_manager.js
+@@ -946,8 +946,7 @@
+ var floorPumpRequested = false, floorPumpAccepted = false;
+ var floorValveRequested = 0, floorValveAccepted = null, floorValveWriteAt = 0;
+ var floorOutputFault = false, floorOutputRestore = HC.stableGate();
+-var floorResetGate = HC.stableGate(), floorResetReady = false;
+-var floorWatch = HC.responseWatch(), floorFault = false, floorMargin = 8;
++var floorWatch = HC.responseWatch(), floorMargin = 8;
+ var floorHighSince = null, floorLowSince = null, floorAdaptAt = 0;
+ var floorControlAt = 0;
+ /* Startup нельзя наследовать как «давно работающий насос» из retained K2. */
+@@ -956,13 +955,12 @@
+     target: hc.cell("NOT_READY", "Эффективная цель подачи"),
+     phase: hc.cell("STARTUP_VALIDATION", "Регулятор"),
+     transfer: hc.cell("NOT_MONITORED", "Передача тепла"),
+-    command_status: hc.cell("OUTPUTS_DISABLED", "Команда / подтверждение control"),
+-    reset_fault: {type: "pushbutton", title: "Подтвердить проверку гидравлики"}
++    command_status: hc.cell("OUTPUTS_DISABLED", "Команда / подтверждение control")
+ }, true);
+ function floorGuard() {
+     var t = hc.num(FM_TEMP_SUPPLY, 10, 60);
+     var permitted = hc.permit("floor");
+-    var unsafe = !permitted || t === null || t >= FM_DEFAULT_HARD_MAX_C || floorFault || floorOutputFault;
++    var unsafe = !permitted || t === null || t >= FM_DEFAULT_HARD_MAX_C || floorOutputFault;
+     if (unsafe) floorPumpRequested = false;
+     floorPump = floorPumpRequested && floorPumpAccepted && hc.bool(FM_PUMP_FLOOR) === true;
+     if (!floorPump || unsafe) {
+@@ -1010,9 +1008,11 @@
+     var transfer = floorWatch(floorPump && CFG.outputsEnabled && HC.boolean(hc.read(FM_PUMP_FLOOR)) === true && hc.permit("floor") && supply !== null &&
+         supply >= sp + floorMargin && t !== null && t < sp - 1 && ratio >= 0.90,
+         t, now, CFG.response.floorWindow, CFG.response.floorRise);
+-    if (transfer === "NO_RESPONSE") floorFault = true;
+-    if (!ready || floorFault || (s && s.block_floor)) {
+-        state = "UNKNOWN"; reason = floorFault ? "HEAT_TRANSFER_FAULT_LATCHED" : "SENSOR_FAILSAFE";
++    /* Thermal trend is diagnostic, not proof of lost water flow. */
++    hc.changed("floor_response_diagnostic", "СОСТОЯНИЕ", transfer === "NO_RESPONSE" ?
++        "Недостаточный температурный отклик (диагностика)" : "Контроль нагрева: норма", {});
++    if (!ready || (s && s.block_floor)) {
++        state = "UNKNOWN"; reason = "SENSOR_FAILSAFE";
+     }
+     /* Адаптация не лишает источник спроса при холодной общей подаче. */
+     if (state === "ACTIVE" && floorPump && hc.permit("floor") && supply !== null &&
+@@ -1040,7 +1040,7 @@
+     if (floorPumpRequested && !hc.output(FM_VALVE_ENABLE, true, CFG.outputsEnabled) && CFG.outputsEnabled) floorOutputFault = true;
+     if (floorGuard() && now - floorControlAt >= FM_DEFAULT_PERIOD_S) { floorControlAt = now; fmControlStep(); }
+     var p = HC.request(state, HC.clamp(sp + floorMargin, 35, 60), "COMFORT", reason, now);
+-    p.transfer = transfer; p.fault_latched = floorFault; p.margin = floorMargin;
++    p.transfer = transfer; p.fault_latched = false; p.margin = floorMargin;
+     var required = [CFG.haHeartbeat, FM_TEMP_SUPPLY];
+     for (var zi = 0; zi < CFG.floorZones.length; zi++) { required.push(CFG.floorZones[zi].demand); required.push(CFG.floorZones[zi].water); }
+     p.commissioned = CFG.floorZones.length > 0 && hc.commissioned(required);
+@@ -1050,15 +1050,11 @@
+     p.command_status = !CFG.outputsEnabled ? "OUTPUTS_DISABLED" : floorOutputFault ? "VALVE_COMMAND_NOT_CONFIRMED" :
+         floorPumpRequested && !floorPump ? "PUMP_COMMAND_NOT_CONFIRMED" : "CONTROL_READBACK_ONLY";
+     p.pump_suppression = state === "ACTIVE" && !floorAnyReady ? "ACTUATOR_OPEN_DELAY" : p.command_status;
+-    floorResetReady = floorResetGate(t !== null && t < FM_DEFAULT_HARD_MAX_C && supply !== null &&
+-        floorDemandReason !== "INPUT_UNKNOWN" && hc.bool(FM_PUMP_FLOOR) === false &&
+-        p.valve_control_readback !== null && p.valve_control_readback <= FM_DEFAULT_WRITE_EPS_PCT,
+-        now, CFG.ttl.recovery);
+     hc.publish("heating_floor", p);
+     dev["heating_floor/command_status"] = p.command_status;
+     dev["heating_floor/target"] = String(sp);
+     dev["heating_floor/phase"] = floorPump ? fmLocal.phase : "STOPPED";
+-    dev["heating_floor/transfer"] = floorFault ? "FAULT_LATCHED" : transfer;
++    dev["heating_floor/transfer"] = transfer;
+ }
+ hc.watch(FM_TEMP_SUPPLY, function () { floorGuard(); });
+ hc.watch(FM_TEMP_SOURCE); hc.watch(FM_TEMP_OUTDOOR); hc.watch(CFG.haHeartbeat);
+@@ -1066,9 +1062,5 @@
+ for (var fi = 0; fi < CFG.floorZones.length; fi++) {
+     hc.watch(CFG.floorZones[fi].water); hc.watch(CFG.floorZones[fi].demand);
+ }
+-defineRule("hm2_floor_reset", {whenChanged: "heating_floor/reset_fault", then: function () {
+-    floorTick();
+-    if (floorResetReady) { floorFault = false; floorWatch = HC.responseWatch(); }
+-}});
+ setInterval(floorTick, CFG.ttl.tick * 1000);
+ floorTick();
