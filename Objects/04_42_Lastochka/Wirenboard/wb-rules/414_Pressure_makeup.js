@@ -367,6 +367,8 @@ function status(s, why)
         next = "Через " + settling + " с проверить давление: завершить цикл или новый импульс";
     else if (STATE.latchedFault)
         next = "Проверьте причину аварии и нажмите сброс";
+    else if (why)
+        next = "Новая подпитка запрещена до устранения причины ожидания";
     else if (cooldown > 0)
         next = "Новый цикл не раньше чем через " + cooldown + " с";
     else if (startup > 0)
@@ -574,47 +576,47 @@ defineVirtualDevice("lastochka_pressure_makeup", {
         low_confirm_left_s: { title: "Подтверждение низкого давления, с", type: "value",
             value: 0, readonly: true, order: 6 },
         start_threshold_bar: { title: "Начало подпитки, бар (<=)", type: "value",
-            value: CFG.pressureStartBar, readonly: true, order: 7 },
+            value: CFG.pressureStartBar, readonly: true, order: 14 },
         target_threshold_bar: { title: "Цель, бар (>=)", type: "value",
-            value: CFG.pressureTargetBar, readonly: true, order: 8 },
+            value: CFG.pressureTargetBar, readonly: true, order: 15 },
         pressure_bar: { title: "Давление котла (с поправкой), бар", type: "value",
-            value: 0, readonly: true, order: 1 },
+            value: 0, readonly: true, order: 10 },
         raw_pressure_bar: { title: "Давление датчика 414, бар", type: "value",
-            value: 0, readonly: true, order: 2 },
+            value: 0, readonly: true, order: 11 },
         offset_bar: { title: "Поправка датчика 414, бар", type: "value",
-            value: STATE.offsetBar, order: 3 },
+            value: STATE.offsetBar, order: 13 },
         current_ma: { title: "Ток датчика 414, мА", type: "value",
-            value: 0, readonly: true, order: 2 },
+            value: 0, readonly: true, order: 12 },
         cycle_active: { title: "Цикл подпитки", type: "switch",
-            value: false, readonly: true, order: 3 },
+            value: false, readonly: true, order: 20 },
         relay_command_on: { title: "Команда клапану ON", type: "switch",
-            value: false, readonly: true, order: 4 },
+            value: false, readonly: true, order: 21 },
         pulses: { title: "Импульсов в текущем / последнем цикле", type: "value",
-            value: 0, readonly: true, order: 5 },
+            value: 0, readonly: true, order: 22 },
         cycles_1h: { title: "Циклов за 1 час", type: "value",
-            value: 0, readonly: true, order: 6 },
+            value: 0, readonly: true, order: 23 },
         cycles_24h: { title: "Циклов за 24 часа", type: "value",
-            value: 0, readonly: true, order: 7 },
+            value: 0, readonly: true, order: 24 },
         sensor_alarm: { title: "Ошибка датчика", type: "switch",
-            value: false, readonly: true, order: 10 },
+            value: false, readonly: true, order: 30 },
         low_pressure_alarm: { title: "Низкое давление", type: "switch",
-            value: false, readonly: true, order: 11 },
+            value: false, readonly: true, order: 31 },
         alarm: { title: "Аварийная блокировка", type: "switch",
-            value: false, readonly: true, order: 12 },
+            value: false, readonly: true, order: 32 },
         fault: { title: "Причина аварии", type: "text",
-            value: "", readonly: true, order: 13 },
+            value: "", readonly: true, order: 33 },
         block_reason: { title: "Причина запрета подпитки", type: "text",
-            value: "", readonly: true, order: 14 },
+            value: "", readonly: true, order: 34 },
         last_event: { title: "Последнее событие", type: "text",
-            value: "", readonly: true, order: 15 },
+            value: "", readonly: true, order: 35 },
         enabled: { title: "Разрешить подпитку", type: "switch",
-            value: false, order: 20 },
+            value: false, order: 40 },
         auto_mode: { title: "Авторежим", type: "switch",
-            value: false, order: 21 },
+            value: false, order: 41 },
         manual_close: { title: "Остановить и заблокировать", type: "pushbutton",
-            order: 22 },
+            order: 42 },
         reset_alarm: { title: "Полный сброс: аварии, лимиты и ожидания", type: "pushbutton",
-            order: 23 }
+            order: 43 }
     }
 });
 
