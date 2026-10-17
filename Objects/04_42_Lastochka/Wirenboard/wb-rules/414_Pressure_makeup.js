@@ -561,7 +561,7 @@ function tick()
 }
 
 defineVirtualDevice("lastochka_pressure_makeup", {
-    title: "414 Подпитка отопления — Ласточка (проект)",
+    title: "414 Подпитка отопления — Ласточка",
     cells: {
         state_text: { title: "Что происходит сейчас", type: "text",
             value: "", readonly: true, order: 1 },
@@ -587,9 +587,9 @@ defineVirtualDevice("lastochka_pressure_makeup", {
             value: STATE.offsetBar, order: 13 },
         current_ma: { title: "Ток датчика 414, мА", type: "value",
             value: 0, readonly: true, order: 12 },
-        cycle_active: { title: "Цикл подпитки", type: "switch",
+        cycle_active: { title: "Идёт цикл подпитки", type: "switch",
             value: false, readonly: true, order: 20 },
-        relay_command_on: { title: "Команда клапану ON", type: "switch",
+        relay_command_on: { title: "Команда реле: открыть клапан", type: "switch",
             value: false, readonly: true, order: 21 },
         pulses: { title: "Импульсов в текущем / последнем цикле", type: "value",
             value: 0, readonly: true, order: 22 },
@@ -605,9 +605,9 @@ defineVirtualDevice("lastochka_pressure_makeup", {
             value: false, readonly: true, order: 32 },
         fault: { title: "Причина аварии", type: "text",
             value: "", readonly: true, order: 33 },
-        block_reason: { title: "Причина запрета подпитки", type: "text",
+        block_reason: { title: "Почему подпитка запрещена", type: "text",
             value: "", readonly: true, order: 34 },
-        last_event: { title: "Последнее событие", type: "text",
+        last_event: { title: "Последнее действие автоматики", type: "text",
             value: "", readonly: true, order: 35 },
         enabled: { title: "Разрешить подпитку", type: "switch",
             value: false, order: 40 },
