@@ -27,6 +27,8 @@ var CFG = {
     startupBlockMs: 60000,    // После перезапуска wb-rules.
     pulseOpenMs: 3000,
     pulsePauseMs: 20000,
+    successCooldownMs: 120000, // Пауза после успешного цикла: 2 минуты.
+    lowPressureConfirmMs: 15000, // Низкое давление устойчиво 15 секунд.
     watchdogMs: 5000,         // Предельная длительность команды ВКЛ.
     offReadbackTimeoutMs: 5000, // Ожидание обновления канала K5 после OFF.
     offRetryMs: 1000,          // Повтор OFF при ещё видимом ON.
@@ -43,6 +45,8 @@ var STATE = {
     pulse: false,
     pulseStartedAt: 0,
     pauseUntil: 0,
+    cooldownUntil: 0,
+    lowSince: 0,
     pulseCount: 0,
     pulseTimer: null,
     offRequestedAt: 0,
@@ -243,7 +247,8 @@ function finishPulse()
     commandOff("Окончание импульса");
     STATE.pulse = false;
     STATE.pauseUntil = Date.now() + CFG.pulsePauseMs;
-    event("СОСТОЯНИЕ", "Импульс завершён, пауза " +
+    event("СОСТОЯНИЕ", "Клапан выключен; импульс " + STATE.pulseCount +
+        "/" + CFG.maxPulses + " завершён, проверка давления через " +
         CFG.pulsePauseMs / 1000 + " с");
 }
 
@@ -259,7 +264,9 @@ function openPulse()
     STATE.pulse = true;
     STATE.pulseStartedAt = Date.now();
     STATE.pulseCount++;
-    event("СОСТОЯНИЕ", "Импульс " + STATE.pulseCount + "/" + CFG.maxPulses);
+    event("СОСТОЯНИЕ", "Клапан включён: импульс " + STATE.pulseCount +
+        "/" + CFG.maxPulses + " длительностью до " +
+        CFG.pulseOpenMs / 1000 + " с");
     STATE.pulseTimer = setTimeout(function () {
         finishPulse();
     }, CFG.pulseOpenMs);
@@ -283,6 +290,20 @@ function recentCycles(now)
     return { n1: n1, n24: keep.length };
 }
 
+function completeCycle(s)
+{
+    var count = STATE.pulseCount;
+    STATE.cycle = false;
+    STATE.pulse = false;
+    STATE.pauseUntil = 0;
+    STATE.lowSince = 0;
+    STATE.cooldownUntil = Date.now() + CFG.successCooldownMs;
+    event("СОСТОЯНИЕ", "Подпитка завершена: после паузы давление " +
+        rounded(s.pressure) + " бар (цель " + CFG.pressureTargetBar +
+        " бар); импульсов " + count + "; повторный запуск через " +
+        Math.round(CFG.successCooldownMs / 1000) + " с");
+}
+
 function startCycle(now)
 {
     var counts = recentCycles(now);
@@ -295,13 +316,74 @@ function startCycle(now)
     STATE.history.push(now);
     STATE.cycle = true;
     STATE.pulseCount = 0;
-    event("СОСТОЯНИЕ", "Старт цикла подпитки");
+    STATE.lowSince = 0;
+    event("СОСТОЯНИЕ", "Начата подпитка: давление <= " +
+        CFG.pressureStartBar + " бар; цель " + CFG.pressureTargetBar +
+        " бар; до " + CFG.maxPulses + " импульсов");
     openPulse();
+}
+
+function secsLeft(end, now)
+{
+    return end > now ? Math.ceil((end - now) / 1000) : 0;
 }
 
 function status(s, why)
 {
-    var counts = recentCycles(Date.now());
+    var now = Date.now();
+    var counts = recentCycles(now);
+    var phase = "";
+    var next = "";
+    var opening = STATE.pulse ? secsLeft(STATE.pulseStartedAt +
+        CFG.pulseOpenMs, now) : 0;
+    var settling = STATE.cycle && !STATE.pulse ?
+        secsLeft(STATE.pauseUntil, now) : 0;
+    var cooldown = !STATE.cycle ? secsLeft(STATE.cooldownUntil, now) : 0;
+    var startup = !STATE.cycle ? secsLeft(STATE.blockUntil, now) : 0;
+    var lowConfirm = !STATE.cycle && STATE.lowSince > 0 ?
+        secsLeft(STATE.lowSince + CFG.lowPressureConfirmMs, now) : 0;
+
+    if (STATE.latchedFault)
+        phase = "АВАРИЯ: " + STATE.latchedFault;
+    else if (why)
+        phase = "Ожидание: " + why;
+    else if (STATE.pulse)
+        phase = "Подпитка: клапан включён, импульс " +
+            STATE.pulseCount + "/" + CFG.maxPulses;
+    else if (STATE.cycle)
+        phase = "Подпитка: клапан выключен, давление стабилизируется";
+    else if (cooldown > 0)
+        phase = "Подпитка завершена; пауза до нового цикла";
+    else if (lowConfirm > 0)
+        phase = "Низкое давление: проверяю устойчивость показаний";
+    else if (startup > 0)
+        phase = "После запуска: жду разрешения автоматики";
+    else
+        phase = "Ожидание давления: клапан выключен";
+
+    if (STATE.pulse)
+        next = "Выключить клапан через " + opening + " с";
+    else if (STATE.cycle)
+        next = "Через " + settling + " с проверить давление: завершить цикл или новый импульс";
+    else if (STATE.latchedFault)
+        next = "Проверьте причину аварии и нажмите сброс";
+    else if (cooldown > 0)
+        next = "Новый цикл не раньше чем через " + cooldown + " с";
+    else if (startup > 0)
+        next = "Проверить возможность автозапуска через " + startup + " с";
+    else if (lowConfirm > 0)
+        next = "Подтвердить низкое давление через " + lowConfirm + " с";
+    else
+        next = "Жду давления <= " + CFG.pressureStartBar + " бар";
+
+    writeCell("state_text", phase);
+    writeCell("next_action", next);
+    writeCell("open_left_s", opening);
+    writeCell("pause_left_s", settling);
+    writeCell("restart_left_s", Math.max(cooldown, startup));
+    writeCell("low_confirm_left_s", lowConfirm);
+    writeCell("start_threshold_bar", CFG.pressureStartBar);
+    writeCell("target_threshold_bar", CFG.pressureTargetBar);
     writeCell("pressure_bar", rounded(s.pressure));
     writeCell("raw_pressure_bar", rounded(s.rawPressure));
     writeCell("current_ma", rounded(s.current));
@@ -435,28 +517,43 @@ function tick()
     if (STATE.pulse)
     {
         if (s.pressure >= CFG.pressureTargetBar)
-            stopCycle("Достигнута цель, подпитка прекращена");
+        {
+            // Это только предварительное показание. Окончательное решение
+            // принимает алгоритм после 20 секунд без открытия клапана.
+            finishPulse();
+            event("СОСТОЯНИЕ", "При импульсе давление поднялось до " +
+                rounded(s.pressure) +
+                " бар; клапан выключен, ожидаю стабилизацию " +
+                CFG.pulsePauseMs / 1000 + " с");
+        }
         status(s, "");
         return;
     }
 
-    if (STATE.cycle && s.pressure >= CFG.pressureTargetBar)
-    {
-        stopCycle("Достигнуто целевое давление");
-        STATE.pulseCount = 0;
-    }
-    else if (STATE.cycle)
+    if (STATE.cycle)
     {
         if (now >= STATE.pauseUntil)
         {
-            if (STATE.pulseCount >= CFG.maxPulses)
-                trip("Цель не достигнута за " + CFG.maxPulses + " импульсов");
+            if (s.pressure >= CFG.pressureTargetBar)
+                completeCycle(s);
+            else if (STATE.pulseCount >= CFG.maxPulses)
+                trip("За " + CFG.maxPulses +
+                    " импульсов не достигнуто " + CFG.pressureTargetBar +
+                    " бар; сейчас " + rounded(s.pressure) + " бар");
             else
                 openPulse();
         }
     }
     else if (s.pressure <= CFG.pressureStartBar)
-        startCycle(now);
+    {
+        if (STATE.lowSince === 0)
+            STATE.lowSince = now;
+        if (now >= STATE.cooldownUntil &&
+            now - STATE.lowSince >= CFG.lowPressureConfirmMs)
+            startCycle(now);
+    }
+    else
+        STATE.lowSince = 0;
 
     status(s, "");
 }
@@ -464,6 +561,22 @@ function tick()
 defineVirtualDevice("lastochka_pressure_makeup", {
     title: "414 Подпитка отопления — Ласточка (проект)",
     cells: {
+        state_text: { title: "Что происходит сейчас", type: "text",
+            value: "", readonly: true, order: 1 },
+        next_action: { title: "Следующее действие", type: "text",
+            value: "", readonly: true, order: 2 },
+        open_left_s: { title: "До выключения клапана, с", type: "value",
+            value: 0, readonly: true, order: 3 },
+        pause_left_s: { title: "До проверки давления, с", type: "value",
+            value: 0, readonly: true, order: 4 },
+        restart_left_s: { title: "До разрешения нового цикла, с", type: "value",
+            value: 0, readonly: true, order: 5 },
+        low_confirm_left_s: { title: "Подтверждение низкого давления, с", type: "value",
+            value: 0, readonly: true, order: 6 },
+        start_threshold_bar: { title: "Начало подпитки, бар (<=)", type: "value",
+            value: CFG.pressureStartBar, readonly: true, order: 7 },
+        target_threshold_bar: { title: "Цель, бар (>=)", type: "value",
+            value: CFG.pressureTargetBar, readonly: true, order: 8 },
         pressure_bar: { title: "Давление котла (с поправкой), бар", type: "value",
             value: 0, readonly: true, order: 1 },
         raw_pressure_bar: { title: "Давление датчика 414, бар", type: "value",
@@ -476,7 +589,7 @@ defineVirtualDevice("lastochka_pressure_makeup", {
             value: false, readonly: true, order: 3 },
         relay_command_on: { title: "Команда клапану ON", type: "switch",
             value: false, readonly: true, order: 4 },
-        pulses: { title: "Импульсов в цикле", type: "value",
+        pulses: { title: "Импульсов в текущем / последнем цикле", type: "value",
             value: 0, readonly: true, order: 5 },
         cycles_1h: { title: "Циклов за 1 час", type: "value",
             value: 0, readonly: true, order: 6 },
@@ -500,7 +613,7 @@ defineVirtualDevice("lastochka_pressure_makeup", {
             value: false, order: 21 },
         manual_close: { title: "Остановить и заблокировать", type: "pushbutton",
             order: 22 },
-        reset_alarm: { title: "Сброс аварий и блокировки", type: "pushbutton",
+        reset_alarm: { title: "Полный сброс: аварии, лимиты и ожидания", type: "pushbutton",
             order: 23 }
     }
 });
@@ -575,8 +688,13 @@ defineRule("lastochka_makeup_reset", {
         stopCycle("Сброс оператором");
         STATE.latchedFault = "";
         STATE.pulseCount = 0;
-        STATE.blockUntil = Date.now() + CFG.startupBlockMs;
-        journal("СОСТОЯНИЕ", "Аварии сброшены; задержка автозапуска");
+        STATE.blockUntil = Date.now();
+        STATE.cooldownUntil = 0;
+        STATE.lowSince = Date.now() - CFG.lowPressureConfirmMs;
+        STATE.history = [];
+        STATE.sensorAlarmReported = false;
+        journal("СОСТОЯНИЕ", "Оператор выполнил полный сброс: аварии, " +
+            "лимиты циклов, ожидания; немедленно проверяю давление и безопасность");
         tick();
     }
 });
