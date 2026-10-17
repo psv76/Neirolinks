@@ -21,12 +21,15 @@ var CFG = {
     pressureHighBar: 2.5,      // ПРЕДВАРИТЕЛЬНО; аварийная блокировка.
     currentLowMa: 3.6,        // Ниже — обрыв/ошибка.
     currentHighMa: 20.5,      // Выше — выход за нормальный диапазон.
-    sensorMismatchBar: 0.2,   // Допуск между током и пересчитанным значением.
+    // MAI2 публикует current и value раздельно, не синхронной парой.
+    // Сравнение в момент каждого MQTT-события давало ложную аварию.
     sensorFreshMs: 120000,    // При отсутствии НОВЫХ публикаций блокировать.
     startupBlockMs: 60000,    // После перезапуска wb-rules.
     pulseOpenMs: 3000,
     pulsePauseMs: 20000,
     watchdogMs: 5000,         // Предельная длительность команды ВКЛ.
+    offReadbackTimeoutMs: 5000, // Ожидание обновления канала K5 после OFF.
+    offRetryMs: 1000,          // Повтор OFF при ещё видимом ON.
     maxPulses: 5,             // На один цикл.
     maxCycles1h: 3,           // Счётчики сбрасываются при restart wb-rules.
     maxCycles24h: 6
@@ -42,6 +45,9 @@ var STATE = {
     pauseUntil: 0,
     pulseCount: 0,
     pulseTimer: null,
+    offRequestedAt: 0,
+    lastOffRetryAt: 0,
+    relayOffTimeoutReported: false,
     history: [],
     latchedFault: "",
     lastEvent: "Ожидание проверки конфигурации",
@@ -123,7 +129,6 @@ function sensor()
     var now = Date.now();
     var pRaw = raw === null ? null : raw / 1000;
     var p = pRaw === null ? null : pRaw + STATE.offsetBar;
-    var byCurrent = ma === null ? null : (ma - 4) * 6 / 16;
     var error = "";
 
     if (raw === null || ma === null)
@@ -137,9 +142,6 @@ function sensor()
         error = "Ток датчика вне диапазона: " + ma + " мА";
     else if (raw < 0 || raw > 6000)
         error = "Пересчитанное значение вне диапазона 0–6000";
-    else if (Math.abs(pRaw - byCurrent) > CFG.sensorMismatchBar)
-        error = "Расхождение тока и исходного давления: " +
-            rounded(pRaw) + " / " + rounded(byCurrent) + " бар";
     else if (p < 0 || p > 6)
         error = "Скорректированное давление вне диапазона 0–6 бар";
 
@@ -168,6 +170,10 @@ function commandOff(why)
     try
     {
         // Команда OFF — НЕ подтверждение физического закрытия клапана.
+        if (STATE.offRequestedAt === 0)
+            STATE.offRequestedAt = Date.now();
+        STATE.lastOffRetryAt = Date.now();
+        // OFF — команда в MQTT, НЕ аппаратное подтверждение закрытия.
         dev[CH.valve] = false;
         journal("КОМАНДА", "Выключить реле подпитки; канал=" +
             CH.valve + "; причина=" + why);
@@ -185,6 +191,9 @@ function commandOn()
     try
     {
         dev[CH.valve] = true;
+        STATE.offRequestedAt = 0;
+        STATE.lastOffRetryAt = 0;
+        STATE.relayOffTimeoutReported = false;
         journal("КОМАНДА", "Включить реле подпитки; канал=" +
             CH.valve + "; на=" + CFG.pulseOpenMs + " мс");
         return true;
@@ -329,11 +338,35 @@ function tick()
         }
     }
 
-    if (CFG.commissioned && CH.valve && boolOn(dev[CH.valve]) && !STATE.pulse)
+    // После команды OFF readback K5 может некоторое время показывать старое ON.
+    // Не считаем это чужой командой в течение ограниченного окна ожидания.
+    if (CFG.commissioned && CH.valve && !STATE.pulse)
     {
-        // Обнаружена чужая команда или остаточное ON после рестарта.
-        trip("Выход подпитки включён вне разрешённого импульса");
-        commandOff("Выход включён вне импульса");
+        if (boolOff(dev[CH.valve]))
+        {
+            STATE.offRequestedAt = 0;
+            STATE.lastOffRetryAt = 0;
+            STATE.relayOffTimeoutReported = false;
+        }
+        else if (boolOn(dev[CH.valve]))
+        {
+            if (STATE.offRequestedAt === 0)
+                trip("Выход подпитки включён вне разрешённого импульса");
+            else
+            {
+                if (now - STATE.lastOffRetryAt >= CFG.offRetryMs)
+                    commandOff("Повтор OFF: MQTT K5 ещё показывает ON");
+
+                if (now - STATE.offRequestedAt >= CFG.offReadbackTimeoutMs &&
+                    !STATE.relayOffTimeoutReported)
+                {
+                    STATE.relayOffTimeoutReported = true;
+                    trip("После команды OFF состояние K5 остаётся ON");
+                    journal("WATCHDOG", "OFF не подтверждён за " +
+                        CFG.offReadbackTimeoutMs + " мс; нужна проверка реле");
+                }
+            }
+        }
     }
 
     if (STATE.pulse)
@@ -375,7 +408,16 @@ function tick()
     else if (s.error)
         reason = s.error;
     else if (!boolOff(dev[CH.valve]) && !STATE.pulse)
+    {
+        if (STATE.offRequestedAt !== 0 &&
+            now - STATE.offRequestedAt < CFG.offReadbackTimeoutMs)
+        {
+            // Цикл сохраняется, следующий импульс запрещён до видимого OFF.
+            status(s, "Ожидание обновления MQTT K5 после команды OFF");
+            return;
+        }
         reason = "Нет достоверного OFF релейного выхода";
+    }
     else if (s.pressure >= CFG.pressureHighBar)
     {
         trip("Давление выше аварийного верхнего порога");
@@ -532,6 +574,7 @@ defineRule("lastochka_makeup_reset", {
             return;
         stopCycle("Сброс оператором");
         STATE.latchedFault = "";
+        STATE.pulseCount = 0;
         STATE.blockUntil = Date.now() + CFG.startupBlockMs;
         journal("СОСТОЯНИЕ", "Аварии сброшены; задержка автозапуска");
         tick();
