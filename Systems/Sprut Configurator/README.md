@@ -1,5 +1,7 @@
 # Sprut Configurator
 
+**Актуальная доступная версия: v0.3.1-dev** из Issue #22. Запуск Windows: run_v0_3_dev.bat. Зависимости: reference/v0.2.2/requirements.txt. Базовая v0.2.2 сохранена без изменений. v0.3.1-dev поддерживает YAML v2, видимость сервисов, statusVisible, мост Алисы, match_name для неоднозначных сервисов. Детали: docs/DEVELOPMENT_V0_3_0.md. Эта версия еще не проверена на Sprut 3.0 beta объекта Ласточка; первый шаг только DISCOVER. Создание MQTT-шаблонов в функции Configurator не входит.
+
 Sprut Configurator — общая разработка NEIROLINKS для воспроизводимой массовой настройки Sprut.hub по декларативному плану.
 
 Текущий зафиксированный baseline: **standalone v0.2.2**.
