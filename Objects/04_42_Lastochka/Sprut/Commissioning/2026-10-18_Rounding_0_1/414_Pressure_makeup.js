@@ -134,7 +134,9 @@ function sensor()
     var ma = numberOrNull(dev[CH.pressureCurrent]);
     var now = Date.now();
     var pRaw = raw === null ? null : raw / 1000;
-    var p = pRaw === null ? null : pRaw + STATE.offsetBar;
+    // 4 мА = 0 бар: отрицательная поправка не означает ошибку датчика.
+    // Достоверность измерения проверяется отдельно по току, raw и свежести.
+    var p = pRaw === null ? null : Math.max(0, pRaw + STATE.offsetBar);
     var error = "";
 
     if (raw === null || ma === null)
@@ -148,8 +150,8 @@ function sensor()
         error = "Ток датчика вне диапазона: " + ma + " мА";
     else if (raw < 0 || raw > 6000)
         error = "Пересчитанное значение вне диапазона 0–6000";
-    else if (p < 0 || p > 6)
-        error = "Скорректированное давление вне диапазона 0–6 бар";
+    else if (p > 6)
+        error = "Скорректированное давление выше 6 бар";
 
     return { pressure: p, rawPressure: pRaw, current: ma, error: error };
 }
