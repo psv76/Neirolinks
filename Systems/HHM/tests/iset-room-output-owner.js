@@ -7,7 +7,7 @@ var Planner=require('../../../Objects/05_16_Iset/HHM/room_output_planner');
 var Writer=require('../../../Objects/05_16_Iset/HHM/room_output_executor');
 var passed=0;
 function check(n,f){f();passed++;console.log('PASS '+n);}
-function create(){return Planner.create({map:map,openWaitMs:180000});}
+function create(){return Planner.create({map:map,openWaitMs:map.actuators.nominalOpenWaitMs});}
 function frame(t){var d={};map.zones.forEach(function(z){d[z.id]=null;});
     return {nowMs:t,bootEpoch:'bootA',demands:d,readbacks:{},
         protectionActive:false};}
@@ -36,18 +36,18 @@ check('requested cold room first asks OPEN, never starts K4 prematurely',functio
     assert.strictEqual(action(x,PUMP),undefined);
     assert.strictEqual(x.pumpAction,'HOLD');
 });
-check('newly observed open output waits full 180 seconds before pump START',function(){
+check('newly observed open output waits full 120 seconds before pump START',function(){
     var p=create(),f=frame(1000);
     f.demands.office=true;f.readbacks[OFFICE]=false;f.readbacks[PUMP]=false;
     assert.strictEqual(p.plan(f).readyZones,0);
-    f.nowMs=180999;assert.strictEqual(p.plan(f).pumpAction,'HOLD');
-    f.nowMs=181000;
+    f.nowMs=120999;assert.strictEqual(p.plan(f).pumpAction,'HOLD');
+    f.nowMs=121000;
     assert.strictEqual(action(p.plan(f),PUMP).action,'PUMP_START');
 });
 check('pump already running and demanded zone open issues no repeat start',function(){
     var p=create(),f=frame(1000);
     f.demands.office=true;f.readbacks[OFFICE]=false;f.readbacks[PUMP]=true;
-    p.plan(f);f.nowMs=181000;
+    p.plan(f);f.nowMs=121000;
     var x=p.plan(f);
     assert.strictEqual(x.pumpAction,'HOLD');
     assert.strictEqual(action(x,PUMP),undefined);
@@ -68,14 +68,14 @@ check('single room explicit OFF stops pump BEFORE closing final valve',function(
 check('switching rooms leaves old path open until new path qualifies',function(){
     var p=create(),f=frame(1000);
     f.demands.office=true;f.readbacks[OFFICE]=false;f.readbacks[PUMP]=true;
-    p.plan(f);f.nowMs=181001;p.plan(f);
+    p.plan(f);f.nowMs=121001;p.plan(f);
     f.demands.office=false;f.demands.corridor=true;
     f.readbacks[CORRIDOR]=true;
     var x=p.plan(f);
     assert.strictEqual(action(x,CORRIDOR).action,'ZONE_OPEN');
     assert.strictEqual(action(x,OFFICE),undefined);
-    f.nowMs=182000;f.readbacks[CORRIDOR]=false;p.plan(f);
-    f.nowMs=362000;x=p.plan(f);
+    f.nowMs=122000;f.readbacks[CORRIDOR]=false;p.plan(f);
+    f.nowMs=242000;x=p.plan(f);
     assert.strictEqual(action(x,OFFICE).action,'ZONE_CLOSE');
 });
 check('unknown sensor value never closes its room or turns off K4',function(){
@@ -90,7 +90,7 @@ check('one errored room cannot veto another requested ready path',function(){
     f.demands.office=false;f.demands.corridor=true;
     f.readbacks[OFFICE]=false;f.readbacks[CORRIDOR]=false;
     f.readbacks[PUMP]=true;p.plan(f);
-    f.nowMs=181000;var x=p.plan(f);
+    f.nowMs=121000;var x=p.plan(f);
     assert.strictEqual(x.readyZones,1);
     assert.strictEqual(action(x,OFFICE).action,'ZONE_CLOSE');
     assert.strictEqual(x.pumpAction,'HOLD');
@@ -101,9 +101,9 @@ check('two-actuator room needs BOTH valves open for pump permission',function(){
     f.readbacks['wb-mio-gpio_195:2/K2']=false;
     f.readbacks['wb-mio-gpio_195:2/K3']=true;
     f.readbacks[PUMP]=false;p.plan(f);
-    f.nowMs=181000;assert.strictEqual(p.plan(f).pumpAction,'HOLD');
+    f.nowMs=121000;assert.strictEqual(p.plan(f).pumpAction,'HOLD');
     f.readbacks['wb-mio-gpio_195:2/K3']=false;p.plan(f);
-    f.nowMs=361000;assert.strictEqual(p.plan(f).pumpAction,'START');
+    f.nowMs=241000;assert.strictEqual(p.plan(f).pumpAction,'START');
 });
 check('independent equipment protection stops pump, without closing NO',function(){
     var p=create(),f=frame(1000);
@@ -116,13 +116,13 @@ check('independent equipment protection stops pump, without closing NO',function
 check('restart/epoch change requires new open delay, not inherited proof',function(){
     var p=create(),f=frame(1000);
     f.demands.office=true;f.readbacks[OFFICE]=false;f.readbacks[PUMP]=false;
-    p.plan(f);f.nowMs=181000;assert.strictEqual(p.plan(f).pumpAction,'START');
+    p.plan(f);f.nowMs=121000;assert.strictEqual(p.plan(f).pumpAction,'START');
     f.bootEpoch='bootB';assert.strictEqual(p.plan(f).pumpAction,'HOLD');
 });
 check('clock rollback resets open timer rather than starting pump early',function(){
     var p=create(),f=frame(1000);
     f.demands.office=true;f.readbacks[OFFICE]=false;f.readbacks[PUMP]=false;
-    p.plan(f);f.nowMs=181000;p.plan(f);
+    p.plan(f);f.nowMs=121000;p.plan(f);
     f.nowMs=10;assert.strictEqual(p.plan(f).pumpAction,'HOLD');
 });
 check('invalid or missing demand cannot silently mean OFF',function(){
