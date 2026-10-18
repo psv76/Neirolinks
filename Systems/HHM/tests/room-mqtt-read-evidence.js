@@ -138,4 +138,57 @@ check('unchanged temperature expires after silence, no fake refresh',function(){
     assert.strictEqual(sample(m,92001).ok,false);
     assert.strictEqual(sample(m,93000).temperatureC,null);
 });
+check('retained clear does not recover from an active driver error',function(){
+    var m=setup();m.observeTemperature(frame(2000,'24'));
+    m.observeError(error(3000,true));
+    assert.strictEqual(m.observeError(error(3500,false,{retained:true})).accepted,false);
+    assert.strictEqual(m.observeTemperature(frame(4000,'24')).accepted,false);
+    m.observeError(error(4100,false,{retained:false}));
+    assert.strictEqual(m.observeTemperature(frame(4500,'24')).accepted,true);
+});
+check('missing subsequent policy proof explicitly revokes previously fresh temperature',function(){
+    var m=setup();m.observeTemperature(frame(2000,'24'));
+    assert.strictEqual(m.qualifyPolicy(null).accepted,false);
+    assert.strictEqual(sample(m,2100).ok,false);
+});
+check('read-bound MQTT sensor outage propagates HOLD without closing NO path',function(){
+    var T=require('../core/HHMRoomThermostat');
+    var Gate=require('../core/HHMRoomPathGate');
+    var map=require('../../../Objects/05_16_Iset/HHM/room_zones');
+    var store={read:function(){return {mode:'HEAT',setpointC:22,revision:1};},
+        commit:function(){return true;}};
+    var t=T.create({zoneId:'office',primarySensorId:'wb-msw-v4_22/Temperature',
+        backupSensorId:null,minSetpointC:16,maxSetpointC:30,
+        hysteresisC:0.6,minMeasuredC:-20,maxMeasuredC:60,
+        sensorFreshMs:90000,recoveryStableMs:10000,
+        recoverySamples:2,commandMaxAgeMs:20000,
+        sensorLossHoldMs:15000},store);
+    var g=Gate.create({zones:map.zones,openCommand:0,closeCommand:1,
+        openWaitMs:180000});
+    var m=setup(),demands={},outputs={},i;
+    for(i=0;i<map.zones.length;i++)demands[map.zones[i].id]=null;
+    outputs['wb-mio-gpio_195:2/K1']={valid:true,value:0,
+        bootEpoch:'wb-boot-1',acceptedOpenAtMs:1000};
+    function run(now){
+        var room=t.step({nowMs:now,primary:sample(m,now),backup:null,
+            independentSafetyOk:true,hydraulicPathReady:true,
+            fallbackAuthorized:false,fallbackHeatDemand:false});
+        demands.office=room.heatDemand;
+        var path=g.step({nowMs:now,bootEpoch:'wb-boot-1',
+            demands:demands,outputs:outputs,protectionActive:false});
+        return {room:room,path:path};
+    }
+    m.observeTemperature(frame(200000,'19'));
+    var normal=run(200050);
+    assert.strictEqual(normal.room.state,'NORMAL');
+    assert.strictEqual(normal.path.pumpStartPermitted,true);
+    var held=run(290051);
+    assert.strictEqual(held.room.state,'SENSOR_HOLD');
+    assert.strictEqual(held.path.zones.office.action,'OPEN');
+    var expired=run(306000);
+    assert.strictEqual(expired.room.heatDemand,null);
+    assert.strictEqual(expired.path.zones.office.action,'HOLD');
+    assert.strictEqual(expired.path.actuatorActions[0].desiredOutput,null);
+    assert.strictEqual(expired.path.pumpWrite,undefined);
+});
 console.log('TOTAL PASS '+count);
