@@ -21,6 +21,15 @@ var HHM_MIX=require("IsetFloorMixing");
 var HHM_MIX_CORE=require("HHM3Mixing");
 var HHM_RUN=require("IsetUnifiedRuntime");
 var HHM_PERSIST=new PersistentStorage("iset_hhm_rooms_v1",{global:true});
+function hhFloorStored(){
+    try{
+        var s=JSON.parse(HHM_PERSIST.iset_hhm_floor_cfg_v1||"null");
+        return s&&s.version===1&&typeof s.enabled==="boolean"&&
+            typeof s.targetC==="number"&&s.targetC>=20&&s.targetC<=40?
+            s:null;
+    }catch(e){return null;}
+}
+var HHM_FLOOR_SETTINGS=hhFloorStored();
 var HHM_BOOT="iset-hhm-"+String(Date.now());
 var HHM_ERRORS={},HHM_PREV={},HHM_MIX_INTENTS=[],HHM_BUSY=false;
 var HHM_ROOM=HHM_ROOMS.create({map:HHM_ROOM_MAP,Simple:HHM_SIMPLE,
@@ -97,9 +106,10 @@ function hhInput(){
     var basement=[];
     for(i=0;i<HHM_SVC.basement.sensors.length;i++)
         basement.push(hhNum(dev[HHM_SVC.basement.sensors[i]]));
-    var fEnable=hhBool(dev["iset_hhm_floor/enable"])===true;
-    var floorTarget=hhNum(dev["iset_hhm_floor/target"]);
-    if(floorTarget===null||floorTarget<20||floorTarget>40)fEnable=false;
+    var fEnable=HHM_FLOOR_SETTINGS!==null&&
+        HHM_FLOOR_SETTINGS.enabled===true;
+    var floorTarget=HHM_FLOOR_SETTINGS===null?null:
+        HHM_FLOOR_SETTINGS.targetC;
     return {nowMs:now,bootEpoch:HHM_BOOT,
         roomsFrame:{nowMs:now,bootEpoch:HHM_BOOT,
             temperatures:temperatures,sensorErrors:errors,
@@ -174,7 +184,8 @@ function hhTick(){
         hhChanged("iset_hhm/source",report.services.source.state+
             " / "+report.services.source.targetC+"°C");
         hhChanged("iset_hhm/dhw",report.services.dhw.mode+
-            " / приоритет "+hhSec(report.services.dhw.priorityRemainingS*1000));
+            " / приоритет "+hhSec(report.services.dhw.priorityRemainingS===null?
+                null:report.services.dhw.priorityRemainingS*1000));
         hhChanged("iset_hhm/k4_start_timer",
             hhSec(report.living.pumpStartRemainingMs));
         hhChanged("iset_hhm/floor_timer",
@@ -258,8 +269,11 @@ hhPumpVD(HHM_SVC.outputs.floorPump,"iset_hhm_k2","HHM ТП / K2");
 hhPumpVD(HHM_SVC.outputs.basementPump,"iset_hhm_k3","HHM Цоколь / K3");
 hhPumpVD(HHM_SVC.outputs.livingPump,"iset_hhm_k4","HHM Жилые / K4");
 var HHM_FLOOR_CELLS={
-    enable:{type:"switch",value:false,title:"ТП: локально включить"},
-    target:{type:"value",value:34,title:"ТП: целевая подача, °C"},
+    enable:{type:"switch",value:HHM_FLOOR_SETTINGS!==null&&
+        HHM_FLOOR_SETTINGS.enabled===true,title:"ТП: локально включить"},
+    target:{type:"value",value:HHM_FLOOR_SETTINGS===null?
+        34:HHM_FLOOR_SETTINGS.targetC,title:"ТП: целевая подача, °C"},
+    save:{type:"pushbutton",title:"Сохранить настройки ТП"},
     state:{type:"text",value:"OFF",readonly:true,title:"Состояние"},
     timer:{type:"text",value:"—",readonly:true,title:"Все петли"},
 };
@@ -281,6 +295,29 @@ defineVirtualDevice("iset_hhm",{title:"HHM Исеть / Общее",cells:{
     floor_state:{type:"text",value:"OFF",readonly:true,title:"ТП"},
     actions:{type:"text",value:"—",readonly:true,title:"Расчёт команд"}
 }});
+defineRule("iset_hhm_floor_save",{
+    whenChanged:"iset_hhm_floor/save",then:function(){
+        var t=hhNum(dev["iset_hhm_floor/target"]);
+        var enabled=hhBool(dev["iset_hhm_floor/enable"])===true;
+        if(t===null||t<20||t>40){
+            log.warning("[отопление][29_hhm_iset][ТП]; ОШИБКА=Недопустимая уставка");
+            return;
+        }
+        var next={version:1,enabled:enabled,targetC:t};
+        try{
+            var raw=JSON.stringify(next);
+            HHM_PERSIST.iset_hhm_floor_cfg_v1=raw;
+            if(HHM_PERSIST.iset_hhm_floor_cfg_v1!==raw)
+                throw new Error("PersistentStorage readback");
+            HHM_FLOOR_SETTINGS=next;
+            log.info("[отопление][29_hhm_iset][ТП]; НАСТРОЙКА=Сохранена; режим="+
+                enabled+"; уставка="+t);
+            hhTick();
+        }catch(e){
+            log.warning("[отопление][29_hhm_iset][ТП]; ОШИБКА=Уставка не сохранена");
+        }
+    }
+});
 for(HHM_Z=0;HHM_Z<HHM_ROOM_MAP.zones.length;HHM_Z++){
     (function(z){
         var topic="/devices/"+z.primarySensor.split("/")[0]+"/meta/error";
