@@ -146,14 +146,14 @@ class IsetDraftReleaseTests(unittest.TestCase):
         self.assertTrue(set(diagnostic["history_channels"]) <= set(channels))
 
 
-    def test_real_iset_planned_profile_pins_live_unmanaged_rules(self):
+    def test_real_iset_active_profile_pins_live_unmanaged_rules(self):
         profile = json.loads(git_blob(
             "HEAD", "Objects/05_16_Iset/controllers/AFMEUYOT.json"))
         registry = json.loads(git_blob(
             "HEAD", "Systems/NST/generated/controller-registry.json"))
         from nst.controller import validate_profile, ControllerRegistry
         validate_profile(profile, "AFMEUYOT")
-        self.assertEqual(profile["state"], "planned")
+        self.assertEqual(profile["state"], "active")
         self.assertEqual(profile["role"], "house")
         self.assertEqual(profile["components"], {"hhm": {"track": "stable"}})
         self.assertEqual(profile["diagnostics_profile"],
@@ -165,7 +165,7 @@ class IsetDraftReleaseTests(unittest.TestCase):
         identity = dict(serial="AFMEUYOT", fingerprint=None)
         context = ControllerRegistry(registry).resolve(identity)
         self.assertFalse(context["mutation_allowed"])
-        self.assertEqual(context["state"], "planned")
+        self.assertEqual(context["state"], "active")
         self.assertEqual(context["assignment"]["object"], "05_16_Iset")
         self.assertEqual(context["fingerprint_status"], "unavailable")
         matched = ControllerRegistry(registry).resolve({
@@ -173,13 +173,20 @@ class IsetDraftReleaseTests(unittest.TestCase):
             "fingerprint": {"sha256": profile["fingerprint_sha256"]},
         })
         self.assertEqual(matched["fingerprint_status"], "match")
-        self.assertFalse(matched["mutation_allowed"], "planned always blocks sync")
+        self.assertTrue(matched["mutation_allowed"], "active with matching fingerprint")
         mismatched = ControllerRegistry(registry).resolve({
             "serial": "AFMEUYOT",
             "fingerprint": {"sha256": "0" * 64},
         })
         self.assertEqual(mismatched["fingerprint_status"], "mismatch")
         self.assertFalse(mismatched["mutation_allowed"])
+        planned_registry = json.loads(json.dumps(registry))
+        planned_registry["controllers"]["AFMEUYOT"]["state"] = "planned"
+        planned = ControllerRegistry(planned_registry).resolve({
+            "serial": "AFMEUYOT",
+            "fingerprint": {"sha256": profile["fingerprint_sha256"]},
+        })
+        self.assertFalse(planned["mutation_allowed"], "planned blocks mutation")
 
     def test_deployment_inventory_refuses_unmanaged_collision_with_hhm(self):
         from nst.deployment import validate_deployment

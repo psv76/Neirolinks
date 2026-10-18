@@ -3,7 +3,7 @@
   "name": "Исеть — контроллер дома",
   "node": "house",
   "role": "house",
-  "state": "planned",
+  "state": "active",
   "capabilities": [
     "hhm"
   ],
