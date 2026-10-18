@@ -4,7 +4,7 @@
  * ВКЛЮЧАТЬ только вместо отключённых скриптов HM2 20–27.
  * Не запускать одновременно с 28_hhm_rooms_shadow.js (общие VD).
  */
-var HHM_PHYSICAL_OUTPUTS=false; // ON only in approved direct replacement
+var HHM_PHYSICAL_OUTPUTS=true; // release: install ONLY after HM2 writers retired
 var HHM_ROOM_MAP=require("IsetRoomZones");
 var HHM_SVC=require("IsetServiceConfig");
 var HHM_STORE=require("IsetRoomSettingsStore");
