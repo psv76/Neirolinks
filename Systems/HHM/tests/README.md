@@ -1,0 +1,76 @@
+# WB-local room thermostat — offline stage (#204, decisions 4–7)
+
+Implementation: `core/HHMRoomThermostat.js`, ECMAScript 5.
+
+The Wiren Board must own accepted setpoints/modes and calculate room demand
+locally. Home Assistant, Sprut, Apple HomeKit, Yandex Alice and WB WebUI
+are **untrusted user-facing transports**, not sources of final heat demand.
+This module does **not** depend on any of those services, MQTT, Node timers,
+a physical relay or a cloud connection.
+
+## Contract
+
+`create(config, durableStore)` requires `durableStore.read()` to return
+previously approved local `{mode, setpointC, revision, lastIntentId}`.
+It **refuses to commission** without valid locally persisted settings.
+`durableStore.commit(next)` must synchronously and durably return `true`
+before memory state or revision changes. An actual Wiren Board storage
+adapter with verified persistence and restart behavior is **not yet built**.
+
+`step(frame)` uses primary/backup local measurements, each with
+`{id, temperatureC, ok, observedAtMs}`. The object adapter must construct
+`observedAtMs` from an **actual fresh local health-qualified observation**.
+A constant temperature may remain valid if the WB sensor continues to
+report healthy; retained or old values may not be re-stamped artificially.
+
+The primary sensor must be object-mapped. Backup sensor is optional,
+and may be used only when its placement and physical suitability for
+the same room have been explicitly validated. Primary re-qualification
+requires distinct healthy observations, time and sample count.
+
+If neither sensor is valid, the module does **not** use the last sample
+forever and does not translate `UNKNOWN` to `OFF`. The object-specific
+controller must supply `fallbackAuthorized`, `fallbackHeatDemand`,
+`independentSafetyOk` and `hydraulicPathReady`. These are explicit
+local facts, not defaults. `FALLBACK_HEAT` / `FALLBACK_LIMITED_OFF`
+are only computed from a separate **approved bounded heating policy**.
+If unavailable: `UNVERIFIED_FALLBACK` with `heatDemand=null`.
+A true physical protection can also produce
+`INDEPENDENT_PROTECTION` and must be handled by the downstream safety
+owner. An individual unknown room does not veto unrelated healthy rooms.
+
+A user command uses `applyIntent({clientId, intentId, issuedAtMs,
+expectedRevision, retained:false, mode?, setpointC?}, nowMs)`.
+`expectedRevision` is checked against the *WB*-accepted revision.
+Retained commands, expired commands, future timestamps and old revisions
+are rejected. The actual upper-level transport must provide authenticated
+client identity, command IDs, time synchronization and access control.
+The `clientId` string alone is **not authentication**. The module's
+revision/TTL contract is a design candidate, not a claim that HA,
+HomeKit or Alice currently provide this envelope.
+
+## What is explicitly NOT done
+
+- No modification to `23_heating_living_manager.js` or physical K1–K11/K4.
+- No installation on WB, and no deletion of existing HA rules.
+- No room sensor inventing: baseline for Iset has 8 known zones and
+  11 NO actuators but **no validated autonomous room sensor IDs**.
+- No thermostat setpoints, fallback duty-cycle or heating limits chosen
+  for Iset. Test fixtures (22 °C etc.) are not approved settings.
+- No NO-actuator start delays, pump deadhead protection, PWM of reserve
+  heating or output ownership transfer is implemented here.
+- No verified `PersistentStorage` adapter or UI bridge/authorization.
+- No full HHM/NST release or physical commissioning. Separate gates.
+
+## Tests
+
+Run on a developer computer (not on WB):
+
+```sh
+node Systems/HHM/tests/room-thermostats.js
+node Systems/HHM/tests/iset-room-map.js
+```
+
+Object mapping evidence:
+`Objects/05_16_Iset/Doc/HHM_ROOM_THERMOSTATS_BASELINE_20261018.md`.
+Both tests operate only in memory; no MQTT messages or physical writes.
