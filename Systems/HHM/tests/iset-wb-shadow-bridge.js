@@ -201,7 +201,7 @@ check('K2 and K3 report independent countdowns inside same room',function(){
     m.readback('wb-mio-gpio_195:2/K2',false);
     m.readback(Map.pump,false);
     assert.strictEqual(m.room('summer_kitchen','servo_k2_timer'),'120 с');
-    assert.strictEqual(m.room('summer_kitchen','servo_k3_timer'),'Ожидание OPEN');
+    assert.strictEqual(m.room('summer_kitchen','servo_k3_timer'),'Нет данных выхода');
     m.advance(30000);m.readback('wb-mio-gpio_195:2/K3',false);
     assert.strictEqual(m.room('summer_kitchen','servo_k2_timer'),'90 с');
     assert.strictEqual(m.room('summer_kitchen','servo_k3_timer'),'120 с');
