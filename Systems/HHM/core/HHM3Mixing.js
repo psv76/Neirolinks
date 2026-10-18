@@ -572,10 +572,34 @@ function create(config, io) {
         return snapshot();
     }
 
+    // A sensor outage must not be treated as a fresh cold start.  Only
+    // temperature derivatives are stale; accepted position and motion
+    // hold/reverse-lock progress survive. No physical command is emitted.
+    function resumeAfterSensorGap(confirmedPct) {
+        var p = finiteNumber(confirmedPct, "confirmedPct");
+        if (p < 0 || p > 100)
+            throw new Error("MixingController: invalid accepted valve position");
+        state.posCmd = p;
+        state.lastAcceptedPos = p;
+        state.lastT = null;
+        state.lastTs = 0;
+        state.lastGoodSupply = null;
+        state.filterBuf = [];
+        state.badSupplyCount = 0;
+        state.lastNonBandTs = 0;
+        state.lastTWhenNonBand = null;
+        state.trendCPerMin = 0;
+        state.alarmActive = false;
+        state.alarmText = "";
+        state.status = "SENSOR_RECOVERY_POSITION_SYNC";
+        return snapshot();
+    }
+
     return {
         step: step,
         reset: reset,
-        snapshot: snapshot
+        snapshot: snapshot,
+        resumeAfterSensorGap: resumeAfterSensorGap
     };
 }
 

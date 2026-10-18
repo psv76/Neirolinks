@@ -90,9 +90,10 @@ exports.create = function (cfg) {
                     }
                     recoveryCount += 1;
                     if (i.nowMs - recoveryAt < cfg.recoveryStableMs ||
-                        recoveryCount < cfg.recoverySamples) {
+                        recoveryCount < cfg.recoverySamples ||
+                        i.acceptedValveConfirmed !== true) {
                         return output('RECOVERY_HOLD', lastAcceptedPct, false, true,
-                            'Validate stable sensor before returning to regulation');
+                            'Require stable sensor and confirmed valve command before resuming');
                     }
                     lostAt = null;
                     recoveryAt = null;
