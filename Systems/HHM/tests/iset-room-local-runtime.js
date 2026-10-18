@@ -49,6 +49,14 @@ check('invalid and foreign stored record cannot commission room',function(){
         version:1,zoneId:'corridor',mode:'HEAT',setpointC:22,revision:0});
     assert.strictEqual(create(raw).settings('office'),null);
 });
+check('out-of-range stored setpoint in one room does not veto another',function(){
+    var raw={};seed(raw,'office',100);seed(raw,'corridor',22);
+    var r=create(raw),x=f();x.temperatures.corridor=19;
+    var plan=r.step(x);
+    assert.strictEqual(plan.roomStates.office.state,'NOT_COMMISSIONED');
+    assert.strictEqual(plan.demands.corridor,true);
+    assert.strictEqual(plan.pathPlan.zones.corridor.action,'OPEN');
+});
 check('simple heat demand for only configured rooms',function(){
     var raw={};seed(raw,'office');var r=create(raw),x=f();
     x.temperatures.office=19;
