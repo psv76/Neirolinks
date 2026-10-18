@@ -19,7 +19,7 @@ def git(*args):
         ["git", "-C", str(ROOT), *args], stderr=subprocess.PIPE)
 
 
-def build(commit, output):
+def build(commit, output, physical=False):
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise ValueError("Require full immutable Git commit SHA")
     if git("rev-parse", commit + "^{commit}").decode().strip() != commit:
@@ -45,20 +45,23 @@ def build(commit, output):
             "sha256": hashlib.sha256(data).hexdigest()
         })
     main = blobs[spec["main"]["source"]].decode("utf-8")
-    if "var HHM_PHYSICAL_OUTPUTS=false;" not in main:
-        raise ValueError("Draft must NOT enable live WB physical output writing")
+    expected = "var HHM_PHYSICAL_OUTPUTS=" + ("true;" if physical else "false;")
+    if expected not in main:
+        raise ValueError("Wrong output mode: expected " + expected)
     for forbidden in ("HHMRoomMqttReadEvidence", "HHMRoomSensorEvidence",
                       "RoomSerialLoadEvidence"):
         if any(forbidden in m["source"] for m in file_entries):
             raise ValueError("Experimental sensor-attestation module in install set")
     manifest = dict(
-        schema=1, component="hhm", version="0.1.0-rc1",
+        schema=1, component="hhm",
+        version="0.1.0" if physical else "0.1.0-rc1",
         object="05_16_Iset", role="house",
         release=dict(repository="psv76/Neirolinks", commit=commit),
         files=file_entries,
         services=dict(stop=["wb-rules"], start=["wb-rules"]),
         preflight=["identity", "drift", "hhm"],
-        verify=dict(controls=[], runtime_version="0.1.0-rc1",
+        verify=dict(controls=[],
+                    runtime_version="0.1.0" if physical else "0.1.0-rc1",
                     health_contract="iset-local-v1"),
         rollback="previous-managed-release"
     )
@@ -74,13 +77,15 @@ def build(commit, output):
                 entry["sha256"] for entry in file_entries if entry["source"] == source):
             raise ValueError("Staged payload verification failed")
     encoded = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()
-    filename = "iset-hhm-house-0.1.0-rc1-DRAFT.json"
+    filename = ("iset-hhm-house-0.1.0-PHYSICAL.json" if physical
+                else "iset-hhm-house-0.1.0-rc1-DRAFT.json")
     (output / filename).write_bytes(encoded)
     (output / (filename + ".sha256")).write_text(
         hashlib.sha256(encoded).hexdigest() + "  " + filename + "\n",
         encoding="ascii"
     )
-    print("DRAFT_ONLY - NOT APPROVED; physical outputs disabled")
+    print("PRODUCTION_CANDIDATE_NOT_APPROVED" if physical
+          else "DRAFT_ONLY - NOT APPROVED; physical outputs disabled")
     print("STAGED", len(file_entries), "FILES")
     print("COMMIT", commit)
     print("MANIFEST_SHA256", hashlib.sha256(encoded).hexdigest())
@@ -92,5 +97,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--physical", action="store_true",
+                        help="Require explicitly enabled physical output source")
     args = parser.parse_args()
-    build(args.commit, args.output)
+    build(args.commit, args.output, physical=args.physical)
