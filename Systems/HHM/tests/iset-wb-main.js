@@ -302,4 +302,39 @@ check('physical WB floor at 45C commands K2 OFF independently',function(){
         return c.path==='wb-mao4_131/Channel 1 Dimming Level'&&c.value===0;
     }));
 });
+check('full WB K2 preflight drives Switch ON then waits 10s and NO 120s',function(){
+    var stored={iset_hhm_floor_cfg_v1:JSON.stringify({
+        version:1,enabled:true,targetC:34
+    })};
+    var w=boot(stored,true);
+    w.external('wb-mio-gpio_195:1/IN1',true);
+    w.external('wbe2-i-opentherm_11/Invalid Connection',false);
+    w.external('wbe2-i-opentherm_11/Boiler Fault Indication',false);
+    w.external('wbe2-i-opentherm_11/Error Code',0);
+    w.external('wbe2-i-opentherm_11/Heating Temperature',55);
+    w.external('wbe2-i-opentherm_11/Water Pressure',1.5);
+    w.external('wb-m1w2_67/External Sensor 1',30);
+    modules.IsetServiceConfig.outputs.floorLoops.forEach(function(p){
+        w.external(p,false);
+    });
+    w.external('wb-mao4_131/Channel 1 Switch',false);
+    w.external('wb-mao4_131/Channel 1 Dimming Level',1);
+    w.external('wb-mr6cu_37/K2',false);
+    var before=w.outputs.length;
+    w.step(1000);
+    assert.ok(w.outputs.slice(before).some(function(a){
+        return a.path==='wb-mao4_131/Channel 1 Switch'&&a.value===true;
+    }));
+    assert.strictEqual(w.outputs.some(function(a){
+        return a.path==='wb-mr6cu_37/K2'&&a.value===true;
+    }),false);
+    w.external('wb-mao4_131/Channel 1 Switch',true);
+    w.step(1000);
+    assert.strictEqual(w.controls['iset_hhm_floor/preflight_timer'],'10 с');
+    w.step(119000);
+    assert.ok(w.outputs.some(function(a){
+        return a.path==='wb-mr6cu_37/K2'&&a.value===true;
+    }));
+    assert.ok(w.devices.iset_hhm_k2.cells.start_timer);
+});
 console.log('TOTAL PASS '+count);
