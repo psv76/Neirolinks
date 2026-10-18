@@ -30,7 +30,8 @@ exports.create=function(c){
             paths[p]=true;
         }
     }
-    var epoch=null,lastNow=null,openAt={};
+    var epoch=null,lastNow=null,openAt={},pumpOnAt=null,
+        pumpStopAt=null,pumpPrevious=null;
     return {
         plan:function(f){
             if(!f||!time(f.nowMs)||!name(f.bootEpoch)||!f.demands||
@@ -38,15 +39,23 @@ exports.create=function(c){
                 throw new Error('Iset outputs: explicit current frame required');
             if(epoch!==f.bootEpoch||lastNow!==null&&f.nowMs<lastNow){
                 epoch=f.bootEpoch;openAt={};
+                pumpOnAt=null;pumpStopAt=null;pumpPrevious=null;
             }
             lastNow=f.nowMs;
             var actions=[],states={},requesting=0,unknown=0,off=0,ready=0;
             var pumpActual=relay(f.readbacks[c.map.pump]);
+            if(pumpActual===true){
+                if(pumpPrevious!==true)pumpOnAt=f.nowMs;
+            }else pumpOnAt=null;
+            pumpPrevious=pumpActual;
+            var pumpRunObservedMs=pumpOnAt===null?null:f.nowMs-pumpOnAt;
+            var nextReadyMs=null,anyWaitingReadback=false;
             // Build all-zone readback state before deciding which valve
             // may close while the common pump is still running.
             for(i=0;i<c.map.zones.length;i++){
                 z=c.map.zones[i];
-                var demand=f.demands[z.id],qualified=demand===true;
+                var demand=f.demands[z.id],qualified=demand===true,
+                    actuatorTimers=[],zoneRemainingMs=0,missingReadback=false;
                 if(demand!==true&&demand!==false&&demand!==null)
                     throw new Error('Iset outputs: invalid three-state demand '+z.id);
                 if(demand===true)requesting++;
@@ -58,13 +67,42 @@ exports.create=function(c){
                     if(actual===false){
                         if(openAt[p]===undefined)openAt[p]=f.nowMs;
                     }else openAt[p]=undefined;
-                    if(actual!==false||openAt[p]===undefined||
-                       f.nowMs-openAt[p]<c.openWaitMs)qualified=false;
+                    var remaining=null,elapsed=null,stage;
+                    if(actual===false&&openAt[p]!==undefined){
+                        elapsed=f.nowMs-openAt[p];
+                        remaining=Math.max(0,c.openWaitMs-elapsed);
+                    }
+                    if(demand===true){
+                        if(actual!==false){
+                            qualified=false;missingReadback=true;
+                            stage=actual===null?'READBACK_UNKNOWN':'WAIT_OPEN';
+                        }else{
+                            stage=remaining>0?'OPENING_WAIT':'READY';
+                            if(remaining>zoneRemainingMs)zoneRemainingMs=remaining;
+                            if(remaining>0)qualified=false;
+                        }
+                    }else{
+                        stage=actual===false?'OPEN_RELAY':
+                            actual===true?'CLOSED_RELAY':'READBACK_UNKNOWN';
+                    }
+                    actuatorTimers.push({path:p,relayReadback:actual,
+                        state:stage,
+                        openingRemainingMs:demand===true?remaining:null,
+                        openingObservedElapsedMs:demand===true?elapsed:null});
                 }
                 if(qualified)ready++;
+                if(demand===true){
+                    if(missingReadback)anyWaitingReadback=true;
+                    else if(nextReadyMs===null||zoneRemainingMs<nextReadyMs)
+                        nextReadyMs=zoneRemainingMs;
+                }
                 states[z.id]={demand:demand,openReady:qualified,
                     state:demand===null?'UNKNOWN':
-                        demand===false?'OFF':qualified?'READY':'OPENING'};
+                        demand===false?'OFF':qualified?'READY':'OPENING',
+                    actuators:actuatorTimers,
+                    openRemainingMs:demand===true&&!missingReadback?
+                        zoneRemainingMs:null,
+                    waitingForReadback:demand===true&&missingReadback};
             }
             // Equipment protection, unlike sensor uncertainty, may ask
             // this unique pump owner to STOP immediately.
@@ -75,6 +113,22 @@ exports.create=function(c){
             }else if(ready>0&&pumpActual!==true){
                 pumpAction='START';
             }
+            // Operator timers describe OBSERVED relay state only.
+            // No artificial pump postrun duration is invented here.
+            if(pumpAction==='STOP'&&pumpActual===true){
+                if(pumpStopAt===null)pumpStopAt=f.nowMs;
+            }else pumpStopAt=null;
+            var pumpStopPendingMs=pumpStopAt===null?
+                null:f.nowMs-pumpStopAt;
+            var pumpStartRemainingMs=pumpActual===false&&
+                requesting>0?nextReadyMs:null;
+            var pumpStatus=pumpActual===true?
+                (pumpAction==='STOP'?'STOP_PENDING':'RUNNING'):
+                pumpActual===null?'READBACK_UNKNOWN':
+                pumpAction==='START'?'START_ALLOWED':
+                requesting>0?(anyWaitingReadback&&nextReadyMs===null?
+                    'WAIT_ACTUATOR_READBACK':'WAIT_ACTUATOR_OPEN'):
+                allOff?'OFF_ALL_ROOMS':'OFF_NO_START';
             // Phase 0: remove pump power before commanding last NO CLOSE.
             if(pumpAction==='STOP')
                 actions.push({path:c.map.pump,value:false,action:'PUMP_STOP',
@@ -117,6 +171,10 @@ exports.create=function(c){
                 requestingZones:requesting,unknownZones:unknown,
                 readyZones:ready,pumpReadback:pumpActual,
                 pumpAction:pumpAction,allExplicitlyOff:allOff,
+                openWaitMs:c.openWaitMs,
+                pumpStatus:pumpStatus,pumpStartRemainingMs:pumpStartRemainingMs,
+                pumpRunObservedMs:pumpRunObservedMs,
+                pumpStopPendingMs:pumpStopPendingMs,
                 closureDeferred:!canClose&&off>0&&
                     !f.protectionActive};
         },
