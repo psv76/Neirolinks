@@ -59,7 +59,7 @@ exports.create=function(c){
         var valvePct=f.readbacks[c.outputs.floorValveLevel];
         var preflight=valveOn===true&&finite(valvePct)&&
             valvePct>=0.5&&valvePct<=1.5;
-        if(f.enabled&&!ready&&!hot){
+        if(f.enabled&&!hot){
             // MAO4 preflight: 1% means switch ON, 0 means switch OFF.
             if(!preflight){
                 actions.push({path:c.outputs.floorValveLevel,
@@ -67,7 +67,8 @@ exports.create=function(c){
             }
         }
         var pumpActual=relay(f.readbacks[c.outputs.floorPump]);
-        var pumpWanted=f.enabled&&ready&&preflight&&!stop&&
+        var pumpWanted=f.enabled&&ready&&
+            (preflight||pumpActual===true)&&!stop&&
             f.independentEquipmentProtection!==true;
         // For this component only: K2 does not wait for HA, but it
         // does wait for opening and MAO4 preflight.
