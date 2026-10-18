@@ -130,7 +130,9 @@ class DeploymentTests(unittest.TestCase):
                    return_value=tree.encode()):
             with patch("build_deployment.git_blob",
                        side_effect=lambda repo, commit, path:
-                           self.blobs[(commit, path)]):
+                           self.approvals_raw if path ==
+                           "Systems/NST/deployment/approved-components.json"
+                           else self.blobs[(commit, path)]):
                 deployment = build(Path("/fake-repo"), "ABCDE12",
                                    self.source)
         self.assertEqual(deployment["object"], "test_object")
