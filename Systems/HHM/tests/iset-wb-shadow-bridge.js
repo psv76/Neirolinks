@@ -44,7 +44,7 @@ function instantiate(settings,initial){
     function room(id,c){return values['iset_hhm_'+id+'_shadow/'+c];}
     function tick(id,v){
         var z=Map.zones.filter(function(x){return x.id===id;})[0];
-        assert.ok(z);proxy[z.primarySensor]=v;
+        assert.ok(z);values[z.primarySensor]=v; // external driver update, not a rule write
         rules[0].rule.then();
     }
     function fault(id,val){
