@@ -126,6 +126,8 @@ node Systems/HHM/tests/room-thermostats.js
 node Systems/HHM/tests/iset-room-map.js
 node Systems/HHM/tests/room-path-gate.js
 node Systems/HHM/tests/room-sensor-evidence.js
+node Systems/HHM/tests/room-mqtt-read-evidence.js
+node Systems/HHM/tests/room-serial-load-evidence.js
 ```
 
 Object mapping evidence and current room-sensor audit:
