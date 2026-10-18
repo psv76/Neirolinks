@@ -201,6 +201,17 @@ function hhPumpView(report,path,vd){
         t.readback===false?"OFF":"UNKNOWN");
     hhChanged(vd+"/run_timer",hhSec(t.observedRunMs));
     hhChanged(vd+"/stop_timer",hhSec(t.stopWaitMs));
+    var start="По запросу";
+    if(vd==="iset_hhm_k2"){
+        start=!report.floor.allLoopsReady?
+            (report.floor.remainingOpenMs===null?
+                "Ожидание открытия NO":hhSec(report.floor.remainingOpenMs)):
+            report.floor.valvePreflightRemainingMs===null?
+                "Ожидание MAO4":hhSec(report.floor.valvePreflightRemainingMs);
+    }else if(vd==="iset_hhm_k4")
+        start=report.living.pumpStartRemainingMs===null?
+            "Ожидание открытия NO":hhSec(report.living.pumpStartRemainingMs);
+    hhChanged(vd+"/start_timer",start);
 }
 function hhTick(){
     if(HHM_BUSY)return;
@@ -232,6 +243,8 @@ function hhTick(){
         hhChanged("iset_hhm/floor_timer",
             hhSec(report.floor.remainingOpenMs));
         hhChanged("iset_hhm/floor_state",report.floor.state);
+        hhChanged("iset_hhm_floor/preflight_timer",
+            hhSec(report.floor.valvePreflightRemainingMs));
         hhChanged("iset_hhm/actions",report.commands.length?
             report.commands.map(function(x){return x.action+" "+x.path;})
                 .join(", "):"Нет");
@@ -302,7 +315,9 @@ function hhPumpVD(path,name,title){
         relay:{type:"text",value:"UNKNOWN",readonly:true,title:"Реле"},
         run_timer:{type:"text",value:"—",readonly:true,title:"Работает, с"},
         stop_timer:{type:"text",value:"—",readonly:true,
-            title:"Ожидание OFF, с"}
+            title:"Ожидание OFF, с"},
+        start_timer:{type:"text",value:"—",readonly:true,
+            title:"До разрешения пуска"}
     }});
 }
 hhPumpVD(HHM_SVC.outputs.dhwPump,"iset_hhm_k1","HHM ГВС / K1");
@@ -372,6 +387,8 @@ var HHM_FLOOR_CELLS={
     save:{type:"pushbutton",title:"Сохранить настройки ТП"},
     state:{type:"text",value:"OFF",readonly:true,title:"Состояние"},
     timer:{type:"text",value:"—",readonly:true,title:"Все петли"},
+    preflight_timer:{type:"text",value:"—",readonly:true,
+        title:"MAO4 1%: подтверждение 10 с"},
 };
 for(var HHM_F=0;HHM_F<HHM_SVC.outputs.floorLoops.length;HHM_F++){
     var label=HHM_SVC.outputs.floorLoops[HHM_F].split("/")[1].toLowerCase();
