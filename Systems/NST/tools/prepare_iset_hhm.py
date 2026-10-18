@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "Systems/NST"))
 from nst.manifest import validate
 from nst.plugins import HHM, ISET_HOUSE
+from nst.releases import software_version
 
 
 def git(*args):
@@ -54,18 +55,19 @@ def build(commit, output, physical=False):
             raise ValueError("Experimental sensor-attestation module in install set")
     manifest = dict(
         schema=1, component="hhm",
-        version="0.1.0" if physical else "0.1.0-rc1",
+        version="0.1",
         object="05_16_Iset", role="house",
         release=dict(repository="psv76/Neirolinks", commit=commit),
         files=file_entries,
         services=dict(stop=["wb-rules"], start=["wb-rules"]),
         preflight=["identity", "drift", "hhm"],
         verify=dict(controls=[],
-                    runtime_version="0.1.0" if physical else "0.1.0-rc1",
+                    runtime_version="0.1",
                     health_contract="iset-local-v1"),
         rollback="previous-managed-release"
     )
     validate(manifest)
+    software_version(manifest["version"])
     HHM().validate(manifest, {})
     # No file or controller changes until EVERY input has been validated.
     output.mkdir(parents=True, exist_ok=True)
@@ -77,8 +79,8 @@ def build(commit, output, physical=False):
                 entry["sha256"] for entry in file_entries if entry["source"] == source):
             raise ValueError("Staged payload verification failed")
     encoded = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()
-    filename = ("iset-hhm-house-0.1.0-PHYSICAL.json" if physical
-                else "iset-hhm-house-0.1.0-rc1-DRAFT.json")
+    filename = ("iset-hhm-house-0.1-PHYSICAL.json" if physical
+                else "iset-hhm-house-0.1-DRAFT.json")
     (output / filename).write_bytes(encoded)
     (output / (filename + ".sha256")).write_text(
         hashlib.sha256(encoded).hexdigest() + "  " + filename + "\n",
