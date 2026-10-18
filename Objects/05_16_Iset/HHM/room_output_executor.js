@@ -52,7 +52,7 @@ exports.create=function(c){
                 return {mode:'SHADOW',written:0,wouldWrite:plan.actions.length,
                     reason:'PHYSICAL_WRITES_DISABLED'};
             if(c.exclusiveOwnershipConfirmed!==true||
-               c.commissioned!==true)
+               c.commissioned!==true||c.map.commissioned!==true)
                 return {mode:'NOT_COMMISSIONED',written:0,
                     reason:'HM2_OWNERSHIP_OR_COMMISSIONING_NOT_CONFIRMED'};
             var written=0,failures=[],item;
@@ -84,7 +84,8 @@ exports.create=function(c){
                 attempted:plan.actions.length,failed:failures};
         },
         ownership:function(){return c.mode==='PHYSICAL'&&
-            c.exclusiveOwnershipConfirmed===true&&c.commissioned===true;},
+            c.exclusiveOwnershipConfirmed===true&&c.commissioned===true&&
+            c.map.commissioned===true;},
         whitelist:function(){return Object.keys(allowed).sort();}
     };
 };
