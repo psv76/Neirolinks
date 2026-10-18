@@ -190,4 +190,24 @@ check('source does not require HA to select living and DHW heat',function(){
     assert.strictEqual(s.state,'HEAT_REQUESTED');
     assert.ok(s.desiredWrite);
 });
+check('outdoor sensor absent at startup does NOT stop cold room heat',function(){
+    var x=demand(),f=demandFrame();
+    f.outdoorC=null;
+    f.livingDemands={office:true,corridor:null};
+    var r=x.step(f);
+    assert.strictEqual(r.outdoorFallback,true);
+    assert.strictEqual(r.outdoorUsedC,0);
+    assert.strictEqual(r.grants.living,'REQUESTED');
+    assert.ok(r.sourceRequestedC!==null);
+});
+check('actual outdoor observation supersedes startup fallback',function(){
+    var x=demand(),f=demandFrame();
+    f.outdoorC=null;x.step(f);
+    f.outdoorC=-17;var r=x.step(f);
+    assert.strictEqual(r.outdoorFallback,false);
+    assert.strictEqual(r.outdoorUsedC,-17);
+    f.outdoorC=null;r=x.step(f);
+    assert.strictEqual(r.outdoorUsedC,-17);
+    assert.strictEqual(r.outdoorFallback,false);
+});
 console.log('TOTAL PASS '+done);
