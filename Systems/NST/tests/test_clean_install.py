@@ -75,6 +75,39 @@ class CleanInstallTests(unittest.TestCase):
         self.assertEqual(status['deployment_state']['status'], 'exact')
         self.assertEqual(DesiredState(restarted, self.source).check()['plan']['status'], 'exact')
 
+    def test_reviewed_unmanaged_rule_survives_clean_bootstrap_unchanged(self):
+        name = '/etc/wb-rules/independent_ventilation.js'
+        data = b'// existing independent ventilation output owner\\n'
+        path = self.engine.target(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        self.deployment['unmanaged_rules'] = {name: digest(data)}
+        result = self.sync()
+        self.assertEqual(result['final_status'], 'ok', result)
+        self.assertEqual(path.read_bytes(), data)
+        config = load_config(root=self.root)
+        self.assertEqual(config['components']['demo']['unmanaged_rules'][name],
+                         digest(data))
+
+    def test_unmanaged_rule_drift_blocks_without_services_or_writes(self):
+        name = '/etc/wb-rules/independent_ventilation.js'
+        path = self.engine.target(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'// drifted bytes')
+        self.deployment['unmanaged_rules'] = {name: digest(b'// reviewed bytes')}
+        result = self.sync()
+        self.assertEqual(result['final_status'], 'failed', result)
+        self.assertIn('Unmanaged rule absent/drifted', result['error'])
+        self.assertEqual(path.read_bytes(), b'// drifted bytes')
+        self.assertFalse(self.system.actions)
+
+    def test_unmanaged_rule_cannot_claim_managed_component_or_object(self):
+        name = self.deployment['object_files'][0]['target']
+        self.deployment['unmanaged_rules'] = {name: digest(b'unrelated')}
+        result = self.sync()
+        self.assertEqual(result['final_status'], 'failed', result)
+        self.assertFalse(self.system.actions)
+
     def test_unknown_writer_refused_before_services(self):
         p = self.engine.target('/etc/wb-rules/unknown.js')
         p.parent.mkdir(parents=True)
