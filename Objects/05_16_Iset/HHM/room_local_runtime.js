@@ -11,6 +11,18 @@ exports.create=function(o){
        typeof o.PathGate.create!=='function'||!o.storage)
         throw new Error('Iset rooms: missing explicit dependencies');
     var zones=o.map.zones,all={},stores={},room={},i,z;
+    function loadRoom(id){
+        var z=all[id],record=stores[id].read();
+        if(record===null||record.setpointC<o.minSetpointC||
+           record.setpointC>o.maxSetpointC){
+            room[id]=null;return false;
+        }
+        room[id]=o.Simple.create({zoneId:z.id,sensorId:z.primarySensor,
+            minSetpointC:o.minSetpointC,maxSetpointC:o.maxSetpointC,
+            hysteresisC:o.hysteresisC,minMeasuredC:o.minMeasuredC,
+            maxMeasuredC:o.maxMeasuredC},stores[id]);
+        return true;
+    }
     for(i=0;i<zones.length;i++){
         z=zones[i];
         if(!key(z.id)||all[z.id])throw new Error('Iset rooms: duplicate zone');
@@ -18,14 +30,7 @@ exports.create=function(o){
         stores[z.id]=o.Settings.create(o.storage,z.id);
         // Never invent initial setpoints. Invalid/missing records remain
         // NOT_COMMISSIONED until separately approved & provisioned.
-        var record=stores[z.id].read();
-        if(record!==null&&record.setpointC>=o.minSetpointC&&
-           record.setpointC<=o.maxSetpointC){
-            room[z.id]=o.Simple.create({zoneId:z.id,sensorId:z.primarySensor,
-                minSetpointC:o.minSetpointC,maxSetpointC:o.maxSetpointC,
-                hysteresisC:o.hysteresisC,minMeasuredC:o.minMeasuredC,
-                maxMeasuredC:o.maxMeasuredC},stores[z.id]);
-        }else room[z.id]=null;
+        loadRoom(z.id);
     }
     var path=o.PathGate.create({zones:zones,openCommand:0,
         closeCommand:1,openWaitMs:o.map.actuators.nominalOpenWaitMs});
@@ -35,6 +40,16 @@ exports.create=function(o){
                setpointC<o.minSetpointC||setpointC>o.maxSetpointC)
                 return null;
             return stores[zoneId].proposeInitial(mode,setpointC);
+        },
+        provisionApproved:function(zoneId,mode,setpointC){
+            if(!all[zoneId]||!numeric(setpointC)||
+               setpointC<o.minSetpointC||setpointC>o.maxSetpointC)
+                return {accepted:false,reason:'OUT_OF_RANGE_OR_UNKNOWN_ZONE'};
+            if(room[zoneId])
+                return {accepted:false,reason:'ALREADY_COMMISSIONED'};
+            if(!stores[zoneId].provisionApproved(mode,setpointC))
+                return {accepted:false,reason:'PERSISTENCE_FAILED'};
+            return {accepted:loadRoom(zoneId),reason:'APPLIED'};
         },
         applySettings:function(zoneId,cmd){
             if(!all[zoneId])return {accepted:false,reason:'UNKNOWN_ZONE'};
