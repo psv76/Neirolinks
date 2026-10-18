@@ -36,7 +36,9 @@ Unlike `device/LoadConfig`, the documented `device/Load` is an actual
 read of device channels through the driver. It adds RS-485 traffic; there is
 **no** default poll interval or permission to publish real requests in this PR.
 
-`core/HHMRoomSerialLoadEvidence.js` only PLANS a request and EVALUATES a
+`core/HHMRoomSerialLoadEvidence.js` accepts the `HHMRoomSensorEvidence`
+module through dependency injection (as in the existing HHM core), without a
+Node-specific relative `require` in production code. It only PLANS a request and EVALUATES a
 received reply. `request(now, bootEpoch)` returns `send`, `topic`, `payload`,
 `retained:false` and the exact `replyTopic`. It does not publish anything.
 The later `reply({nowMs, bootEpoch, topic, retained:false, payload})` requires:
