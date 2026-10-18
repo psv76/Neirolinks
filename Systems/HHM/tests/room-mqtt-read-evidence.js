@@ -191,4 +191,10 @@ check('read-bound MQTT sensor outage propagates HOLD without closing NO path',fu
     assert.strictEqual(expired.path.actuatorActions[0].desiredOutput,null);
     assert.strictEqual(expired.path.pumpWrite,undefined);
 });
+check('unsolicited error-clear does not downgrade fresh healthy diagnostics',function(){
+    var m=setup();m.observeTemperature(frame(2000,'24'));
+    assert.strictEqual(m.observeError(error(3000,false)).accepted,true);
+    assert.strictEqual(sample(m,3001).ok,true);
+    assert.strictEqual(sample(m,3002).reason,'FRESH_READ_BOUND_PUBLICATION');
+});
 console.log('TOTAL PASS '+count);
