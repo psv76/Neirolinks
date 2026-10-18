@@ -18,6 +18,7 @@
         "hhm"
       ],
       "diagnostics_profile": "Systems/NST/diagnostics/iset-house-hhm-v1.json",
+      "fingerprint_sha256": "a83346c0b7b329aa776e516ac40f298e37409cc9b6b51a33558502369b42d158",
       "name": "Исеть — контроллер дома",
       "node": "house",
       "object": "05_16_Iset",
