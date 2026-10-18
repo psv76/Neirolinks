@@ -40,6 +40,17 @@ exports.create=function(storage,zoneId){
                 return storage[key]===text;
             }catch(e){return false;}
         },
+        // Only an explicit WB commissioning action calls this.
+        // Existing valid records are never silently overwritten.
+        provisionApproved:function(mode,setpointC){
+            if(parse(storage[key])!==null)return false;
+            var encoded=encode({mode:mode,setpointC:setpointC,revision:0});
+            if(encoded===null)return false;
+            try{
+                storage[key]=encoded;
+                return storage[key]===encoded;
+            }catch(e){return false;}
+        },
         // Produces a candidate only: it never writes storage.
         proposeInitial:function(mode,setpointC){
             return encode({mode:mode,setpointC:setpointC,revision:0});
