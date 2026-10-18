@@ -30,6 +30,15 @@ function hhFloorStored(){
     }catch(e){return null;}
 }
 var HHM_FLOOR_SETTINGS=hhFloorStored();
+function hhBasementStored(){
+    try{
+        var n=Number(HHM_PERSIST.iset_hhm_basement_target_v1);
+        return isFinite(n)&&n>=10&&n<=30?n:null;
+    }catch(e){return null;}
+}
+var HHM_BASEMENT_TARGET=hhBasementStored();
+if(HHM_BASEMENT_TARGET!==null)
+    HHM_SVC.basement.targetC=HHM_BASEMENT_TARGET;
 var HHM_BOOT="iset-hhm-"+String(Date.now());
 var HHM_ERRORS={},HHM_PREV={},HHM_MIX_INTENTS=[],HHM_BUSY=false;
 var HHM_LAST_WRITE={};
@@ -199,6 +208,19 @@ function hhTick(){
         hhChanged("iset_hhm/dhw",report.services.dhw.mode+
             " / приоритет "+hhSec(report.services.dhw.priorityRemainingS===null?
                 null:report.services.dhw.priorityRemainingS*1000));
+        hhChanged("iset_hhm_dhw/mode",report.services.dhw.mode);
+        hhChanged("iset_hhm_dhw/priority_timer",
+            hhSec(report.services.dhw.priorityRemainingS===null?
+                null:report.services.dhw.priorityRemainingS*1000));
+        hhChanged("iset_hhm_dhw/overrun_timer",
+            hhSec(report.services.dhw.overrunRemainingS===null?
+                null:report.services.dhw.overrunRemainingS*1000));
+        hhChanged("iset_hhm_dhw/tank",report.services.dhw.state+
+            " / "+String(report.services.dhw.heatingElapsedS)+" с");
+        hhChanged("iset_hhm_basement/target_saved",
+            String(HHM_SVC.basement.targetC)+" °C");
+        hhChanged("iset_hhm_basement/demand",
+            String(report.services.requests.basementHeatDemand));
         hhChanged("iset_hhm/k4_start_timer",
             hhSec(report.living.pumpStartRemainingMs));
         hhChanged("iset_hhm/floor_timer",
@@ -281,6 +303,61 @@ hhPumpVD(HHM_SVC.outputs.dhwPump,"iset_hhm_k1","HHM ГВС / K1");
 hhPumpVD(HHM_SVC.outputs.floorPump,"iset_hhm_k2","HHM ТП / K2");
 hhPumpVD(HHM_SVC.outputs.basementPump,"iset_hhm_k3","HHM Цоколь / K3");
 hhPumpVD(HHM_SVC.outputs.livingPump,"iset_hhm_k4","HHM Жилые / K4");
+defineVirtualDevice("iset_hhm_dhw",{title:"HHM Исеть / Бойлер ГВС",
+    cells:{
+        mode:{type:"text",value:"IDLE",readonly:true,title:"Режим"},
+        tank:{type:"text",value:"—",readonly:true,title:"Состояние / нагрев"},
+        priority_timer:{type:"text",value:"—",readonly:true,
+            title:"Приоритет — осталось"},
+        overrun_timer:{type:"text",value:"—",readonly:true,
+            title:"Выбег K1 — осталось"},
+        boost:{type:"pushbutton",title:"Ускорить нагрев ГВС"},
+        reset_fault:{type:"pushbutton",title:"Сброс ошибки ГВС"}
+    }});
+defineRule("iset_hhm_dhw_boost",{whenChanged:"iset_hhm_dhw/boost",
+    then:function(){
+        HHM_COORDINATOR.boostDhw();
+        log.info("[отопление][29_hhm_iset][ГВС]; КОМАНДА=Ускоренный нагрев");
+        hhTick();
+    }});
+defineRule("iset_hhm_dhw_reset",{whenChanged:"iset_hhm_dhw/reset_fault",
+    then:function(){
+        var tank=hhNum(dev[HHM_SVC.channels.dhwTank]);
+        if(tank===null||tank>=85||
+            hhBool(dev[HHM_SVC.outputs.dhwPump])!==false){
+            log.warning("[отопление][29_hhm_iset][ГВС]; ОШИБКА=Сброс не разрешён: K1 не OFF или бойлер не проверен");
+            return;
+        }
+        HHM_COORDINATOR.resetDhwFault();
+        log.info("[отопление][29_hhm_iset][ГВС]; КОМАНДА=Сброс ошибки");
+        hhTick();
+    }});
+defineVirtualDevice("iset_hhm_basement",{title:"HHM Исеть / Цоколь",
+    cells:{
+        target_saved:{type:"text",value:String(HHM_SVC.basement.targetC)+" °C",
+            readonly:true,title:"Сохранённая уставка"},
+        target_input:{type:"value",value:HHM_SVC.basement.targetC,
+            title:"Новая уставка, °C"},
+        save:{type:"pushbutton",title:"Сохранить уставку"},
+        demand:{type:"text",value:"—",readonly:true,title:"Запрос тепла"}
+    }});
+defineRule("iset_hhm_basement_save",{whenChanged:"iset_hhm_basement/save",
+    then:function(){
+        var n=hhNum(dev["iset_hhm_basement/target_input"]);
+        if(n===null||n<10||n>30){
+            log.warning("[отопление][29_hhm_iset][цоколь]; ОШИБКА=Уставка вне 10..30 °C");
+            return;
+        }
+        var raw=String(n);
+        try{
+            HHM_PERSIST.iset_hhm_basement_target_v1=raw;
+            if(HHM_PERSIST.iset_hhm_basement_target_v1!==raw)
+                throw new Error("PersistentStorage readback");
+            HHM_SVC.basement.targetC=n;
+            log.info("[отопление][29_hhm_iset][цоколь]; НАСТРОЙКА=Уставка; значение="+raw);
+            hhTick();
+        }catch(e){log.warning("[отопление][29_hhm_iset][цоколь]; ОШИБКА=Запись уставки");}
+    }});
 var HHM_FLOOR_CELLS={
     enable:{type:"switch",value:HHM_FLOOR_SETTINGS!==null&&
         HHM_FLOOR_SETTINGS.enabled===true,title:"ТП: локально включить"},
