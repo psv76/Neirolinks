@@ -100,6 +100,7 @@ exports.create=function(c){
         return {state:!f.enabled?'OFF':stop?'HARD_SUPPLY_STOP':
                 invalidSupply?'SUPPLY_SENSOR_UNAVAILABLE':
                 hot?'HOT_PORT_CLOSED_CIRCULATION_ALLOWED':
+                pumpActual===true?'CIRCULATING':
                 !ready?'WAIT_LOOPS':!preflight?'WAIT_MAO4_PREFLIGHT':
                 !valvePreflightReady?'WAIT_MAO4_STABLE':'READY',
             loops:loops,remainingOpenMs:waiting?null:remaining,
