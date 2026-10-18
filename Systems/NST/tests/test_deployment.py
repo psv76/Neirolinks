@@ -145,6 +145,22 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(deployment["source"]["commit"], self.source)
         self.assertEqual(deployment["services"], {"stop": ["wb-rules"], "start": ["wb-rules"]})
 
+    def test_historical_controller_deployment_unchanged_when_no_unmanaged_rules(self):
+        deployment = self.build()
+        self.assertNotIn("unmanaged_rules", deployment)
+        self.assertIs(validate_deployment(deployment), deployment)
+
+    def test_iset_style_pinned_unmanaged_rules_only_if_present(self):
+        self.profile["unmanaged_rules"] = {
+            "/etc/wb-rules/independent.js": "f" * 64,
+        }
+        self.profile_raw = (json.dumps(self.profile, sort_keys=True) + "\n").encode()
+        self.blobs[(self.source, self.profile_path)] = self.profile_raw
+        deployment = self.build()
+        self.assertEqual(deployment["unmanaged_rules"],
+                         self.profile["unmanaged_rules"])
+        self.assertIs(validate_deployment(deployment), deployment)
+
     def test_missing_approved_component_blocks_publication(self):
         approvals = copy.deepcopy(self.approvals)
         for item in approvals["components"]:
