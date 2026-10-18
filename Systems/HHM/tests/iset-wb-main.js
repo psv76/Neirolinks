@@ -26,11 +26,14 @@ var source=fs.readFileSync(path.join(root,
     'Objects/05_16_Iset/Wirenboard/wb-rules/29_hhm_iset.js'),'utf8');
 var count=0;
 function check(s,fn){fn();count++;console.log('PASS '+s);}
-function boot(initialStorage,physical){
+function boot(initialStorage,physical,blockedHardwareReadbacks){
     var devices={},controls={},outputs=[],events={},timers=[],
         logs=[],now=100000,storage=initialStorage||{};
+    var blocked=blockedHardwareReadbacks||[];
     var dev=new Proxy(controls,{set:function(t,k,value){
-        outputs.push({path:k,value:value});t[k]=value;return true;
+        outputs.push({path:k,value:value});
+        if(blocked.indexOf(k)<0)t[k]=value;
+        return true;
     }});
     var ctx={dev:dev,JSON:JSON,Math:Math,
         Date:{now:function(){return now;}},
@@ -361,5 +364,37 @@ check('operator setpoint values are writable in real WB virtual-device schema',f
     assert.strictEqual(w.devices.iset_hhm_office.cells.setpoint_input.readonly,false);
     assert.strictEqual(w.devices.iset_hhm_floor.cells.target.readonly,false);
     assert.strictEqual(w.devices.iset_hhm_basement.cells.target_input.readonly,false);
+});
+check('physical MQTT write without readback raises warning after 30s, then recovers',function(){
+    var output='wb-mio-gpio_195:2/K12';
+    var w=boot({},true,[output]);
+    // The NO floor loop is locally enabled and must be commanded
+    // open, but the simulated Modbus driver ignores the write.
+    w.step(31000);
+    assert.strictEqual(w.controls['iset_hhm/io_state'],'NO_READBACK');
+    assert.strictEqual(w.controls['iset_hhm/io_unconfirmed'],1);
+    assert.ok(w.controls['iset_hhm/io_details'].indexOf(output)>=0);
+    var n=w.logs.filter(function(x){
+        return x[0]==='warning'&&
+            x[1].indexOf('Нет подтверждения MQTT')>=0;
+    }).length;
+    assert.strictEqual(n,1);
+    w.step(60000);
+    assert.strictEqual(w.logs.filter(function(x){
+        return x[0]==='warning'&&
+            x[1].indexOf('Нет подтверждения MQTT')>=0;
+    }).length,1,'no warning on every retry');
+    w.external(output,false);
+    w.step(1000);
+    assert.strictEqual(w.controls['iset_hhm/io_unconfirmed'],0);
+    assert.strictEqual(w.controls['iset_hhm/io_state'],'READBACK_OK');
+    assert.ok(w.logs.some(function(x){
+        return x[0]==='info'&&x[1].indexOf('ВОССТАНОВЛЕНИЕ')>=0;
+    }));
+});
+check('preview runtime never reports physical readback confirmation',function(){
+    var w=boot();
+    assert.strictEqual(w.controls['iset_hhm/io_state'],'PREVIEW');
+    assert.strictEqual(w.controls['iset_hhm/io_unconfirmed'],0);
 });
 console.log('TOTAL PASS '+count);
