@@ -56,7 +56,8 @@ exports.create=function(o){
             var floor=o.floorHydraulics.step({
                 nowMs:f.nowMs,bootEpoch:f.bootEpoch,
                 readbacks:output,
-                enabled:floorControl.enabled,
+                enabled:floorControl.enabled&&
+                    validNumber(floorControl.sourceRequestC),
                 localSetpointC:floorControl.targetC,
                 supplyC:f.plant.floorSupplyC,
                 independentEquipmentProtection:
