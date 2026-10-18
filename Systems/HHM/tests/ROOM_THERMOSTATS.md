@@ -1,7 +1,11 @@
 # WB-local room thermostat — offline stage (#204, decisions 4–7)
 
 Implementation: `core/HHMRoomThermostat.js`,
-`core/HHMRoomSensorEvidence.js`, and `core/HHMRoomPathGate.js`, ECMAScript 5.
+`core/HHMRoomSensorEvidence.js`, `core/HHMRoomPathGate.js`, and
+`core/HHMRoomMqttReadEvidence.js`, ECMAScript 5. The passive read-bound
+MQTT evaluator requires a separately qualified running-driver policy; the
+current Iset `max_unchanged_interval` is absent (= -1) and therefore does
+not qualify this candidate. See `tests/ROOM_MQTT_READ_EVIDENCE.md`.
 
 The Wiren Board must own accepted setpoints/modes and calculate room demand
 locally. Home Assistant, Sprut, Apple HomeKit, Yandex Alice and WB WebUI
