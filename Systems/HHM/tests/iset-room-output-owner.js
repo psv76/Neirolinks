@@ -194,4 +194,106 @@ check('repeated failed write is reported without claiming physical success',func
     assert.strictEqual(r.failed.length,1);
     assert.ok(logs[0].indexOf('ОШИБКА=')>=0);
 });
+check('Iset 120s interval is single map source of truth',function(){
+    assert.strictEqual(map.actuators.nominalOpenWaitMs,120000);
+    assert.strictEqual(create().plan(frame(1000)).openWaitMs,120000);
+});
+check('one servo opening timer counts down 120, 119, 1, 0 seconds',function(){
+    var p=create(),f=frame(1000);
+    f.demands.office=true;f.readbacks[OFFICE]=false;f.readbacks[PUMP]=false;
+    var x=p.plan(f);
+    assert.strictEqual(x.zones.office.actuators[0].openingRemainingMs,120000);
+    assert.strictEqual(x.pumpStartRemainingMs,120000);
+    f.nowMs=2000;x=p.plan(f);
+    assert.strictEqual(x.zones.office.actuators[0].openingRemainingMs,119000);
+    f.nowMs=120001;x=p.plan(f);
+    assert.strictEqual(x.zones.office.openRemainingMs,999);
+    assert.strictEqual(x.pumpAction,'HOLD');
+    f.nowMs=121000;x=p.plan(f);
+    assert.strictEqual(x.zones.office.openRemainingMs,0);
+    assert.strictEqual(x.pumpStartRemainingMs,0);
+    assert.strictEqual(x.pumpAction,'START');
+});
+check('unconfirmed OPEN never starts servo or pump countdown',function(){
+    var p=create(),f=frame(1000);
+    f.demands.office=true;f.readbacks[OFFICE]=true;f.readbacks[PUMP]=false;
+    var x=p.plan(f);
+    assert.strictEqual(x.zones.office.actuators[0].openingRemainingMs,null);
+    assert.strictEqual(x.zones.office.actuators[0].state,'WAIT_OPEN');
+    assert.strictEqual(x.pumpStartRemainingMs,null);
+    assert.strictEqual(x.pumpStatus,'WAIT_ACTUATOR_READBACK');
+});
+check('unknown actuator readback never fabricates timer or OPEN',function(){
+    var p=create(),f=frame(1000);
+    f.demands.office=true;f.readbacks[PUMP]=false;
+    var x=p.plan(f);
+    assert.strictEqual(x.zones.office.actuators[0].state,'READBACK_UNKNOWN');
+    assert.strictEqual(x.zones.office.openRemainingMs,null);
+    assert.strictEqual(x.pumpStartRemainingMs,null);
+    assert.strictEqual(x.pumpAction,'HOLD');
+});
+check('multi-servo zone shows independent countdowns, waits for slowest',function(){
+    var p=create(),f=frame(1000),a='wb-mio-gpio_195:2/K2',
+        b='wb-mio-gpio_195:2/K3';
+    f.demands.summer_kitchen=true;f.readbacks[PUMP]=false;
+    f.readbacks[a]=false;f.readbacks[b]=true;
+    p.plan(f);
+    f.nowMs=61000;f.readbacks[b]=false;
+    var x=p.plan(f);
+    assert.strictEqual(x.zones.summer_kitchen.actuators[0].openingRemainingMs,60000);
+    assert.strictEqual(x.zones.summer_kitchen.actuators[1].openingRemainingMs,120000);
+    assert.strictEqual(x.zones.summer_kitchen.openRemainingMs,120000);
+    f.nowMs=121000;x=p.plan(f);
+    assert.strictEqual(x.zones.summer_kitchen.actuators[0].openingRemainingMs,0);
+    assert.strictEqual(x.zones.summer_kitchen.actuators[1].openingRemainingMs,60000);
+    assert.strictEqual(x.pumpAction,'HOLD');
+    f.nowMs=181000;x=p.plan(f);
+    assert.strictEqual(x.pumpAction,'START');
+});
+check('pump earliest requested ready zone governs start timer',function(){
+    var p=create(),f=frame(1000);
+    f.demands.office=true;f.demands.corridor=true;f.readbacks[PUMP]=false;
+    f.readbacks[OFFICE]=false;f.readbacks[CORRIDOR]=true;
+    p.plan(f);f.nowMs=31000;f.readbacks[CORRIDOR]=false;
+    var x=p.plan(f);
+    assert.strictEqual(x.pumpStartRemainingMs,90000);
+    f.nowMs=121000;x=p.plan(f);
+    assert.strictEqual(x.pumpAction,'START');
+});
+check('pump observed RUN duration is separate from start countdown',function(){
+    var p=create(),f=frame(1000);
+    f.demands.office=true;f.readbacks[OFFICE]=false;
+    f.readbacks[PUMP]=false;p.plan(f);
+    f.nowMs=121000;p.plan(f);
+    f.nowMs=123000;f.readbacks[PUMP]=true;
+    var x=p.plan(f);
+    assert.strictEqual(x.pumpRunObservedMs,0);
+    assert.strictEqual(x.pumpStartRemainingMs,null);
+    assert.strictEqual(x.pumpStatus,'RUNNING');
+    f.nowMs=128500;x=p.plan(f);
+    assert.strictEqual(x.pumpRunObservedMs,5500);
+});
+check('pump STOP pending elapsed timer clears only after OFF readback',function(){
+    var p=create(),f=frame(1000);
+    map.zones.forEach(function(z){f.demands[z.id]=false;});
+    f.readbacks[PUMP]=true;
+    var x=p.plan(f);
+    assert.strictEqual(x.pumpStopPendingMs,0);
+    assert.strictEqual(x.pumpStatus,'STOP_PENDING');
+    f.nowMs=4000;x=p.plan(f);
+    assert.strictEqual(x.pumpStopPendingMs,3000);
+    f.nowMs=4500;f.readbacks[PUMP]=false;x=p.plan(f);
+    assert.strictEqual(x.pumpStopPendingMs,null);
+    assert.strictEqual(x.pumpRunObservedMs,null);
+    assert.strictEqual(x.pumpStatus,'OFF_ALL_ROOMS');
+});
+check('pump and servo diagnostic timers reset on WB epoch change',function(){
+    var p=create(),f=frame(1000);
+    f.demands.office=true;f.readbacks[OFFICE]=false;f.readbacks[PUMP]=true;
+    p.plan(f);f.nowMs=111000;p.plan(f);
+    f.bootEpoch='bootB';
+    var x=p.plan(f);
+    assert.strictEqual(x.zones.office.actuators[0].openingRemainingMs,120000);
+    assert.strictEqual(x.pumpRunObservedMs,0);
+});
 console.log('TOTAL PASS '+passed);
