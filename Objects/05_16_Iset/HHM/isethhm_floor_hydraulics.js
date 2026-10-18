@@ -46,6 +46,9 @@ exports.create=function(c){
                 actions.push({path:p,value:false,action:'FLOOR_LOOP_OPEN'});
         }
         var supply=finite(f.supplyC)?f.supplyC:null;
+        // Loss of FLOOR supply sensor affects only K2 (real circuit
+        // protection), never living rooms, basement K3 or DHW K1.
+        var invalidSupply=supply===null||supply<10||supply>60;
         var hot=supply!==null&&supply>=40;
         var stop=supply!==null&&supply>=45;
         if(hot){
@@ -68,11 +71,11 @@ exports.create=function(c){
         }
         var pumpActual=relay(f.readbacks[c.outputs.floorPump]);
         var pumpWanted=f.enabled&&ready&&
-            (preflight||pumpActual===true)&&!stop&&
+            (preflight||pumpActual===true)&&!stop&&!invalidSupply&&
             f.independentEquipmentProtection!==true;
         // For this component only: K2 does not wait for HA, but it
         // does wait for opening and MAO4 preflight.
-        if(stop||f.independentEquipmentProtection===true){
+        if(stop||invalidSupply||f.independentEquipmentProtection===true){
             if(pumpActual!==false)actions.push({
                 path:c.outputs.floorPump,value:false,
                 action:'FLOOR_PUMP_STOP_PROTECTION'});
@@ -84,6 +87,7 @@ exports.create=function(c){
                 action:'FLOOR_PUMP_STOP_NO_DEMAND'});
         }
         return {state:!f.enabled?'OFF':stop?'HARD_SUPPLY_STOP':
+                invalidSupply?'SUPPLY_SENSOR_UNAVAILABLE':
                 hot?'HOT_PORT_CLOSED_CIRCULATION_ALLOWED':
                 !ready?'WAIT_LOOPS':!preflight?'WAIT_MAO4_PREFLIGHT':
                 'READY',loops:loops,remainingOpenMs:waiting?null:remaining,
@@ -92,6 +96,7 @@ exports.create=function(c){
             pumpReadback:pumpActual,
             requestSupplyC:f.enabled?f.localSetpointC:null,
             hotPortClose:hot,
+            supplySensorValid:!invalidSupply,
             actions:actions,physicalWriteAllowed:false};
     }};
 };
