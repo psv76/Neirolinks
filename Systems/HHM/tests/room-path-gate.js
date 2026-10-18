@@ -29,16 +29,16 @@ pass('known heat demand alone is not a verified open path',function(){
     assert.strictEqual(r.zones.office.action,'OPEN');
     assert.strictEqual(r.zones.office.pathReady,false);
 });
-pass('correct NO readback but 179 sec old cannot start pump',function(){
+pass('correct NO readback but 119 sec old cannot start pump',function(){
     var f=frame(300000);f.demands.office=true;
     f.outputs['wb-mio-gpio_195:2/K1']={
-        valid:true,value:0,bootEpoch:'sim_boot_1',acceptedOpenAtMs:121000};
+        valid:true,value:0,bootEpoch:'sim_boot_1',acceptedOpenAtMs:181000};
     assert.strictEqual(create().step(f).pumpStartPermitted,false);
 });
-pass('readback and 180 sec accepted opening allow a pump start',function(){
+pass('readback and 120 sec accepted opening allow a pump start',function(){
     var f=frame(300000);f.demands.office=true;
     f.outputs['wb-mio-gpio_195:2/K1']={
-        valid:true,value:0,bootEpoch:'sim_boot_1',acceptedOpenAtMs:120000};
+        valid:true,value:0,bootEpoch:'sim_boot_1',acceptedOpenAtMs:180000};
     var r=create().step(f);
     assert.strictEqual(r.pumpStartPermitted,true);
     assert.strictEqual(r.zones.office.pathReady,true);
