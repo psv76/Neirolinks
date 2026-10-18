@@ -4,8 +4,33 @@
   "audit_source": "Windows backup D:\\GitHub_NEW\\_audits\\05_16_Iset\\2026-10-18_baseline\\wb-rules",
   "inventory_date": "2026-10-18",
   "not_live_registration": true,
-  "policy": "Preserve unless independently reviewed; this file is NOT an approved NST manifest",
+  "policy": "Preserve non-HHM rules AND old shared helper modules pending dependency review. Baseline audit, not approved NST registration. Never delete WBHelpers while Email_service/notifications/watchdog depend on it.",
   "files": [
+    {
+      "target": "/etc/wb-rules-modules/HeatingCommon.js",
+      "sha256": "0de0010cf391651fbc14592df0f0d96d88b1d4f2b08bfae1f801d5db897e0692",
+      "classification": "REVIEW_RETAIN"
+    },
+    {
+      "target": "/etc/wb-rules-modules/HeatingConfig.js",
+      "sha256": "e359ed02bc87394e57cf59589d18f2fbbc237192d8c2aba84ac286678be5edf1",
+      "classification": "REVIEW_RETAIN"
+    },
+    {
+      "target": "/etc/wb-rules-modules/WBHelpers.js",
+      "sha256": "98866e1000910e6966698d1177c7007981d03e572bd2e1cf732ae299d6ac70ec",
+      "classification": "PRESERVE"
+    },
+    {
+      "target": "/etc/wb-rules/30_floor_status_ru.js",
+      "sha256": "173047c45b5d1eb3352f83e6a0e2e4be384fa4b423324d60374d6c0be200fb14",
+      "classification": "REVIEW_RETAIN"
+    },
+    {
+      "target": "/etc/wb-rules/90_iset_m1w2_diagnostic.js",
+      "sha256": "2e97502972c0d1a16c010776b055b670460618a97ddecf126c6b4a924afedf0d",
+      "classification": "REVIEW_RETAIN"
+    },
     {
       "target": "/etc/wb-rules/AHU_preheat_pump_manager.js",
       "sha256": "ff0e70edb486a84aff48c5f3c0b2c40db417b4a88224c14f0a07b0851dbd59d3",
@@ -22,8 +47,18 @@
       "classification": "PRESERVE"
     },
     {
+      "target": "/etc/wb-rules/Floor_performance_monitor.js",
+      "sha256": "207aa0e16f448610c1ea921e90b4cd65c4cdffe66f9a56966b906fdb0ad937fe",
+      "classification": "REVIEW_RETAIN"
+    },
+    {
       "target": "/etc/wb-rules/Heating_notifications.js",
       "sha256": "9d91b8533edf3ccde47f9629d17c3450e05d575b6a8b323c4f69a3bb0acc8156",
+      "classification": "REVIEW_RETAIN"
+    },
+    {
+      "target": "/etc/wb-rules/Heating_watchdog.js",
+      "sha256": "db0f0fe30e0eb56a269de6f457877ce3919b2d9c174b37da09cbde2b6c733ca1",
       "classification": "REVIEW_RETAIN"
     },
     {
@@ -42,34 +77,14 @@
       "classification": "PRESERVE"
     },
     {
-      "target": "/etc/wb-rules/Vilpe_control_v3.js",
-      "sha256": "d54f505855d4f948b6033d652cf67280869f0dbe656f4a04a209f55c78ce967c",
-      "classification": "PRESERVE"
-    },
-    {
       "target": "/etc/wb-rules/rules.js",
       "sha256": "146c0fcdd728cef04eff74d72fbbfdd27ebab05a15e9e09951b517e24d96a0c0",
       "classification": "PRESERVE"
     },
     {
-      "target": "/etc/wb-rules/30_floor_status_ru.js",
-      "sha256": "173047c45b5d1eb3352f83e6a0e2e4be384fa4b423324d60374d6c0be200fb14",
-      "classification": "REVIEW_RETAIN"
-    },
-    {
-      "target": "/etc/wb-rules/90_iset_m1w2_diagnostic.js",
-      "sha256": "2e97502972c0d1a16c010776b055b670460618a97ddecf126c6b4a924afedf0d",
-      "classification": "REVIEW_RETAIN"
-    },
-    {
-      "target": "/etc/wb-rules/Floor_performance_monitor.js",
-      "sha256": "207aa0e16f448610c1ea921e90b4cd65c4cdffe66f9a56966b906fdb0ad937fe",
-      "classification": "REVIEW_RETAIN"
-    },
-    {
-      "target": "/etc/wb-rules/Heating_watchdog.js",
-      "sha256": "db0f0fe30e0eb56a269de6f457877ce3919b2d9c174b37da09cbde2b6c733ca1",
-      "classification": "REVIEW_RETAIN"
+      "target": "/etc/wb-rules/Vilpe_control_v3.js",
+      "sha256": "d54f505855d4f948b6033d652cf67280869f0dbe656f4a04a209f55c78ce967c",
+      "classification": "PRESERVE"
     }
   ]
 }
