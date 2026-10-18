@@ -57,7 +57,7 @@ function command(result,path){
 }
 test('every command must fit the as-built physical channel allowlist',function(){
     var x=make(),f=frame(100000),r=x.step(f),allowed=x.allowedTargets();
-    assert.strictEqual(allowed.length,20);
+    assert.strictEqual(allowed.length,23); // 4 pumps + 16 NO + 2 MAO4 + OT11
     r.commands.forEach(function(c){
         assert.ok(allowed.indexOf(c.path)>=0,c.path);
     });
