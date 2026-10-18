@@ -114,3 +114,17 @@ operator diagnostics, not additional safety interlocks or physical
 movement measurements. There is no approved K4 postrun interval;
 never invent a countdown for it. Other HHM pumps require verified
 object mappings before creating analogous timer fields.
+
+## Видимые таймеры новой HHM
+
+Новая выдержка открытия NO — 120 с, текущий HM2 остаётся на 180 с.
+Каждая комнатная панель показывает отдельные servo_kN_timer для
+каждого из 11 приводов, плюс общий opening_timer зоны. Общая панель
+K4 показывает три разных времени: до возможного пуска, наблюдаемой
+работы ON и ожидания readback OFF после расчётного STOP. Цикл 1 с.
+
+Все таймеры оценивают наблюдаемое состояние релейных выходов и
+расчёт новой HHM. Это не доказательство механического положения
+сервопривода, гидравлического протока или выполнения рассчитанной
+физической команды. Для остальных насосов будущей HHM действует
+тот же принцип визуализации после проверки их реальных каналов.
