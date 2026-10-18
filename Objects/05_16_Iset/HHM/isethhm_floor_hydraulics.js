@@ -16,7 +16,8 @@ exports.create=function(c){
        c.outputs.floorLoops.length!==5||
        c.actuatorOpenWaitMs!==120000)
         throw new Error('Iset floor preflight: as-built K12..K16 / 120s required');
-    var seen={},i,p,when={},epoch=null,lastMs=null,hotAt=null;
+    var seen={},i,p,when={},epoch=null,lastMs=null,hotAt=null,
+        valvePreflightSince=null;
     for(i=0;i<c.outputs.floorLoops.length;i++){
         p=c.outputs.floorLoops[i];
         if(!p||seen[p])throw new Error('Iset floor preflight: duplicate output');
@@ -28,6 +29,7 @@ exports.create=function(c){
             throw new Error('Iset floor preflight: explicit local input');
         if(epoch!==f.bootEpoch||lastMs!==null&&f.nowMs<lastMs){
             epoch=f.bootEpoch;when={};hotAt=null;
+            valvePreflightSince=null;
         }
         lastMs=f.nowMs;
         var actions=[],loops=[],ready=true,remaining=0,waiting=false;
@@ -62,16 +64,25 @@ exports.create=function(c){
         var valvePct=f.readbacks[c.outputs.floorValveLevel];
         var preflight=valveOn===true&&finite(valvePct)&&
             valvePct>=0.5&&valvePct<=1.5;
+        if(preflight&&f.enabled&&!hot&&!stop&&!invalidSupply){
+            if(valvePreflightSince===null)valvePreflightSince=f.nowMs;
+        }else valvePreflightSince=null;
+        var valvePreflightRemainingMs=valvePreflightSince===null?null:
+            Math.max(0,10000-(f.nowMs-valvePreflightSince));
+        var valvePreflightReady=valvePreflightRemainingMs===0;
         if(f.enabled&&!hot&&relay(f.readbacks[c.outputs.floorPump])!==true){
-            // MAO4 preflight: 1% means switch ON, 0 means switch OFF.
-            if(!preflight){
+            // Real MAO4: Switch ON forces minimum 1%. Both readbacks
+            // must be confirmed stable for 10s before K2 can start.
+            if(valveOn!==true)
+                actions.push({path:c.outputs.floorValveEnable,value:true,
+                    action:'FLOOR_VALVE_ENABLE'});
+            if(!finite(valvePct)||valvePct<0.5||valvePct>1.5)
                 actions.push({path:c.outputs.floorValveLevel,
                     value:1,action:'FLOOR_VALVE_PREFLIGHT'});
-            }
         }
         var pumpActual=relay(f.readbacks[c.outputs.floorPump]);
         var pumpWanted=f.enabled&&ready&&
-            (preflight||pumpActual===true)&&!stop&&!invalidSupply&&
+            (valvePreflightReady||pumpActual===true)&&!stop&&!invalidSupply&&
             f.independentEquipmentProtection!==true;
         // For this component only: K2 does not wait for HA, but it
         // does wait for opening and MAO4 preflight.
@@ -90,8 +101,10 @@ exports.create=function(c){
                 invalidSupply?'SUPPLY_SENSOR_UNAVAILABLE':
                 hot?'HOT_PORT_CLOSED_CIRCULATION_ALLOWED':
                 !ready?'WAIT_LOOPS':!preflight?'WAIT_MAO4_PREFLIGHT':
-                'READY',loops:loops,remainingOpenMs:waiting?null:remaining,
+                !valvePreflightReady?'WAIT_MAO4_STABLE':'READY',
+            loops:loops,remainingOpenMs:waiting?null:remaining,
             allLoopsReady:ready,preflightReadbackOk:preflight,
+            valvePreflightRemainingMs:valvePreflightRemainingMs,
             pumpWanted:pumpWanted,
             pumpReadback:pumpActual,
             requestSupplyC:f.enabled?f.localSetpointC:null,
