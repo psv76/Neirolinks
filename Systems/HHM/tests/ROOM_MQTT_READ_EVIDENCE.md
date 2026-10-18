@@ -1,3 +1,9 @@
+> **ЭКСПЕРИМЕНТ, НЕ ПРИМЕНЯТЬ НА ИСЕТИ (решение 18.10.2026).**
+> Разработка пассивной проверки достоверности прекращена для объекта
+> 05 16 Исеть. Оставлена лишь исследовательская реализация/тесты.
+> НЕ изменять `wb-mqtt-serial.conf` ради этой функции.
+> Актуальная простая политика: `Objects/05_16_Iset/Doc/HHM_ROOM_SIMPLE_POLICY.md`.
+
 # HHM #204 / Iset: passive read-bound WB-MSW MQTT health (PR #206)
 
 **Status: OFFLINE/DRAFT. Does not modify live Wiren Board, driver configuration,
