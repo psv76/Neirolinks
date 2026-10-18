@@ -9,11 +9,11 @@ function create(){return Load.create({sensorId:'wb-msw-v4_22/Temperature',
     portPath:'/dev/ttyRS485-2',baudRate:9600,parity:'N',dataBits:8,stopBits:2,
     temperatureTopic:'/devices/wb-msw-v4_22/controls/Temperature',
     channel:'Temperature',clientPrefix:'hhm_2056_test_boot_unique',
-    minC:-20,maxC:60,replyTimeoutMs:5000,freshMs:30000,maxSequence:100},Evidence);}
+    minC:-20,maxC:60,replyTimeoutMs:5000,minProbeGapMs:500,freshMs:30000,maxSequence:100},Evidence);}
 function success(request,value,id){return {nowMs:1100,bootEpoch:'A',topic:request.replyTopic,
     retained:false,payload:JSON.stringify({id:id||1,error:null,
         result:{channels:{Temperature:value}}})};}
-function warm(){var x=create(),r=x.request(1000,'A');return {x:x,r:r};}
+function warm(){var x=create(),r=x.request(1000,'A',true);return {x:x,r:r};}
 check('unprobed sensor is UNKNOWN',function(){assert.strictEqual(create().sample(1,'A').ok,false);});
 check('read-only request has exact Load topic and one Temperature channel',function(){
     var p=warm().r;
@@ -30,7 +30,7 @@ check('successful direct driver read qualifies fresh local sample',function(){
 });
 check('constant temperatures are healthy only after a second direct read',function(){
     var v=warm();v.x.reply(success(v.r,24));
-    var r=v.x.request(20000,'A'),reply=success(r,24,2);reply.nowMs=20050;
+    var r=v.x.request(20000,'A',true),reply=success(r,24,2);reply.nowMs=20050;
     assert.strictEqual(v.x.reply(reply).accepted,true);
     assert.strictEqual(v.x.sample(50000,'A').ok,true);
 });
@@ -62,14 +62,14 @@ check('same reply cannot be replayed as successful poll',function(){
     assert.strictEqual(v.x.snapshot().nextSequence,1);
 });
 check('pending request prevents duplicate bus load',function(){
-    var v=warm();assert.strictEqual(v.x.request(1100,'A').send,false);
+    var v=warm();assert.strictEqual(v.x.request(1100,'A',true).send,false);
     assert.strictEqual(v.x.snapshot().nextSequence,1);
 });
 check('timeout revokes prior health and permits a new unique request',function(){
     var v=warm();v.x.reply(success(v.r,23));
-    var r2=v.x.request(2000,'A');
+    var r2=v.x.request(2000,'A',true);
     assert.strictEqual(v.x.sample(7001,'A').ok,false);
-    var r3=v.x.request(7002,'A');
+    var r3=v.x.request(7002,'A',true);
     assert.strictEqual(r3.send,true);
     assert.notStrictEqual(r2.replyTopic,r3.replyTopic);
     var late=success(r2,99);late.nowMs=7050;
@@ -79,7 +79,7 @@ check('timeout revokes prior health and permits a new unique request',function()
 });
 check('failed driver RPC revokes previous reading',function(){
     var v=warm();v.x.reply(success(v.r,24));
-    var r=v.x.request(2000,'A'),bad=success(r,24,2);bad.nowMs=2100;
+    var r=v.x.request(2000,'A',true),bad=success(r,24,2);bad.nowMs=2100;
     bad.payload=JSON.stringify({id:2,error:{code:-32000},result:null});
     assert.strictEqual(v.x.reply(bad).accepted,false);
     assert.strictEqual(v.x.sample(2101,'A').ok,false);
@@ -112,7 +112,7 @@ check('non-numeric string temperature rejected',function(){
 check('new boot discards request and previous reading',function(){
     var v=warm();v.x.reply(success(v.r,23));
     assert.strictEqual(v.x.sample(1500,'B').ok,false);
-    var r=v.x.request(1600,'B');
+    var r=v.x.request(1600,'B',true);
     assert.strictEqual(r.send,true);
     var old=success(v.r,26);old.nowMs=1650;
     assert.strictEqual(v.x.reply(old).accepted,false);
@@ -121,11 +121,11 @@ check('new boot discards request and previous reading',function(){
 });
 check('clock rewind rejects request and revokes sample',function(){
     var v=warm();v.x.reply(success(v.r,23));
-    assert.strictEqual(v.x.request(1000,'A').send,false);
+    assert.strictEqual(v.x.request(1000,'A',true).send,false);
     assert.strictEqual(v.x.sample(1001,'A').ok,false);
 });
 check('timed-out first reply cannot be mistaken for second',function(){
-    var v=warm(),r2=v.x.request(6002,'A');
+    var v=warm(),r2=v.x.request(6002,'A',true);
     assert.strictEqual(r2.send,true);
     var stale=success(v.r,21);stale.nowMs=6050;
     assert.strictEqual(v.x.reply(stale).accepted,false);
@@ -133,11 +133,11 @@ check('timed-out first reply cannot be mistaken for second',function(){
 });
 check('request sequence exhausted fail-closed',function(){
     var v=create(),i,r;for(i=0;i<100;i++){
-        r=v.request(i*100,'A');assert.strictEqual(r.send,true);
-        var fail=success(r,20,i+1);fail.nowMs=i*100+1;
+        r=v.request(i*500,'A',true);assert.strictEqual(r.send,true);
+        var fail=success(r,20,i+1);fail.nowMs=i*500+1;
         v.reply(fail);
     }
-    assert.strictEqual(v.request(10100,'A').send,false);
+    assert.strictEqual(v.request(10100,'A',true).send,false);
 });
 check('rejects unsafe or incomplete configuration',function(){
     assert.throws(function(){Load.create({deviceId:'wb-msw-v4_22'},Evidence);},/RPC configuration/);
@@ -158,11 +158,31 @@ check('wrong port metadata and missing slave id fail configuration',function(){
         slaveId:22,portPath:'/dev/ttyRS485-2',baudRate:9600,parity:'N',
         dataBits:8,stopBits:2,temperatureTopic:'/devices/wb-msw-v4_22/controls/Temperature',
         channel:'Temperature',clientPrefix:'hhm_2056_test_boot_unique',
-        minC:-20,maxC:60,replyTimeoutMs:5000,freshMs:30000,maxSequence:100};
+        minC:-20,maxC:60,replyTimeoutMs:5000,minProbeGapMs:500,freshMs:30000,maxSequence:100};
     c.portPath='/tmp/serial2';
     assert.throws(function(){Load.create(c,Evidence);},/RPC configuration/);
     c.portPath='/dev/ttyRS485-2';c.slaveId=null;
     assert.throws(function(){Load.create(c,Evidence);},/RPC configuration/);
+});
+check('probe is denied by default even if called by an eager poll loop',function(){
+    var x=create();
+    assert.strictEqual(x.request(1000,'A').reason,'PROBE_NOT_AUTHORIZED');
+    assert.strictEqual(x.request(1000,'A',false).send,false);
+    assert.strictEqual(x.snapshot().nextSequence,0);
+    assert.strictEqual(x.request(1000,'A',true).send,true);
+});
+check('post-success cooldown prevents repeated probe requests',function(){
+    var x=warm();
+    x.x.reply(success(x.r,22));
+    assert.strictEqual(x.x.request(1101,'A',true).reason,'PROBE_RATE_LIMITED');
+    assert.strictEqual(x.x.snapshot().nextSequence,1);
+    assert.strictEqual(x.x.request(1500,'A',true).send,true);
+});
+check('new boot resets only local pacing, still needs explicit probe grant',function(){
+    var x=warm(),y=x.x.sample(1100,'B');
+    assert.strictEqual(y.ok,false);
+    assert.strictEqual(x.x.request(1101,'B').reason,'PROBE_NOT_AUTHORIZED');
+    assert.strictEqual(x.x.request(1102,'B',true).send,true);
 });
 check('requires injected WB-compatible evidence dependency',function(){
     assert.throws(function(){Load.create({});},/injected evidence module/);
