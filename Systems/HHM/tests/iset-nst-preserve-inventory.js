@@ -10,7 +10,7 @@ test('inventory is explicitly not an approved NST registration',function(){
 });
 test('every preserved file is only a complete /etc/wb-rules JS name',function(){
     m.files.forEach(function(f){
-        assert.ok(/^\/etc\/wb-rules\/[A-Za-z0-9_-]+\.js$/.test(f.target),f.target);
+        assert.ok(/^\/etc\/wb-rules(?:-modules)?\/[A-Za-z0-9_-]+\.js$/.test(f.target),f.target);
         assert.ok(/^[0-9a-f]{64}$/.test(f.sha256),f.target);
     });
 });
