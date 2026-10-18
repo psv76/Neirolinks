@@ -59,7 +59,7 @@ exports.create=function(c){
         var valvePct=f.readbacks[c.outputs.floorValveLevel];
         var preflight=valveOn===true&&finite(valvePct)&&
             valvePct>=0.5&&valvePct<=1.5;
-        if(f.enabled&&!hot){
+        if(f.enabled&&!hot&&relay(f.readbacks[c.outputs.floorPump])!==true){
             // MAO4 preflight: 1% means switch ON, 0 means switch OFF.
             if(!preflight){
                 actions.push({path:c.outputs.floorValveLevel,
