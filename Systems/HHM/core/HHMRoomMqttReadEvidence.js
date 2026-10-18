@@ -81,7 +81,7 @@ exports.create=function(c){
             if(e.errorActive){
                 errorAt=e.receivedAtMs;clearAt=null;
                 invalidate('DRIVER_REPORTED_ERROR');
-            }else{
+            }else if(errorAt!==null){
                 clearAt=e.receivedAtMs;
                 reason='AWAIT_FRESH_TEMPERATURE_AFTER_CLEAR';
             }
