@@ -1,0 +1,32 @@
+# Исеть · установленная версия HHM и кандидат NST
+
+## Фактически подтверждённое live, 19 октября 2026, 01:44 +05
+
+Контроллер Wiren Board: `AFMEUYOT` (hardware serial прочитан из `/var/lib/wirenboard/short_sn.conf`). Аппаратный fingerprint NST сохранён в `Objects/05_16_Iset/controllers/AFMEUYOT.json`. Текущее отопление работает локально, HA не является обязательным для HHM.
+
+После ручного вывода HM2 20–27 и вспомогательных правил в активном `/etc/wb-rules/` установлен **физический** `29_hhm_iset.js` из коммита `ec1c546485e12c0c020a9fb8ec9dd0954b557ed3`. 15 модулей HHM при первом запуске сверены по SHA256; у `IsetDemand.js` исправление K3. Физические команды `HHM_PHYSICAL_OUTPUTS=true`. Это зафиксированный **исторический исходный выпуск 0.1.0**, не текущий кандидат 0.1.
+
+Реальные показания MQTT на 01:44 (+05), без внешних команд:
+- `wb-mr6cu_37/K1=0` (ГВС насос OFF);
+- `K2=1` (ТП насос ON), `K3=1` (цоколь насос ON), `K4=1` (жилой насос ON);
+- `wb-mao4_131/Channel 1 Dimming Level=39%`;
+- `wb-m1w2_67/External Sensor 1=31°C` при цели ТП 32°C;
+- `wb-m1w2_67/External Sensor 2=50.8°C` (бойлер ГВС), режим `IDLE`;
+- OpenTherm Heating Setpoint 51°C, Heating Temperature 62°C, Water Pressure 1.6bar, Boiler Fault 0, Invalid Connection 0;
+- службы `wb-rules` и `wb-mqtt-serial` активны.
+
+Обнаруженная при первом запуске проблема: `wb-mqtt-serial` был active, но игнорировал команды `/on` по нескольким Modbus-портам. Его единичный перезапуск восстановил MQTT readback. Причина зависания **не доказана**. В старом `29_hhm_iset.js` индикация `WAIT_MAO4_PREFLIGHT` ошибочно сохраняется при насосе K2 ON: это только проблема показания, не признак остановленного K2.
+
+## Новый кандидат — не установлен
+
+`Objects/05_16_Iset/HHM/release_candidates/iset-hhm-house-0.1-PHYSICAL.json`: immutable source commit `3a59a00fbbfbf7c6855a957127b366516b28cb21`, 16 файлов, версия по стандарту X.Y `0.1`, SHA256 манифеста `8b47cc30db8c19db23b64d60ba6f1d1cb3e8901d441b158c87af35867b79aa54`.
+
+Новый кандидат включает исправление `CIRCULATING` для K2 и диагностическое сообщение `NO_READBACK` по отсутствию подтверждения MQTT в течение 30с. **Эти изменения не разворачивались на реальном WB** и требуют отдельного controlled deployment.
+
+## NST
+
+В реестре присутствует `AFMEUYOT` с `state=planned`; это **не разрешение на `nst sync`**. 9/9 независимых правил `wb-rules`/`wb-rules-modules` сверены на контроллере по SHA256, закреплены в `unmanaged_rules` и должны остаться нетронутыми.
+
+До автоматического развёртывания NST необходимы утверждённые package + component + platform GitHub Releases и явно принятый `planned → active` профиль после проверки полноты release deployment. Наличие PR, мержа, манифеста или успешных тестов не доказывает установленную версию.
+
+План ПНР остаётся открытым для наблюдения длительных циклов ГВС, удержания ТП ~32°C и сценария сбоя Modbus readback. Не интерпретировать MQTT relay readback как физическое подтверждение хода клапана или наличия расхода.
