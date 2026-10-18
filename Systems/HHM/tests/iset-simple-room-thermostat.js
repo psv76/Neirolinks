@@ -95,8 +95,13 @@ test('durable store failure blocks settings changes',function(){
 test('no persisted setpoint: commissioning denied',function(){
     assert.throws(function(){create('office',store(null));},/stored settings/);
 });
-test('missing explicit sensor error state rejected, not silently guessed',function(){
-    assert.throws(function(){create().step({reading:null});},/error state/);
+test('missing error flag is not a required sensor heartbeat',function(){
+    var t=create(),r=t.step({reading:{id:config('office').sensorId,
+        temperatureC:19}});
+    assert.strictEqual(r.heatDemand,true);
+});
+test('entirely missing frame is rejected',function(){
+    assert.throws(function(){create().step(null);},/input frame/);
 });
 test('one faulty room never vetoes healthy second room or pump start permission',function(){
     var office=create('office'),corridor=create('corridor');
