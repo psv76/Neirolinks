@@ -197,7 +197,7 @@ check('K4 physical pump starts only after 120s observed NO relay OPEN',function(
     w.external('wb-mio-gpio_195:2/K1',false);
     w.external('wb-mr6cu_37/K4',false);
     var before=w.outputs.length;
-    w.step(1000);w.step(119000);
+    w.step(1000);w.step(119000);w.step(1000);
     var writes=w.outputs.slice(before).filter(function(x){
         return x.path==='wb-mr6cu_37/K4'&&x.value===true;
     });
