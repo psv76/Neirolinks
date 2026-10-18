@@ -58,5 +58,47 @@ class IsetDraftReleaseTests(unittest.TestCase):
         self.assertEqual(len(expected), 16)
 
 
+    def test_physical_candidate_pins_separate_immutable_writer(self):
+        path = (BASE + "/release_candidates/"
+                "iset-hhm-house-0.1.0-PHYSICAL.json")
+        raw = git_blob("HEAD", path)
+        want = git_blob("HEAD", path + ".sha256").decode().split()[0]
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), want)
+        m = json.loads(raw)
+        validate(m)
+        HHM().validate(m, {})
+        self.assertEqual(m["version"], "0.1.0")
+        self.assertEqual(len(m["files"]), 16)
+        source = {entry["target"]: entry["source"] for entry in m["files"]}
+        main = git_blob(m["release"]["commit"],
+                        source["/etc/wb-rules/29_hhm_iset.js"]).decode()
+        self.assertIn("var HHM_PHYSICAL_OUTPUTS=true;", main)
+        self.assertNotIn("var HHM_PHYSICAL_OUTPUTS=false;", main)
+
+    def test_physical_and_shadow_release_have_identical_module_hashes(self):
+        physical = json.loads(git_blob(
+            "HEAD", BASE + "/release_candidates/iset-hhm-house-0.1.0-PHYSICAL.json"))
+        preview = self.data
+        one = {x["target"]: x["sha256"] for x in physical["files"]}
+        two = {x["target"]: x["sha256"] for x in preview["files"]}
+        self.assertEqual(len(one), 16)
+        for target in one:
+            if target == "/etc/wb-rules/29_hhm_iset.js":
+                self.assertNotEqual(one[target], two[target])
+            else:
+                self.assertEqual(one[target], two[target])
+
+    def test_post_cutover_unmanaged_rules_keep_only_independent_functions(self):
+        post = json.loads(git_blob(
+            "HEAD", BASE + "/release_candidates/nst_unmanaged_POST_CUTOVER_DRAFT.json"))
+        targets = set(post["unmanaged_rules"])
+        self.assertEqual(len(targets), 9)
+        self.assertIn("/etc/wb-rules/Light_4.js", targets)
+        self.assertIn("/etc/wb-rules/AHU_preheat_pump_manager.js", targets)
+        self.assertIn("/etc/wb-rules/DHW_recirculation_manager.js", targets)
+        self.assertIn("/etc/wb-rules-modules/WBHelpers.js", targets)
+        self.assertFalse(any("Heating_" in x or "/2" in x for x in targets))
+
+
 if __name__ == "__main__":
     unittest.main()
