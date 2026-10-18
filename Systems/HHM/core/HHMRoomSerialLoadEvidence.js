@@ -28,22 +28,23 @@ exports.create=function(c,Evidence){
        c.dataBits!==8||(c.stopBits!==1&&c.stopBits!==2)||
        !name(c.channel)||!prefix(c.clientPrefix)||
        !whole(c.replyTimeoutMs)||c.replyTimeoutMs<1||
+       !whole(c.minProbeGapMs)||c.minProbeGapMs<1||
        !whole(c.freshMs)||c.freshMs<=c.replyTimeoutMs||
        !whole(c.maxSequence)||c.maxSequence<1)
         throw new Error('Serial Load evidence: explicit verified RPC configuration required');
     var evidence=Evidence.create({sensorId:c.sensorId,topic:c.temperatureTopic,
         minC:c.minC,maxC:c.maxC,freshMs:c.freshMs});
-    var boot=null,lastNow=null,nextSeq=0,pending=null,
+    var boot=null,lastNow=null,nextSeq=0,pending=null,lastProbeAt=null,
         lastReason='NO_REQUEST';
     function context(now,epoch){
         if(!whole(now)||!name(epoch))throw new Error('Serial Load evidence: local time/boot required');
         if(lastNow!==null&&now<lastNow){
-            pending=null;boot=epoch;lastNow=now;lastReason='CLOCK_REWIND';
+            pending=null;boot=epoch;lastProbeAt=null;lastNow=now;lastReason='CLOCK_REWIND';
             evidence.sample(now,epoch);return false;
         }
         lastNow=now;
         if(boot!==epoch){
-            pending=null;boot=epoch;lastReason='NEW_BOOT';
+            pending=null;boot=epoch;lastProbeAt=null;lastReason='NEW_BOOT';
             evidence.sample(now,epoch);
         }
         return true;
@@ -60,12 +61,16 @@ exports.create=function(c,Evidence){
         }
     }
     return {
-        request:function(now,bootEpoch){
+        request:function(now,bootEpoch,allowProbe){
             if(!context(now,bootEpoch))return {send:false,reason:'CLOCK_REWIND'};
             timeout(now);
+            if(allowProbe!==true)return {send:false,reason:'PROBE_NOT_AUTHORIZED'};
             if(pending)return {send:false,reason:'REQUEST_PENDING'};
+            if(lastProbeAt!==null&&now-lastProbeAt<c.minProbeGapMs)
+                return {send:false,reason:'PROBE_RATE_LIMITED'};
             if(nextSeq>=c.maxSequence)return {send:false,reason:'SEQUENCE_EXHAUSTED'};
             nextSeq++;
+            lastProbeAt=now;
             var requestTopic='wb-mqtt-serial/device/Load/'+c.clientPrefix+'_'+nextSeq;
             pending={seq:nextSeq,sentAtMs:now,replyTopic:requestTopic+'/reply'};
             lastReason='AWAIT_RPC_REPLY';
@@ -112,7 +117,8 @@ exports.create=function(c,Evidence){
         },
         snapshot:function(){return {bootEpoch:boot,pending:!!pending,
             pendingReplyTopic:pending?pending.replyTopic:null,
-            nextSequence:nextSeq,lastReason:lastReason,
+            nextSequence:nextSeq,lastProbeAtMs:lastProbeAt,
+            minProbeGapMs:c.minProbeGapMs,lastReason:lastReason,
             sensor:evidence.snapshot()};}
     };
 };
