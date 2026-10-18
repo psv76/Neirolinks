@@ -8,6 +8,7 @@ var IS_STORE=require("IsetRoomSettingsStore");
 var IS_RUNTIME=require("IsetRoomLocalRuntime");
 var IS_MAP=require("IsetRoomZones");
 var IS_GATE=require("HHMRoomPathGate");
+var IS_PLAN=require("IsetRoomOutputPlanner");
 var IS_STORAGE=new PersistentStorage("iset_hhm_rooms_v1",{global:true});
 var IS_ROOM_ERROR={},IS_TEMPS={},IS_LAST={};
 var IS_MIN_SETPOINT=16,IS_MAX_SETPOINT=30,IS_HYSTERESIS=0.6;
@@ -18,6 +19,9 @@ var IS_RUN=IS_RUNTIME.create({map:IS_MAP,Simple:IS_SIMPLE,
     minSetpointC:IS_MIN_SETPOINT,maxSetpointC:IS_MAX_SETPOINT,
     hysteresisC:IS_HYSTERESIS,minMeasuredC:IS_MIN_TEMP,
     maxMeasuredC:IS_MAX_TEMP});
+var IS_PLANNER=IS_PLAN.create({map:IS_MAP,
+    openWaitMs:IS_MAP.actuators.nominalOpenWaitMs});
+function isVDset(path,value){if(dev[path]!==value)dev[path]=value;}
 function isError(value){
     if(value===true)return true;
     if(value===false||value===0)return false;
@@ -41,21 +45,35 @@ function isRead(){
     return result;
 }
 function isUpdate(){
-    var state=IS_RUN.step(isRead());
+    var input=isRead(),state=IS_RUN.step(input),rb={},i,j,z;
+    for(i=0;i<IS_MAP.zones.length;i++){
+        z=IS_MAP.zones[i];
+        for(j=0;j<z.outputs.length;j++)rb[z.outputs[j]]=dev[z.outputs[j]];
+    }
+    rb[IS_MAP.pump]=dev[IS_MAP.pump];
+    var plan=IS_PLANNER.plan({nowMs:input.nowMs,
+        bootEpoch:input.bootEpoch,demands:state.demands,
+        readbacks:rb,protectionActive:false});
+    // Only a plan: never call writer.apply() or assign physical channels.
+    isVDset("iset_hhm_rooms_shadow/pump_action",plan.pumpAction);
+    isVDset("iset_hhm_rooms_shadow/ready_rooms",plan.readyZones);
+    isVDset("iset_hhm_rooms_shadow/proposed_actions",
+        plan.actions.length?plan.actions.map(function(a){
+            return a.action+" "+a.path;}).join(", "):"Нет");
     for(var i=0;i<IS_MAP.zones.length;i++){
         var z=IS_MAP.zones[i],p=isPath(z);
         var room=state.roomStates[z.id];
         var demand=room.heatDemand===true?"ON":
             room.heatDemand===false?"OFF":"UNKNOWN";
         var last=IS_LAST[z.id];
-        dev[p+"/state"]=room.state;
-        dev[p+"/demand"]=demand;
-        dev[p+"/temperature"]=room.measuredC===null?"—":
-            String(room.measuredC);
+        isVDset(p+"/state",room.state);
+        isVDset(p+"/demand",demand);
+        isVDset(p+"/temperature",room.measuredC===null?"—":
+            String(room.measuredC));
         var settings=IS_RUN.settings(z.id);
-        dev[p+"/settings"]=settings?
+        isVDset(p+"/settings",settings?
             (settings.mode+" / "+settings.setpointC+" °C"):
-            "NOT_COMMISSIONED";
+            "NOT_COMMISSIONED");
         if(last!==room.state+"/"+demand){
             IS_LAST[z.id]=room.state+"/"+demand;
             log.info("[отопление][28_hhm_rooms_shadow]["+z.title+
@@ -63,7 +81,7 @@ function isUpdate(){
                 "; запись_выходов=ЗАПРЕЩЕНА");
         }
     }
-    dev["iset_hhm_rooms_shadow/status"]="SHADOW_ONLY";
+    isVDset("iset_hhm_rooms_shadow/status","SHADOW_ONLY");
 }
 for(var IS_I=0;IS_I<IS_MAP.zones.length;IS_I++){
     (function(z){
@@ -83,7 +101,13 @@ for(var IS_I=0;IS_I<IS_MAP.zones.length;IS_I++){
 }
 defineVirtualDevice("iset_hhm_rooms_shadow",{title:"HHM Исеть (теневой)",
     cells:{status:{title:"Состояние",type:"text",value:"SHADOW_ONLY",
-        readonly:true}}});
+        readonly:true,order:1},
+        pump_action:{title:"K4: расчёт",type:"text",value:"HOLD",
+            readonly:true,order:2},
+        ready_rooms:{title:"Готово комнат",type:"value",value:0,
+            readonly:true,order:3},
+        proposed_actions:{title:"Предполагаемые команды",type:"text",
+            value:"Нет",readonly:true,order:4}}});
 // Subscribe after defining ALL shadow devices: early retained error events
 // must never reference an unregistered virtual control.
 for(IS_I=0;IS_I<IS_MAP.zones.length;IS_I++){
@@ -92,12 +116,17 @@ for(IS_I=0;IS_I<IS_MAP.zones.length;IS_I++){
         trackMqtt(topic,function(m){
             IS_ROOM_ERROR[z.id]=isError(m&&m.value);
             isUpdate();
+setInterval(isUpdate,5000); // output opening wait advances without sensor changes
         });
     })(IS_MAP.zones[IS_I]);
 }
 var IS_TOPICS=[];
-for(IS_I=0;IS_I<IS_MAP.zones.length;IS_I++)
+for(IS_I=0;IS_I<IS_MAP.zones.length;IS_I++){
     IS_TOPICS.push(IS_MAP.zones[IS_I].primarySensor);
+    for(var IS_J=0;IS_J<IS_MAP.zones[IS_I].outputs.length;IS_J++)
+        IS_TOPICS.push(IS_MAP.zones[IS_I].outputs[IS_J]);
+}
+IS_TOPICS.push(IS_MAP.pump);
 defineRule("iset_hhm_room_shadow_temps",{
     whenChanged:IS_TOPICS,
     then:function(){isUpdate();}
