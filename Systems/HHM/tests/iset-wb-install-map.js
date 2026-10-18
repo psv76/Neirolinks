@@ -29,8 +29,9 @@ check('no old experimental sensor-health dependency shipped',function(){
         assert.ok(!/Evidence|SensorHealth|SerialLoad/.test(x.require),x.require);
     });
 });
-check('installed script is disabled for real physical writes in Draft',function(){
-    assert.ok(source.indexOf('var HHM_PHYSICAL_OUTPUTS=false;')>=0);
+check('production candidate has explicit physical output owner, no hidden default',function(){
+    assert.strictEqual(source.indexOf('var HHM_PHYSICAL_OUTPUTS=true;')>=0,true);
+    assert.strictEqual(source.indexOf('var HHM_PHYSICAL_OUTPUTS=false;')>=0,false);
 });
 check('HM2 20–27 and duplicate diagnostic script are retirement targets',function(){
     assert.strictEqual(manifest.disable_legacy.length,9);
