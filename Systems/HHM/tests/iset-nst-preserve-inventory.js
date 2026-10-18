@@ -6,7 +6,7 @@ var done=0;function test(n,f){f();done++;console.log('PASS '+n);}
 test('inventory is explicitly not an approved NST registration',function(){
     assert.strictEqual(m.object,'05_16_Iset');
     assert.strictEqual(m.not_live_registration,true);
-    assert.strictEqual(m.files.length,13);
+    assert.strictEqual(m.files.length,16);
 });
 test('every preserved file is only a complete /etc/wb-rules JS name',function(){
     m.files.forEach(function(f){
@@ -34,5 +34,17 @@ test('possible historic heating observers are RETAIN pending separate review',fu
         var f=m.files.filter(function(x){return x.target.endsWith('/'+n);})[0];
         assert.ok(f,n);assert.strictEqual(f.classification,'REVIEW_RETAIN');
     });
+});
+test('shared WB helpers are accounted for before NST inventory',function(){
+    ['HeatingCommon.js','HeatingConfig.js','WBHelpers.js'].forEach(function(n){
+        var f=m.files.filter(function(x){
+            return x.target==='/etc/wb-rules-modules/'+n;
+        })[0];
+        assert.ok(f,n);
+        assert.ok(/^[0-9a-f]{64}$/.test(f.sha256),n);
+    });
+    assert.strictEqual(m.files.filter(function(x){
+        return x.target==='/etc/wb-rules-modules/WBHelpers.js';
+    })[0].classification,'PRESERVE');
 });
 console.log('TOTAL PASS '+done);
