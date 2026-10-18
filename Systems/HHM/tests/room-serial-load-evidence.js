@@ -137,7 +137,7 @@ check('request sequence exhausted fail-closed',function(){
         var fail=success(r,20,i+1);fail.nowMs=i*500+1;
         v.reply(fail);
     }
-    assert.strictEqual(v.request(10100,'A',true).send,false);
+    assert.strictEqual(v.request(50500,'A',true).reason,'SEQUENCE_EXHAUSTED');
 });
 check('rejects unsafe or incomplete configuration',function(){
     assert.throws(function(){Load.create({deviceId:'wb-msw-v4_22'},Evidence);},/RPC configuration/);
