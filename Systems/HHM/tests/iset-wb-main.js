@@ -356,4 +356,10 @@ check('valid operator preferences persist and are never reset to 25/32',function
     assert.strictEqual(b.controls['iset_hhm_floor/target'],35);
     assert.strictEqual(JSON.parse(b.storage.iset_hhm_room_v1_office).setpointC,22);
 });
+check('operator setpoint values are writable in real WB virtual-device schema',function(){
+    var w=boot();
+    assert.strictEqual(w.devices.iset_hhm_office.cells.setpoint_input.readonly,false);
+    assert.strictEqual(w.devices.iset_hhm_floor.cells.target.readonly,false);
+    assert.strictEqual(w.devices.iset_hhm_basement.cells.target_input.readonly,false);
+});
 console.log('TOTAL PASS '+count);
