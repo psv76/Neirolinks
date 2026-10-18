@@ -1,0 +1,112 @@
+{
+  "schema": 1,
+  "component": "hhm",
+  "version": "0.1.0",
+  "object": "05_16_Iset",
+  "role": "house",
+  "release": {
+    "repository": "psv76/Neirolinks",
+    "commit": "198e338f151f48b376d76a1410a67462149c5457"
+  },
+  "files": [
+    {
+      "source": "Systems/HHM/core/HHM3Mixing.js",
+      "target": "/etc/wb-rules-modules/HHM3Mixing.js",
+      "sha256": "d57b1d86e0621f7def1352c6fb16ab9d2887c5508d0ba05abe052bafbcbe3fcd"
+    },
+    {
+      "source": "Systems/HHM/core/HHMRoomPathGate.js",
+      "target": "/etc/wb-rules-modules/HHMRoomPathGate.js",
+      "sha256": "f30eb18a8ea171a4fa4eef8a3f2d776f914c616345e62e952e6b3e50069049dc"
+    },
+    {
+      "source": "Objects/05_16_Iset/HHM/isethhm_coordinator.js",
+      "target": "/etc/wb-rules-modules/IsetCoordinator.js",
+      "sha256": "518a166743443756a708a54a1d3eb1e3daeba334900bb824d8f4c5a06066ad09"
+    },
+    {
+      "source": "Objects/05_16_Iset/HHM/isethhm_demand.js",
+      "target": "/etc/wb-rules-modules/IsetDemand.js",
+      "sha256": "80e33d31d6cbd3578a108e7845c1975bee039b3e0ed4932cf82c9eb10b33426c"
+    },
+    {
+      "source": "Objects/05_16_Iset/HHM/isethhm_dhw.js",
+      "target": "/etc/wb-rules-modules/IsetDhw.js",
+      "sha256": "3bd89788aac907e727d43fdc8663b1083e540e68b15004f2f27e8710e071ea59"
+    },
+    {
+      "source": "Objects/05_16_Iset/HHM/isethhm_floor_hydraulics.js",
+      "target": "/etc/wb-rules-modules/IsetFloorHydraulics.js",
+      "sha256": "82d94af6855403d96e76a0d04d5a2e3227bb943e61f4910c51f4985536d4f34c"
+    },
+    {
+      "source": "Objects/05_16_Iset/HHM/isethhm_floor_mixing.js",
+      "target": "/etc/wb-rules-modules/IsetFloorMixing.js",
+      "sha256": "5fa6384355d4b2e503e4936da47ee366eb6ae24dea47485b6225bfac991aa3aa"
+    },
+    {
+      "source": "Objects/05_16_Iset/HHM/room_local_runtime.js",
+      "target": "/etc/wb-rules-modules/IsetRoomLocalRuntime.js",
+      "sha256": "a0bef49d206da4ab257fdac4ee9d2434b9aa4800cb8f0761f396818040a9e992"
+    },
+    {
+      "source": "Objects/05_16_Iset/HHM/room_output_planner.js",
+      "target": "/etc/wb-rules-modules/IsetRoomOutputPlanner.js",
+      "sha256": "f1cd9eee372a641ef731fab662af3deb5d490010b9b17c51be9873c5cabb913b"
+    },
+    {
+      "source": "Objects/05_16_Iset/HHM/room_settings_store.js",
+      "target": "/etc/wb-rules-modules/IsetRoomSettingsStore.js",
+      "sha256": "120381d264165ffe48eb0eeb77d0315d0737b80f3bc6e468de01a869198b87a1"
+    },
+    {
+      "source": "Objects/05_16_Iset/HHM/simple_room_thermostat.js",
+      "target": "/etc/wb-rules-modules/IsetRoomSimpleThermostat.js",
+      "sha256": "aee1fbcb6fb3b590786edf2ec728b5457b6f2b1cde91f8791a1086ad6d35a6b5"
+    },
+    {
+      "source": "Objects/05_16_Iset/HHM/room_zones.js",
+      "target": "/etc/wb-rules-modules/IsetRoomZones.js",
+      "sha256": "84cb274f3e52c3ab637fe440f8b2d1b83a77ac8acb90e793a9d83d7d944ebd08"
+    },
+    {
+      "source": "Objects/05_16_Iset/HHM/isethhm_service_config.js",
+      "target": "/etc/wb-rules-modules/IsetServiceConfig.js",
+      "sha256": "36face993873037ff9f36d4e87e6b3938d5212081a35ac0c855fb69c0e5b8fbc"
+    },
+    {
+      "source": "Objects/05_16_Iset/HHM/isethhm_source.js",
+      "target": "/etc/wb-rules-modules/IsetSource.js",
+      "sha256": "88c858298ecd49906d630be457dd668c2d2068da703e5dae93de24a7cce27870"
+    },
+    {
+      "source": "Objects/05_16_Iset/HHM/isethhm_runtime.js",
+      "target": "/etc/wb-rules-modules/IsetUnifiedRuntime.js",
+      "sha256": "e7a75c746c6d360edc81ad198d704e0cd0115ad1629138dd6715426a18b71782"
+    },
+    {
+      "source": "Objects/05_16_Iset/Wirenboard/wb-rules/29_hhm_iset.js",
+      "target": "/etc/wb-rules/29_hhm_iset.js",
+      "sha256": "ae6fe4ef6b6e3ed607d17399b98ae38571f48fa42ef3dcfb1c173a55fdb9568d"
+    }
+  ],
+  "services": {
+    "stop": [
+      "wb-rules"
+    ],
+    "start": [
+      "wb-rules"
+    ]
+  },
+  "preflight": [
+    "identity",
+    "drift",
+    "hhm"
+  ],
+  "verify": {
+    "controls": [],
+    "runtime_version": "0.1.0",
+    "health_contract": "iset-local-v1"
+  },
+  "rollback": "previous-managed-release"
+}
