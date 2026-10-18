@@ -19,7 +19,13 @@ function decode(payload){
 exports.create=function(c,Evidence){
     if(!Evidence||typeof Evidence.create!=='function')
         throw new Error('Serial Load evidence: injected evidence module required');
-    if(!c||!name(c.sensorId)||!name(c.deviceId)||!name(c.temperatureTopic)||
+    if(!c||!name(c.sensorId)||!name(c.deviceType)||!name(c.temperatureTopic)||
+       !whole(c.slaveId)||c.slaveId<1||c.slaveId>247||
+       typeof c.portPath!=='string'||
+       !/^\/dev\/[A-Za-z0-9_.-]+$/.test(c.portPath)||
+       !whole(c.baudRate)||c.baudRate<300||c.baudRate>1000000||
+       (c.parity!=='N'&&c.parity!=='E'&&c.parity!=='O')||
+       c.dataBits!==8||(c.stopBits!==1&&c.stopBits!==2)||
        !name(c.channel)||!prefix(c.clientPrefix)||
        !whole(c.replyTimeoutMs)||c.replyTimeoutMs<1||
        !whole(c.freshMs)||c.freshMs<=c.replyTimeoutMs||
@@ -64,7 +70,9 @@ exports.create=function(c,Evidence){
             pending={seq:nextSeq,sentAtMs:now,replyTopic:requestTopic+'/reply'};
             lastReason='AWAIT_RPC_REPLY';
             return {send:true,topic:requestTopic,
-                payload:{device_id:c.deviceId,channels:[c.channel]},
+                payload:{slave_id:c.slaveId,device_type:c.deviceType,
+                    channels:[c.channel],path:c.portPath,baud_rate:c.baudRate,
+                    parity:c.parity,data_bits:c.dataBits,stop_bits:c.stopBits},
                 retained:false,replyTopic:pending.replyTopic};
         },
         reply:function(r){
