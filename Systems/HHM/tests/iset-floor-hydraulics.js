@@ -53,6 +53,7 @@ check('a running K2 is not stopped only because its valve rises above 1%',functi
     x.step(v);v.nowMs=121000;
     var r=x.step(v);
     assert.strictEqual(r.pumpWanted,true);
+    assert.strictEqual(r.state,'CIRCULATING');
     assert.strictEqual(act(r,'FLOOR_PUMP_STOP_PROTECTION').length,0);
 });
 check('at 40C hot port closes but K2 need not stop if loops open',function(){
