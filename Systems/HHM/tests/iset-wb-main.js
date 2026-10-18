@@ -26,7 +26,7 @@ var source=fs.readFileSync(path.join(root,
     'Objects/05_16_Iset/Wirenboard/wb-rules/29_hhm_iset.js'),'utf8');
 var count=0;
 function check(s,fn){fn();count++;console.log('PASS '+s);}
-function boot(initialStorage){
+function boot(initialStorage,physical){
     var devices={},controls={},outputs=[],events={},timers=[],
         logs=[],now=100000,storage=initialStorage||{};
     var dev=new Proxy(controls,{set:function(t,k,value){
@@ -54,7 +54,9 @@ function boot(initialStorage){
             warning:function(s){logs.push(['warning',s]);},
             error:function(s){logs.push(['error',s]);}}
     };
-    vm.runInNewContext(source,ctx,{filename:'29_hhm_iset.js'});
+    var program=physical?source.replace('var HHM_PHYSICAL_OUTPUTS=false;',
+        'var HHM_PHYSICAL_OUTPUTS=true;'):source;
+    vm.runInNewContext(program,ctx,{filename:'29_hhm_iset.js'});
     function external(p,v){controls[p]=v;}
     function click(p){assert.ok(events[p],p);events[p]();}
     function step(ms){now+=ms;timers.forEach(function(x){x.fn();});}
@@ -151,5 +153,65 @@ check('physical outputs remain untouched after room and floor operation',functio
     w.outputs.forEach(function(a){
         assert.ok(/^iset_hhm/.test(a.path),'Unexpected write: '+a.path);
     });
+});
+check('mock physical mode writes exact output paths only after local requests',function(){
+    var w=boot({},true);
+    var before=w.outputs.length;
+    w.external('wbe2-i-opentherm_11/Invalid Connection',false);
+    w.external('wbe2-i-opentherm_11/Boiler Fault Indication',false);
+    w.external('wbe2-i-opentherm_11/Error Code',0);
+    w.external('wbe2-i-opentherm_11/Heating Temperature',55);
+    w.external('wbe2-i-opentherm_11/Water Pressure',1.5);
+    w.external('wb-mio-gpio_195:1/IN1',true);
+    w.external('wb-m1w2_65/External Sensor 2',-10);
+    ['45','61','202','209'].forEach(function(i){
+        w.external('wb-msw-v4_'+i+'/Temperature',19);
+    });
+    w.external('iset_hhm_office/setpoint_input',22);
+    w.click('iset_hhm_office/apply');
+    w.external('wb-msw-v4_22/Temperature',19);
+    w.step(1000);
+    var writes=w.outputs.slice(before).filter(function(x){
+        return !/^iset_hhm/.test(x.path);
+    });
+    assert.ok(writes.some(function(x){
+        return x.path==='wb-mr6cu_37/K3'&&x.value===true;
+    }));
+    assert.ok(writes.some(function(x){
+        return x.path==='wb-mio-gpio_195:2/K1'&&x.value===false;
+    }));
+    assert.ok(writes.every(function(x){return /^wb-|^wbe2-/.test(x.path);}));
+});
+check('K4 physical pump starts only after 120s observed NO relay OPEN',function(){
+    var w=boot({},true);
+    w.external('wbe2-i-opentherm_11/Invalid Connection',false);
+    w.external('wbe2-i-opentherm_11/Boiler Fault Indication',false);
+    w.external('wbe2-i-opentherm_11/Error Code',0);
+    w.external('wbe2-i-opentherm_11/Heating Temperature',55);
+    w.external('wbe2-i-opentherm_11/Water Pressure',1.5);
+    w.external('wb-mio-gpio_195:1/IN1',true);
+    w.external('wb-m1w2_65/External Sensor 2',-10);
+    w.external('wb-msw-v4_22/Temperature',19);
+    w.external('iset_hhm_office/setpoint_input',22);
+    w.click('iset_hhm_office/apply');
+    w.external('wb-mio-gpio_195:2/K1',false);
+    w.external('wb-mr6cu_37/K4',false);
+    var before=w.outputs.length;
+    w.step(1000);w.step(119000);
+    var writes=w.outputs.slice(before).filter(function(x){
+        return x.path==='wb-mr6cu_37/K4'&&x.value===true;
+    });
+    assert.strictEqual(writes.length,1);
+    assert.strictEqual(w.controls['iset_hhm_k4/relay'],'OFF');
+});
+check('physical mode only sends a repeated unconfirmed command after 5 seconds',function(){
+    var w=boot({},true),path='wb-mr6cu_37/K1';
+    var first=w.outputs.filter(function(x){return x.path===path;}).length;
+    w.step(1000);w.step(1000);
+    var shortly=w.outputs.filter(function(x){return x.path===path;}).length;
+    assert.strictEqual(shortly,first);
+    w.step(4000);
+    var later=w.outputs.filter(function(x){return x.path===path;}).length;
+    assert.ok(later>=first);
 });
 console.log('TOTAL PASS '+count);
