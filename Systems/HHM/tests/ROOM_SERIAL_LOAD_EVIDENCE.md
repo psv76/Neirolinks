@@ -1,96 +1,118 @@
-# WB-MSW: local serial RPC read evidence candidate (#204 / PR #206)
+# WB-MSW / wb-mqtt-serial device/Load — offline evidence contract (#204, PR #206)
 
-**Status: offline only; no Wiren Board rule, MQTT transport, deployment,
-source setpoint or relay writer is provided.** The eight Iset room sensors
-are identified in `Objects/05_16_Iset/HHM/room_zones.js`; no room is commissioned.
+**Status: DRAFT; no new WB rule, no MQTT writer, no real RPC probe, no
+deployment.** The current HM2 still owns physical K1–K11/K4 outputs.
+`Objects/05_16_Iset/HHM/room_zones.js` remains `commissioned=false`.
 
-## Why regular MQTT Temperature cannot prove a fresh poll
+## Why ordinary Temperature MQTT is not positive poll evidence
 
-`wb-mqtt-serial` documents `max_unchanged_interval=-1` as the default:
-unchanged register values may have no new MQTT publish, even though
-Modbus polling continues. `max_publish_interval` can resend the last cached
-value independently of a fresh register read. Retained `/devices/.../controls/
-Temperature` is therefore neither a poll timestamp nor positive health proof.
-Device `/meta/error` can supply negative/clear diagnostics but no guaranteed
-per-channel consecutive successful polls. Do NOT synthesize
-`WB_LOCAL_MODBUS_POLL` from a cached reading, a clear-error event or a clock tick.
+By default `max_unchanged_interval=-1`, so an unchanged temperature need not
+be republished after each successful RS-485/Modbus poll. A separate
+`max_publish_interval` option may publish cached readings.
+Retained `/devices/wb-msw-v4_*/controls/Temperature` and a fresh timestamp
+added by an HHM loop do **not** prove a new successful physical poll.
+A device `meta/error` event may be useful as a negative health signal, but
+absence of a new error/clear event is not independently attested success.
 
-Official driver documentation:
-https://github.com/wirenboard/wb-mqtt-serial (README: publication intervals,
-"Чтение каналов и параметров устройств" and device/Load RPC).
-Schema: https://github.com/wirenboard/wb-mqtt-serial/blob/master/wb-mqtt-serial-rpc-device-load-request.schema.json
+Manufacturer sources:
+- https://github.com/wirenboard/wb-mqtt-serial (README; polling and RPC)
+- https://github.com/wirenboard/wb-mqtt-serial/blob/master/wb-mqtt-serial-rpc-device-load-request.schema.json
 
-## Candidate: direct read-only device/Load
+## Read-only field evidence from AFMEUYOT, 2026-10-18
 
-The documented driver RPC request is published to
-`wb-mqtt-serial/device/Load/<unique_client_id>` with JSON:
+SSH commands were read-only, no settings or systemd services changed.
+
+| Field | Observed |
+|---|---|
+| WB identity | AFMEUYOT |
+| WB OS | Debian 13.7 |
+| Installed driver | `wb-mqtt-serial 2.268.0-wb102`, `active` |
+| Actual configuration | `/etc/wb-mqtt-serial.conf` -> `/mnt/data/etc/wb-mqtt-serial.conf` |
+| Config SHA256 | `6f05f8fcf239595c0854c5fbe6de9769468d22a3ba629a2c237adf0f1ee7b9e7` |
+| Shared bus | `/dev/ttyRS485-2`, 9600 baud, 8N2, 24 configured devices |
+| Eight WB-MSW v.4 slave IDs | 22, 47, 53, 52, 54, 116, 43, 106 |
+| Driver polling overrides for those devices | None in device-level `poll_interval`, `min_request_interval`, `max_unchanged_interval`, `max_publish_interval` fields |
+| Recent driver journal | No warning/error entries in inspected 15-minute window |
+| Passive topic observation | No `/devices/wb-msw-v4_22/meta/error` message during one 3-second subscription; **NOT** evidence of health |
+
+The shared 9600-baud bus carries 24 devices, not merely the 8 thermostats.
+Continuous extra high-priority `device/Load` probes could compete with the
+normal polling loop. **No polling frequency or RS-485 traffic budget is
+approved.** The attempted non-actuating single RPC request was blocked by
+the remote execution safety system before execution; consequently there is
+**no observed live RPC reply**. No alternate execution path was used.
+
+## Corrected device/Load request contract
+
+`HHMRoomSerialLoadEvidence.create(config, HHMRoomSensorEvidence)` is a pure
+ES5 state machine with injected module dependency. No relative Node `require`
+in production code, no MQTT subscription, publish, Modbus command or physical
+output write. `request()` only returns an intended request descriptor.
+
+The verified **configured target** is sensor 22, type `WB-MSW v.4`, slave 22
+on `/dev/ttyRS485-2` at 9600/8N2. The documented explicit addressing form
+for `wb-mqtt-serial/device/Load/<client-id>` is:
 
 ```json
-{"device_id":"wb-msw-v4_22","channels":["Temperature"]}
+{
+  "slave_id": 22,
+  "device_type": "WB-MSW v.4",
+  "channels": ["Temperature"],
+  "path": "/dev/ttyRS485-2",
+  "baud_rate": 9600,
+  "parity": "N",
+  "data_bits": 8,
+  "stop_bits": 2
+}
 ```
 
-The matching reply topic is the request topic plus `/reply`.
-Expected JSON envelope is `{ "id": <number>, "error": null,
-"result": { "channels": { "Temperature": <number> } } }`.
-Unlike `device/LoadConfig`, the documented `device/Load` is an actual
-read of device channels through the driver. It adds RS-485 traffic; there is
-**no** default poll interval or permission to publish real requests in this PR.
+In the first draft `device_id` was used without version-specific proof.
+This has been removed. The live installed driver is `2.268.0-wb102`;
+**do not infer its `device_id` support from a newer upstream driver**.
+The RPC is documented as a high-priority channel read and therefore adds
+RS-485 load. No `device/Set`, `device/SetPoll`, `port/Load` or `LoadConfig`
+messages are generated by this module.
 
-`core/HHMRoomSerialLoadEvidence.js` accepts the `HHMRoomSensorEvidence`
-module through dependency injection (as in the existing HHM core), without a
-Node-specific relative `require` in production code. It only PLANS a request and EVALUATES a
-received reply. `request(now, bootEpoch)` returns `send`, `topic`, `payload`,
-`retained:false` and the exact `replyTopic`. It does not publish anything.
-The later `reply({nowMs, bootEpoch, topic, retained:false, payload})` requires:
+Each candidate call uses a unique non-retained request/reply topic suffix.
+`reply({nowMs,bootEpoch,topic,retained,payload})` checks matching outstanding
+request and its timeout; exact topic, same boot epoch, non-retained delivery,
+numeric `id`, `error:null`, and a finite in-range
+`result.channels.Temperature` value. Only then can
+`HHMRoomSensorEvidence` receive a newly sequenced `WB_LOCAL_MODBUS_POLL`
+observation. The same numeric temperature can be new evidence if a genuine
+new request has succeeded.
 
-- Same process/boot epoch; one current pending request, a **unique reply
-  topic per request** and expiration before `replyTimeoutMs`.
-- Exact non-retained reply topic, `error:null`, numeric `id` and
-  `result.channels.Temperature` carrying a finite/in-range number.
-- Successful result produces a newly numbered, local
-  `HHMRoomSensorEvidence.observePoll` event; even an unchanged temperature
-  then counts as a new reading. Failed/timeout RPC invalidates old health.
-- A stale, unsolicited, duplicate, different-sensor, old-boot or malformed
-  reply cannot qualify a room. Response readback is not proof of physical
-  installation location or overall heating safety.
+Timeouts, wrong channels, invalid responses, stale replies, duplicate
+messages, old boot and clock rewind do not qualify a sensor. Unique reply
+topics are not by themselves authorization: the future **trusted WB-local**
+transport must own its client prefix, subscribe before publishing, verify
+the broker source, provide actual boot identity and monotonic time, and
+prevent spoofed/retained payloads from being treated as a successful poll.
+The present standalone module does **not** implement that transport.
 
-The WB-local transport (NOT included here) must keep `clientPrefix` unique
-per process lifetime and sensor, authenticate its own MQTT subscription,
-subscribe to the intended RPC reply namespace before requesting, use a
-monotonic local clock and actual WB boot identity, pass the MQTT retain flag,
-and ensure only `device/Load` replies (never `device/Set`, `device/SetPoll`
-or `device/LoadConfig`) are routed here. No retained publish or write to
-physical outputs is permitted. A retained spoof or third-party MQTT publisher
-cannot be considered trustworthy merely from its topic name.
-
-This is a **candidate poll provenance** strategy, not yet a field-verified
-`wb-mqtt-serial` adapter. We have not inspected a genuine live `device/Load`
-reply for `wb-msw-v4_22` or verified the installed driver's exact response
-shape. Any mismatch must fail closed instead of introducing a permissive
-parser. On the active WB, diagnostics and `meta/error` handling will need
-separate observational qualification; an optional direct RPC probe is NOT a
-replacement for independent hardware protections.
-
-## Gates before any WB integration / install
-
-1. Read only: inspect installed `wb-mqtt-serial` version, current
-   `/etc/wb-mqtt-serial.conf` / device template and `meta/error` behavior.
-2. Establish a bus traffic budget: poll intervals per sensor, replies and
-   timeouts, RS-485 queue utilization and service load. Running eight extra
-   high-priority RPC reads is NOT pre-approved.
-3. In a separately authorized non-actuating test, observe genuine replies,
-   confirm `id`, channel names, numeric format, error/timeout semantics,
-   broker lifecycle, behavior at driver reboot, and uniqueness of reply topics.
-4. Implement a WB-local authenticated transport that never uses its own
-   retained values as positive evidence. Verify startup, clock changes,
-   missing replies, wrong sensor, errors, driver crash, boot/restart and
-   recovery. Only then choose object `freshMs`, request scheduling, hold
-   duration and fallback policy; current test numbers are synthetic.
-5. Preserve `commissioned=false`, the existing physical HM2 writer and
-   Gate A/B/E/F restrictions of Issue #204 until full cutover review.
-
-Offline tests (no MQTT or physical commands):
+## Offline verification
 
 ```sh
 node Systems/HHM/tests/room-serial-load-evidence.js
 ```
+
+**25/25 PASS**, including explicit source address/serial parameters, missing
+slave/port qualification, unchanged temperature with newly confirmed poll,
+timeouts, wrong sensor/topic, invalid temperature, reboot, clock rollback and
+replay. `node --check` passed. This is a test against simulated replies, not
+an on-device `wb-mqtt-serial` compatibility or load acceptance.
+
+## Required gates
+
+1. Confirm exact JSON reply and timing for a real, separately approved
+   one-time non-actuating `device/Load` request; do not bypass a rejected
+   remote execution action or disguise it as passive inspection.
+2. Measure driver polling cycle, available bus budget and timeout/error
+   behavior for 24 devices at 9600; separately approve any probe schedule.
+3. Add trusted MQTT transport, genuine `meta/error` handling, restart
+   isolation, provenance and deterministic rate limiting.
+4. Then decide `freshMs`, `sensorLossHoldMs`, sensor invalid/recovery,
+   bounded fallback and independent protections. **Test values are fixtures,
+   not approved Iset operational settings.**
+5. Preserve HM2 output ownership, rollback requirements, safety gates and
+   `commissioned=false` until Issue #204 authorizes live cutover.
