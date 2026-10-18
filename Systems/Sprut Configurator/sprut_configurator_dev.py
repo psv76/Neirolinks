@@ -23,6 +23,7 @@ DISCOVER -> diff -> DRY RUN -> APPLY -> fresh DISCOVER -> VERIFY.
 from __future__ import annotations
 
 from copy import deepcopy
+import ast
 import importlib.util
 import sys
 from pathlib import Path
@@ -203,7 +204,31 @@ def list_yandex_bridge_services(self):
 def discover_v2(self):
     """Extend proven v0.2.2 DISCOVER with current Yandex bridge membership."""
     data = _original_client_discover(self)
-    services = list_yandex_bridge_services(self)
+    try:
+        services = list_yandex_bridge_services(self)
+    except RuntimeError as exc:
+        # The frozen client exposes RPC error dictionaries as Python repr.
+        # Match only this optional request's exact missing-module response.
+        prefix = "RPC error: "
+        if not str(exc).startswith(prefix):
+            raise
+        try:
+            error = ast.literal_eval(str(exc)[len(prefix):])
+        except (ValueError, SyntaxError):
+            raise exc
+        if not (
+            isinstance(error, dict)
+            and error.get("code") == -32601
+            and error.get("message") == "Module not found"
+        ):
+            raise
+        data.setdefault("bridges", {})[FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX] = None
+        meta = data.setdefault("meta", {})
+        meta["yandex_bridge_index"] = FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX
+        meta["yandex_bridge_status"] = "unavailable"
+        meta["yandex_bridge_services_count"] = None
+        self.log("Yandex_1 unavailable: Module not found; Alice state UNKNOWN.")
+        return data
 
     bridges = data.setdefault("bridges", {})
     bridges[FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX] = services
