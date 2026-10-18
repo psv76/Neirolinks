@@ -183,7 +183,7 @@ check('per-room K1 counter displays 120 to 119 to ready after OPEN readback',fun
     var settings={};seed(settings,'office');
     var m=instantiate(settings);m.tick('office',19);
     var timer=function(){return m.room('office','servo_k1_timer');};
-    assert.strictEqual(timer(),'Ожидание OPEN');
+    assert.strictEqual(timer(),'Нет данных выхода');
     m.readback('wb-mio-gpio_195:2/K1',false);
     m.readback(Map.pump,false);
     assert.strictEqual(timer(),'120 с');
