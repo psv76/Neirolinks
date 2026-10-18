@@ -6,7 +6,6 @@
  * polls. Result from a successful driver Load is a LOCAL_POLL, not a cached
  * retained /devices/.../controls/Temperature MQTT sample.
  */
-var Evidence=require('./HHMRoomSensorEvidence');
 function whole(x){return typeof x==='number'&&isFinite(x)&&x>=0&&Math.floor(x)===x;}
 function name(x){return typeof x==='string'&&x.length>0&&x.length<=128;}
 function prefix(x){return typeof x==='string'&&/^[a-zA-Z0-9_-]{8,72}$/.test(x);}
@@ -17,7 +16,9 @@ function decode(payload){
     }
     return payload;
 }
-exports.create=function(c){
+exports.create=function(c,Evidence){
+    if(!Evidence||typeof Evidence.create!=='function')
+        throw new Error('Serial Load evidence: injected evidence module required');
     if(!c||!name(c.sensorId)||!name(c.deviceId)||!name(c.temperatureTopic)||
        !name(c.channel)||!prefix(c.clientPrefix)||
        !whole(c.replyTimeoutMs)||c.replyTimeoutMs<1||
