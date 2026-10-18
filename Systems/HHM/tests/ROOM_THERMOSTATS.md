@@ -109,7 +109,7 @@ HomeKit or Alice currently provide this envelope.
   for Iset. Test fixtures (22 °C etc.) are not approved settings.
 - `HHMRoomPathGate.js` now **calculates a START permission only** after
   an accepted NO=0 command/readback on every actuator of a requested
-  zone, a 180s fixture delay, and a matching `bootEpoch`. A missing
+  zone, a **120s Iset object delay**, and a matching `bootEpoch`. A missing
   demand means HOLD the actuator proposal, **not** CLOSE. Independent
   protection blocks proposals to open; no physical outputs are written.
   Output readback + time does not prove stem position or actual flow.
