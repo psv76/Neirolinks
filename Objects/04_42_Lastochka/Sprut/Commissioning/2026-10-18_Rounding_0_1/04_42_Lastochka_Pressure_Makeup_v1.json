@@ -1,0 +1,198 @@
+{
+  "name": "Подпитка отопления",
+  "manufacturer": "NEIROLINKS",
+  "model": "04_42_Lastochka_Pressure_Makeup_v1",
+  "modelIds": [
+    "/devices/(lastochka_pressure_makeup)/controls/pressure_bar/meta/type"
+  ],
+  "services": [
+    {
+      "name": "Автоподпитка",
+      "type": "Switch",
+      "characteristics": [
+        {
+          "type": "On",
+          "write": true,
+          "link": [
+            {
+              "type": "String",
+              "topicGet": "/devices/(1)/controls/enabled",
+              "topicSet": "/devices/(1)/controls/enabled/on",
+              "map": {
+                "true": "1",
+                "false": "0"
+              },
+              "retain": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Давление отопления",
+      "type": "C_Option",
+      "characteristics": [
+        {
+          "name": "Давление отопления",
+          "type": "C_Double",
+          "write": false,
+          "link": [
+            {
+              "type": "Double",
+              "topicGet": "/devices/(1)/controls/pressure_bar"
+            }
+          ],
+          "unit": "Бар",
+          "minStep": 0.1
+        }
+      ]
+    },
+    {
+      "name": "Состояние",
+      "type": "C_Option",
+      "characteristics": [
+        {
+          "name": "Состояние",
+          "type": "C_String",
+          "write": false,
+          "link": [
+            {
+              "type": "String",
+              "topicGet": "/devices/(1)/controls/state_text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Аварийная блокировка",
+      "type": "C_Option",
+      "characteristics": [
+        {
+          "name": "Аварийная блокировка",
+          "type": "C_String",
+          "write": false,
+          "link": [
+            {
+              "type": "String",
+              "topicGet": "/devices/(1)/controls/alarm",
+              "inFunc": "(String(value) === '1' || String(value) === 'true') ? 'Авария' : ((String(value) === '0' || String(value) === 'false') ? 'Нет блокировки' : 'Нет достоверных данных')"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Причина аварии",
+      "type": "C_Option",
+      "characteristics": [
+        {
+          "name": "Причина аварии",
+          "type": "C_String",
+          "write": false,
+          "link": [
+            {
+              "type": "String",
+              "topicGet": "/devices/(1)/controls/fault"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Причина запрета",
+      "type": "C_Option",
+      "characteristics": [
+        {
+          "name": "Причина запрета",
+          "type": "C_String",
+          "write": false,
+          "link": [
+            {
+              "type": "String",
+              "topicGet": "/devices/(1)/controls/block_reason"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Датчик давления",
+      "type": "C_Option",
+      "characteristics": [
+        {
+          "name": "Датчик давления",
+          "type": "C_String",
+          "write": false,
+          "link": [
+            {
+              "type": "String",
+              "topicGet": "/devices/(1)/controls/sensor_alarm",
+              "inFunc": "(String(value) === '1' || String(value) === 'true') ? 'Ошибка датчика — давлению не доверять' : ((String(value) === '0' || String(value) === 'false') ? 'Ошибки датчика нет' : 'Нет достоверных данных')"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Низкое давление",
+      "type": "C_Option",
+      "characteristics": [
+        {
+          "name": "Низкое давление",
+          "type": "C_String",
+          "write": false,
+          "link": [
+            {
+              "type": "String",
+              "topicGet": "/devices/(1)/controls/low_pressure_alarm",
+              "inFunc": "(String(value) === '1' || String(value) === 'true') ? 'Низкое давление' : ((String(value) === '0' || String(value) === 'false') ? 'Нет сигнала низкого давления' : 'Нет достоверных данных')"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Авторежим WB",
+      "type": "C_Option",
+      "characteristics": [
+        {
+          "name": "Авторежим WB",
+          "type": "C_String",
+          "write": false,
+          "link": [
+            {
+              "type": "String",
+              "topicGet": "/devices/(1)/controls/auto_mode",
+              "inFunc": "(String(value) === '1' || String(value) === 'true') ? 'Разрешён инженером' : ((String(value) === '0' || String(value) === 'false') ? 'Выключен в WB' : 'Нет достоверных данных')"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Сбросить аварию",
+      "type": "Switch",
+      "characteristics": [
+        {
+          "type": "On",
+          "write": true,
+          "data": {
+            "SwitchOffTime": 0.1
+          },
+          "link": [
+            {
+              "type": "String",
+              "topicSet": "/devices/(1)/controls/reset_alarm/on",
+              "map": {
+                "true": "1",
+                "false": "0"
+              },
+              "retain": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
