@@ -219,7 +219,13 @@ def discover_v2(self):
         if not (
             isinstance(error, dict)
             and error.get("code") == -32601
-            and error.get("message") == "Module not found"
+            and isinstance(error.get("message"), str)
+            and (
+                error["message"] == "Module not found"
+                # Sprut 3.0 beta appends the original request after the colon.
+                # Never log/export that suffix: it can contain session fields.
+                or error["message"].startswith("Module not found:")
+            )
         ):
             raise
         data.setdefault("bridges", {})[FIELD_CONFIRMED_YANDEX_BRIDGE_INDEX] = None

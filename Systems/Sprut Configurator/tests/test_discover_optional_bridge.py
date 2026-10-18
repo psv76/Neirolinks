@@ -65,8 +65,16 @@ class OptionalBridgeTests(unittest.TestCase):
         self.assertEqual(obj._ws.requests[-1], app.yandex_bridge_list_params())
 
     def test_beta_unknown_blocks_alice(self):
-        obj = client({"error": {"code": -32601, "message": "Module not found"}})
-        data = obj.discover()
+        # Beta appends a quoted request JSON; use synthetic session fields only.
+        request = json.dumps({"id": 1, "params": app.yandex_bridge_list_params(),
+                              "token": "test", "serial": "test", "cid": "test"})
+        for message in ("Module not found", "Module not found: '" + request + "'"):
+            obj = client({"error": {"code": -32601, "message": message}})
+            obj.log = Mock()
+            data = obj.discover()
+            self.assertIsNone(data["bridges"]["Yandex_1"])
+            obj.log.assert_called_once_with(
+                "Yandex_1 unavailable: Module not found; Alice state UNKNOWN.")
         self.assertEqual(data["rooms"], ROOMS)
         self.assertEqual(data["accessories"], ACCESSORIES)
         self.assertIsNone(data["bridges"]["Yandex_1"])
@@ -89,6 +97,9 @@ class OptionalBridgeTests(unittest.TestCase):
 
     def test_other_errors_propagate(self):
         for reply, where, exception in [
+            ({"error": {"code": -32601, "message": "Module not found elsewhere"}}, "bridgeService", RuntimeError),
+            ({"error": {"code": -32000, "message": "Module not found: 'test'"}}, "bridgeService", RuntimeError),
+            ({"error": {"code": -32601, "message": "Module not found: 'test'"}}, "accessory", RuntimeError),
             ({"error": {"code": -32601, "message": "Method not found"}}, "bridgeService", RuntimeError),
             ({"error": {"code": -32000, "message": "Module not found"}}, "bridgeService", RuntimeError),
             ({"error": {"code": -32601, "message": "Module not found"}}, "room", RuntimeError),
