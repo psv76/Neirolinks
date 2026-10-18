@@ -39,7 +39,8 @@ def validate_deployment(data):
         "source", "profile", "minimum_nst", "diagnostics_profile",
         "object_files", "components", "services", "signatures",
     }
-    require(set(data) == required, "Invalid deployment manifest fields")
+    require(required.issubset(data) and set(data) <= required | {"unmanaged_rules"},
+            "Invalid deployment manifest fields")
     require(data["schema"] == 1, "Invalid deployment schema")
     require(isinstance(data["controller_serial"], str)
             and SERIAL_RE.fullmatch(data["controller_serial"]) is not None,
@@ -60,6 +61,14 @@ def validate_deployment(data):
         safe_relative(ref["path"])
         _sha(ref["sha256"], key + " SHA256")
 
+    unmanaged = data.get("unmanaged_rules", {})
+    require(type(unmanaged) is dict, "Invalid deployment unmanaged rules")
+    for path, sha in unmanaged.items():
+        require(isinstance(path, str) and path.startswith(
+            ("/etc/wb-rules/", "/etc/wb-rules-modules/")) and path.endswith(".js"),
+            "Invalid unmanaged rule target")
+        safe_relative(path[1:])
+        _sha(sha, "unmanaged rule SHA256")
     require(type(data["object_files"]) is list, "Invalid object files")
     for item in data["object_files"]:
         _file_entry(item, True)
@@ -70,6 +79,8 @@ def validate_deployment(data):
     for item in data["object_files"]:
         require(item["target"] not in targets, "Duplicate deployment target: " + item["target"])
         targets[item["target"]] = "object"
+    for path in unmanaged:
+        require(path not in targets, "Unmanaged/object ownership conflict: " + path)
     for component in data["components"]:
         require(type(component) is dict, "Invalid deployment component")
         fields = {
@@ -110,6 +121,8 @@ def validate_deployment(data):
         require(type(component["files"]) is list and component["files"], "Component has no payload files")
         for file_item in component["files"]:
             _file_entry(file_item)
+            require(file_item["target"] not in unmanaged,
+                    "Unmanaged/managed ownership conflict: " + file_item["target"])
             require(file_item["target"] not in targets, "Duplicate deployment target: " + file_item["target"])
             targets[file_item["target"]] = name
 
