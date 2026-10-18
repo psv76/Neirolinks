@@ -1,0 +1,63 @@
+# Только после появления нового MQTT Accessory и сверки serial. Не для native wb:... .
+# Без bridge.alice. Все операции — только оформление, не MQTT команды.
+format_version: 2
+object: 04 42 Ласточка — Подпитка отопления
+accessories:
+- serial: lastochka_pressure_makeup
+  name: Подпитка отопления
+  room: Котельная
+  services:
+  - type: Switch
+    match_name: Автоподпитка
+    name: Автоподпитка
+    visible: true
+    status:
+      'On': false
+  - type: C_Option
+    match_name: Давление отопления
+    name: Давление отопления
+    visible: false
+    status:
+      C_Double: true
+  - type: C_Option
+    match_name: Состояние
+    name: Состояние
+    visible: false
+    status:
+      C_String: false
+  - type: C_Option
+    match_name: Аварийная блокировка
+    name: Аварийная блокировка
+    visible: false
+    status:
+      C_String: false
+  - type: C_Option
+    match_name: Причина аварии
+    name: Причина аварии
+    visible: false
+    status:
+      C_String: false
+  - type: C_Option
+    match_name: Причина запрета
+    name: Причина запрета
+    visible: false
+    status:
+      C_String: false
+  - type: C_Option
+    match_name: Датчик давления
+    name: Датчик давления
+    visible: false
+    status:
+      C_String: false
+  - type: C_Option
+    match_name: Низкое давление
+    name: Низкое давление
+    visible: false
+    status:
+      C_String: false
+  - type: C_Option
+    match_name: Авторежим WB
+    name: Авторежим WB
+    visible: false
+    status:
+      C_String: false

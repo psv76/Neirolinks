@@ -1,0 +1,1203 @@
+{
+  "source_file": "sprut_discover_20261018_104429.json",
+  "source_sha256": "d8f741e25721e09f1f0e06851ca1811b54f438fa61533f6a0090e7ce1ad040b0",
+  "firmware": "3.0.0b_20131/8621",
+  "accessory_count": 111,
+  "service_count": 356,
+  "room_count": 10,
+  "related_accessories": [
+    {
+      "id": 88,
+      "serial": "wb-mr6cu_196/K5",
+      "modelId": "MR6CU",
+      "manufacturer": "Wiren Board",
+      "model": "MR6CU",
+      "name": "Канал реле",
+      "roomId": 3,
+      "online": true,
+      "room": "Котельная",
+      "services": [
+        {
+          "sId": 1,
+          "type": "AccessoryInformation",
+          "name": "Информация об аксессуаре",
+          "visible": true,
+          "system": true,
+          "characteristics": [
+            {
+              "cId": 9,
+              "statusVisible": false,
+              "type": "C_Room",
+              "name": "Комната",
+              "read": true,
+              "write": false,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "stringValue": "Котельная"
+              },
+              "unit": null
+            },
+            {
+              "cId": 4,
+              "statusVisible": false,
+              "type": "Identify",
+              "name": "Идентифицировать",
+              "read": false,
+              "write": true,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "boolValue": false
+              },
+              "unit": null
+            },
+            {
+              "cId": 5,
+              "statusVisible": false,
+              "type": "Manufacturer",
+              "name": "Производитель",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Wiren Board"
+              },
+              "unit": null
+            },
+            {
+              "cId": 6,
+              "statusVisible": false,
+              "type": "Model",
+              "name": "Модель",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "MR6CU"
+              },
+              "unit": null
+            },
+            {
+              "cId": 2,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Канал реле"
+              },
+              "unit": null
+            },
+            {
+              "cId": 7,
+              "statusVisible": false,
+              "type": "SerialNumber",
+              "name": "Серийный номер",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "wb-mr6cu_196/K5"
+              },
+              "unit": null
+            },
+            {
+              "cId": 3,
+              "statusVisible": false,
+              "type": "FirmwareRevision",
+              "name": "Версия прошивки",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "-"
+              },
+              "unit": null
+            },
+            {
+              "cId": 8,
+              "statusVisible": false,
+              "type": "C_Online",
+              "name": "В сети",
+              "read": true,
+              "write": false,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "boolValue": true
+              },
+              "unit": null
+            },
+            {
+              "cId": 10,
+              "statusVisible": false,
+              "type": "C_CatalogId",
+              "name": "Посмотреть в каталоге",
+              "read": true,
+              "write": false,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "intValue": 3207
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 13,
+          "type": "Switch",
+          "name": "Клапан подкачки",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 14,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Клапан подкачки"
+              },
+              "unit": null
+            },
+            {
+              "cId": 15,
+              "statusVisible": true,
+              "type": "On",
+              "name": "Включен",
+              "read": true,
+              "write": true,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "boolValue": false
+              },
+              "unit": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 113,
+      "serial": "wb-mai2-mini_46/Current input 2 (mA)",
+      "modelId": "WB-MAI2-mini",
+      "manufacturer": "WirenBoard",
+      "model": "WB-MAI2-mini",
+      "name": "Амперметр",
+      "roomId": 1,
+      "online": true,
+      "room": "Новая комната",
+      "services": [
+        {
+          "sId": 1,
+          "type": "AccessoryInformation",
+          "name": "Информация об аксессуаре",
+          "visible": true,
+          "system": true,
+          "characteristics": [
+            {
+              "cId": 9,
+              "statusVisible": false,
+              "type": "C_Room",
+              "name": "Комната",
+              "read": true,
+              "write": false,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "stringValue": "Новая комната"
+              },
+              "unit": null
+            },
+            {
+              "cId": 4,
+              "statusVisible": false,
+              "type": "Identify",
+              "name": "Идентифицировать",
+              "read": false,
+              "write": true,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "boolValue": false
+              },
+              "unit": null
+            },
+            {
+              "cId": 5,
+              "statusVisible": false,
+              "type": "Manufacturer",
+              "name": "Производитель",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "WirenBoard"
+              },
+              "unit": null
+            },
+            {
+              "cId": 6,
+              "statusVisible": false,
+              "type": "Model",
+              "name": "Модель",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "WB-MAI2-mini"
+              },
+              "unit": null
+            },
+            {
+              "cId": 2,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Амперметр"
+              },
+              "unit": null
+            },
+            {
+              "cId": 7,
+              "statusVisible": false,
+              "type": "SerialNumber",
+              "name": "Серийный номер",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "wb-mai2-mini_46/Current input 2 (mA)"
+              },
+              "unit": null
+            },
+            {
+              "cId": 3,
+              "statusVisible": false,
+              "type": "FirmwareRevision",
+              "name": "Версия прошивки",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "-"
+              },
+              "unit": null
+            },
+            {
+              "cId": 8,
+              "statusVisible": false,
+              "type": "C_Online",
+              "name": "В сети",
+              "read": true,
+              "write": false,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "boolValue": true
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 13,
+          "type": "C_AmpereMeter",
+          "name": "Амперметр",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 15,
+              "statusVisible": true,
+              "type": "C_Ampere",
+              "name": "Ампер",
+              "read": true,
+              "write": false,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "doubleValue": 0
+              },
+              "unit": "A"
+            },
+            {
+              "cId": 14,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Амперметр"
+              },
+              "unit": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 179,
+      "serial": "wb:lastochka_pressure_makeup",
+      "modelId": "",
+      "manufacturer": "wb-rules",
+      "model": "-",
+      "name": "WB 414 Подпитка отопления Ласто",
+      "roomId": 3,
+      "online": false,
+      "room": "Котельная",
+      "services": [
+        {
+          "sId": 1,
+          "type": "AccessoryInformation",
+          "name": "Информация об аксессуаре",
+          "visible": true,
+          "system": true,
+          "characteristics": [
+            {
+              "cId": 9,
+              "statusVisible": false,
+              "type": "C_Room",
+              "name": "Комната",
+              "read": true,
+              "write": false,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "stringValue": "Котельная"
+              },
+              "unit": null
+            },
+            {
+              "cId": 4,
+              "statusVisible": false,
+              "type": "Identify",
+              "name": "Идентифицировать",
+              "read": false,
+              "write": true,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "boolValue": false
+              },
+              "unit": null
+            },
+            {
+              "cId": 5,
+              "statusVisible": false,
+              "type": "Manufacturer",
+              "name": "Производитель",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "wb-rules"
+              },
+              "unit": null
+            },
+            {
+              "cId": 6,
+              "statusVisible": false,
+              "type": "Model",
+              "name": "Модель",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "-"
+              },
+              "unit": null
+            },
+            {
+              "cId": 2,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "WB 414 Подпитка отопления Ласто"
+              },
+              "unit": null
+            },
+            {
+              "cId": 7,
+              "statusVisible": false,
+              "type": "SerialNumber",
+              "name": "Серийный номер",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "wb:lastochka_pressure_makeup"
+              },
+              "unit": null
+            },
+            {
+              "cId": 3,
+              "statusVisible": false,
+              "type": "FirmwareRevision",
+              "name": "Версия прошивки",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "-"
+              },
+              "unit": null
+            },
+            {
+              "cId": 8,
+              "statusVisible": false,
+              "type": "C_Online",
+              "name": "В сети",
+              "read": true,
+              "write": false,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "boolValue": false
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 13,
+          "type": "ContactSensor",
+          "name": "Аварийная блокировка",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 14,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Аварийная блокировка"
+              },
+              "unit": null
+            },
+            {
+              "cId": 15,
+              "statusVisible": true,
+              "type": "ContactSensorState",
+              "name": "Состояние датчика касания",
+              "read": true,
+              "write": false,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "intValue": 0
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 16,
+          "type": "Switch",
+          "name": "Авторежим",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 17,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Авторежим"
+              },
+              "unit": null
+            },
+            {
+              "cId": 18,
+              "statusVisible": true,
+              "type": "On",
+              "name": "Включен",
+              "read": true,
+              "write": true,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "boolValue": false
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 19,
+          "type": "C_Option",
+          "name": "Причина запрета подпитки",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 20,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Причина запрета подпитки"
+              },
+              "unit": null
+            },
+            {
+              "cId": 21,
+              "statusVisible": false,
+              "type": "C_String",
+              "name": "Строка",
+              "read": true,
+              "write": true,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "stringValue": ""
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 22,
+          "type": "C_Option",
+          "name": "Ток датчика 414 мА",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 23,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Ток датчика 414 мА"
+              },
+              "unit": null
+            },
+            {
+              "cId": 24,
+              "statusVisible": false,
+              "type": "C_Double",
+              "name": "Дробное значение",
+              "read": true,
+              "write": true,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "doubleValue": 6.704999923706055
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 25,
+          "type": "ContactSensor",
+          "name": "Цикл подпитки",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 26,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Цикл подпитки"
+              },
+              "unit": null
+            },
+            {
+              "cId": 27,
+              "statusVisible": true,
+              "type": "ContactSensorState",
+              "name": "Состояние датчика касания",
+              "read": true,
+              "write": false,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "intValue": 0
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 28,
+          "type": "C_Option",
+          "name": "Циклов за 1 час",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 29,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Циклов за 1 час"
+              },
+              "unit": null
+            },
+            {
+              "cId": 30,
+              "statusVisible": false,
+              "type": "C_Double",
+              "name": "Дробное значение",
+              "read": true,
+              "write": true,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "doubleValue": 3
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 31,
+          "type": "C_Option",
+          "name": "Циклов за 24 часа",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 32,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Циклов за 24 часа"
+              },
+              "unit": null
+            },
+            {
+              "cId": 33,
+              "statusVisible": false,
+              "type": "C_Double",
+              "name": "Дробное значение",
+              "read": true,
+              "write": true,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "doubleValue": 3
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 34,
+          "type": "Switch",
+          "name": "Разрешить подпитку",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 35,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Разрешить подпитку"
+              },
+              "unit": null
+            },
+            {
+              "cId": 36,
+              "statusVisible": true,
+              "type": "On",
+              "name": "Включен",
+              "read": true,
+              "write": true,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "boolValue": false
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 37,
+          "type": "C_Option",
+          "name": "Причина аварии",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 38,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Причина аварии"
+              },
+              "unit": null
+            },
+            {
+              "cId": 39,
+              "statusVisible": false,
+              "type": "C_String",
+              "name": "Строка",
+              "read": true,
+              "write": true,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "stringValue": ""
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 40,
+          "type": "C_Option",
+          "name": "Последнее событие",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 41,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Последнее событие"
+              },
+              "unit": null
+            },
+            {
+              "cId": 42,
+              "statusVisible": false,
+              "type": "C_String",
+              "name": "Строка",
+              "read": true,
+              "write": true,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "stringValue": ""
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 43,
+          "type": "ContactSensor",
+          "name": "Низкое давление",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 44,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Низкое давление"
+              },
+              "unit": null
+            },
+            {
+              "cId": 45,
+              "statusVisible": true,
+              "type": "ContactSensorState",
+              "name": "Состояние датчика касания",
+              "read": true,
+              "write": false,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "intValue": 0
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 46,
+          "type": "Switch",
+          "name": "Остановить и заблокировать",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 47,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Остановить и заблокировать"
+              },
+              "unit": null
+            },
+            {
+              "cId": 48,
+              "statusVisible": true,
+              "type": "On",
+              "name": "Включен",
+              "read": true,
+              "write": true,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "boolValue": false
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 49,
+          "type": "C_Option",
+          "name": "Поправка датчика 414 бар",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 50,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Поправка датчика 414 бар"
+              },
+              "unit": null
+            },
+            {
+              "cId": 51,
+              "statusVisible": false,
+              "type": "C_Double",
+              "name": "Дробное значение",
+              "read": true,
+              "write": true,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "doubleValue": -0.20000000298023224
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 52,
+          "type": "C_Option",
+          "name": "Давление котла с поправкой бар",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 53,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Давление котла с поправкой бар"
+              },
+              "unit": null
+            },
+            {
+              "cId": 54,
+              "statusVisible": false,
+              "type": "C_Double",
+              "name": "Дробное значение",
+              "read": true,
+              "write": true,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "doubleValue": 0.8140000104904175
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 55,
+          "type": "C_Option",
+          "name": "Импульсов в цикле",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 56,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Импульсов в цикле"
+              },
+              "unit": null
+            },
+            {
+              "cId": 57,
+              "statusVisible": false,
+              "type": "C_Double",
+              "name": "Дробное значение",
+              "read": true,
+              "write": true,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "doubleValue": 0
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 58,
+          "type": "C_Option",
+          "name": "Давление датчика 414 бар",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 59,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Давление датчика 414 бар"
+              },
+              "unit": null
+            },
+            {
+              "cId": 60,
+              "statusVisible": false,
+              "type": "C_Double",
+              "name": "Дробное значение",
+              "read": true,
+              "write": true,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "doubleValue": 1.0140000581741333
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 61,
+          "type": "ContactSensor",
+          "name": "Команда клапану ON",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 62,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Команда клапану ON"
+              },
+              "unit": null
+            },
+            {
+              "cId": 63,
+              "statusVisible": true,
+              "type": "ContactSensorState",
+              "name": "Состояние датчика касания",
+              "read": true,
+              "write": false,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "intValue": 0
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 64,
+          "type": "Switch",
+          "name": "Сброс аварий и блокировки",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 65,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Сброс аварий и блокировки"
+              },
+              "unit": null
+            },
+            {
+              "cId": 66,
+              "statusVisible": true,
+              "type": "On",
+              "name": "Включен",
+              "read": true,
+              "write": true,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "boolValue": false
+              },
+              "unit": null
+            }
+          ]
+        },
+        {
+          "sId": 67,
+          "type": "ContactSensor",
+          "name": "Ошибка датчика",
+          "visible": true,
+          "system": false,
+          "characteristics": [
+            {
+              "cId": 68,
+              "statusVisible": false,
+              "type": "Name",
+              "name": "Имя",
+              "read": true,
+              "write": false,
+              "events": false,
+              "disabled": false,
+              "value": {
+                "stringValue": "Ошибка датчика"
+              },
+              "unit": null
+            },
+            {
+              "cId": 69,
+              "statusVisible": true,
+              "type": "ContactSensorState",
+              "name": "Состояние датчика касания",
+              "read": true,
+              "write": false,
+              "events": true,
+              "disabled": false,
+              "value": {
+                "intValue": 0
+              },
+              "unit": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
