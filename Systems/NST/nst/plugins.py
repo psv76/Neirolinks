@@ -10,6 +10,17 @@ BOILER = COMMON | {"/etc/wb-rules-modules/" + name + ".js" for name in
     "/etc/wb-rules/500_HHM3_FSE.js", "/etc/wb-rules/620_thermostats.js",
     "/etc/wb-rules/600_Heat_diagnostics.js"}
 GAZEBO = COMMON | {"/etc/wb-rules/624_combo_besedka.js"}
+# Iset one-rule replacement: trusted exact payload, NOT free-form file cleanup.
+# Never include HM2 20–27, old shadow 28 or unrelated house rules.
+ISET_MODULE_NAMES = (
+    "IsetRoomZones", "IsetServiceConfig", "IsetRoomSettingsStore",
+    "IsetRoomSimpleThermostat", "IsetRoomLocalRuntime",
+    "HHMRoomPathGate", "IsetRoomOutputPlanner", "IsetDhw", "IsetDemand",
+    "IsetSource", "IsetCoordinator", "IsetFloorHydraulics",
+    "IsetFloorMixing", "HHM3Mixing", "IsetUnifiedRuntime",
+)
+ISET_HOUSE = {"/etc/wb-rules-modules/" + name + ".js"
+              for name in ISET_MODULE_NAMES} | {"/etc/wb-rules/29_hhm_iset.js"}
 
 
 def makeup_interlock(engine, label):
@@ -45,12 +56,17 @@ class Files:
 
 
 class HHM(Files):
-    device_prefixes = ('HHM3', 'hhm3', 'NL_simple_thermostat_', 'NL_combo_thermostat_', 'heat_diagnostics')
+    device_prefixes = ('HHM3', 'hhm3', 'NL_simple_thermostat_', 'NL_combo_thermostat_', 'heat_diagnostics', 'iset_hhm')
     def validate(self, m, registration):
-        require(m["component"] == "hhm" and m["object"] == "05_31_Ivolga_13", "Wrong HHM object")
-        require(m["role"] in ("boiler", "gazebo"), "Wrong HHM role")
+        require(m["component"] == "hhm", "Wrong HHM component")
         targets = {f["target"] for f in m["files"]}
-        require(targets == (BOILER if m["role"] == "boiler" else GAZEBO), "Incomplete/wrong-role HHM payload")
+        if m["object"] == "05_16_Iset":
+            require(m["role"] == "house", "Wrong Iset HHM role")
+            require(targets == ISET_HOUSE, "Incomplete/wrong-role Iset HHM payload")
+        else:
+            require(m["object"] == "05_31_Ivolga_13", "Wrong HHM object")
+            require(m["role"] in ("boiler", "gazebo"), "Wrong HHM role")
+            require(targets == (BOILER if m["role"] == "boiler" else GAZEBO), "Incomplete/wrong-role HHM payload")
         require(m["services"] == {"stop": ["wb-rules"], "start": ["wb-rules"]}, "HHM only controls wb-rules")
         require(m["preflight"] == ["identity", "drift", "hhm"], "HHM preflight cannot be omitted")
 
