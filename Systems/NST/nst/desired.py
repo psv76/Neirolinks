@@ -117,6 +117,9 @@ class PlatformReleases:
         require(sorted(profile.get('object_files', []), key=lambda f: f['target']) ==
                 sorted([{k: f[k] for k in ('source', 'target')} for f in deployment['object_files']],
                        key=lambda f: f['target']), 'Profile object files mismatch')
+        require(profile.get('unmanaged_rules', {}) ==
+                deployment.get('unmanaged_rules', {}),
+                'Profile unmanaged rules mismatch')
 
 
 class DesiredState:
