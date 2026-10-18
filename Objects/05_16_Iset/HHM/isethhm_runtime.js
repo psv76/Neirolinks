@@ -87,7 +87,8 @@ exports.create=function(o){
                         throw new Error('Iset runtime: conflicting commands '+path);
                     return;
                 }
-                if(same(output[path],value))return;
+                if((typeof value==='boolean'&&relay(output[path])===value)||
+                   (typeof value!=='boolean'&&same(output[path],value)))return;
                 var cmd={path:path,value:value,action:action,reason:reason||''};
                 seen[path]=cmd;commands.push(cmd);
             }
