@@ -124,7 +124,8 @@ check('no current rules, virtual writes or logs address physical outputs',functi
     var settings={};seed(settings,'office');var m=instantiate(settings);
     m.tick('office',19);m.fault('office','1');
     m.writes.forEach(function(w){assert.ok(/^iset_hhm_/.test(w.path),w.path);});
-    assert.strictEqual(source.indexOf('dev[z.outputs'),-1);
+    // Physical actuator readback is allowed; assignment is forbidden.
+    assert.strictEqual(/dev\\s*\\[\\s*z\\.outputs\\[j\\]\\s*\\]\\s*=/.test(source),false);
     // Reading the K4 relay is allowed. Assigning to it is not.
     assert.strictEqual(/dev\\s*\\[\\s*IS_MAP\\.pump\\s*\\]\\s*=/.test(source),false);
     assert.ok(m.logs.some(function(s){return s.indexOf('запись_выходов=ЗАПРЕЩЕНА')>=0;}));
