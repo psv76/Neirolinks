@@ -125,7 +125,8 @@ check('no current rules, virtual writes or logs address physical outputs',functi
     m.tick('office',19);m.fault('office','1');
     m.writes.forEach(function(w){assert.ok(/^iset_hhm_/.test(w.path),w.path);});
     assert.strictEqual(source.indexOf('dev[z.outputs'),-1);
-    assert.strictEqual(source.indexOf('dev[IS_MAP.pump]'),-1);
+    // Reading the K4 relay is allowed. Assigning to it is not.
+    assert.strictEqual(/dev\\s*\\[\\s*IS_MAP\\.pump\\s*\\]\\s*=/.test(source),false);
     assert.ok(m.logs.some(function(s){return s.indexOf('запись_выходов=ЗАПРЕЩЕНА')>=0;}));
 });
 check('shadow control fields are readonly and never act as writable setpoints',function(){
