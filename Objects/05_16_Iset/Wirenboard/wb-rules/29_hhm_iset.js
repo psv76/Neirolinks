@@ -294,7 +294,7 @@ for(var HHM_Z=0;HHM_Z<HHM_ROOM_MAP.zones.length;HHM_Z++){
             demand:{type:"text",value:"UNKNOWN",readonly:true,title:"Запрос тепла"},
             temp:{type:"text",value:"—",readonly:true,title:"Температура"},
             saved:{type:"text",value:"—",readonly:true,title:"Уставка сохранена"},
-            setpoint_input:{type:"value",value:st?st.setpointC:0,
+            setpoint_input:{type:"value",readonly:false,value:st?st.setpointC:0,
                 title:"Уставка, °C"},
             heating_mode:{type:"switch",value:st?st.mode==="HEAT":true,
                 title:"Отопление включено"},
@@ -377,7 +377,7 @@ defineVirtualDevice("iset_hhm_basement",{title:"HHM Исеть / Цоколь",
     cells:{
         target_saved:{type:"text",value:String(HHM_SVC.basement.targetC)+" °C",
             readonly:true,title:"Сохранённая уставка"},
-        target_input:{type:"value",value:HHM_SVC.basement.targetC,
+        target_input:{type:"value",readonly:false,value:HHM_SVC.basement.targetC,
             title:"Новая уставка, °C"},
         save:{type:"pushbutton",title:"Сохранить уставку"},
         demand:{type:"text",value:"—",readonly:true,title:"Запрос тепла"}
@@ -402,7 +402,7 @@ defineRule("iset_hhm_basement_save",{whenChanged:"iset_hhm_basement/save",
 var HHM_FLOOR_CELLS={
     enable:{type:"switch",value:HHM_FLOOR_SETTINGS!==null&&
         HHM_FLOOR_SETTINGS.enabled===true,title:"ТП: локально включить"},
-    target:{type:"value",value:HHM_FLOOR_SETTINGS===null?
+    target:{type:"value",readonly:false,value:HHM_FLOOR_SETTINGS===null?
         34:HHM_FLOOR_SETTINGS.targetC,title:"ТП: целевая подача, °C"},
     save:{type:"pushbutton",title:"Сохранить настройки ТП"},
     state:{type:"text",value:"OFF",readonly:true,title:"Состояние"},
