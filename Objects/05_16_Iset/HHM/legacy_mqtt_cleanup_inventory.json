@@ -1,0 +1,49 @@
+{
+  "schema": "iset-hhm-retained-cleanup-inventory-v1",
+  "object": "05_16_Iset",
+  "observed_at_local": "2026-10-19 00:40 +05 (last confirmed, not a live read now)",
+  "purpose": "Remove obsolete retained-only HM2 virtual devices from WB MQTT; never touch current HHM, physical devices, Home Assistant or independent automation",
+  "broker_connection": "Mosquitto on WB; bridge topic # both also configured to 192.168.30.250",
+  "driver_expected": "wb-rules",
+  "state": "HISTORICAL_OBSERVATION_PLEASE_RECHECK",
+  "confirmed_removed_at_observation": [
+    "heating_safety",
+    "heating_floor",
+    "heating_basement"
+  ],
+  "last_observed_retained_not_yet_removed": [
+    "heating_living",
+    "heating_dhw",
+    "heating_ahu",
+    "heating_state",
+    "heating_source",
+    "heating_service",
+    "heating_notifications",
+    "heating_watchdog",
+    "floor_performance_monitor",
+    "iset_floor_status_ru",
+    "iset_m1w2_diagnostic"
+  ],
+  "never_remove_by_this_procedure": [
+    "iset_hhm",
+    "iset_hhm_floor",
+    "iset_hhm_dhw",
+    "iset_hhm_k1",
+    "iset_hhm_k2",
+    "iset_hhm_k3",
+    "iset_hhm_k4",
+    "Home Assistant / Heating Manager",
+    "AHU_preheat_pump_manager",
+    "DHW_recirculation_manager",
+    "wb-mio-gpio_195:2",
+    "wb-mao4_131",
+    "wbe2-i-opentherm_11"
+  ],
+  "safety_conditions": [
+    "Verify old wb-rules source files are no longer installed",
+    "Verify each target virtual device /meta/driver = wb-rules and is not being actively updated",
+    "Delete retained data strictly under /devices/<one exact listed id>/#",
+    "If deleted metadata reappears investigate the remote MQTT bridge; do not restart heating merely to clear UI",
+    "No physical outputs, WB service restarts, or HA retained data cleared as part of this cleanup"
+  ]
+}
