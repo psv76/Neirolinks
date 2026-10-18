@@ -31,7 +31,19 @@ bootEpoch and increasing pollSequence, plus a non-retained flag. Retained
 MQTT readings, an unchanged cached value, a duplicate poll, a stale poll,
 a poll failure and an old boot epoch cannot silently become a new healthy
 measurement. A genuinely new successful poll may confirm **the same
-numerical temperature**. The real object-level adapter that obtains
+numerical temperature**.
+
+**Driver verification note:** official `wb-mqtt-serial` documentation
+states `max_unchanged_interval=-1` by default: identical values are
+published only when they change. Consequently lack of a fresh MQTT
+Temperature message is NOT equivalent to lack of a successful Modbus
+poll. The driver reports errors through `/meta/error`; the real object
+adapter must read the active driver configuration and interpret the
+actual error/clear events without inventing a positive health signal.
+Changing publication periods or adding direct poll requests on a live
+WB is outside this PR. Documentation:
+https://github.com/wirenboard/wb-mqtt-serial (driver description).
+ The real object-level adapter that obtains
 trustworthy per-device poll success/sequence from wb-mqtt-serial remains
 to be implemented and tested; setting `source='WB_LOCAL_MODBUS_POLL'` in
 arbitrary MQTT rules is **not independent proof** of polling. Live MQTT
