@@ -75,6 +75,31 @@ class IsetDraftReleaseTests(unittest.TestCase):
         self.assertIn("var HHM_PHYSICAL_OUTPUTS=true;", main)
         self.assertNotIn("var HHM_PHYSICAL_OUTPUTS=false;", main)
 
+    def test_new_canonical_x_y_candidate_is_immutable_and_compatible_with_nst(self):
+        from nst.releases import software_version
+        path = BASE + "/release_candidates/iset-hhm-house-0.1-PHYSICAL.json"
+        raw = git_blob("HEAD", path)
+        pinned = git_blob("HEAD", path + ".sha256").decode().split()[0]
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), pinned)
+        manifest = json.loads(raw)
+        validate(manifest)
+        HHM().validate(manifest, {})
+        self.assertEqual(manifest["version"], "0.1")
+        self.assertEqual(manifest["verify"]["runtime_version"], "0.1")
+        self.assertEqual(software_version(manifest["version"]), (0, 1, 0))
+        self.assertEqual({f["target"] for f in manifest["files"]}, ISET_HOUSE)
+        for entry in manifest["files"]:
+            source = git_blob(manifest["release"]["commit"], entry["source"])
+            self.assertEqual(hashlib.sha256(source).hexdigest(), entry["sha256"])
+        main_source = next(f["source"] for f in manifest["files"]
+                           if f["target"] == "/etc/wb-rules/29_hhm_iset.js")
+        main = git_blob(manifest["release"]["commit"], main_source).decode()
+        self.assertIn("var HHM_PHYSICAL_OUTPUTS=true;", main)
+        self.assertIn("io_unconfirmed", main)
+        self.assertIn("CIRCULATING", git_blob(
+            manifest["release"]["commit"],
+            "Objects/05_16_Iset/HHM/isethhm_floor_hydraulics.js").decode())
+
     def test_physical_and_historical_preview_are_both_content_pinned(self):
         physical = json.loads(git_blob(
             "HEAD", BASE + "/release_candidates/iset-hhm-house-0.1.0-PHYSICAL.json"))
