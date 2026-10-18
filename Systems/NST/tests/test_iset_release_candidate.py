@@ -121,5 +121,39 @@ class IsetDraftReleaseTests(unittest.TestCase):
         self.assertTrue(set(diagnostic["history_channels"]) <= set(channels))
 
 
+    def test_real_iset_planned_profile_pins_live_unmanaged_rules(self):
+        profile = json.loads(git_blob(
+            "HEAD", "Objects/05_16_Iset/controllers/AFMEUYOT.json"))
+        registry = json.loads(git_blob(
+            "HEAD", "Systems/NST/generated/controller-registry.json"))
+        from nst.controller import validate_profile, ControllerRegistry
+        validate_profile(profile, "AFMEUYOT")
+        self.assertEqual(profile["state"], "planned")
+        self.assertEqual(profile["role"], "house")
+        self.assertEqual(profile["components"], {"hhm": {"track": "stable"}})
+        self.assertEqual(profile["diagnostics_profile"],
+                         "Systems/NST/diagnostics/iset-house-hhm-v1.json")
+        expected = json.loads(git_blob(
+            "HEAD", BASE + "/release_candidates/nst_unmanaged_POST_CUTOVER_DRAFT.json"))
+        self.assertEqual(profile["unmanaged_rules"], expected["unmanaged_rules"])
+        self.assertEqual(len(profile["unmanaged_rules"]), 9)
+        identity = dict(serial="AFMEUYOT", fingerprint=None)
+        context = ControllerRegistry(registry).resolve(identity)
+        self.assertFalse(context["mutation_allowed"])
+        self.assertEqual(context["state"], "planned")
+        self.assertEqual(context["assignment"]["object"], "05_16_Iset")
+
+    def test_deployment_inventory_refuses_unmanaged_collision_with_hhm(self):
+        from nst.deployment import validate_deployment
+        from nst.util import Error
+        import test_deployment
+        fixture = test_deployment.DeploymentTests()
+        fixture.setUp()
+        deployment = fixture.build()
+        target = deployment["components"][0]["files"][0]["target"]
+        deployment["unmanaged_rules"] = {target: "a" * 64}
+        with self.assertRaisesRegex(Error, "ownership conflict"):
+            validate_deployment(deployment)
+
 if __name__ == "__main__":
     unittest.main()
