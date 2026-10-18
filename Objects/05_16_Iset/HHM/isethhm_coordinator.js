@@ -42,8 +42,12 @@ exports.create=function(o){
             var k1=hot.pumpWanted&&plantMayHeat;
             var basementGranted=service.grants.basement==='REQUESTED';
             var k3=basementGranted&&plantMayHeat;
+            var k4Granted=service.grants.living==='REQUESTED'&&plantMayHeat;
             return {mode:'OFFLINE_PLAN_ONLY',objectId:'05_16_Iset',
                 rooms:rooms,dhw:hot,requests:service,source:source,
+                livingPumpGranted:k4Granted,
+                livingPumpPermissionReason:!plantMayHeat?'INDEPENDENT_PLANT_PROTECTION':
+                    service.grants.living,
                 intents:[
                     {path:c.outputs.dhwPump,requested:k1,
                         reason:hot.mode},
