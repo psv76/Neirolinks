@@ -18,7 +18,9 @@ exports.create=function(o){
         stores[z.id]=o.Settings.create(o.storage,z.id);
         // Never invent initial setpoints. Invalid/missing records remain
         // NOT_COMMISSIONED until separately approved & provisioned.
-        if(stores[z.id].read()!==null){
+        var record=stores[z.id].read();
+        if(record!==null&&record.setpointC>=o.minSetpointC&&
+           record.setpointC<=o.maxSetpointC){
             room[z.id]=o.Simple.create({zoneId:z.id,sensorId:z.primarySensor,
                 minSetpointC:o.minSetpointC,maxSetpointC:o.maxSetpointC,
                 hysteresisC:o.hysteresisC,minMeasuredC:o.minMeasuredC,
