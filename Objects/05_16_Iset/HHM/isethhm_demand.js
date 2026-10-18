@@ -73,7 +73,7 @@ exports.create=function(cfg){
                 if(!Object.prototype.hasOwnProperty.call(requests,id))continue;
                 if(id==='floor'&&f.floorCommissioned!==true)continue;
                 if(id==='living'&&!living&&knownLiving===0)
-                    grants[id]='UNKNOWN'; 
+                    grants[id]='UNKNOWN';
                 if(id==='basement'&&lastBasementMin===null)
                     grants[id]='UNKNOWN';
                 if(requests[id]===null)continue;
