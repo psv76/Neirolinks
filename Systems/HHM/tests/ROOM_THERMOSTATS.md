@@ -54,12 +54,15 @@ HomeKit or Alice currently provide this envelope.
 
 - No modification to `23_heating_living_manager.js` or physical K1–K11/K4.
 - No installation on WB, and no deletion of existing HA rules.
-- Seven WB-local temperature channel IDs have now been verified against
-  active WebUI `Климат` and live MQTT on controller `AFMEUYOT`; the
-  master bedroom is still unresolved. Sensor 47 is in the wardrobe;
-  ONOKOM 9 reported 0°C while the AC was off. The exact original HA
-  thermostat sensor entities have not been inspected. Do not invent
-  these details or mark the object as commissioned.
+- All eight WB-local temperature channel IDs are verified against active
+  WebUI `Климат` and WB MQTT on controller `AFMEUYOT`. The original
+  HA thermostat sensor and climate entity IDs are recovered from the
+  contemporaneous HA handoff document dated 2026-09-07, which says
+  `master_bedroom` **intentionally** uses sensor 47 in its wardrobe.
+  ONOKOM 9 read 0°C when the AC was off, so it is not the heating input.
+  Current HA runtime configuration (after the handoff) is not checked.
+  Do not mark this object commissioned: local setpoints, health adapter,
+  fallback, storage, and writer cutover are still unapproved.
 - No thermostat setpoints, fallback duty-cycle or heating limits chosen
   for Iset. Test fixtures (22 °C etc.) are not approved settings.
 - `HHMRoomPathGate.js` now **calculates a START permission only** after
@@ -87,4 +90,7 @@ node Systems/HHM/tests/room-path-gate.js
 Object mapping evidence and current room-sensor audit:
 `Objects/05_16_Iset/Doc/HHM_ROOM_THERMOSTATS_BASELINE_20261018.md`.
 WebUI SHA256 `8c08f64fd2e8186948fada6b3388bb1fc6ae832835e61187b1db9bbe06a8666a`.
+HA historical handoff: `C:\\Users\\psv76\\Downloads\\05_16_Исеть_Home_Assistant_передача_изменений_термостаты_воздух.docx` (2026-09-07).
+That document reports HA sensor entity registry unique IDs were checked
+against the WB-MSW numbers; it is historical, not current HA API access.
 Both tests operate only in memory; no MQTT messages or physical writes.

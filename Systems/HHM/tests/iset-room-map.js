@@ -29,29 +29,39 @@ check('living K4 pump differs from zone K4 actuator',function(){
         return z.outputs.indexOf('wb-mio-gpio_195:2/K4')!==-1;
     }));
 });
-check('seven direct WB temperature sensors match live climate dashboard',function(){
-    var known={office:22,summer_kitchen:53,corridor:52,
-        master_bathroom:54,living_kitchen:116,entrance:43,
-        guest_bathroom:106};
+check('all eight historic HA sensors match live WB sensor addresses',function(){
+    var expected={
+        office:[22,'sensor.temperatura_kabinet','climate.kabinet'],
+        summer_kitchen:[53,'sensor.temperatura_letniaia_kukhnia','climate.letniaia_kukhnia'],
+        corridor:[52,'sensor.temperatura_koridor_2_etazh','climate.koridor'],
+        master_bathroom:[54,'sensor.temperatura_sanuzel_master_spalni','climate.master_sanuzel'],
+        living_kitchen:[116,'sensor.temperatura_gostinaia_2','climate.gostinaia_kukhnia'],
+        entrance:[43,'sensor.temperatura_prikhozhaia_2','climate.prikhozhaia'],
+        guest_bathroom:[106,'sensor.temperatura_sanuzel_gostevoi','climate.gostevoi_sanuzel'],
+        master_bedroom:[47,'sensor.temperatura_garderob_2','climate.master_spalnia']
+    };
     assert.strictEqual(map.roomSensorAudit.wbSerial,'AFMEUYOT');
+    assert.strictEqual(map.roomSensorAudit.haHistoricalMappingDocumented,true);
     assert.strictEqual(map.roomSensorAudit.haClimateMappingsVerified,false);
     var verified=0;
     map.zones.forEach(function(z){
+        var x=expected[z.id];
+        assert.ok(x,'Unexpected zone '+z.id);
+        assert.strictEqual(z.primarySensor,
+            'wb-msw-v4_'+x[0]+'/Temperature');
+        assert.strictEqual(z.haSensor,x[1]);
+        assert.strictEqual(z.haClimate,x[2]);
         assert.strictEqual(z.approvedSetpoint,null);
-        if(Object.prototype.hasOwnProperty.call(known,z.id)){
-            assert.strictEqual(z.primarySensor,
-                'wb-msw-v4_'+known[z.id]+'/Temperature');
-            assert.strictEqual(z.primaryEvidence,'WB_WEBUI_AND_LIVE_MQTT');
-            verified++;
-        }else assert.strictEqual(z.primarySensor,null);
+        verified++;
     });
-    assert.strictEqual(verified,7);
+    assert.strictEqual(verified,8);
 });
-check('master bedroom wardrobe 47 remains a candidate, not invented primary',function(){
+check('master bedroom wardrobe 47 intentionally selected in 07 Sep HA',function(){
     var z=map.zones.filter(function(z){return z.id==='master_bedroom';})[0];
-    assert.strictEqual(z.primarySensor,null);
-    assert.strictEqual(z.candidateSensor,'wb-msw-v4_47/Temperature');
-    assert.strictEqual(z.secondaryCandidateInvalidObserved,0);
+    assert.strictEqual(z.primarySensor,'wb-msw-v4_47/Temperature');
+    assert.strictEqual(z.haSensor,'sensor.temperatura_garderob_2');
+    assert.ok(z.primaryLocation.indexOf('Гардероб')!==-1);
+    assert.strictEqual(z.alternateSensorObservedInvalid,0);
 });
 check('commissioning blocked until all room sensor/setpoints approved',function(){
     assert.strictEqual(map.commissioned,false);
