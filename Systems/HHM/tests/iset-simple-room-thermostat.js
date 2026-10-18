@@ -109,7 +109,7 @@ test('one faulty room never vetoes healthy second room or pump start permission'
     demand.office=office.step(frame('office',19,true)).heatDemand;
     demand.corridor=corridor.step(frame('corridor',19,false)).heatDemand;
     var r=Gate.create({zones:map.zones,openCommand:0,closeCommand:1,
-        openWaitMs:180000}).step({nowMs:300000,bootEpoch:'boot-1',
+        openWaitMs:map.actuators.nominalOpenWaitMs}).step({nowMs:300000,bootEpoch:'boot-1',
         protectionActive:false,demands:demand,
         outputs:{'wb-mio-gpio_195:2/K4':{
             valid:true,value:0,bootEpoch:'boot-1',acceptedOpenAtMs:1000}}});
