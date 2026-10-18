@@ -28,7 +28,12 @@ exports.create=function(cfg){
             }
             if(finite(f.outdoorC)&&f.outdoorC>=-60&&f.outdoorC<=60)
                 lastOutdoor=f.outdoorC;
-            var base=outdoorBase(lastOutdoor);
+            // Missing outdoor temperature must not silently cancel every
+            // valid room heat request after a WB restart. Use 0 C as a
+            // conservative SOURCE CURVE assumption, not an asserted reading.
+            var outdoorFallback=lastOutdoor===null;
+            var outdoorUsedC=outdoorFallback?0:lastOutdoor;
+            var base=outdoorBase(outdoorUsedC);
             var bs=f.basementTemps||[],bmin=null,validCount=0;
             for(var i=0;i<bs.length;i++){
                 if(finite(bs[i])&&bs[i]>=-10&&bs[i]<=50){
@@ -81,6 +86,8 @@ exports.create=function(cfg){
                 livingHeatDemand:living,
                 basementHeatDemand:basementHeat,
                 basementMinimumC:bmin,basementValidSensors:validCount,
+                outdoorUsedC:outdoorUsedC,
+                outdoorFallback:outdoorFallback,
                 basementLastObservedMinC:lastBasementMin,
                 basementLastValueHeld:bmin===null&&lastBasementMin!==null,
                 floorCommissioned:f.floorCommissioned,
