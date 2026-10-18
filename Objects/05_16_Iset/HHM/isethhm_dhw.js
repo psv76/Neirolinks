@@ -52,7 +52,10 @@ exports.create=function(cfg){
             if(!ready||fault){
                 // Local fault suppresses DHW K1 only; do NOT veto rooms.
                 demand=false;start=null;startTemp=null;priorityAt=null;
-                overrunUntil=0;reliefUntil=0;boost=false;
+                overrunUntil=0;reliefUntil=0;
+                // A deliberate local BOOST pressed during sensor recovery
+                // must not disappear before the tank is available.
+                if(fault)boost=false;
                 reason=fault?'DHW_TIMEOUT_LATCHED':'TANK_NOT_READY';
             }else{
                 if(tank<=cfg.targetC-cfg.hysteresisC||
