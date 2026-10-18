@@ -37,7 +37,7 @@ check('DHW cold-start delay uses verified tank, not HA demand',function(){
     assert.strictEqual(a.state,'ACTIVE');
     assert.strictEqual(a.demand,true);
     assert.strictEqual(a.pumpWanted,true);
-    assert.strictEqual(a.requestSupplyC,80);
+    assert.strictEqual(a.requestSupplyC,72); // 52 + priorityMargin 20
     assert.strictEqual(a.mode,'ACCELERATED');
     assert.strictEqual(a.priorityRemainingS,1500);
 });
