@@ -210,4 +210,16 @@ check('actual outdoor observation supersedes startup fallback',function(){
     assert.strictEqual(r.outdoorUsedC,-17);
     assert.strictEqual(r.outdoorFallback,false);
 });
+check('live 23.21C basement with 23C setpoint starts K3 inside hysteresis band',function(){
+    var x=demand(),f=demandFrame();
+    f.basementTemps=[23.21,23.44,26.19,24.4];
+    f.outdoorC=12.4;
+    var r=x.step(f);
+    assert.strictEqual(r.basementHeatDemand,true);
+    assert.strictEqual(r.grants.basement,'REQUESTED');
+    assert.ok(r.sourceRequestedC!==null);
+    f.basementTemps=[23.8,24.1,26.19,24.4];
+    r=x.step(f);
+    assert.strictEqual(r.basementHeatDemand,false);
+});
 console.log('TOTAL PASS '+done);
