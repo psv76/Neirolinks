@@ -1,0 +1,101 @@
+{
+  "schema": "iset-hhm-wb-install-map-v1",
+  "object": "05_16_Iset",
+  "status": "DRAFT_NEVER_DEPLOYED",
+  "source_ref": "system/hhm/204-room-thermostats",
+  "activation": "Stop HM2 20–27, stage this complete pack, approve local setpoints, set HHM_PHYSICAL_OUTPUTS=true in approved release; then install NST separately",
+  "main": {
+    "source": "Objects/05_16_Iset/Wirenboard/wb-rules/29_hhm_iset.js",
+    "target": "/etc/wb-rules/29_hhm_iset.js"
+  },
+  "modules": [
+    {
+      "require": "IsetRoomZones",
+      "source": "Objects/05_16_Iset/HHM/room_zones.js",
+      "target": "/etc/wb-rules-modules/IsetRoomZones.js"
+    },
+    {
+      "require": "IsetServiceConfig",
+      "source": "Objects/05_16_Iset/HHM/isethhm_service_config.js",
+      "target": "/etc/wb-rules-modules/IsetServiceConfig.js"
+    },
+    {
+      "require": "IsetRoomSettingsStore",
+      "source": "Objects/05_16_Iset/HHM/room_settings_store.js",
+      "target": "/etc/wb-rules-modules/IsetRoomSettingsStore.js"
+    },
+    {
+      "require": "IsetRoomSimpleThermostat",
+      "source": "Objects/05_16_Iset/HHM/simple_room_thermostat.js",
+      "target": "/etc/wb-rules-modules/IsetRoomSimpleThermostat.js"
+    },
+    {
+      "require": "IsetRoomLocalRuntime",
+      "source": "Objects/05_16_Iset/HHM/room_local_runtime.js",
+      "target": "/etc/wb-rules-modules/IsetRoomLocalRuntime.js"
+    },
+    {
+      "require": "HHMRoomPathGate",
+      "source": "Systems/HHM/core/HHMRoomPathGate.js",
+      "target": "/etc/wb-rules-modules/HHMRoomPathGate.js"
+    },
+    {
+      "require": "IsetRoomOutputPlanner",
+      "source": "Objects/05_16_Iset/HHM/room_output_planner.js",
+      "target": "/etc/wb-rules-modules/IsetRoomOutputPlanner.js"
+    },
+    {
+      "require": "IsetDhw",
+      "source": "Objects/05_16_Iset/HHM/isethhm_dhw.js",
+      "target": "/etc/wb-rules-modules/IsetDhw.js"
+    },
+    {
+      "require": "IsetDemand",
+      "source": "Objects/05_16_Iset/HHM/isethhm_demand.js",
+      "target": "/etc/wb-rules-modules/IsetDemand.js"
+    },
+    {
+      "require": "IsetSource",
+      "source": "Objects/05_16_Iset/HHM/isethhm_source.js",
+      "target": "/etc/wb-rules-modules/IsetSource.js"
+    },
+    {
+      "require": "IsetCoordinator",
+      "source": "Objects/05_16_Iset/HHM/isethhm_coordinator.js",
+      "target": "/etc/wb-rules-modules/IsetCoordinator.js"
+    },
+    {
+      "require": "IsetFloorHydraulics",
+      "source": "Objects/05_16_Iset/HHM/isethhm_floor_hydraulics.js",
+      "target": "/etc/wb-rules-modules/IsetFloorHydraulics.js"
+    },
+    {
+      "require": "IsetFloorMixing",
+      "source": "Objects/05_16_Iset/HHM/isethhm_floor_mixing.js",
+      "target": "/etc/wb-rules-modules/IsetFloorMixing.js"
+    },
+    {
+      "require": "HHM3Mixing",
+      "source": "Systems/HHM/core/HHM3Mixing.js",
+      "target": "/etc/wb-rules-modules/HHM3Mixing.js"
+    },
+    {
+      "require": "IsetUnifiedRuntime",
+      "source": "Objects/05_16_Iset/HHM/isethhm_runtime.js",
+      "target": "/etc/wb-rules-modules/IsetUnifiedRuntime.js"
+    }
+  ],
+  "disable_legacy": [
+    "/etc/wb-rules/20_heating_safety_supervisor.js",
+    "/etc/wb-rules/21_heating_floor_manager.js",
+    "/etc/wb-rules/22_heating_basement_manager.js",
+    "/etc/wb-rules/23_heating_living_manager.js",
+    "/etc/wb-rules/24_heating_dhw_manager.js",
+    "/etc/wb-rules/25_heating_ahu_manager.js",
+    "/etc/wb-rules/26_heating_demand_arbiter.js",
+    "/etc/wb-rules/27_heating_source_manager.js",
+    "/etc/wb-rules/28_hhm_rooms_shadow.js"
+  ],
+  "preserve_inventory": "Objects/05_16_Iset/HHM/nst_preserve_inventory.json",
+  "approval": "Not a published NST manifest or approved release"
+}

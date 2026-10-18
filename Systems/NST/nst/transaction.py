@@ -61,6 +61,14 @@ class DeploymentTransaction:
         old_deployment = (old_platform.get('deployment') or {}).get('manifest') or {}
         previous.update({f['target']: f['sha256'] for f in old_deployment.get('object_files', [])})
         objects = {f['target']: f['sha256'] for f in deployment['object_files']}
+        unmanaged = deployment.get('unmanaged_rules', {})
+        # A signed/approved platform may preserve exact existing house rules.
+        # Never download, overwrite, or adopt unreviewed current bytes.
+        for path, sha in unmanaged.items():
+            require(path not in objects, 'Unmanaged/object ownership conflict')
+            p = e.target(path)
+            require(p.is_file() and digest(p.read_bytes()) == sha,
+                    'Unmanaged rule absent/drifted: ' + path)
         for item in deployment['object_files']:
             object_target(item['target'])
             e.target(item['target'])
@@ -82,6 +90,7 @@ class DeploymentTransaction:
             r['remote_payload'] = True
             r.pop('payload_dir', None)
             r.setdefault('unmanaged_rules', {}).update(objects)
+            r['unmanaged_rules'].update(unmanaged)
             policy = PLUGINS[plugin]
             require(not outputs.intersection(policy.outputs), 'Conflicting physical output owner')
             outputs.update(policy.outputs)

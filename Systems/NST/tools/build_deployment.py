@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ROOT.parents[1]
 sys.path.insert(0, str(ROOT))
 
-from nst.controller import validate_profile
+from nst.controller import SERIAL_RE, validate_profile
 from nst.deployment import validate_deployment
 from nst.manifest import validate as validate_component_manifest
 from nst.releases import REPO, version
@@ -157,6 +157,8 @@ def resolve(serial, source_commit, profile_path, profile_raw, approvals_raw, rea
         "services": services,
         "signatures": [],
     }
+    if profile.get("unmanaged_rules"):
+        deployment["unmanaged_rules"] = dict(sorted(profile["unmanaged_rules"].items()))
     return validate_deployment(deployment)
 
 
@@ -164,8 +166,27 @@ def encode(data):
     return (json.dumps(data, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
 
 
+def profile_path_for_serial(serial, candidates):
+    """Resolve exact profile path from an immutable source tree, never hostname."""
+    require(SERIAL_RE.fullmatch(serial) is not None, "Invalid hardware serial")
+    found = []
+    for path in candidates:
+        parts = path.split("/")
+        if (len(parts) == 4 and parts[0] in ("Objects", "objects")
+                and parts[2] == "controllers"
+                and parts[3] == serial + ".json"):
+            found.append(path)
+    require(len(found) == 1,
+            "Expected exactly one controller profile for serial " + serial)
+    return found[0]
+
+
 def build(repo_root, serial, source_commit):
-    profile_path = "Objects/05_31_Ivolga_13/controllers/" + serial + ".json"
+    tree = subprocess.check_output([
+        "git", "-C", str(repo_root), "ls-tree", "-r",
+        "--name-only", source_commit, "--", "Objects", "objects"
+    ]).decode("utf-8").splitlines()
+    profile_path = profile_path_for_serial(serial, tree)
     profile_raw = git_blob(repo_root, source_commit, profile_path)
     approvals_raw = git_blob(repo_root, source_commit, APPROVALS_PATH)
     return resolve(serial, source_commit, profile_path, profile_raw, approvals_raw,

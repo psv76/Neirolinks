@@ -5,12 +5,13 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from build_deployment import encode, resolve
+from build_deployment import encode, resolve, build, profile_path_for_serial
 from nst.deployment import validate_deployment, verify_offline
 from nst.util import Error
 
@@ -106,12 +107,59 @@ class DeploymentTests(unittest.TestCase):
         raw = self.approvals_raw if approvals is None else (json.dumps(approvals, sort_keys=True) + "\n").encode()
         return resolve("ABCDE12", self.source, self.profile_path, self.profile_raw, raw, self.read)
 
+    def test_resolver_selects_object_profile_not_hardcoded_to_ivolga(self):
+        paths = [
+            "Objects/05_31_Ivolga_13/controllers/ABF62SL.json",
+            self.profile_path,
+            "Objects/05_16_Iset/controllers/ABCDE123.json",
+            "Objects/05_16_Iset/controllers/ABCDE12.js",
+        ]
+        self.assertEqual(profile_path_for_serial("ABCDE12", paths),
+                         self.profile_path)
+        with self.assertRaisesRegex(Error, "exactly one"):
+            profile_path_for_serial("NOMATCH1", paths)
+        with self.assertRaisesRegex(Error, "exactly one"):
+            profile_path_for_serial("ABCDE12", paths + [
+                "Objects/05_16_Iset/controllers/ABCDE12.json"
+            ])
+
+    def test_build_reads_discovered_profile_from_commit_tree(self):
+        tree = (self.profile_path + "\n"
+                "Objects/05_31_Ivolga_13/controllers/ABF62SL.json\n")
+        with patch("build_deployment.subprocess.check_output",
+                   return_value=tree.encode()):
+            with patch("build_deployment.git_blob",
+                       side_effect=lambda repo, commit, path:
+                           self.approvals_raw if path ==
+                           "Systems/NST/deployment/approved-components.json"
+                           else self.blobs[(commit, path)]):
+                deployment = build(Path("/fake-repo"), "ABCDE12",
+                                   self.source)
+        self.assertEqual(deployment["object"], "test_object")
+        self.assertEqual(deployment["controller_serial"], "ABCDE12")
+
     def test_stable_resolves_latest_and_ignores_draft(self):
         deployment = self.build()
         self.assertEqual(deployment["components"][0]["version"], "1.1")
         self.assertEqual(deployment["components"][0]["manifest"]["commit"], self.manifest_commit)
         self.assertEqual(deployment["source"]["commit"], self.source)
         self.assertEqual(deployment["services"], {"stop": ["wb-rules"], "start": ["wb-rules"]})
+
+    def test_historical_controller_deployment_unchanged_when_no_unmanaged_rules(self):
+        deployment = self.build()
+        self.assertNotIn("unmanaged_rules", deployment)
+        self.assertIs(validate_deployment(deployment), deployment)
+
+    def test_iset_style_pinned_unmanaged_rules_only_if_present(self):
+        self.profile["unmanaged_rules"] = {
+            "/etc/wb-rules/independent.js": "f" * 64,
+        }
+        self.profile_raw = (json.dumps(self.profile, sort_keys=True) + "\n").encode()
+        self.blobs[(self.source, self.profile_path)] = self.profile_raw
+        deployment = self.build()
+        self.assertEqual(deployment["unmanaged_rules"],
+                         self.profile["unmanaged_rules"])
+        self.assertIs(validate_deployment(deployment), deployment)
 
     def test_missing_approved_component_blocks_publication(self):
         approvals = copy.deepcopy(self.approvals)

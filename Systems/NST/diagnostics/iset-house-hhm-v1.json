@@ -1,0 +1,331 @@
+{
+  "schema": 1,
+  "name": "05 16 Исеть · Дом · HHM diagnostics v1",
+  "component": "hhm",
+  "semantics": {
+    "command": "Automation command/request, not evidence of physical actuation.",
+    "readback": "MQTT controller channel readback proves electrical/Modbus state only, not valve shaft travel, hydraulic circulation, or thermal transfer.",
+    "physical_result": "Claim only on independent measured temperature and equipment data."
+  },
+  "journals": [
+    "wb-rules",
+    "wb-mqtt-db",
+    "wb-mqtt-serial",
+    "mosquitto"
+  ],
+  "current_controls": [
+    {
+      "path": "wb-mr6cu_37/K1",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mr6cu_37/K2",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mr6cu_37/K3",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mr6cu_37/K4",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K1",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K2",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K3",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K4",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K5",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K6",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K7",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K8",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K9",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K10",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K11",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K12",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K13",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K14",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K15",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mio-gpio_195:2/K16",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mao4_131/Channel 1 Dimming Level",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-mao4_131/Channel 1 Switch",
+      "kind": "readback"
+    },
+    {
+      "path": "wbe2-i-opentherm_11/Heating Setpoint",
+      "kind": "readback"
+    },
+    {
+      "path": "wbe2-i-opentherm_11/Invalid Connection",
+      "kind": "readback"
+    },
+    {
+      "path": "wbe2-i-opentherm_11/Boiler Fault Indication",
+      "kind": "readback"
+    },
+    {
+      "path": "wbe2-i-opentherm_11/Error Code",
+      "kind": "readback"
+    },
+    {
+      "path": "wbe2-i-opentherm_11/Boiler Flame Status",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-m1w2_67/External Sensor 1",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-m1w2_67/External Sensor 2",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-m1w2_65/External Sensor 1",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-m1w2_65/External Sensor 2",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-m1w2_66/External Sensor 1",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-m1w2_66/External Sensor 2",
+      "kind": "measurement"
+    },
+    {
+      "path": "wbe2-i-opentherm_11/Heating Temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "wbe2-i-opentherm_11/Water Pressure",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-msw-v4_22/Temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-msw-v4_53/Temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-msw-v4_52/Temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-msw-v4_54/Temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-msw-v4_116/Temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-msw-v4_43/Temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-msw-v4_106/Temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-msw-v4_47/Temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-msw-v4_45/Temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-msw-v4_61/Temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-msw-v4_202/Temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "wb-msw-v4_209/Temperature",
+      "kind": "measurement"
+    },
+    {
+      "path": "iset_hhm/status",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm/source",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm/dhw",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm/floor_state",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm/io_state",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm/io_unconfirmed",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm/io_waiting",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm/io_details",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm_basement/demand",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm_dhw/mode",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm_floor/target",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm_floor/state",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm_k1/relay",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm_k2/relay",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm_k3/relay",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm_k4/relay",
+      "kind": "calculated"
+    }
+  ],
+  "history_channels": [
+    "wb-mr6cu_37/K1",
+    "wb-mr6cu_37/K2",
+    "wb-mr6cu_37/K3",
+    "wb-mr6cu_37/K4",
+    "wb-mao4_131/Channel 1 Dimming Level",
+    "wb-mao4_131/Channel 1 Switch",
+    "wbe2-i-opentherm_11/Heating Setpoint",
+    "wb-m1w2_67/External Sensor 1",
+    "wb-m1w2_67/External Sensor 2",
+    "wb-m1w2_65/External Sensor 1",
+    "wb-m1w2_65/External Sensor 2",
+    "wb-m1w2_66/External Sensor 1",
+    "wb-m1w2_66/External Sensor 2",
+    "wbe2-i-opentherm_11/Heating Temperature",
+    "wbe2-i-opentherm_11/Water Pressure",
+    "wb-msw-v4_22/Temperature",
+    "wb-msw-v4_53/Temperature",
+    "wb-msw-v4_52/Temperature",
+    "wb-msw-v4_54/Temperature",
+    "wb-msw-v4_116/Temperature",
+    "wb-msw-v4_43/Temperature",
+    "wb-msw-v4_106/Temperature",
+    "wb-msw-v4_47/Temperature",
+    "wb-msw-v4_45/Temperature",
+    "wb-msw-v4_61/Temperature",
+    "wb-msw-v4_202/Temperature",
+    "wb-msw-v4_209/Temperature",
+    "iset_hhm/source",
+    "iset_hhm/dhw",
+    "iset_hhm/floor_state",
+    "iset_hhm/io_state",
+    "iset_hhm/io_unconfirmed",
+    "iset_hhm/io_waiting",
+    "iset_hhm/io_details",
+    "iset_hhm_dhw/mode"
+  ],
+  "config_files": [
+    "/etc/wb-mqtt-db.conf",
+    "/etc/wb-mqtt-serial.conf",
+    "/etc/wb-webui.conf"
+  ],
+  "source_files": [
+    "/etc/wb-rules-modules/HHM3Mixing.js",
+    "/etc/wb-rules-modules/HHMRoomPathGate.js",
+    "/etc/wb-rules-modules/IsetCoordinator.js",
+    "/etc/wb-rules-modules/IsetDemand.js",
+    "/etc/wb-rules-modules/IsetDhw.js",
+    "/etc/wb-rules-modules/IsetFloorHydraulics.js",
+    "/etc/wb-rules-modules/IsetFloorMixing.js",
+    "/etc/wb-rules-modules/IsetRoomLocalRuntime.js",
+    "/etc/wb-rules-modules/IsetRoomOutputPlanner.js",
+    "/etc/wb-rules-modules/IsetRoomSettingsStore.js",
+    "/etc/wb-rules-modules/IsetRoomSimpleThermostat.js",
+    "/etc/wb-rules-modules/IsetRoomZones.js",
+    "/etc/wb-rules-modules/IsetServiceConfig.js",
+    "/etc/wb-rules-modules/IsetSource.js",
+    "/etc/wb-rules-modules/IsetUnifiedRuntime.js",
+    "/etc/wb-rules/29_hhm_iset.js"
+  ],
+  "max_history_records": 20000
+}

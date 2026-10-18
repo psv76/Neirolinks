@@ -13,26 +13,53 @@
     "diagnostics_profile"
   ],
   "properties": {
-    "schema": {"const": 1},
-    "name": {"type": "string", "minLength": 1},
-    "node": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,31}$"},
-    "role": {
-      "enum": ["boiler", "gazebo", "house", "service", "infrastructure"]
+    "schema": {
+      "const": 1
     },
-    "state": {"enum": ["planned", "active", "retired"]},
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "node": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+    },
+    "role": {
+      "enum": [
+        "boiler",
+        "gazebo",
+        "house",
+        "service",
+        "infrastructure"
+      ]
+    },
+    "state": {
+      "enum": [
+        "planned",
+        "active",
+        "retired"
+      ]
+    },
     "capabilities": {
       "type": "array",
       "uniqueItems": true,
-      "items": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,31}$"}
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+      }
     },
     "components": {
       "type": "object",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["track"],
+        "required": [
+          "track"
+        ],
         "properties": {
-          "track": {"const": "stable"}
+          "track": {
+            "const": "stable"
+          }
         }
       }
     },
@@ -41,14 +68,39 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["source", "target"],
+        "required": [
+          "source",
+          "target"
+        ],
         "properties": {
-          "source": {"type": "string", "minLength": 1},
-          "target": {"type": "string", "pattern": "^/"}
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target": {
+            "type": "string",
+            "pattern": "^/"
+          }
         }
       }
     },
-    "diagnostics_profile": {"type": "string", "pattern": "^[^/].*\\.json$"},
-    "fingerprint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    "diagnostics_profile": {
+      "type": "string",
+      "pattern": "^[^/].*\\.json$"
+    },
+    "fingerprint_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "unmanaged_rules": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^/etc/wb-rules(?:-modules)?/[A-Za-z0-9_.-]+\\.js$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    }
   }
 }

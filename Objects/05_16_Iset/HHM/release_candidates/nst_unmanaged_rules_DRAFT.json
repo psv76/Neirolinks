@@ -1,0 +1,25 @@
+{
+  "schema": "iset-hhm-unmanaged-registration-draft-v1",
+  "object": "05_16_Iset",
+  "status": "DRAFT_HASHES_FROM_BACKUP_NOT_LIVE",
+  "source": "Objects/05_16_Iset/HHM/nst_preserve_inventory.json",
+  "instructions": "Copy unmanaged_rules into NST local HHM registration ONLY AFTER verifying the live file set and SHA256. Do not register old HM2 20-27. This is not an approved NST registry.",
+  "unmanaged_rules": {
+    "/etc/wb-rules-modules/HeatingCommon.js": "0de0010cf391651fbc14592df0f0d96d88b1d4f2b08bfae1f801d5db897e0692",
+    "/etc/wb-rules-modules/HeatingConfig.js": "e359ed02bc87394e57cf59589d18f2fbbc237192d8c2aba84ac286678be5edf1",
+    "/etc/wb-rules-modules/WBHelpers.js": "98866e1000910e6966698d1177c7007981d03e572bd2e1cf732ae299d6ac70ec",
+    "/etc/wb-rules/30_floor_status_ru.js": "173047c45b5d1eb3352f83e6a0e2e4be384fa4b423324d60374d6c0be200fb14",
+    "/etc/wb-rules/90_iset_m1w2_diagnostic.js": "2e97502972c0d1a16c010776b055b670460618a97ddecf126c6b4a924afedf0d",
+    "/etc/wb-rules/AHU_preheat_pump_manager.js": "ff0e70edb486a84aff48c5f3c0b2c40db417b4a88224c14f0a07b0851dbd59d3",
+    "/etc/wb-rules/DHW_recirculation_manager.js": "79f03ca754ffabd41417c7dfdf7c7817fb3b3bace7d06abc77fdcd9d35037863",
+    "/etc/wb-rules/Email_service.js": "eedd07cc45d95786310b7d355a4a6d965ec57a85bdfb46ba6bf868e813b9e64e",
+    "/etc/wb-rules/Floor_performance_monitor.js": "207aa0e16f448610c1ea921e90b4cd65c4cdffe66f9a56966b906fdb0ad937fe",
+    "/etc/wb-rules/Heating_notifications.js": "9d91b8533edf3ccde47f9629d17c3450e05d575b6a8b323c4f69a3bb0acc8156",
+    "/etc/wb-rules/Heating_watchdog.js": "db0f0fe30e0eb56a269de6f457877ce3919b2d9c174b37da09cbde2b6c733ca1",
+    "/etc/wb-rules/House_mode_manager.js": "e3e021d685488c9581cd62fedb2084de6679d8ae084e496a77a56d514a97f533",
+    "/etc/wb-rules/Light_4.js": "a4e0276ef4a373e3767018a3e0a15de0079ff6d3ed4ee04dac5e513097663410",
+    "/etc/wb-rules/Master-Light.js": "448f3c111785fb3462e6a285318317ae38b0dc00e2e857f34b5e16bda40fc268",
+    "/etc/wb-rules/rules.js": "146c0fcdd728cef04eff74d72fbbfdd27ebab05a15e9e09951b517e24d96a0c0",
+    "/etc/wb-rules/Vilpe_control_v3.js": "d54f505855d4f948b6033d652cf67280869f0dbe656f4a04a209f55c78ce967c"
+  }
+}
