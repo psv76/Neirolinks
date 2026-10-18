@@ -29,13 +29,37 @@ check('living K4 pump differs from zone K4 actuator',function(){
         return z.outputs.indexOf('wb-mio-gpio_195:2/K4')!==-1;
     }));
 });
-check('commissioning is blocked with unverified room temperatures',function(){
+check('seven direct WB temperature sensors match live climate dashboard',function(){
+    var known={office:22,summer_kitchen:53,corridor:52,
+        master_bathroom:54,living_kitchen:116,entrance:43,
+        guest_bathroom:106};
+    assert.strictEqual(map.roomSensorAudit.wbSerial,'AFMEUYOT');
+    assert.strictEqual(map.roomSensorAudit.haClimateMappingsVerified,false);
+    var verified=0;
+    map.zones.forEach(function(z){
+        assert.strictEqual(z.approvedSetpoint,null);
+        if(Object.prototype.hasOwnProperty.call(known,z.id)){
+            assert.strictEqual(z.primarySensor,
+                'wb-msw-v4_'+known[z.id]+'/Temperature');
+            assert.strictEqual(z.primaryEvidence,'WB_WEBUI_AND_LIVE_MQTT');
+            verified++;
+        }else assert.strictEqual(z.primarySensor,null);
+    });
+    assert.strictEqual(verified,7);
+});
+check('master bedroom wardrobe 47 remains a candidate, not invented primary',function(){
+    var z=map.zones.filter(function(z){return z.id==='master_bedroom';})[0];
+    assert.strictEqual(z.primarySensor,null);
+    assert.strictEqual(z.candidateSensor,'wb-msw-v4_47/Temperature');
+    assert.strictEqual(z.secondaryCandidateInvalidObserved,0);
+});
+check('commissioning blocked until all room sensor/setpoints approved',function(){
     assert.strictEqual(map.commissioned,false);
     assert.throws(function(){map.assertCommissionable();},/not commissioned/);
-    for(var i=0;i<map.zones.length;i++){
-        assert.strictEqual(map.zones[i].primarySensor,null);
-        assert.strictEqual(map.zones[i].approvedSetpoint,null);
-    }
+    map.commissioned=true;
+    try{assert.throws(function(){map.assertCommissionable();},
+        /unverified zone\/sensor\/setpoint/);}
+    finally{map.commissioned=false;}
 });
 check('old HA demand topics are evidence, never thermostat sensors',function(){
     map.zones.forEach(function(z){

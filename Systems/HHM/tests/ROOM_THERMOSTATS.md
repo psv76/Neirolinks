@@ -54,8 +54,12 @@ HomeKit or Alice currently provide this envelope.
 
 - No modification to `23_heating_living_manager.js` or physical K1–K11/K4.
 - No installation on WB, and no deletion of existing HA rules.
-- No room sensor inventing: baseline for Iset has 8 known zones and
-  11 NO actuators but **no validated autonomous room sensor IDs**.
+- Seven WB-local temperature channel IDs have now been verified against
+  active WebUI `Климат` and live MQTT on controller `AFMEUYOT`; the
+  master bedroom is still unresolved. Sensor 47 is in the wardrobe;
+  ONOKOM 9 reported 0°C while the AC was off. The exact original HA
+  thermostat sensor entities have not been inspected. Do not invent
+  these details or mark the object as commissioned.
 - No thermostat setpoints, fallback duty-cycle or heating limits chosen
   for Iset. Test fixtures (22 °C etc.) are not approved settings.
 - `HHMRoomPathGate.js` now **calculates a START permission only** after
@@ -80,6 +84,7 @@ node Systems/HHM/tests/iset-room-map.js
 node Systems/HHM/tests/room-path-gate.js
 ```
 
-Object mapping evidence:
+Object mapping evidence and current room-sensor audit:
 `Objects/05_16_Iset/Doc/HHM_ROOM_THERMOSTATS_BASELINE_20261018.md`.
+WebUI SHA256 `8c08f64fd2e8186948fada6b3388bb1fc6ae832835e61187b1db9bbe06a8666a`.
 Both tests operate only in memory; no MQTT messages or physical writes.
