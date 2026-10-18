@@ -43,6 +43,11 @@ exports.create=function(cfg){
             }
             if(bmin!==null){
                 lastBasementMin=bmin;
+                // Initial reading inside hysteresis must be actionable.
+                // In Ural winter keep K3 heating until upper band is
+                // crossed, rather than replacing previous HM2 heat with OFF.
+                if(basementHeat===null)
+                    basementHeat=bmin<=cfg.basement.targetC+cfg.basement.hysteresisC;
                 if(bmin<cfg.basement.targetC-cfg.basement.hysteresisC)
                     basementHeat=true;
                 else if(validCount===bs.length&&
