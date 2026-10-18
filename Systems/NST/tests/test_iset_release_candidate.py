@@ -75,18 +75,22 @@ class IsetDraftReleaseTests(unittest.TestCase):
         self.assertIn("var HHM_PHYSICAL_OUTPUTS=true;", main)
         self.assertNotIn("var HHM_PHYSICAL_OUTPUTS=false;", main)
 
-    def test_physical_and_shadow_release_have_identical_module_hashes(self):
+    def test_physical_and_historical_preview_are_both_content_pinned(self):
         physical = json.loads(git_blob(
             "HEAD", BASE + "/release_candidates/iset-hhm-house-0.1.0-PHYSICAL.json"))
         preview = self.data
         one = {x["target"]: x["sha256"] for x in physical["files"]}
         two = {x["target"]: x["sha256"] for x in preview["files"]}
+        self.assertEqual(set(one), set(two))
         self.assertEqual(len(one), 16)
-        for target in one:
-            if target == "/etc/wb-rules/29_hhm_iset.js":
-                self.assertNotEqual(one[target], two[target])
-            else:
-                self.assertEqual(one[target], two[target])
+        # The historical preview was built before the observed K3 hysteresis
+        # correction and editable WB setpoint fix. It is not the proposed
+        # physical release, so do not accidentally claim module identity.
+        changed = {target for target in one if one[target] != two[target]}
+        self.assertEqual(changed, {
+            "/etc/wb-rules/29_hhm_iset.js",
+            "/etc/wb-rules-modules/IsetDemand.js",
+        })
 
     def test_post_cutover_unmanaged_rules_keep_only_independent_functions(self):
         post = json.loads(git_blob(
