@@ -104,5 +104,22 @@ class IsetDraftReleaseTests(unittest.TestCase):
         self.assertFalse(any("Heating_" in x or "/2" in x for x in targets))
 
 
+    def test_iset_diagnostic_profile_matches_hhm_sources_and_actual_channels(self):
+        diagnostic = json.loads(git_blob(
+            "HEAD", "Systems/NST/diagnostics/iset-house-hhm-v1.json"))
+        self.assertEqual(diagnostic["schema"], 1)
+        self.assertEqual(diagnostic["component"], "hhm")
+        self.assertEqual(set(diagnostic["source_files"]), ISET_HOUSE)
+        self.assertEqual(len(diagnostic["source_files"]), 16)
+        channels = {x["path"]: x["kind"]
+                    for x in diagnostic["current_controls"]}
+        self.assertEqual(len(channels), len(diagnostic["current_controls"]))
+        self.assertEqual(channels["wb-mr6cu_37/K2"], "readback")
+        self.assertEqual(channels["wb-m1w2_67/External Sensor 1"],
+                         "measurement")
+        self.assertEqual(channels["iset_hhm/io_unconfirmed"], "calculated")
+        self.assertTrue(set(diagnostic["history_channels"]) <= set(channels))
+
+
 if __name__ == "__main__":
     unittest.main()
