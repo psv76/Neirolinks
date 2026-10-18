@@ -214,4 +214,45 @@ check('physical mode only sends a repeated unconfirmed command after 5 seconds',
     var later=w.outputs.filter(function(x){return x.path===path;}).length;
     assert.ok(later>=first);
 });
+check('basement target persists to WB storage and survives restart',function(){
+    var w=boot();
+    w.external('iset_hhm_basement/target_input',25);
+    w.click('iset_hhm_basement/save');
+    assert.strictEqual(w.storage.iset_hhm_basement_target_v1,'25');
+    assert.strictEqual(w.controls['iset_hhm_basement/target_saved'],'25 °C');
+    var later=boot(w.storage);
+    assert.strictEqual(later.controls['iset_hhm_basement/target_saved'],'25 °C');
+    assert.strictEqual(later.controls['iset_hhm_basement/target_input'],25);
+});
+check('out of range basement request cannot alter approved target',function(){
+    var w=boot();
+    w.external('iset_hhm_basement/target_input',35);
+    w.click('iset_hhm_basement/save');
+    assert.strictEqual(w.storage.iset_hhm_basement_target_v1,undefined);
+});
+check('DHW operator panel includes K1 priority and overrun remaining timers',function(){
+    var w=boot(),d=w.devices.iset_hhm_dhw.cells;
+    assert.ok(d.priority_timer.readonly);
+    assert.ok(d.overrun_timer.readonly);
+    assert.ok(d.boost);
+    assert.ok(d.reset_fault);
+});
+check('manual DHW acceleration works on WB without HA',function(){
+    var w=boot();
+    w.external('wb-m1w2_67/External Sensor 2',51);
+    w.external('wb-m1w2_65/External Sensor 2',-10);
+    w.click('iset_hhm_dhw/boost');
+    w.step(60000);
+    assert.strictEqual(w.controls['iset_hhm_dhw/mode'],'ACCELERATED');
+    assert.ok(w.controls['iset_hhm_dhw/priority_timer'].indexOf('с')>=0);
+});
+check('DHW fault reset requires K1 observed OFF and valid tank',function(){
+    var w=boot();
+    w.external('wb-m1w2_67/External Sensor 2',52);
+    w.external('wb-mr6cu_37/K1',true);
+    w.click('iset_hhm_dhw/reset_fault');
+    assert.ok(w.logs.some(function(x){
+        return x[0]==='warning'&&x[1].indexOf('Сброс не разрешён')>=0;
+    }));
+});
 console.log('TOTAL PASS '+count);
