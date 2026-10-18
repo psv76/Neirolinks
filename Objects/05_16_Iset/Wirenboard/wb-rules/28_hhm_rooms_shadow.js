@@ -29,6 +29,22 @@ function isError(value){
     return x!==""&&x!=="0"&&x!=="false";
 }
 function isPath(z){return "iset_hhm_"+z.id+"_shadow";}
+function isSeconds(ms){return String(Math.ceil(ms/1000))+" с";}
+function isElapsed(ms){return ms===null?"—":String(Math.floor(ms/1000))+" с";}
+function isServoTimer(a,demand){
+    if(demand!==true)return demand===false?"Не требуется":"Запрос неизвестен";
+    if(a.openingRemainingMs!==null)
+        return a.openingRemainingMs>0?isSeconds(a.openingRemainingMs):"Готово";
+    return a.state==="WAIT_OPEN"?"Ожидание OPEN":"Нет readback";
+}
+function isPumpStartTimer(plan){
+    if(plan.pumpReadback===true)return "K4 уже работает";
+    if(plan.pumpAction==="START")return "Готов к пуску";
+    if(plan.pumpReadback===null)return "Нет readback K4";
+    if(plan.pumpStartRemainingMs!==null)
+        return isSeconds(plan.pumpStartRemainingMs);
+    return plan.requestingZones>0?"Ожидание открытия NO":"Нет запроса";
+}
 function isRead(){
     var result={nowMs:Date.now(),bootEpoch:IS_BOOT,
         temperatures:{},sensorErrors:{},outputReadbacks:{},
@@ -56,6 +72,16 @@ function isUpdate(){
         readbacks:rb,protectionActive:false});
     // Only a plan: never call writer.apply() or assign physical channels.
     isVDset("iset_hhm_rooms_shadow/pump_action",plan.pumpAction);
+    isVDset("iset_hhm_rooms_shadow/pump_status",plan.pumpStatus);
+    isVDset("iset_hhm_rooms_shadow/pump_readback",
+        plan.pumpReadback===true?"ВКЛ":
+        plan.pumpReadback===false?"ВЫКЛ":"Нет данных");
+    isVDset("iset_hhm_rooms_shadow/pump_start_timer",
+        isPumpStartTimer(plan));
+    isVDset("iset_hhm_rooms_shadow/pump_run_timer",
+        isElapsed(plan.pumpRunObservedMs));
+    isVDset("iset_hhm_rooms_shadow/pump_stop_timer",
+        isElapsed(plan.pumpStopPendingMs));
     isVDset("iset_hhm_rooms_shadow/ready_rooms",plan.readyZones);
     isVDset("iset_hhm_rooms_shadow/proposed_actions",
         plan.actions.length?plan.actions.map(function(a){
@@ -65,8 +91,18 @@ function isUpdate(){
         var room=state.roomStates[z.id];
         var demand=room.heatDemand===true?"ON":
             room.heatDemand===false?"OFF":"UNKNOWN";
-        var last=IS_LAST[z.id];
+        var last=IS_LAST[z.id],zp=plan.zones[z.id],ai;
         isVDset(p+"/state",room.state);
+        isVDset(p+"/opening_timer",room.heatDemand!==true?
+            (room.heatDemand===false?"Не требуется":"Запрос неизвестен"):
+            zp.waitingForReadback?"Ожидание readback NO":
+            isSeconds(zp.openRemainingMs));
+        for(ai=0;ai<zp.actuators.length;ai++){
+            var sa=zp.actuators[ai];
+            var n=sa.path.split("/")[1].toLowerCase();
+            isVDset(p+"/servo_"+n+"_timer",
+                isServoTimer(sa,room.heatDemand));
+        }
         isVDset(p+"/demand",demand);
         isVDset(p+"/temperature",room.measuredC===null?"—":
             String(room.measuredC));
@@ -86,17 +122,26 @@ function isUpdate(){
 for(var IS_I=0;IS_I<IS_MAP.zones.length;IS_I++){
     (function(z){
         var d=isPath(z);
+        var cells={
+            state:{title:"Состояние",type:"text",value:"NOT_COMMISSIONED",
+                readonly:true,order:1},
+            demand:{title:"Запрос тепла",type:"text",value:"UNKNOWN",
+                readonly:true,order:2},
+            temperature:{title:"Воздух",type:"text",value:"—",
+                readonly:true,order:3},
+            settings:{title:"Режим / уставка",type:"text",
+                value:"NOT_COMMISSIONED",readonly:true,order:4},
+            opening_timer:{title:"Ожидание открытия зоны",type:"text",
+                value:"Запрос неизвестен",readonly:true,order:5}
+        };
+        for(var k=0;k<z.outputs.length;k++){
+            var label=z.outputs[k].split("/")[1];
+            cells["servo_"+label.toLowerCase()+"_timer"]={
+                title:"Сервопривод "+label+" — таймер",type:"text",
+                value:"Запрос неизвестен",readonly:true,order:6+k};
+        }
         defineVirtualDevice(d,{title:"HHM Исеть / "+z.title+" (теневой)",
-            cells:{
-                state:{title:"Состояние",type:"text",value:"NOT_COMMISSIONED",
-                    readonly:true,order:1},
-                demand:{title:"Запрос тепла",type:"text",value:"UNKNOWN",
-                    readonly:true,order:2},
-                temperature:{title:"Воздух",type:"text",value:"—",
-                    readonly:true,order:3},
-                settings:{title:"Режим / уставка",type:"text",
-                    value:"NOT_COMMISSIONED",readonly:true,order:4}
-            }});
+            cells:cells});
     })(IS_MAP.zones[IS_I]);
 }
 defineVirtualDevice("iset_hhm_rooms_shadow",{title:"HHM Исеть (теневой)",
@@ -104,10 +149,20 @@ defineVirtualDevice("iset_hhm_rooms_shadow",{title:"HHM Исеть (тенево
         readonly:true,order:1},
         pump_action:{title:"K4: расчёт",type:"text",value:"HOLD",
             readonly:true,order:2},
+        pump_status:{title:"K4: причина/состояние",type:"text",
+            value:"READBACK_UNKNOWN",readonly:true,order:3},
+        pump_readback:{title:"K4: реле",type:"text",
+            value:"Нет данных",readonly:true,order:4},
+        pump_start_timer:{title:"K4: до возможного пуска",type:"text",
+            value:"Нет запроса",readonly:true,order:5},
+        pump_run_timer:{title:"K4: наблюдаемая работа",type:"text",
+            value:"—",readonly:true,order:6},
+        pump_stop_timer:{title:"K4: ожидание подтверждения STOP",type:"text",
+            value:"—",readonly:true,order:7},
         ready_rooms:{title:"Готово комнат",type:"value",value:0,
-            readonly:true,order:3},
+            readonly:true,order:8},
         proposed_actions:{title:"Предполагаемые команды",type:"text",
-            value:"Нет",readonly:true,order:4}}});
+            value:"Нет",readonly:true,order:9}}});
 // Subscribe after defining ALL shadow devices: early retained error events
 // must never reference an unregistered virtual control.
 for(IS_I=0;IS_I<IS_MAP.zones.length;IS_I++){
@@ -131,4 +186,4 @@ defineRule("iset_hhm_room_shadow_temps",{
     then:function(){isUpdate();}
 });
 isUpdate();
-setInterval(isUpdate,5000); // advance output-opening wait without room events
+setInterval(isUpdate,1000); // update countdowns; no log/write per tick
