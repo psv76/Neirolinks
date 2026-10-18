@@ -31,7 +31,9 @@ exports.create=function(o){
         closeCommand:1,openWaitMs:o.map.actuators.nominalOpenWaitMs});
     return {
         provisionCandidate:function(zoneId,mode,setpointC){
-            if(!all[zoneId])return null;
+            if(!all[zoneId]||!numeric(setpointC)||
+               setpointC<o.minSetpointC||setpointC>o.maxSetpointC)
+                return null;
             return stores[zoneId].proposeInitial(mode,setpointC);
         },
         applySettings:function(zoneId,cmd){
