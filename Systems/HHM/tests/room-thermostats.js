@@ -240,4 +240,65 @@ check('safety booleans are mandatory even when UI offline',function(){
     var t=create();
     assert.throws(function(){t.step({nowMs:1,primary:null});},/explicit WB safety/);
 });
+check('opt-in brief sensor outage holds previous heat ON, not fallback',function(){
+    var c=cfg();c.sensorLossHoldMs=15000;
+    var t=Module.create(c,storage());
+    assert.strictEqual(t.step(frame(100000)).heatDemand,true);
+    var r=t.step(frame(101000,{primary:null,backup:null,
+        fallbackAuthorized:false}));
+    assert.strictEqual(r.state,'SENSOR_HOLD');
+    assert.strictEqual(r.heatDemand,true);
+    assert.strictEqual(r.valid,true);
+    assert.strictEqual(r.degraded,true);
+    r=t.step(frame(116000,{primary:null,backup:null,
+        fallbackAuthorized:false}));
+    assert.strictEqual(r.state,'UNVERIFIED_FALLBACK');
+    assert.strictEqual(r.heatDemand,null);
+});
+check('opt-in brief outage holds previous OFF without fabricating heat',function(){
+    var c=cfg();c.sensorLossHoldMs=15000;
+    var t=Module.create(c,storage());
+    t.step(frame(100000,{primary:sensor('office/air',26,100000)}));
+    var r=t.step(frame(101000,{primary:null}));
+    assert.strictEqual(r.state,'SENSOR_HOLD');
+    assert.strictEqual(r.heatDemand,false);
+});
+check('hold never survives independent physical protection',function(){
+    var c=cfg();c.sensorLossHoldMs=15000;
+    var t=Module.create(c,storage());t.step(frame(100000));
+    var r=t.step(frame(101000,{primary:null,independentSafetyOk:false}));
+    assert.strictEqual(r.state,'INDEPENDENT_PROTECTION');
+    assert.strictEqual(r.heatDemand,null);
+});
+check('cold start with lost room sensor cannot invent hold demand',function(){
+    var c=cfg();c.sensorLossHoldMs=15000;
+    var t=Module.create(c,storage());
+    var r=t.step(frame(100000,{primary:null,backup:null,
+        fallbackAuthorized:false}));
+    assert.strictEqual(r.state,'UNVERIFIED_FALLBACK');
+    assert.strictEqual(r.heatDemand,null);
+});
+check('room setpoint change invalidates previous hold progress',function(){
+    var c=cfg();c.sensorLossHoldMs=15000;
+    var t=Module.create(c,storage());t.step(frame(100000));
+    var v=t.applyIntent({clientId:'wb',intentId:'hold-reset',
+        issuedAtMs:101000,expectedRevision:7,setpointC:28,
+        retained:false},101000);
+    assert.strictEqual(v.accepted,true);
+    var r=t.step(frame(102000,{primary:null,backup:null,
+        fallbackAuthorized:false}));
+    assert.strictEqual(r.state,'UNVERIFIED_FALLBACK');
+});
+check('brief recovery does not let sensor flap endlessly extend HOLD',function(){
+    var c=cfg();c.sensorLossHoldMs=15000;
+    var t=Module.create(c,storage());
+    t.step(frame(100000));
+    t.step(frame(101000,{primary:null,backup:null}));
+    var r=t.step(frame(102000,{primary:sensor('office/air',19,102000)}));
+    assert.strictEqual(r.state,'SENSOR_HOLD');
+    r=t.step(frame(104000,{primary:null,backup:null}));
+    assert.strictEqual(r.state,'SENSOR_HOLD');
+    r=t.step(frame(116000,{primary:null,backup:null}));
+    assert.strictEqual(r.state,'FALLBACK_HEAT');
+});
 console.log('TOTAL PASS '+passed);

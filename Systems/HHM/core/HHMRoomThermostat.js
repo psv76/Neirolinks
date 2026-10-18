@@ -26,7 +26,9 @@ exports.create=function(c,store){
        !finite(c.sensorFreshMs)||c.sensorFreshMs<=0||
        !finite(c.recoveryStableMs)||c.recoveryStableMs<0||
        !integer(c.recoverySamples)||c.recoverySamples<2||
-       !finite(c.commandMaxAgeMs)||c.commandMaxAgeMs<=0)
+       !finite(c.commandMaxAgeMs)||c.commandMaxAgeMs<=0||
+       (c.sensorLossHoldMs!==undefined&&
+        (!finite(c.sensorLossHoldMs)||c.sensorLossHoldMs<0)))
         throw new Error('Room thermostat: unqualified configuration');
     if(!store||typeof store.read!=='function'||typeof store.commit!=='function')
         throw new Error('Room thermostat: durable WB settings store required');
@@ -35,6 +37,7 @@ exports.create=function(c,store){
         throw new Error('Room thermostat: approved local settings required before commissioning');
     var settings=copy(initial);
     var selected=null,lastDemand=null,prevNow=null,lastState='STARTUP';
+    var sensorLostAt=null;
     var primaryRecoverSince=null,primaryRecoverCount=0;
     var primaryRecoveryObservation=null;
     function readingOK(r,expected,now) {
@@ -55,7 +58,7 @@ exports.create=function(c,store){
         return {zoneId:c.zoneId,mode:settings.mode,setpointC:settings.setpointC,
             settingsRevision:settings.revision,state:state,source:source,
             measuredC:temp,heatDemand:demand,valid:typeof demand==='boolean',
-            degraded:state==='BACKUP_SENSOR'||state==='FALLBACK_HEAT'||
+            degraded:state==='SENSOR_HOLD'||state==='BACKUP_SENSOR'||state==='FALLBACK_HEAT'||
                 state==='FALLBACK_LIMITED_OFF'||state==='UNVERIFIED_FALLBACK',
             reason:reason||''};
     }
@@ -87,7 +90,7 @@ exports.create=function(c,store){
                 return {accepted:false,reason:'PERSISTENCE_FAILED',
                     revision:settings.revision};
             settings=next;
-            lastDemand=null;
+            lastDemand=null;sensorLostAt=null;
             return {accepted:true,reason:'APPLIED',
                 revision:settings.revision,settings:copy(settings)};
         },
@@ -99,7 +102,7 @@ exports.create=function(c,store){
                 throw new Error('Room thermostat: missing explicit WB safety frame');
             var now=i.nowMs;
             if(prevNow!==null&&now<prevNow){
-                selected=null;lastDemand=null;
+                selected=null;lastDemand=null;sensorLostAt=null;
                 primaryRecoverSince=null;primaryRecoverCount=0;
                 primaryRecoveryObservation=null;
                 prevNow=now;
@@ -108,7 +111,7 @@ exports.create=function(c,store){
             }
             prevNow=now;
             if(settings.mode==='OFF'){
-                lastDemand=false;selected=null;
+                lastDemand=false;selected=null;sensorLostAt=null;
                 primaryRecoverSince=null;primaryRecoverCount=0;
                 primaryRecoveryObservation=null;
                 return response('USER_OFF',null,null,false,'Locally accepted OFF');
@@ -116,7 +119,7 @@ exports.create=function(c,store){
             // An independent hardware/thermal interlock remains authoritative
             // even when the local room sensor itself looks healthy.
             if(!i.independentSafetyOk){
-                lastDemand=null;
+                lastDemand=null;sensorLostAt=null;
                 return response('INDEPENDENT_PROTECTION',null,null,null,
                     'Physical safety interlock denies normal heat request');
             }
@@ -151,7 +154,7 @@ exports.create=function(c,store){
             if(primaryReady){source='primary';temp=i.primary.temperatureC;}
             else if(backup){source='backup';temp=i.backup.temperatureC;}
             if(source!==null){
-                selected=source;
+                sensorLostAt=null;selected=source;
                 if(source==='primary'){
                     primaryRecoverSince=null;primaryRecoverCount=0;
                     primaryRecoveryObservation=null;
@@ -160,6 +163,13 @@ exports.create=function(c,store){
                 return response(source==='primary'?'NORMAL':'BACKUP_SENSOR',
                     source,temp,request,source==='primary'?'Local primary measurement':
                     'Approved local backup measurement');
+            }
+            if(sensorLostAt===null)sensorLostAt=now;
+            if(c.sensorLossHoldMs>0 && lastDemand!==null &&
+               now-sensorLostAt<c.sensorLossHoldMs){
+                selected='fallback';
+                return response('SENSOR_HOLD',null,null,lastDemand,
+                    'Short sensor outage: preserve accepted local heat request');
             }
             selected='fallback';
             lastDemand=null; // never use stale room temperature indefinitely
