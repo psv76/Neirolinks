@@ -12,6 +12,18 @@
       "profile": "Objects/05_31_Ivolga_13/controllers/ABF62SL.json",
       "role": "boiler",
       "state": "active"
+    },
+    "AFMEUYOT": {
+      "capabilities": [
+        "hhm"
+      ],
+      "diagnostics_profile": "Systems/NST/diagnostics/iset-house-hhm-v1.json",
+      "name": "Исеть — контроллер дома",
+      "node": "house",
+      "object": "05_16_Iset",
+      "profile": "Objects/05_16_Iset/controllers/AFMEUYOT.json",
+      "role": "house",
+      "state": "planned"
     }
   },
   "schema": 1,
