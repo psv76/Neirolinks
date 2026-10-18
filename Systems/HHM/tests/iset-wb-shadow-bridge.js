@@ -159,4 +159,84 @@ check('periodic shadow tick does not flood unchanged virtual controls',function(
     var before=m.writes.length;m.advance(5000);
     assert.strictEqual(m.writes.length,before);
 });
+check('every physical NO K1..K11 has its own virtual timer',function(){
+    var m=instantiate({}),seen={};
+    Map.zones.forEach(function(z){
+        var fields=m.declared['iset_hhm_'+z.id+'_shadow'].cells;
+        assert.ok(fields.opening_timer);
+        z.outputs.forEach(function(output){
+            var id='servo_'+output.split('/')[1].toLowerCase()+'_timer';
+            assert.strictEqual(fields[id].readonly,true);
+            seen[output]=true;
+        });
+    });
+    assert.strictEqual(Object.keys(seen).length,11);
+});
+check('K4 virtual device exposes start wait, observed RUN and STOP wait timers',function(){
+    var m=instantiate({}),fields=m.declared.iset_hhm_rooms_shadow.cells;
+    ['pump_status','pump_readback','pump_start_timer',
+     'pump_run_timer','pump_stop_timer'].forEach(function(k){
+        assert.strictEqual(fields[k].readonly,true,k);
+    });
+});
+check('per-room K1 counter displays 120 to 119 to ready after OPEN readback',function(){
+    var settings={};seed(settings,'office');
+    var m=instantiate(settings);m.tick('office',19);
+    var timer=function(){return m.room('office','servo_k1_timer');};
+    assert.strictEqual(timer(),'Ожидание OPEN');
+    m.readback('wb-mio-gpio_195:2/K1',false);
+    m.readback(Map.pump,false);
+    assert.strictEqual(timer(),'120 с');
+    assert.strictEqual(m.values['iset_hhm_rooms_shadow/pump_start_timer'],'120 с');
+    m.advance(1000);
+    assert.strictEqual(timer(),'119 с');
+    assert.strictEqual(m.values['iset_hhm_rooms_shadow/pump_start_timer'],'119 с');
+    m.advance(119000);
+    assert.strictEqual(timer(),'Готово');
+    assert.strictEqual(m.values['iset_hhm_rooms_shadow/pump_start_timer'],'Готов к пуску');
+});
+check('K2 and K3 report independent countdowns inside same room',function(){
+    var settings={};seed(settings,'summer_kitchen');
+    var m=instantiate(settings);m.tick('summer_kitchen',19);
+    m.readback('wb-mio-gpio_195:2/K2',false);
+    m.readback(Map.pump,false);
+    assert.strictEqual(m.room('summer_kitchen','servo_k2_timer'),'120 с');
+    assert.strictEqual(m.room('summer_kitchen','servo_k3_timer'),'Ожидание OPEN');
+    m.advance(30000);m.readback('wb-mio-gpio_195:2/K3',false);
+    assert.strictEqual(m.room('summer_kitchen','servo_k2_timer'),'90 с');
+    assert.strictEqual(m.room('summer_kitchen','servo_k3_timer'),'120 с');
+    assert.strictEqual(m.values['iset_hhm_rooms_shadow/pump_start_timer'],'120 с');
+});
+check('K4 run timer is observed elapsed, resets after relay OFF',function(){
+    var settings={};seed(settings,'office');
+    var m=instantiate(settings);m.tick('office',19);
+    m.readback(Map.pump,true);
+    assert.strictEqual(m.values['iset_hhm_rooms_shadow/pump_run_timer'],'0 с');
+    m.advance(5000);
+    assert.strictEqual(m.values['iset_hhm_rooms_shadow/pump_run_timer'],'5 с');
+    m.readback(Map.pump,false);
+    assert.strictEqual(m.values['iset_hhm_rooms_shadow/pump_run_timer'],'—');
+});
+check('K4 pending STOP timer shows elapsed feedback wait, no invented postrun',function(){
+    var settings={};
+    Map.zones.forEach(function(z){seed(settings,z.id);});
+    var m=instantiate(settings);
+    Map.zones.forEach(function(z){m.tick(z.id,26);});
+    m.readback(Map.pump,true);
+    assert.strictEqual(m.values['iset_hhm_rooms_shadow/pump_stop_timer'],'0 с');
+    m.advance(3000);
+    assert.strictEqual(m.values['iset_hhm_rooms_shadow/pump_stop_timer'],'3 с');
+    m.readback(Map.pump,false);
+    assert.strictEqual(m.values['iset_hhm_rooms_shadow/pump_stop_timer'],'—');
+});
+check('live timer ticks cannot write NO outputs or K4',function(){
+    var settings={};seed(settings,'office');
+    var m=instantiate(settings);m.tick('office',19);
+    m.readback('wb-mio-gpio_195:2/K1',false);
+    m.readback(Map.pump,false);
+    m.advance(1000);m.advance(1000);m.advance(3000);
+    m.writes.forEach(function(w){
+        assert.ok(/^iset_hhm_/.test(w.path),'Physical write '+w.path);
+    });
+});
 console.log('TOTAL PASS '+total);
