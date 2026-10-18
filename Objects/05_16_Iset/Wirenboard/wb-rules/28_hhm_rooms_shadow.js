@@ -116,7 +116,6 @@ for(IS_I=0;IS_I<IS_MAP.zones.length;IS_I++){
         trackMqtt(topic,function(m){
             IS_ROOM_ERROR[z.id]=isError(m&&m.value);
             isUpdate();
-setInterval(isUpdate,5000); // output opening wait advances without sensor changes
         });
     })(IS_MAP.zones[IS_I]);
 }
@@ -132,3 +131,4 @@ defineRule("iset_hhm_room_shadow_temps",{
     then:function(){isUpdate();}
 });
 isUpdate();
+setInterval(isUpdate,5000); // advance output-opening wait without room events
