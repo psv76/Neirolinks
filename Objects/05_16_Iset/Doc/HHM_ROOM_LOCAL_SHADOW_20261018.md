@@ -102,3 +102,15 @@ loading, `PersistentStorage` flushing, broker event payloads, actuator
 opening or pump start under a live `wb-rules` process.
 
 See also `Objects/05_16_Iset/Doc/HHM_ROOM_SIMPLE_POLICY.md`.
+
+## Update 18.10.2026 — timers
+
+For new Iset HHM, actuator-open wait is **120 seconds**, while the
+currently live HM2 continues its prior 180-second policy until the
+approved cutover. The shadow panel must expose per-actuator remaining
+open-wait time, the K4 pump start-wait countdown, pump readback running
+elapsed time and pending-stop confirmation elapsed time. These are
+operator diagnostics, not additional safety interlocks or physical
+movement measurements. There is no approved K4 postrun interval;
+never invent a countdown for it. Other HHM pumps require verified
+object mappings before creating analogous timer fields.
