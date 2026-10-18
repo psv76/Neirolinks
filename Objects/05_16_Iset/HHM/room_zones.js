@@ -24,7 +24,7 @@ exports.roomSensorAudit={
 };
 exports.pump='wb-mr6cu_37/K4';
 exports.actuators={type:'NO',openCommand:0,closeCommand:1,
-    nominalOpenWaitMs:180000};
+    nominalOpenWaitMs:120000}; // HHM planned 120 s; live HM2 remains 180 s
 exports.zones=[
     {id:'office',title:'Кабинет',
      haSensor:'sensor.temperatura_kabinet',haClimate:'climate.kabinet',
