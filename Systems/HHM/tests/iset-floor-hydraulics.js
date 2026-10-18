@@ -95,4 +95,26 @@ check('reboot forces new 120s loop opening observation',function(){
     v.bootEpoch='next';
     assert.strictEqual(x.step(v).loops[0].remainingMs,120000);
 });
+check('missing TP supply temperature stops K2 but keeps NO paths open',function(){
+    var x=c(),v=f(1000);
+    v.supplyC=null;v.readbacks[cfg.outputs.floorPump]=true;
+    cfg.outputs.floorLoops.forEach(function(k){v.readbacks[k]=false;});
+    var r=x.step(v);
+    assert.strictEqual(r.state,'SUPPLY_SENSOR_UNAVAILABLE');
+    assert.strictEqual(r.supplySensorValid,false);
+    assert.strictEqual(act(r,'FLOOR_PUMP_STOP_PROTECTION')[0].value,false);
+    assert.strictEqual(r.actions.some(function(a){
+        return a.action==='FLOOR_LOOP_CLOSE';
+    }),false);
+});
+check('unavailable TP sensor affects floor pump only, not source-wide demand',function(){
+    var x=c(),v=f(1000);
+    v.supplyC=NaN;v.readbacks[cfg.outputs.floorPump]=true;
+    var r=x.step(v);
+    assert.strictEqual(r.state,'SUPPLY_SENSOR_UNAVAILABLE');
+    assert.strictEqual(r.pumpWanted,false);
+    assert.strictEqual(r.actions.filter(function(a){
+        return a.action==='FLOOR_PUMP_STOP_PROTECTION';
+    }).length,1);
+});
 console.log('TOTAL PASS '+passed);
