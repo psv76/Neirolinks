@@ -117,4 +117,33 @@ check('unavailable TP sensor affects floor pump only, not source-wide demand',fu
         return a.action==='FLOOR_PUMP_STOP_PROTECTION';
     }).length,1);
 });
+check('MAO4 Switch OFF is explicitly commanded ON even if dimming already 1%',function(){
+    var x=c(),v=f(1000);
+    v.readbacks[cfg.outputs.floorValveLevel]=1;
+    v.readbacks[cfg.outputs.floorValveEnable]=false;
+    var r=x.step(v);
+    assert.strictEqual(act(r,'FLOOR_VALVE_ENABLE').length,1);
+    assert.strictEqual(act(r,'FLOOR_VALVE_ENABLE')[0].value,true);
+    assert.strictEqual(act(r,'FLOOR_VALVE_PREFLIGHT').length,0);
+});
+check('K2 waits 10 seconds of confirmed stable MAO4 after all loops are ready',function(){
+    var x=c(),v=f(1000);
+    cfg.outputs.floorLoops.forEach(function(k){v.readbacks[k]=false;});
+    v.readbacks[cfg.outputs.floorPump]=false;
+    v.readbacks[cfg.outputs.floorValveEnable]=false;
+    v.readbacks[cfg.outputs.floorValveLevel]=1;
+    x.step(v);v.nowMs=121000;var a=x.step(v);
+    assert.strictEqual(a.allLoopsReady,true);
+    assert.strictEqual(a.pumpWanted,false);
+    v.readbacks[cfg.outputs.floorValveEnable]=true;
+    v.nowMs=122000;a=x.step(v);
+    assert.strictEqual(a.valvePreflightRemainingMs,10000);
+    assert.strictEqual(a.state,'WAIT_MAO4_STABLE');
+    v.nowMs=131999;a=x.step(v);
+    assert.strictEqual(a.pumpWanted,false);
+    assert.strictEqual(a.valvePreflightRemainingMs,1);
+    v.nowMs=132000;a=x.step(v);
+    assert.strictEqual(a.pumpWanted,true);
+    assert.strictEqual(a.state,'READY');
+});
 console.log('TOTAL PASS '+passed);
