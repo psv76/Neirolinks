@@ -101,6 +101,16 @@ check('one missing basement sensor cannot vote for premature heat OFF',function(
     f.basementTemps=[24,25,null,26];
     assert.strictEqual(x.step(f).basementHeatDemand,true);
 });
+check('basement remains heating after all sensor reads temporarily disappear',function(){
+    var x=demand(),f=demandFrame();
+    f.basementTemps=[20,21,22,23];x.step(f);
+    f.basementTemps=[null,null,null,null];
+    var r=x.step(f);
+    assert.strictEqual(r.basementHeatDemand,true);
+    assert.strictEqual(r.basementLastValueHeld,true);
+    assert.strictEqual(r.grants.basement,'REQUESTED');
+    assert.ok(r.sourceRequestedC!==null);
+});
 check('DHW priority pauses source grants but not room controller demand',function(){
     var x=demand(),f=demandFrame();
     f.dhw={demand:true,requestSupplyC:72,pauseSpaceHeating:true};
