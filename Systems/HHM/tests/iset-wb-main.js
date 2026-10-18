@@ -54,8 +54,10 @@ function boot(initialStorage,physical){
             warning:function(s){logs.push(['warning',s]);},
             error:function(s){logs.push(['error',s]);}}
     };
-    var program=physical?source.replace('var HHM_PHYSICAL_OUTPUTS=false;',
-        'var HHM_PHYSICAL_OUTPUTS=true;'):source;
+    // Test both modes using the EXACT same WB script structure,
+    // regardless of the Git release candidate's default mode.
+    var program=source.replace(/var HHM_PHYSICAL_OUTPUTS=(true|false);/,
+        'var HHM_PHYSICAL_OUTPUTS='+(physical===true?'true':'false')+';');
     vm.runInNewContext(program,ctx,{filename:'29_hhm_iset.js'});
     function external(p,v){controls[p]=v;}
     function click(p){assert.ok(events[p],p);events[p]();}
