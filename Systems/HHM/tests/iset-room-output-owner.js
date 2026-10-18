@@ -13,7 +13,8 @@ function frame(t){var d={};map.zones.forEach(function(z){d[z.id]=null;});
         protectionActive:false};}
 function action(s,p){return s.actions.filter(function(a){return a.path===p;})[0];}
 function mock(mode,confirmed,commissioned){
-    var written=[],logs=[],writer=Writer.create({map:map,mode:mode,
+    var written=[],logs=[],writer=Writer.create({
+        map:Object.assign({},map,{commissioned:commissioned}),mode:mode,
         exclusiveOwnershipConfirmed:confirmed,commissioned:commissioned,
         write:function(path,value){written.push({path:path,value:value});return true;},
         log:{info:function(m){logs.push(m);},warning:function(m){logs.push(m);}}});
@@ -146,6 +147,16 @@ check('PHYSICAL without both commissioning and HM2 ownership stays off',function
     assert.strictEqual(m.writer.apply(x).written,0);
     assert.strictEqual(m.written.length,0);
 });
+check('object-level uncommissioned Iset map blocks physical writing even with grants',function(){
+    var written=[],writer=Writer.create({map:map,mode:'PHYSICAL',
+        commissioned:true,exclusiveOwnershipConfirmed:true,
+        write:function(p,v){written.push({p:p,v:v});return true;}});
+    var result=writer.apply({state:'PLANNED_ONLY',actions:[
+        {path:OFFICE,value:false,action:'ZONE_OPEN'}]});
+    assert.strictEqual(result.written,0);
+    assert.strictEqual(writer.ownership(),false);
+    assert.strictEqual(written.length,0);
+});
 check('PHYSICAL mock writer emits only mapped boolean output',function(){
     var p=create(),f=frame(1000);
     f.demands.office=true;f.readbacks[OFFICE]=true;
@@ -172,7 +183,7 @@ check('duplicated output in a batch is rejected before physical writes',function
 });
 check('repeated failed write is reported without claiming physical success',function(){
     var logs=[];
-    var writer=Writer.create({map:map,mode:'PHYSICAL',
+    var writer=Writer.create({map:Object.assign({},map,{commissioned:true}),mode:'PHYSICAL',
         exclusiveOwnershipConfirmed:true,commissioned:true,
         write:function(){return false;},
         log:{info:function(x){logs.push(x);},
