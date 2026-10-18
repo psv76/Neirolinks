@@ -1,3 +1,8 @@
+> **ЭКСПЕРИМЕНТ, НЕ ПРИМЕНЯТЬ НА ИСЕТИ (решение 18.10.2026).**
+> Дополнительные MQTT-RPC/Modbus запросы не нужны для новой простой
+> логики комнатных термостатов. Наработка сохранена в истории PR #206.
+> См. `Objects/05_16_Iset/Doc/HHM_ROOM_SIMPLE_POLICY.md`.
+
 # WB-MSW / wb-mqtt-serial device/Load — offline evidence contract (#204, PR #206)
 
 **Status: DRAFT; no new WB rule, no MQTT writer, no real RPC probe, no
