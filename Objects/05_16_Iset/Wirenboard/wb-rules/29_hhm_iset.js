@@ -29,7 +29,16 @@ function hhFloorStored(){
             s:null;
     }catch(e){return null;}
 }
+// Approved for Iset: initial floor supply 32 C, enabled on first setup.
 var HHM_FLOOR_SETTINGS=hhFloorStored();
+if(HHM_FLOOR_SETTINGS===null){
+    var HHM_FLOOR_INITIAL={version:1,enabled:true,targetC:32};
+    var HHM_FLOOR_RAW=JSON.stringify(HHM_FLOOR_INITIAL);
+    HHM_PERSIST.iset_hhm_floor_cfg_v1=HHM_FLOOR_RAW;
+    if(HHM_PERSIST.iset_hhm_floor_cfg_v1===HHM_FLOOR_RAW)
+        HHM_FLOOR_SETTINGS=HHM_FLOOR_INITIAL;
+    else log.warning("[отопление][29_hhm_iset][ТП]; ОШИБКА=Начальная уставка 32 не сохранена");
+}
 function hhBasementStored(){
     try{
         var n=Number(HHM_PERSIST.iset_hhm_basement_target_v1);
@@ -42,6 +51,17 @@ if(HHM_BASEMENT_TARGET!==null)
 var HHM_BOOT="iset-hhm-"+String(Date.now());
 var HHM_ERRORS={},HHM_PREV={},HHM_MIX_INTENTS=[],HHM_BUSY=false;
 var HHM_LAST_WRITE={};
+// Explicit user-approved initial settings: every room HEAT / 25 C.
+// Existing valid WB settings always take precedence after restart.
+for(var HHM_SEED=0;HHM_SEED<HHM_ROOM_MAP.zones.length;HHM_SEED++){
+    var HHM_SEED_ZONE=HHM_ROOM_MAP.zones[HHM_SEED];
+    var HHM_SEED_STORE=HHM_STORE.create(HHM_PERSIST,HHM_SEED_ZONE.id);
+    if(HHM_SEED_STORE.read()===null){
+        if(!HHM_SEED_STORE.provisionApproved("HEAT",25))
+            log.warning("[отопление][29_hhm_iset]["+HHM_SEED_ZONE.id+
+                "]; ОШИБКА=Начальная уставка 25 не сохранена");
+    }
+}
 var HHM_ROOM=HHM_ROOMS.create({map:HHM_ROOM_MAP,Simple:HHM_SIMPLE,
     Settings:HHM_STORE,PathGate:HHM_GATE,storage:HHM_PERSIST,
     minSetpointC:16,maxSetpointC:30,hysteresisC:0.6,
