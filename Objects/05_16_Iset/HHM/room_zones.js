@@ -6,6 +6,11 @@
  */
 exports.objectId='05_16_Iset';
 exports.commissioned=false;
+// Explicit object choice: simple thermostat, no experimental sensor-poll evidence.
+// Old generic HHMRoomThermostat/RoomSensorEvidence/RoomMqttReadEvidence/
+// RoomSerialLoadEvidence modules are retained for research, NOT wired to Iset.
+exports.roomThermostatImplementation='./simple_room_thermostat';
+exports.advancedSensorEvidenceEnabled=false;
 // Verified by read-only WB WebUI and local MQTT, 2026-10-18.
 // Historical HA sensor/climate entities are in 2026-09-07 handoff.
 // HA live files on 2026-10-18 not yet read to exclude later config drift.
