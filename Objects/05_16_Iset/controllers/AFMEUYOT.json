@@ -24,5 +24,6 @@
     "/etc/wb-rules/rules.js": "146c0fcdd728cef04eff74d72fbbfdd27ebab05a15e9e09951b517e24d96a0c0",
     "/etc/wb-rules/Vilpe_control_v3.js": "d54f505855d4f948b6033d652cf67280869f0dbe656f4a04a209f55c78ce967c"
   },
-  "diagnostics_profile": "Systems/NST/diagnostics/iset-house-hhm-v1.json"
+  "diagnostics_profile": "Systems/NST/diagnostics/iset-house-hhm-v1.json",
+  "fingerprint_sha256": "a83346c0b7b329aa776e516ac40f298e37409cc9b6b51a33558502369b42d158"
 }
