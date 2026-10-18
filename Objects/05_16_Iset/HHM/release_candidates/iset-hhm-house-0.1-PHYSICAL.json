@@ -6,7 +6,7 @@
   "role": "house",
   "release": {
     "repository": "psv76/Neirolinks",
-    "commit": "3a59a00fbbfbf7c6855a957127b366516b28cb21"
+    "commit": "fd4740e4f5d2f289282039943aed441f38f96a63"
   },
   "files": [
     {
@@ -27,7 +27,7 @@
     {
       "source": "Objects/05_16_Iset/HHM/isethhm_demand.js",
       "target": "/etc/wb-rules-modules/IsetDemand.js",
-      "sha256": "e87fdd37375ccc9deb3f9d2fb26e925eb3fd8f5a68bef2b9060ec12e5e54cae6"
+      "sha256": "7440d958d538d17703e5ad914e47687351d18bb2e8ff5fa1ae903ac020e37e45"
     },
     {
       "source": "Objects/05_16_Iset/HHM/isethhm_dhw.js",
