@@ -131,13 +131,13 @@ for(var IS_I=0;IS_I<IS_MAP.zones.length;IS_I++){
                 readonly:true,order:3},
             settings:{title:"Режим / уставка",type:"text",
                 value:"NOT_COMMISSIONED",readonly:true,order:4},
-            opening_timer:{title:"Ожидание открытия зоны",type:"text",
+            opening_timer:{title:"Зона: осталось до готовности",type:"text",
                 value:"Запрос неизвестен",readonly:true,order:5}
         };
         for(var k=0;k<z.outputs.length;k++){
             var label=z.outputs[k].split("/")[1];
             cells["servo_"+label.toLowerCase()+"_timer"]={
-                title:"Сервопривод "+label+" — таймер",type:"text",
+                title:"Привод "+label+": ожидание OPEN",type:"text",
                 value:"Запрос неизвестен",readonly:true,order:6+k};
         }
         defineVirtualDevice(d,{title:"HHM Исеть / "+z.title+" (теневой)",
@@ -153,11 +153,11 @@ defineVirtualDevice("iset_hhm_rooms_shadow",{title:"HHM Исеть (тенево
             value:"READBACK_UNKNOWN",readonly:true,order:3},
         pump_readback:{title:"K4: реле",type:"text",
             value:"Нет данных",readonly:true,order:4},
-        pump_start_timer:{title:"K4: до возможного пуска",type:"text",
+        pump_start_timer:{title:"K4: ожидание пуска (расчёт)",type:"text",
             value:"Нет запроса",readonly:true,order:5},
-        pump_run_timer:{title:"K4: наблюдаемая работа",type:"text",
+        pump_run_timer:{title:"K4: работает с обнаружения ON",type:"text",
             value:"—",readonly:true,order:6},
-        pump_stop_timer:{title:"K4: ожидание подтверждения STOP",type:"text",
+        pump_stop_timer:{title:"K4: время расчётного STOP без OFF",type:"text",
             value:"—",readonly:true,order:7},
         ready_rooms:{title:"Готово комнат",type:"value",value:0,
             readonly:true,order:8},
