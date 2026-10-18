@@ -1,3 +1,10 @@
+> **РЕШЕНИЕ ИСЕТЬ, 18.10.2026 — НЕ ИСПОЛЬЗОВАТЬ ЭТУ СЛОЖНУЮ СХЕМУ НА ОБЪЕКТЕ.**
+> Данный документ и generic-модули сохранены как экспериментальная
+> наработка. Для Исети выбран `Objects/05_16_Iset/HHM/simple_room_thermostat.js`
+> без проверки свежести MQTT/Modbus poll, fallback и датчикового HOLD.
+> См. `Objects/05_16_Iset/Doc/HHM_ROOM_SIMPLE_POLICY.md`.
+> Это не отменяет независимые физические защиты и необходимость ПНР.
+
 # WB-local room thermostat — offline stage (#204, decisions 4–7)
 
 Implementation: `core/HHMRoomThermostat.js`,
