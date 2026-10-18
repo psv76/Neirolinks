@@ -255,4 +255,51 @@ check('DHW fault reset requires K1 observed OFF and valid tank',function(){
         return x[0]==='warning'&&x[1].indexOf('Сброс не разрешён')>=0;
     }));
 });
+check('physical WB floor closes MAO4 hot port at 40C without K2 stop',function(){
+    var stored={iset_hhm_floor_cfg_v1:
+        JSON.stringify({version:1,enabled:true,targetC:34})};
+    var w=boot(stored,true);
+    w.external('wb-mio-gpio_195:1/IN1',true);
+    w.external('wbe2-i-opentherm_11/Invalid Connection',false);
+    w.external('wbe2-i-opentherm_11/Boiler Fault Indication',false);
+    w.external('wbe2-i-opentherm_11/Error Code',0);
+    w.external('wbe2-i-opentherm_11/Heating Temperature',58);
+    w.external('wbe2-i-opentherm_11/Water Pressure',1.5);
+    w.external('wb-m1w2_67/External Sensor 1',40);
+    w.external('wb-mao4_131/Channel 1 Dimming Level',20);
+    w.external('wb-mr6cu_37/K2',true);
+    var old=w.outputs.length;
+    w.step(1000);
+    var actions=w.outputs.slice(old);
+    assert.ok(actions.some(function(c){
+        return c.path==='wb-mao4_131/Channel 1 Dimming Level'&&
+            c.value===0;
+    }));
+    assert.strictEqual(actions.some(function(c){
+        return c.path==='wb-mr6cu_37/K2'&&c.value===false;
+    }),false);
+});
+check('physical WB floor at 45C commands K2 OFF independently',function(){
+    var stored={iset_hhm_floor_cfg_v1:
+        JSON.stringify({version:1,enabled:true,targetC:34})};
+    var w=boot(stored,true);
+    w.external('wb-mio-gpio_195:1/IN1',true);
+    w.external('wbe2-i-opentherm_11/Invalid Connection',false);
+    w.external('wbe2-i-opentherm_11/Boiler Fault Indication',false);
+    w.external('wbe2-i-opentherm_11/Error Code',0);
+    w.external('wbe2-i-opentherm_11/Heating Temperature',58);
+    w.external('wbe2-i-opentherm_11/Water Pressure',1.5);
+    w.external('wb-m1w2_67/External Sensor 1',45);
+    w.external('wb-mr6cu_37/K2',true);
+    w.external('wb-mao4_131/Channel 1 Dimming Level',20);
+    var old=w.outputs.length;
+    w.step(1000);
+    var actions=w.outputs.slice(old);
+    assert.ok(actions.some(function(c){
+        return c.path==='wb-mr6cu_37/K2'&&c.value===false;
+    }));
+    assert.ok(actions.some(function(c){
+        return c.path==='wb-mao4_131/Channel 1 Dimming Level'&&c.value===0;
+    }));
+});
 console.log('TOTAL PASS '+count);
