@@ -7,6 +7,7 @@ function newPolicy() { return Policy.create({holdMs:15000, recoveryStableMs:1000
 function sample(now, valid, change) {
     var d={nowMs:now,sensorValid:valid,heatRequested:true,
         hydraulicPathReady:true,protectionActive:false,acceptedValvePct:37,
+        acceptedValveConfirmed:valid,
         fallbackAuthorized:true,independentLimitOk:true};
     Object.keys(change||{}).forEach(function(k){d[k]=change[k];});
     return d;
@@ -30,6 +31,9 @@ check('long loss allows only approved nonzero fallback',function(){
     assert.strictEqual(r.state,'LIMITED_HEAT');
     assert.strictEqual(r.valvePct,18);assert.strictEqual(r.commandValve,true);
     assert.strictEqual(r.heatDemand,true);
+    assert.strictEqual(r.lastAcceptedValvePct,37);
+    var ack=p.step(sample(17000,false,{acceptedValveConfirmed:true,acceptedValvePct:18}));
+    assert.strictEqual(ack.lastAcceptedValvePct,18);
 });
 check('independent safety not qualified: no arbitrary zero or ON',function(){
     var p=newPolicy();p.step(sample(0,true));p.step(sample(1000,false));

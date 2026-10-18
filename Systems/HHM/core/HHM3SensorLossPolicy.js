@@ -74,6 +74,14 @@ exports.create = function (cfg) {
                     'No qualified hydraulic path; upstream policy required');
             }
 
+            // A requested valve level is not an accepted command. Only an
+            // explicit upstream acknowledgement may update held progress.
+            if (i.acceptedValveConfirmed === true) {
+                if (!pct(i.acceptedValvePct))
+                    throw new Error('Confirmed valve level is invalid');
+                lastAcceptedPct = i.acceptedValvePct;
+            }
+
             if (i.sensorValid) {
                 if (lostAt !== null) {
                     if (recoveryAt === null) {
@@ -90,7 +98,6 @@ exports.create = function (cfg) {
                     recoveryAt = null;
                     recoveryCount = 0;
                 }
-                if (pct(i.acceptedValvePct)) lastAcceptedPct = i.acceptedValvePct;
                 return output('NORMAL', lastAcceptedPct, false, true,
                     'Normal mixer controller owns valve commands');
             }
@@ -108,7 +115,8 @@ exports.create = function (cfg) {
             // Only the object adapter can authorize limited heating on other
             // physical evidence. Unknown evidence never means "close to zero".
             if (i.fallbackAuthorized === true && i.independentLimitOk === true) {
-                lastAcceptedPct = cfg.limitedValvePct;
+                // Do not call a calculated fallback level "accepted" until
+                // its writer explicitly acknowledges it on a later cycle.
                 return output('LIMITED_HEAT', cfg.limitedValvePct, true, true,
                     'Approved nonzero local fallback; supply temperature unknown');
             }

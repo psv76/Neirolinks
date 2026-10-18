@@ -8,6 +8,8 @@ Intended sequence:
 
 1. Brief supply-sensor invalidity: `HOLD_LAST_ACCEPTED`, preserve
    the previously accepted valve position and demand without new writes.
+   A fallback command must not be treated as accepted until the upstream
+   writer explicitly reports acceptance; neither implies valve travel.
 2. Prolonged invalidity: `LIMITED_HEAT` with a **nonzero,
    explicitly object-approved position**, only after independent
    temperature/safety evidence and hydraulic path are confirmed.
