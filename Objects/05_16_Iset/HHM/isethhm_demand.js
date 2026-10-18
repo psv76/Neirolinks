@@ -13,7 +13,7 @@ exports.create=function(cfg){
     if(!cfg||!cfg.basement||!finite(cfg.basement.targetC)||
        !finite(cfg.basement.hysteresisC))
         throw new Error('Iset demand: basement policy required');
-    var basementHeat=null,lastOutdoor=null;
+    var basementHeat=null,lastOutdoor=null,lastBasementMin=null;
     return {
         step:function(f){
             if(!f||!f.livingDemands||!f.dhw||
@@ -37,6 +37,7 @@ exports.create=function(cfg){
                 }
             }
             if(bmin!==null){
+                lastBasementMin=bmin;
                 if(bmin<cfg.basement.targetC-cfg.basement.hysteresisC)
                     basementHeat=true;
                 else if(validCount===bs.length&&
@@ -47,8 +48,8 @@ exports.create=function(cfg){
                 f.floor.demand===true);
             var requests={
                 living:living&&base!==null?clamp(base,35,75):null,
-                basement:basementHeat===true&&base!==null&&bmin!==null?
-                    clamp(base+clamp(2*(cfg.basement.targetC-bmin),0,6),35,75):null,
+                basement:basementHeat===true&&base!==null&&lastBasementMin!==null?
+                    clamp(base+clamp(2*(cfg.basement.targetC-lastBasementMin),0,6),35,75):null,
                 floor:floor&&finite(f.floor.requestC)?
                     clamp(f.floor.requestC,35,60):null,
                 dhw:f.dhw.demand===true&&finite(f.dhw.requestSupplyC)?
@@ -63,7 +64,7 @@ exports.create=function(cfg){
                 if(id==='floor'&&f.floorCommissioned!==true)continue;
                 if(id==='living'&&!living&&knownLiving===0)
                     grants[id]='UNKNOWN'; 
-                if(id==='basement'&&bmin===null)
+                if(id==='basement'&&lastBasementMin===null)
                     grants[id]='UNKNOWN';
                 if(requests[id]===null)continue;
                 if(pause&&id!=='dhw'){
@@ -80,6 +81,8 @@ exports.create=function(cfg){
                 livingHeatDemand:living,
                 basementHeatDemand:basementHeat,
                 basementMinimumC:bmin,basementValidSensors:validCount,
+                basementLastObservedMinC:lastBasementMin,
+                basementLastValueHeld:bmin===null&&lastBasementMin!==null,
                 floorCommissioned:f.floorCommissioned,
                 reason:highest===null?'NO_SOURCE_REQUEST':pause?
                     'DHW_CONDITIONAL_PRIORITY':'PARALLEL_HEATING',
