@@ -223,7 +223,8 @@ function hhPumpView(report,path,vd){
     hhChanged(vd+"/stop_timer",hhSec(t.stopWaitMs));
     var start="По запросу";
     if(vd==="iset_hhm_k2"){
-        start=!report.floor.allLoopsReady?
+        start=t.readback===true?"Работает":
+            !report.floor.allLoopsReady?
             (report.floor.remainingOpenMs===null?
                 "Ожидание открытия NO":hhSec(report.floor.remainingOpenMs)):
             report.floor.valvePreflightRemainingMs===null?
