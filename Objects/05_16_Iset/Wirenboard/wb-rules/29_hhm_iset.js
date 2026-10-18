@@ -180,7 +180,9 @@ function hhWrite(cmd,at){
            prev.observed===before)return true;
         dev[cmd.path]=cmd.value;
         HHM_LAST_WRITE[cmd.path]={
-            value:cmd.value,at:at,observed:before};
+            value:cmd.value,at:at,observed:before,
+            firstAt:prev&&prev.value===cmd.value?prev.firstAt:at,
+            warned:prev&&prev.value===cmd.value&&prev.warned===true};
         log.info("[отопление][29_hhm_iset]["+cmd.path+
             "]; КОМАНДА="+cmd.action+"; значение="+cmd.value+
             "; причина="+cmd.reason);
@@ -192,6 +194,46 @@ function hhWrite(cmd,at){
             "]; ОШИБКА=Запись не принята; причина="+String(e));
         return false;
     }
+}
+// MQTT readback is not a flow/shaft sensor. Detect missing replies,
+ // including the case where wb-mqtt-serial is active but ignoring /on.
+function hhMatchesReadback(actual,wanted){
+    if(typeof wanted==="boolean")return hhBool(actual)===wanted;
+    var v=hhNum(actual);
+    return v!==null&&Math.abs(v-wanted)<=0.5;
+}
+function hhIOReadbackWatch(now){
+    var pending=[],lost=[],path,record,elapsed,actual;
+    for(path in HHM_LAST_WRITE){
+        if(!HHM_LAST_WRITE.hasOwnProperty(path))continue;
+        record=HHM_LAST_WRITE[path];
+        actual=dev[path];
+        if(hhMatchesReadback(actual,record.value)){
+            if(record.warned)
+                log.info("[отопление][29_hhm_iset]["+path+
+                    "]; ВОССТАНОВЛЕНИЕ=MQTT readback совпал с командой");
+            delete HHM_LAST_WRITE[path];
+            continue;
+        }
+        elapsed=Math.max(0,now-record.firstAt);
+        if(elapsed>=30000){
+            lost.push(path+" ("+Math.floor(elapsed/1000)+" с)");
+            if(!record.warned){
+                record.warned=true;
+                log.warning("[отопление][29_hhm_iset]["+path+
+                    "]; ОШИБКА=Нет подтверждения MQTT после команды "+
+                    String(record.value)+" в течение 30 с; "+
+                    "проверить wb-mqtt-serial и Modbus");
+            }
+        }else pending.push(path+" ("+Math.floor(elapsed/1000)+" с)");
+    }
+    hhChanged("iset_hhm/io_state",lost.length?"NO_READBACK":
+        pending.length?"WAIT_READBACK":"READBACK_OK");
+    hhChanged("iset_hhm/io_unconfirmed",lost.length);
+    hhChanged("iset_hhm/io_waiting",pending.length);
+    hhChanged("iset_hhm/io_details",lost.length?
+        lost.join("; "):pending.length?pending.join("; "):
+        "Все отправленные команды подтверждены каналами MQTT");
 }
 function hhRoomView(report){
     for(var i=0;i<HHM_ROOM_MAP.zones.length;i++){
@@ -279,9 +321,13 @@ function hhTick(){
             var v="iset_hhm_floor/"+fl.path.split("/")[1].toLowerCase()+"_timer";
             hhChanged(v,hhSec(fl.remainingMs));
         }
-        if(!HHM_PHYSICAL_OUTPUTS)return;
+        if(!HHM_PHYSICAL_OUTPUTS){
+            hhChanged("iset_hhm/io_state","PREVIEW");
+            return;
+        }
         for(var c=0;c<report.commands.length;c++)
             hhWrite(report.commands[c],now);
+        hhIOReadbackWatch(now);
     }catch(e){
         log.error("[отопление][29_hhm_iset][система]; АВАРИЯ=Ошибка расчёта; причина="+String(e));
     }finally{HHM_BUSY=false;}
@@ -427,7 +473,15 @@ defineVirtualDevice("iset_hhm",{title:"HHM Исеть / Общее",cells:{
     floor_timer:{type:"text",value:"—",readonly:true,
         title:"ТП: открытие приводов"},
     floor_state:{type:"text",value:"OFF",readonly:true,title:"ТП"},
-    actions:{type:"text",value:"—",readonly:true,title:"Расчёт команд"}
+    actions:{type:"text",value:"—",readonly:true,title:"Расчёт команд"},
+    io_state:{type:"text",value:"START",readonly:true,
+        title:"Контроль MQTT-команд"},
+    io_unconfirmed:{type:"value",value:0,readonly:true,
+        title:"Нет подтверждения более 30 с"},
+    io_waiting:{type:"value",value:0,readonly:true,
+        title:"Ожидают подтверждения менее 30 с"},
+    io_details:{type:"text",value:"—",readonly:true,
+        title:"Каналы без подтверждения MQTT"}
 }});
 defineRule("iset_hhm_floor_save",{
     whenChanged:"iset_hhm_floor/save",then:function(){
