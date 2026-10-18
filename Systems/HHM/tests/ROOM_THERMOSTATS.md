@@ -1,6 +1,7 @@
 # WB-local room thermostat — offline stage (#204, decisions 4–7)
 
-Implementation: `core/HHMRoomThermostat.js`, ECMAScript 5.
+Implementation: `core/HHMRoomThermostat.js` and
+`core/HHMRoomPathGate.js`, ECMAScript 5.
 
 The Wiren Board must own accepted setpoints/modes and calculate room demand
 locally. Home Assistant, Sprut, Apple HomeKit, Yandex Alice and WB WebUI
@@ -57,8 +58,15 @@ HomeKit or Alice currently provide this envelope.
   11 NO actuators but **no validated autonomous room sensor IDs**.
 - No thermostat setpoints, fallback duty-cycle or heating limits chosen
   for Iset. Test fixtures (22 °C etc.) are not approved settings.
-- No NO-actuator start delays, pump deadhead protection, PWM of reserve
-  heating or output ownership transfer is implemented here.
+- `HHMRoomPathGate.js` now **calculates a START permission only** after
+  an accepted NO=0 command/readback on every actuator of a requested
+  zone, a 180s fixture delay, and a matching `bootEpoch`. A missing
+  demand means HOLD the actuator proposal, **not** CLOSE. Independent
+  protection blocks proposals to open; no physical outputs are written.
+  Output readback + time does not prove stem position or actual flow.
+- No physical NO-actuator writer, complete pump deadhead protection,
+  pump OFF/postrun policy, PWM of reserve heating or output ownership
+  transfer is implemented here. The real K4 owner must enforce these.
 - No verified `PersistentStorage` adapter or UI bridge/authorization.
 - No full HHM/NST release or physical commissioning. Separate gates.
 
@@ -69,6 +77,7 @@ Run on a developer computer (not on WB):
 ```sh
 node Systems/HHM/tests/room-thermostats.js
 node Systems/HHM/tests/iset-room-map.js
+node Systems/HHM/tests/room-path-gate.js
 ```
 
 Object mapping evidence:
