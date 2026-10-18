@@ -94,11 +94,17 @@ check('eight WB room VDs plus four pump VDs and floor',function(){
     assert.ok(w.devices.iset_hhm_floor.cells.k12_timer);
     assert.ok(w.devices.iset_hhm_floor.cells.k16_timer);
 });
-check('unconfigured rooms stay uncommissioned without default setpoint',function(){
+check('approved 25C HEAT is saved in all eight rooms, 32C floor enabled',function(){
     var w=boot();
-    assert.strictEqual(w.controls['iset_hhm_office/saved'],
-        'Уставка не задана');
-    assert.strictEqual(Object.keys(w.storage).length,0);
+    modules.IsetRoomZones.zones.forEach(function(z){
+        var key='iset_hhm_room_v1_'+z.id;
+        assert.strictEqual(JSON.parse(w.storage[key]).setpointC,25);
+        assert.strictEqual(JSON.parse(w.storage[key]).mode,'HEAT');
+    });
+    assert.strictEqual(w.controls['iset_hhm_office/saved'],'HEAT / 25°C');
+    assert.strictEqual(w.controls['iset_hhm_floor/target'],32);
+    assert.strictEqual(w.controls['iset_hhm_floor/enable'],true);
+    assert.strictEqual(Object.keys(w.storage).length,9);
 });
 check('explicit office setpoint Apply creates durable local record',function(){
     var w=boot();
@@ -125,14 +131,14 @@ check('out-of-range 40 C room setpoint rejected',function(){
     var w=boot();
     w.external('iset_hhm_office/setpoint_input',40);
     w.click('iset_hhm_office/apply');
-    assert.strictEqual(w.storage.iset_hhm_room_v1_office,undefined);
+    assert.strictEqual(JSON.parse(w.storage.iset_hhm_room_v1_office).setpointC,25);
     assert.ok(w.logs.some(function(a){
         return a[0]==='warning'&&a[1].indexOf('Уставка не сохранена')>=0;
     }));
 });
-check('floor is OFF until explicitly stored, remains OFF after restart',function(){
+check('floor starts with approved 32C and supports stored override',function(){
     var a=boot();
-    assert.strictEqual(a.controls['iset_hhm_floor/state'],'OFF');
+    assert.strictEqual(JSON.parse(a.storage.iset_hhm_floor_cfg_v1).targetC,32);
     a.external('iset_hhm_floor/enable',true);
     a.external('iset_hhm_floor/target',34);
     a.click('iset_hhm_floor/save');
@@ -336,5 +342,16 @@ check('full WB K2 preflight drives Switch ON then waits 10s and NO 120s',functio
         return a.path==='wb-mr6cu_37/K2'&&a.value===true;
     }));
     assert.ok(w.devices.iset_hhm_k2.cells.start_timer);
+});
+check('valid operator preferences persist and are never reset to 25/32',function(){
+    var a=boot();
+    a.external('iset_hhm_office/setpoint_input',22);
+    a.click('iset_hhm_office/apply');
+    a.external('iset_hhm_floor/target',35);
+    a.click('iset_hhm_floor/save');
+    var b=boot(a.storage);
+    assert.strictEqual(b.controls['iset_hhm_office/setpoint_input'],22);
+    assert.strictEqual(b.controls['iset_hhm_floor/target'],35);
+    assert.strictEqual(JSON.parse(b.storage.iset_hhm_room_v1_office).setpointC,22);
 });
 console.log('TOTAL PASS '+count);
