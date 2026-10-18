@@ -152,9 +152,15 @@ function hhWrite(cmd,at){
     try{
         // Retry after 5s if the driver's readback remains unchanged.
         var prev=HHM_LAST_WRITE[cmd.path];
-        if(prev&&prev.value===cmd.value&&at-prev.at<5000)return true;
+        var before=dev[cmd.path];
+        // If a formerly unknown relay now reports an opposite state,
+        // send STOP immediately. Retry throttling is only for identical,
+        // unchanged readback conditions.
+        if(prev&&prev.value===cmd.value&&at-prev.at<5000&&
+           prev.observed===before)return true;
         dev[cmd.path]=cmd.value;
-        HHM_LAST_WRITE[cmd.path]={value:cmd.value,at:at};
+        HHM_LAST_WRITE[cmd.path]={
+            value:cmd.value,at:at,observed:before};
         log.info("[отопление][29_hhm_iset]["+cmd.path+
             "]; КОМАНДА="+cmd.action+"; значение="+cmd.value+
             "; причина="+cmd.reason);
