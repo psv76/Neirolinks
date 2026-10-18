@@ -13,6 +13,13 @@ setpoints or a physical-safe value for Iset/Ivolga.
   Common `pumpPostrunMs` is now required and checked at creation.
 - `HHM3Mixing.js`: `resumeAfterSensorGap(confirmedPct)` keeps valve
   position and move/hold memory while invalidating derivative/filter data.
+- `adapters/HHM3Mao4Output.js`: candidate reusable WB-MAO4 single-writer
+  adapter based on the approved Ivolga A05 output contract. Under `HOLD`
+  it **never writes valve Level/Switch**, while maintaining the previously
+  authorized pump command only with a qualified path and matching output
+  readback. `NO_COMMAND` writes nothing at all and does not discard the
+  accepted valve position. Legacy `APPLY` open/close semantics are preserved.
+  This module is NOT connected to a deployed object or `rule 500`.
 - `Circuit.result.mixing`: exposes `status`, `sensorFault`,
   `alarmActive`, `sourceGuardActive` etc. This is a **calculated mixer
   snapshot, not proof of physical delivery** (#191).
@@ -21,8 +28,11 @@ setpoints or a physical-safe value for Iset/Ivolga.
 
 State sequence:
 `NORMAL → HOLD_LAST_ACCEPTED → LIMITED_HEAT → RECOVERY_HOLD → NORMAL`.
-A recovered sample alone does not reset the grace period. Stable recovery
-needs confirmation of the accepted valve setpoint.
+A recovered sample alone does not reset the grace period. With confirmed
+accepted output evidence, stable recovery resumes from that position. If
+no previously accepted output position can be established (e.g. a cold
+boot), stable sensor recovery takes the normal **bounded cold-start**
+path instead of waiting forever for impossible output proof.
 
 ## Mandatory object-side contract (NOT IMPLEMENTED YET)
 
@@ -32,15 +42,20 @@ An enabled `Circuit` must receive these values each evaluation:
 |---|---|
 | `sensorValid` | health-qualified, fresh local sensor, e.g. M1W2 Sensor OK + error policy |
 | `hydraulicPathReady` | independently confirmed hydraulic permission; not a guessed flow |
+| `protectionActive` | explicit boolean from independent real protection checks; unknown is not false |
 | `fallbackAuthorized` | approved autonomous heating arrangement, including startup-cap check |
 | `independentLimitOk` | independent thermal evidence allows that specific valve limit |
 | `valveActionSupported=true` | output adapter really honors all three `valveAction` codes |
 | `acceptedValveConfirmed` + `acceptedValvePct` | last accepted output command from the **actual owner**, not the virtual mixer calculation |
 
-`valveAction` is `APPLY`, `HOLD`, or `NO_COMMAND`. **The present
-Ivolga outputSteps does not consume this field.** Do not deploy with the
-existing output adapter. `HOLD` means do not send a valve command;
-`NO_COMMAND` means both valve and source requests need a separately
+`valveAction` is `APPLY`, `HOLD`, or `NO_COMMAND`. The historical
+**Ivolga `outputSteps` still does not consume this field**. The new common
+MAO4 adapter provides an implementation candidate but is **not wired to the
+Ivolga or Iset object rule**. Do not deploy with the existing output adapter.
+`HOLD` means do not send a valve command;
+`NO_COMMAND` returns no output write while retaining previously accepted
+output/readback evidence if still consistent. It does **not** assert a fresh
+pump permission or an automatic source grant. The source requests need a separately
 documented handling policy; retain independent pump control according
 to a qualified open path. `APPLY` is a calculated request and does not
 prove valve stroke, water flow or confirmed readback.
@@ -56,8 +71,9 @@ protection path is not implemented by this decision module.
 1. Object mapping and sensor health provenance for Iset and Ivolga.
 2. Validated hot-port direction, independent max temperature, NO
    actuator paths/bypass, K2/K4 pump ownership and source continuity.
-3. Real `outputSteps` honoring HOLD / APPLY / NO_COMMAND without a
-   second writer or a false pump OFF.
+3. Integrate and review the common MAO4 output adapter with real object
+   `outputSteps` and the single writer. Verify initialization, output
+   handshake, readback faults, authority transfer, and no false pump OFF.
 4. Full output acceptance/readback and operator journal transitions.
 5. Explicitly approved HOLD and fallback values with startup cap and
    worst-case sensor outage consideration; model cold-start, network
@@ -73,6 +89,9 @@ position must not be enabled without a verified commissioning contract.
 ```sh
 node Systems/HHM/tests/sensor-loss-policy.js
 node Systems/HHM/tests/circuit-sensor-loss-integration.js
+node Systems/HHM/tests/mao4-output-actions.js
+# Or the aggregate test runner:
+node Systems/HHM/tests/run.js
 ```
 
 The tests have no MQTT, no wb-rules runtime, no real actuator and no

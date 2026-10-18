@@ -42,7 +42,8 @@ function frame(now){return {floor:24,valid:true,enabled:true,demand:true,
 function sample(now, options){
     var x={now:now,frame:frame(now),supply:28,supplyAt:now,
         source:60,ret:26,zoneReady:true,zoneSafe:true,pumpWasOn:true,
-        sensorValid:true,valveActionSupported:true,hydraulicPathReady:true,
+        sensorValid:true,valveActionSupported:true,protectionActive:false,
+        hydraulicPathReady:true,
         fallbackAuthorized:true,independentLimitOk:true,
         acceptedValveConfirmed:true,acceptedValvePct:22};
     Object.keys(options||{}).forEach(function(k){x[k]=options[k];});
@@ -150,6 +151,11 @@ check('opt-in requires dedicated helper module',function(){
     var c=fixture(true);
     assert.throws(function(){Circuit.create(c,{},Mixing);},/module is required/);
 });
+check('opt-in rejects unknown independent physical protection state',function(){
+    var e=env(true);
+    assert.throws(function(){e.step(sample(5000,{protectionActive:undefined}));},
+        /Missing explicit/);
+});
 check('legacy mixer sensor fault is now visible to circuit consumers',function(){
     var e=env(false);
     var r=e.step(sample(5000,{supply:-25}));
@@ -172,16 +178,16 @@ check('real hard temperature stop overrides a contradictory health flag',functio
     assert.strictEqual(r.pump,false);
     assert.strictEqual(r.valve,0);
 });
-check('recovering sensor never authorizes unconfirmed mixer resumption',function(){
+check('unconfirmed output on sensor recovery uses bounded cold start',function(){
     var e=env(true);e.step(sample(300000));
     e.step(sample(305000,{supply:null,sensorValid:false,
         acceptedValveConfirmed:false}));
     e.step(sample(310000,{acceptedValveConfirmed:false}));
     var r=e.step(sample(321000,{acceptedValveConfirmed:false}));
-    assert.strictEqual(r.reason,'RECOVERY_HOLD');
-    assert.strictEqual(r.valveAction,'HOLD');
-    r=e.step(sample(326000,{acceptedValveConfirmed:true,acceptedValvePct:22}));
     assert.strictEqual(r.reason,'NORMAL');
+    assert.strictEqual(r.valveAction,'APPLY');
+    assert.ok(r.valve>=0&&r.valve<=10);
+    assert.notStrictEqual(r.mixing.status,'SENSOR_RECOVERY_POSITION_SYNC');
 });
 check('two short glitches preserve one original accepted valve position',function(){
     var e=env(true);e.step(sample(300000));
@@ -225,5 +231,53 @@ check('missing safe path does not issue valve writes',function(){
         hydraulicPathReady:false,acceptedValveConfirmed:false}));
     assert.strictEqual(r.valveAction,'NO_COMMAND');
     assert.strictEqual(r.write,false);
+});
+check('end-to-end Circuit HOLD causes no WB-MAO4 Level/Switch writes',function(){
+    var Writer=require('../adapters/HHM3Mao4Output'),c=fixture(true);
+    c.pump='sim/K2';c.level='sim/MAO4 Level';c.enable='sim/MAO4 Switch';
+    var data={},seq={},sent=[];
+    data[c.pump]=false;data[c.level]=25;data[c.enable]=0;
+    seq[c.pump]=0;seq[c.level]=0;seq[c.enable]=0;
+    var io={
+        read:function(p){return data[p];},
+        readback:function(p){return {value:data[p],seq:seq[p],at:0};},
+        matches:function(p,v){return data[p]===(p===c.enable?(v?1:0):v);},
+        write:function(p,v){
+            sent.push(p);
+            data[p]=p===c.enable?(v?1:0):v;seq[p]++;
+            if(p===c.level&&v>0){data[c.enable]=1;seq[c.enable]++;}
+            return {ok:true,sent:true};
+        }
+    };
+    var circuit=Circuit.create(c,{},Mixing,Loss),output=Writer.create(c,io);
+    var frame1=circuit.step(sample(5000));
+    output(frame1,5000); // first apply initializes output in closed mode
+    var frame2=circuit.step(sample(10000,{acceptedValveConfirmed:false}));
+    var opening=output(frame2,10000);
+    assert.strictEqual(opening.state,'HEAT_COMMANDED');
+    assert.strictEqual(opening.acceptedValveConfirmed,true);
+    var valveWrites=sent.filter(function(p){return p===c.level||p===c.enable;}).length;
+    var lost=circuit.step(sample(15000,{
+        supply:null,sensorValid:false,
+        acceptedValveConfirmed:opening.acceptedValveConfirmed,
+        acceptedValvePct:opening.acceptedValvePct}));
+    assert.strictEqual(lost.valveAction,'HOLD');
+    assert.strictEqual(lost.hydraulicPathReady,true);
+    assert.strictEqual(lost.demand,true);
+    var held=output(lost,15000);
+    assert.strictEqual(held.state,'HEAT_HELD');
+    assert.strictEqual(held.ready,true);
+    assert.strictEqual(held.acceptedValvePct,opening.acceptedValvePct);
+    assert.strictEqual(sent.filter(function(p){return p===c.level||p===c.enable;}).length,valveWrites);
+    var limited=circuit.step(sample(30000,{
+        supply:null,sensorValid:false,
+        acceptedValveConfirmed:held.acceptedValveConfirmed,
+        acceptedValvePct:held.acceptedValvePct}));
+    assert.strictEqual(limited.reason,'LIMITED_HEAT');
+    assert.strictEqual(limited.valveAction,'APPLY');
+    assert.strictEqual(limited.valve,18);
+    var restricted=output(limited,30000);
+    assert.strictEqual(restricted.state,'HEAT_COMMANDED');
+    assert.strictEqual(restricted.acceptedValvePct,18);
 });
 console.log('TOTAL PASS '+passed);

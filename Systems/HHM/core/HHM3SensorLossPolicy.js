@@ -40,6 +40,7 @@ exports.create = function (cfg) {
             heatDemand: heat,
             sensorLostSinceMs: lostAt,
             lastAcceptedValvePct: lastAcceptedPct,
+            requiresColdStart: false,
             reason: detail || ''
         };
     }
@@ -90,14 +91,24 @@ exports.create = function (cfg) {
                     }
                     recoveryCount += 1;
                     if (i.nowMs - recoveryAt < cfg.recoveryStableMs ||
-                        recoveryCount < cfg.recoverySamples ||
-                        i.acceptedValveConfirmed !== true) {
+                        recoveryCount < cfg.recoverySamples) {
                         return output('RECOVERY_HOLD', lastAcceptedPct, false, true,
                             'Require stable sensor and confirmed valve command before resuming');
                     }
                     lostAt = null;
                     recoveryAt = null;
                     recoveryCount = 0;
+                    // If no accepted output was ever observable (for example,
+                    // a cold boot with a missing sensor), waiting for one would
+                    // deadlock because the mixer cannot command until NORMAL.
+                    // Restart from a verified fresh sensor, not a stale level.
+                    if (i.acceptedValveConfirmed !== true) {
+                        lastAcceptedPct = null;
+                        var cold = output('NORMAL', null, false, true,
+                            'Stable fresh sensor; controlled cold-start required');
+                        cold.requiresColdStart = true;
+                        return cold;
+                    }
                 }
                 return output('NORMAL', lastAcceptedPct, false, true,
                     'Normal mixer controller owns valve commands');

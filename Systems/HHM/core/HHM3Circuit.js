@@ -156,6 +156,7 @@ exports.create=function(c,storage,Mixing,SensorLossPolicy){
                     throw new Error('Sensor loss requires HOLD-aware single output writer');
                 if(typeof i.sensorValid!=='boolean' ||
                    typeof i.hydraulicPathReady!=='boolean' ||
+                   typeof i.protectionActive!=='boolean' ||
                    typeof i.fallbackAuthorized!=='boolean' ||
                    typeof i.independentLimitOk!=='boolean')
                     throw new Error('Missing explicit sensor-loss safety/health input');
@@ -181,17 +182,27 @@ exports.create=function(c,storage,Mixing,SensorLossPolicy){
                         lp.valvePct,lp.reason);
                     degraded.valveAction=lp.commandValve?'APPLY':
                         (lp.valvePct===null?'NO_COMMAND':'HOLD');
+                    // The output owner must receive the same qualified
+                    // hydraulic permit used by the circuit decision.
+                    degraded.hydraulicPathReady=i.hydraulicPathReady===true;
                     degraded.sensorLossSinceMs=lp.sensorLostSinceMs;
                     if(lp.valvePct===null){degraded.valid=false;degraded.write=false;}
                     return degraded;
                 }
                 if(previousLossState&&previousLossState!=='NORMAL'){
-                    // Resume the mixer without a cold-start reset. A verified
-                    // accepted output is mandatory before reconciling position.
-                    if(i.acceptedValveConfirmed!==true||!finite(lp.lastAcceptedValvePct))
-                        throw new Error('Cannot resume mixer without accepted valve evidence');
-                    lastMixing=mix.resumeAfterSensorGap(lp.lastAcceptedValvePct);
-                    position=lp.lastAcceptedValvePct;
+                    if(lp.requiresColdStart===true){
+                        // No qualified output position exists: after stable
+                        // sensor recovery use ordinary bounded cold start,
+                        // never fabricate the previous valve position.
+                        newMixer();
+                    }else{
+                        // Valid output evidence: keep actual regulatory progress.
+                        if(i.acceptedValveConfirmed!==true||
+                           !finite(lp.lastAcceptedValvePct))
+                            throw new Error('Cannot resume mixer without accepted valve evidence');
+                        lastMixing=mix.resumeAfterSensorGap(lp.lastAcceptedValvePct);
+                        position=lp.lastAcceptedValvePct;
+                    }
                 }
             }
             // Do not run a minute-long pump-only phase against a commanded

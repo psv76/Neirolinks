@@ -95,4 +95,16 @@ check('missing explicit safety input forbidden',function(){
     assert.throws(function(){newPolicy().step({nowMs:1,sensorValid:false});},
         /requires explicit/);
 });
+check('cold start recovers automatically without fictitious valve evidence',function(){
+    var p=newPolicy();
+    var lost=p.step(sample(0,false,{fallbackAuthorized:false}));
+    assert.strictEqual(lost.state,'FALLBACK_NOT_VERIFIED');
+    assert.strictEqual(lost.valvePct,null);
+    assert.strictEqual(p.step(sample(1000,true,{acceptedValveConfirmed:false})).state,
+        'RECOVERY_HOLD');
+    var good=p.step(sample(12000,true,{acceptedValveConfirmed:false}));
+    assert.strictEqual(good.state,'NORMAL');
+    assert.strictEqual(good.requiresColdStart,true);
+    assert.strictEqual(good.lastAcceptedValvePct,null);
+});
 process.stdout.write('TOTAL PASS '+passed+'\n');
