@@ -35,7 +35,7 @@ function isServoTimer(a,demand){
     if(demand!==true)return demand===false?"Не требуется":"Запрос неизвестен";
     if(a.openingRemainingMs!==null)
         return a.openingRemainingMs>0?isSeconds(a.openingRemainingMs):"Готово";
-    return a.state==="WAIT_OPEN"?"Ожидание OPEN":"Нет readback";
+    return a.state==="WAIT_OPEN"?"Ожидание OPEN":"Нет данных выхода";
 }
 function isPumpStartTimer(plan){
     if(plan.pumpReadback===true)return "K4 уже работает";
