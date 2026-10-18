@@ -1,17 +1,15 @@
 {
   "schema": "iset-hhm-retained-cleanup-inventory-v1",
   "object": "05_16_Iset",
-  "observed_at_local": "2026-10-19 00:40 +05 (last confirmed, not a live read now)",
+  "observed_at_local": "2026-10-19T01:00:54+05:00",
   "purpose": "Remove obsolete retained-only HM2 virtual devices from WB MQTT; never touch current HHM, physical devices, Home Assistant or independent automation",
   "broker_connection": "Mosquitto on WB; bridge topic # both also configured to 192.168.30.250",
   "driver_expected": "wb-rules",
-  "state": "HISTORICAL_OBSERVATION_PLEASE_RECHECK",
+  "state": "VERIFIED_ALL_14_RETAINED_DEVICE_DRIVER_TOPICS_ABSENT",
   "confirmed_removed_at_observation": [
     "heating_safety",
     "heating_floor",
-    "heating_basement"
-  ],
-  "last_observed_retained_not_yet_removed": [
+    "heating_basement",
     "heating_living",
     "heating_dhw",
     "heating_ahu",
@@ -24,6 +22,7 @@
     "iset_floor_status_ru",
     "iset_m1w2_diagnostic"
   ],
+  "last_observed_retained_not_yet_removed": [],
   "never_remove_by_this_procedure": [
     "iset_hhm",
     "iset_hhm_floor",
@@ -45,5 +44,6 @@
     "Delete retained data strictly under /devices/<one exact listed id>/#",
     "If deleted metadata reappears investigate the remote MQTT bridge; do not restart heating merely to clear UI",
     "No physical outputs, WB service restarts, or HA retained data cleared as part of this cleanup"
-  ]
+  ],
+  "verification": "Read-only MQTT SUBSCRIBE on the WB broker for /devices/<exact-id>/meta/driver: 14 absent; /devices/iset_hhm/meta/driver exists and equals wb-rules. This does not prove every historic non-driver retained topic absent; device presence check only."
 }
