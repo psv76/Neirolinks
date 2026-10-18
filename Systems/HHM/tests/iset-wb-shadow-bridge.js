@@ -66,7 +66,7 @@ check('eight named room virtual diagnostics and one global state',function(){
     assert.strictEqual(Object.keys(m.topics).length,8);
     assert.strictEqual(m.rules.length,1);
     assert.strictEqual(m.timers.length,1);
-    assert.strictEqual(m.timers[0].ms,5000);
+    assert.strictEqual(m.timers[0].ms,1000);
     assert.strictEqual(m.values['iset_hhm_rooms_shadow/status'],'SHADOW_ONLY');
 });
 check('empty store produces not commissioned and no arbitrary setpoints',function(){
@@ -142,13 +142,13 @@ check('shadow displays exact NO valve OPEN intention without physical write',fun
         'ZONE_OPEN wb-mio-gpio_195:2/K1')>=0);
     m.writes.forEach(function(w){assert.ok(/^iset_hhm_/.test(w.path));});
 });
-check('shadow shows pump START only after 180 seconds of observed open NO',function(){
+check('shadow shows pump START only after 120 seconds of observed open NO',function(){
     var settings={};seed(settings,'office');
     var m=instantiate(settings);m.tick('office',19);
     m.readback('wb-mio-gpio_195:2/K1',false);
     m.readback(Map.pump,false);
     assert.strictEqual(m.values['iset_hhm_rooms_shadow/pump_action'],'HOLD');
-    m.advance(179000);
+    m.advance(119000);
     assert.strictEqual(m.values['iset_hhm_rooms_shadow/pump_action'],'HOLD');
     m.advance(1000);
     assert.strictEqual(m.values['iset_hhm_rooms_shadow/pump_action'],'START');
