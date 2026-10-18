@@ -79,7 +79,7 @@ def validate_profile(profile, serial=None):
     require(type(profile) is dict, "Controller profile must be an object")
     allowed = {
         "schema", "name", "node", "role", "state", "capabilities",
-        "components", "object_files", "diagnostics_profile", "fingerprint_sha256",
+        "components", "object_files", "unmanaged_rules", "diagnostics_profile", "fingerprint_sha256",
     }
     required = {
         "schema", "name", "node", "role", "state", "capabilities",
@@ -108,6 +108,16 @@ def validate_profile(profile, serial=None):
         require(type(item) is dict and set(item) == {"source", "target"}, "Invalid object file request")
         safe_relative(item["source"])
         require(isinstance(item["target"], str) and item["target"].startswith("/"), "Invalid object file target")
+    unmanaged = profile.get("unmanaged_rules", {})
+    require(type(unmanaged) is dict, "Invalid unmanaged rules map")
+    for path, sha in unmanaged.items():
+        require(isinstance(path, str) and path.startswith(
+                ("/etc/wb-rules/", "/etc/wb-rules-modules/"))
+                and path.endswith(".js"),
+                "Invalid unmanaged rule target")
+        safe_relative(path[1:])
+        require(isinstance(sha, str) and SHA256_RE.fullmatch(sha) is not None,
+                "Invalid unmanaged rule SHA256")
     diagnostic = profile["diagnostics_profile"]
     require(isinstance(diagnostic, str) and diagnostic.endswith(".json")
             and not diagnostic.startswith("/") and ".." not in diagnostic.split("/"),
