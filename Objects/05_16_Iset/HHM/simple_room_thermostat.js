@@ -59,8 +59,8 @@ exports.create=function(cfg,store){
             return {accepted:true,reason:'APPLIED',settings:copy(settings)};
         },
         step:function(frame){
-            if(!frame||typeof frame.sensorError!=='boolean')
-                throw new Error('Iset simple room: explicit error state required');
+            if(!frame||typeof frame!=='object')
+                throw new Error('Iset simple room: input frame required');
             if(settings.mode==='OFF'){
                 demand=false;
                 return result('USER_OFF',null,false);
