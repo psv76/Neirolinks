@@ -32,6 +32,7 @@ function hhFloorStored(){
 var HHM_FLOOR_SETTINGS=hhFloorStored();
 var HHM_BOOT="iset-hhm-"+String(Date.now());
 var HHM_ERRORS={},HHM_PREV={},HHM_MIX_INTENTS=[],HHM_BUSY=false;
+var HHM_LAST_WRITE={};
 var HHM_ROOM=HHM_ROOMS.create({map:HHM_ROOM_MAP,Simple:HHM_SIMPLE,
     Settings:HHM_STORE,PathGate:HHM_GATE,storage:HHM_PERSIST,
     minSetpointC:16,maxSetpointC:30,hysteresisC:0.6,
@@ -42,10 +43,18 @@ var HHM_COORDINATOR=HHM_COORD.create({rooms:HHM_ROOM,
     source:HHM_SOURCE.create(HHM_SVC.source),services:HHM_SVC});
 var HHM_MIXER=HHM_MIX.create(HHM_MIX_CORE,{
     writePosition:function(v){
+        if(HHM_PHYSICAL_OUTPUTS)
+            return hhWrite({path:HHM_SVC.outputs.floorValveLevel,
+                value:v,action:"MIX_VALVE_POS",reason:"FLOOR_MIXING"},
+                Date.now());
         HHM_MIX_INTENTS.push({path:HHM_SVC.outputs.floorValveLevel,
             value:v,action:"MIX_VALVE_POS"});return true;
     },
     writeEnable:function(v){
+        if(HHM_PHYSICAL_OUTPUTS)
+            return hhWrite({path:HHM_SVC.outputs.floorValveEnable,
+                value:v,action:"MIX_ENABLE",reason:"FLOOR_MIXING"},
+                Date.now());
         HHM_MIX_INTENTS.push({path:HHM_SVC.outputs.floorValveEnable,
             value:v,action:"MIX_ENABLE"});return true;
     }
@@ -132,7 +141,11 @@ function hhWrite(cmd,at){
         throw new Error("Iset HHM output not in object whitelist: "+cmd.path);
     if(!HHM_PHYSICAL_OUTPUTS)return false;
     try{
+        // Retry after 5s if the driver's readback remains unchanged.
+        var prev=HHM_LAST_WRITE[cmd.path];
+        if(prev&&prev.value===cmd.value&&at-prev.at<5000)return true;
         dev[cmd.path]=cmd.value;
+        HHM_LAST_WRITE[cmd.path]={value:cmd.value,at:at};
         log.info("[отопление][29_hhm_iset]["+cmd.path+
             "]; КОМАНДА="+cmd.action+"; значение="+cmd.value+
             "; причина="+cmd.reason);
