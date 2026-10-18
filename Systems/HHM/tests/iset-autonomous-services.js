@@ -39,12 +39,12 @@ check('DHW cold-start delay uses verified tank, not HA demand',function(){
     assert.strictEqual(a.pumpWanted,true);
     assert.strictEqual(a.requestSupplyC,80);
     assert.strictEqual(a.mode,'ACCELERATED');
-    assert.strictEqual(a.priorityRemainingS,1200);
+    assert.strictEqual(a.priorityRemainingS,1500);
 });
 check('DHW conditional priority at low tank temperature is bounded by outdoor',function(){
     var x=dhw();x.step(dframe(100,44));
     var a=x.step(dframe(160,44));
-    assert.strictEqual(a.priorityRemainingS,1200); // -10C -> 1500? Check formula below
+    assert.strictEqual(a.priorityRemainingS,1500); // at -10 C: 900 + 10*60
 });
 check('DHW target reached transitions to overrun only with warm common',function(){
     var x=dhw();x.step(dframe(100,48));
@@ -75,10 +75,10 @@ check('DHW timeout is local latched fault; independent requests unaffected',func
 });
 check('DHW priority relief expires and can resume',function(){
     var x=dhw();x.step(dframe(100,44));x.step(dframe(160,44));
-    var a=x.step(dframe(1360,44));
+    var a=x.step(dframe(1660,44));
     assert.strictEqual(a.pauseSpaceHeating,false);
     assert.strictEqual(a.reliefRemainingS,900);
-    a=x.step(dframe(2261,44));
+    a=x.step(dframe(2561,44));
     assert.strictEqual(a.pauseSpaceHeating,true);
 });
 check('DHW boost is local command, no HA heartbeat',function(){
