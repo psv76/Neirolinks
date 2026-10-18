@@ -45,7 +45,12 @@ exports.create=function(c){
     }
     return {
         qualifyPolicy:function(p){
-            if(!p||!checkTime(p.observedAtMs))
+            if(!p){
+                session=null;errorAt=null;clearAt=null;
+                invalidate('POLICY_NOT_QUALIFIED');
+                return {accepted:false,reason:'POLICY_NOT_QUALIFIED'};
+            }
+            if(!checkTime(p.observedAtMs))
                 return {accepted:false,reason:'CLOCK_REWIND_OR_INVALID_POLICY'};
             if(p.source!=='LOCAL_SERVICE_AND_CONFIG_AUDIT'||
                p.confirmed!==true||!tag(p.bootEpoch)||!tag(p.driverEpoch)||
@@ -69,6 +74,7 @@ exports.create=function(c){
             if(!e||!checkTime(e.receivedAtMs))
                 return {accepted:false,reason:'INVALID_ERROR_FRAME'};
             if(!matches(e)||e.topic!==c.errorTopic||
+               (e.errorActive===false&&e.retained!==false)||
                typeof e.errorActive!=='boolean'||
                e.source!=='WB_MQTT_SERIAL_ERROR_TOPIC')
                 return {accepted:false,reason:'UNTRUSTED_ERROR_FRAME'};
