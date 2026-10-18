@@ -5,7 +5,9 @@ var Evidence=require('../core/HHMRoomSensorEvidence');
 var total=0;
 function check(name,fn){fn();total++;console.log('PASS '+name);}
 function create(){return Load.create({sensorId:'wb-msw-v4_22/Temperature',
-    deviceId:'wb-msw-v4_22',temperatureTopic:'/devices/wb-msw-v4_22/controls/Temperature',
+    deviceType:'WB-MSW v.4',slaveId:22,
+    portPath:'/dev/ttyRS485-2',baudRate:9600,parity:'N',dataBits:8,stopBits:2,
+    temperatureTopic:'/devices/wb-msw-v4_22/controls/Temperature',
     channel:'Temperature',clientPrefix:'hhm_2056_test_boot_unique',
     minC:-20,maxC:60,replyTimeoutMs:5000,freshMs:30000,maxSequence:100},Evidence);}
 function success(request,value,id){return {nowMs:1100,bootEpoch:'A',topic:request.replyTopic,
@@ -17,7 +19,9 @@ check('read-only request has exact Load topic and one Temperature channel',funct
     var p=warm().r;
     assert.strictEqual(p.send,true);
     assert.strictEqual(p.topic.indexOf('wb-mqtt-serial/device/Load/'),0);
-    assert.deepStrictEqual(p.payload,{device_id:'wb-msw-v4_22',channels:['Temperature']});
+    assert.deepStrictEqual(p.payload,{slave_id:22,device_type:'WB-MSW v.4',
+        channels:['Temperature'],path:'/dev/ttyRS485-2',baud_rate:9600,
+        parity:'N',data_bits:8,stop_bits:2});
     assert.strictEqual(p.retained,false);
 });
 check('successful direct driver read qualifies fresh local sample',function(){
@@ -137,6 +141,28 @@ check('request sequence exhausted fail-closed',function(){
 });
 check('rejects unsafe or incomplete configuration',function(){
     assert.throws(function(){Load.create({deviceId:'wb-msw-v4_22'},Evidence);},/RPC configuration/);
+});
+check('actual Iset sensor 22 requires explicit verified serial port contract',function(){
+    var p=warm().r.payload;
+    assert.strictEqual(p.slave_id,22);
+    assert.strictEqual(p.device_type,'WB-MSW v.4');
+    assert.strictEqual(p.path,'/dev/ttyRS485-2');
+    assert.strictEqual(p.baud_rate,9600);
+    assert.strictEqual(p.data_bits,8);
+    assert.strictEqual(p.stop_bits,2);
+    assert.strictEqual(p.parity,'N');
+    assert.strictEqual(p.device_id,undefined);
+});
+check('wrong port metadata and missing slave id fail configuration',function(){
+    var c={sensorId:'wb-msw-v4_22/Temperature',deviceType:'WB-MSW v.4',
+        slaveId:22,portPath:'/dev/ttyRS485-2',baudRate:9600,parity:'N',
+        dataBits:8,stopBits:2,temperatureTopic:'/devices/wb-msw-v4_22/controls/Temperature',
+        channel:'Temperature',clientPrefix:'hhm_2056_test_boot_unique',
+        minC:-20,maxC:60,replyTimeoutMs:5000,freshMs:30000,maxSequence:100};
+    c.portPath='/tmp/serial2';
+    assert.throws(function(){Load.create(c,Evidence);},/RPC configuration/);
+    c.portPath='/dev/ttyRS485-2';c.slaveId=null;
+    assert.throws(function(){Load.create(c,Evidence);},/RPC configuration/);
 });
 check('requires injected WB-compatible evidence dependency',function(){
     assert.throws(function(){Load.create({});},/injected evidence module/);
