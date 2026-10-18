@@ -26,7 +26,10 @@ MQTT broker, room settings, actuators, pumps, HA, or NST.**
 
 ## Manufacturer evidence pinned to deployed version
 
-Read the **tagged** driver documentation, not only `master`:
+Read the **tagged upstream base-version** documentation, not only `master`.
+The installed package suffix `-wb102` is a packaging revision; the exact
+compiled binary was **not** matched to a checked-out source tree, so tagged
+upstream semantics still require operational validation:
 https://github.com/wirenboard/wb-mqtt-serial/blob/v2.268.0/README.md
 
 It explicitly defines `max_unchanged_interval` in **seconds**:
