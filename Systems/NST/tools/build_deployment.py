@@ -153,6 +153,7 @@ def resolve(serial, source_commit, profile_path, profile_raw, approvals_raw, rea
         "minimum_nst": minimum_nst,
         "diagnostics_profile": {"path": diagnostic_path, "sha256": digest(diagnostic_raw)},
         "object_files": object_files,
+        "unmanaged_rules": dict(sorted(profile.get("unmanaged_rules", {}).items())),
         "components": resolved,
         "services": services,
         "signatures": [],
