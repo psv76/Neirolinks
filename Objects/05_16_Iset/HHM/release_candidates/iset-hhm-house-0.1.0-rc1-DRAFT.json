@@ -6,7 +6,7 @@
   "role": "house",
   "release": {
     "repository": "psv76/Neirolinks",
-    "commit": "09ffd6262dba38a52c26084ef9d29b195979cff3"
+    "commit": "67a9bf4f4567da4e89c8d0a96d051e37882867c0"
   },
   "files": [
     {
@@ -87,7 +87,7 @@
     {
       "source": "Objects/05_16_Iset/Wirenboard/wb-rules/29_hhm_iset.js",
       "target": "/etc/wb-rules/29_hhm_iset.js",
-      "sha256": "f7f20ffd9d9b2e248a2d405c3aba13d349b34c0c56af378d5d004b67ca33fdee"
+      "sha256": "052408e6cfaa1a90986fe5f963fb0be1e61d6609bcbe5a3a89766dacbdc8d431"
     }
   ],
   "services": {
