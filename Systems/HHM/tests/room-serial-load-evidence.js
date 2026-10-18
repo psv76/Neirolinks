@@ -1,12 +1,13 @@
 /* Offline regression for read-only wb-mqtt-serial device/Load contract. */
 var assert=require('assert');
 var Load=require('../core/HHMRoomSerialLoadEvidence');
+var Evidence=require('../core/HHMRoomSensorEvidence');
 var total=0;
 function check(name,fn){fn();total++;console.log('PASS '+name);}
 function create(){return Load.create({sensorId:'wb-msw-v4_22/Temperature',
     deviceId:'wb-msw-v4_22',temperatureTopic:'/devices/wb-msw-v4_22/controls/Temperature',
     channel:'Temperature',clientPrefix:'hhm_2056_test_boot_unique',
-    minC:-20,maxC:60,replyTimeoutMs:5000,freshMs:30000,maxSequence:100});}
+    minC:-20,maxC:60,replyTimeoutMs:5000,freshMs:30000,maxSequence:100},Evidence);}
 function success(request,value,id){return {nowMs:1100,bootEpoch:'A',topic:request.replyTopic,
     retained:false,payload:JSON.stringify({id:id||1,error:null,
         result:{channels:{Temperature:value}}})};}
@@ -135,6 +136,9 @@ check('request sequence exhausted fail-closed',function(){
     assert.strictEqual(v.request(10100,'A').send,false);
 });
 check('rejects unsafe or incomplete configuration',function(){
-    assert.throws(function(){Load.create({deviceId:'wb-msw-v4_22'});},/RPC configuration/);
+    assert.throws(function(){Load.create({deviceId:'wb-msw-v4_22'},Evidence);},/RPC configuration/);
+});
+check('requires injected WB-compatible evidence dependency',function(){
+    assert.throws(function(){Load.create({});},/injected evidence module/);
 });
 console.log('TOTAL PASS '+total);
