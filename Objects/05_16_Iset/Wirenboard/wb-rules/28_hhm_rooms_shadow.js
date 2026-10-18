@@ -25,7 +25,6 @@ function isError(value){
     return x!==""&&x!=="0"&&x!=="false";
 }
 function isPath(z){return "iset_hhm_"+z.id+"_shadow";}
-function isTemp(v){return typeof v==="number"&&isFinite(v)?v:v;}
 function isRead(){
     var result={nowMs:Date.now(),bootEpoch:IS_BOOT,
         temperatures:{},sensorErrors:{},outputReadbacks:{},
@@ -80,6 +79,15 @@ for(var IS_I=0;IS_I<IS_MAP.zones.length;IS_I++){
                 settings:{title:"Режим / уставка",type:"text",
                     value:"NOT_COMMISSIONED",readonly:true,order:4}
             }});
+    })(IS_MAP.zones[IS_I]);
+}
+defineVirtualDevice("iset_hhm_rooms_shadow",{title:"HHM Исеть (теневой)",
+    cells:{status:{title:"Состояние",type:"text",value:"SHADOW_ONLY",
+        readonly:true}}});
+// Subscribe after defining ALL shadow devices: early retained error events
+// must never reference an unregistered virtual control.
+for(IS_I=0;IS_I<IS_MAP.zones.length;IS_I++){
+    (function(z){
         var topic="/devices/"+z.primarySensor.split("/")[0]+"/meta/error";
         trackMqtt(topic,function(m){
             IS_ROOM_ERROR[z.id]=isError(m&&m.value);
@@ -87,9 +95,6 @@ for(var IS_I=0;IS_I<IS_MAP.zones.length;IS_I++){
         });
     })(IS_MAP.zones[IS_I]);
 }
-defineVirtualDevice("iset_hhm_rooms_shadow",{title:"HHM Исеть (теневой)",
-    cells:{status:{title:"Состояние",type:"text",value:"SHADOW_ONLY",
-        readonly:true}}});
 var IS_TOPICS=[];
 for(IS_I=0;IS_I<IS_MAP.zones.length;IS_I++)
     IS_TOPICS.push(IS_MAP.zones[IS_I].primarySensor);
