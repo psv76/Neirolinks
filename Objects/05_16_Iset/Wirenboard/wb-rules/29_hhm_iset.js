@@ -115,6 +115,14 @@ function hhNum(x){
 function hhSec(ms){return ms===null||ms===undefined?"—":
     String(Math.ceil(ms/1000))+" с";}
 function hhChanged(path,value){if(dev[path]!==value)dev[path]=value;}
+function hhOpTransition(id,context,state,reason){
+    if(HHM_PREV[id]===state)return;
+    var old=HHM_PREV[id];
+    HHM_PREV[id]=state;
+    log.info("[отопление][29_hhm_iset]["+context+
+        "]; СОСТОЯНИЕ="+state+"; ранее="+(old===undefined?"—":old)+
+        (reason?"; причина="+reason:""));
+}
 function hhControls(p){
     var o={},i;
     for(i=0;i<p.length;i++)o[p[i]]=dev[p[i]];
@@ -173,6 +181,12 @@ function hhWrite(cmd,at){
         // Retry after 5s if the driver's readback remains unchanged.
         var prev=HHM_LAST_WRITE[cmd.path];
         var before=dev[cmd.path];
+        // HHM3Mixing may request the SAME position every second while
+        // holding a step. Accept already-confirmed MAO4 readback as a
+        // successful idempotent no-op; do NOT write into /on or log.
+        // If the readback differs or is invalid, retain retry/watchdog.
+        if(cmd.action==="MIX_VALVE_POS"&&
+           hhMatchesReadback(before,cmd.value))return true;
         // If a formerly unknown relay now reports an opposite state,
         // send STOP immediately. Retry throttling is only for identical,
         // unchanged readback conditions.
@@ -183,9 +197,12 @@ function hhWrite(cmd,at){
             value:cmd.value,at:at,observed:before,
             firstAt:prev&&prev.value===cmd.value?prev.firstAt:at,
             warned:prev&&prev.value===cmd.value&&prev.warned===true};
-        log.info("[отопление][29_hhm_iset]["+cmd.path+
-            "]; КОМАНДА="+cmd.action+"; значение="+cmd.value+
-            "; причина="+cmd.reason);
+        // Normal MAO4 regulator steps and OT ramp are technical telemetry,
+        // not operator events. Safety-related output commands still log.
+        if(cmd.action!=="MIX_VALVE_POS"&&cmd.action!=="OT_SETPOINT")
+            log.info("[отопление][29_hhm_iset]["+cmd.path+
+                "]; КОМАНДА="+cmd.action+"; значение="+cmd.value+
+                "; причина="+cmd.reason);
         if(cmd.action==="OT_SETPOINT")
             HHM_COORDINATOR.acknowledgeOtWrite(at/1000,cmd.value);
         return true;
@@ -289,6 +306,12 @@ function hhTick(){
             " / приоритет "+hhSec(report.services.dhw.priorityRemainingS===null?
                 null:report.services.dhw.priorityRemainingS*1000));
         hhChanged("iset_hhm_dhw/mode",report.services.dhw.mode);
+        hhOpTransition("dhw_mode","ГВС",report.services.dhw.mode,
+            report.services.dhw.reason);
+        hhOpTransition("source_mode","котёл",report.services.source.state,
+            report.services.source.reason);
+        hhOpTransition("floor_mode","ТП",report.floor.state,
+            report.floor.state);
         hhChanged("iset_hhm_dhw/priority_timer",
             hhSec(report.services.dhw.priorityRemainingS===null?
                 null:report.services.dhw.priorityRemainingS*1000));
@@ -306,6 +329,7 @@ function hhTick(){
         hhChanged("iset_hhm/floor_timer",
             hhSec(report.floor.remainingOpenMs));
         hhChanged("iset_hhm/floor_state",report.floor.state);
+        hhChanged("iset_hhm_floor/state",report.floor.state);
         hhChanged("iset_hhm_floor/preflight_timer",
             hhSec(report.floor.valvePreflightRemainingMs));
         hhChanged("iset_hhm/actions",report.commands.length?
