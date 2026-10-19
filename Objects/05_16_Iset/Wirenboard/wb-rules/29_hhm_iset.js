@@ -588,25 +588,44 @@ for(var HHM_Z=0;HHM_Z<HHM_ROOM_MAP.zones.length;HHM_Z++){
     (function(z){
         var n="iset_hhm_"+z.id;
         var st=HHM_ROOM.settings(z.id);
+        // UI order is explicit: control IDs and MQTT paths stay unchanged.
         var cells={
-            state:{type:"text",value:"START",readonly:true,title:"Состояние"},
-            demand:{type:"text",value:"UNKNOWN",readonly:true,title:"Запрос тепла"},
-            temp:{type:"text",value:"—",readonly:true,title:"Температура"},
-            saved:{type:"text",value:"—",readonly:true,title:"Уставка сохранена"},
-            setpoint_input:{type:"value",readonly:false,value:st?st.setpointC:0,
-                title:"Уставка, °C"},
             heating_mode:{type:"switch",value:st?st.mode==="HEAT":true,
-                title:"Отопление включено"},
-            apply:{type:"pushbutton",title:"Применить уставку"},
-            wait:{type:"text",value:"—",readonly:true,
-                title:"Открытие всей зоны"}
+                title:"Отопление включено",order:10},
+            setpoint_input:{type:"value",readonly:false,value:st?st.setpointC:0,
+                title:"Уставка, °C",order:20},
+            apply:{type:"pushbutton",title:"Применить уставку",order:30},
+            saved:{type:"text",value:"—",readonly:true,hidden:true,
+                title:"Уставка (код HHM)",order:40},
+            saved_view:{type:"text",value:"—",readonly:true,order:45,
+                title:"Сохранённый режим / уставка"},
+            demand:{type:"text",value:"UNKNOWN",readonly:true,order:50,
+                title:"Запрос тепла",enum:hhEnum({
+                    HEAT:"Есть запрос",OFF:"Нет запроса",
+                    UNKNOWN:"Нет достоверного запроса"})},
+            wait:{type:"text",value:"—",readonly:true,order:60,
+                title:"До открытия зоны"},
+            actuators_view:{type:"text",value:"—",readonly:true,order:70,
+                title:"Приводы: команды реле / таймеры"},
+            temp:{type:"text",value:"—",readonly:true,order:80,
+                title:"Температура воздуха, °C"},
+            state:{type:"text",value:"START",readonly:true,order:90,
+                title:"Термостат",enum:hhEnum({
+                    START:"Запуск",NORMAL:"Работает штатно",
+                    USER_OFF:"Выключен пользователем",
+                    SENSOR_ERROR:"Ошибка датчика",
+                    NO_VALID_TEMPERATURE:"Нет достоверной температуры",
+                    NOT_COMMISSIONED:"Не настроен"})}
         };
         for(var k=0;k<z.outputs.length;k++){
             var kname=z.outputs[k].split("/")[1].toLowerCase();
-            cells["servo_"+kname]={type:"text",value:"—",
-                readonly:true,title:"Привод "+kname+" — таймер"};
+            cells["servo_"+kname]={type:"text",value:"—",readonly:true,
+                hidden:true,order:100+k,
+                title:"Реле "+kname+" — исходный статус / таймер"};
         }
-        defineVirtualDevice(n,{title:"HHM Исеть / "+z.title,cells:cells});
+        var first=Number(z.outputs[0].split("/")[1].slice(1));
+        defineVirtualDevice(n,{title:hhPad3(first)+" Отопление / "+z.title,
+            cells:cells});
         defineRule("iset_hhm_apply_"+z.id,{
             whenChanged:n+"/apply",then:function(){
                 var target=hhNum(dev[n+"/setpoint_input"]);
@@ -629,30 +648,42 @@ for(var HHM_Z=0;HHM_Z<HHM_ROOM_MAP.zones.length;HHM_Z++){
         });
     })(HHM_ROOM_MAP.zones[HHM_Z]);
 }
-function hhPumpVD(path,name,title){
+function hhPumpVD(path,name,title,delayed){
     defineVirtualDevice(name,{title:title,cells:{
-        relay:{type:"text",value:"UNKNOWN",readonly:true,title:"Реле"},
-        run_timer:{type:"text",value:"—",readonly:true,title:"Работает, с"},
-        stop_timer:{type:"text",value:"—",readonly:true,
-            title:"Ожидание OFF, с"},
         start_timer:{type:"text",value:"—",readonly:true,
-            title:"До разрешения пуска"}
+            hidden:!delayed,order:10,
+            title:"До разрешения включения"},
+        stop_timer:{type:"text",value:"—",readonly:true,order:20,
+            title:"Ожидание подтверждения OFF (прошло)"},
+        relay:{type:"text",value:"UNKNOWN",readonly:true,order:30,
+            title:"Команда на реле насоса",enum:hhEnum({
+                ON:"Реле включено",OFF:"Реле выключено",
+                UNKNOWN:"Нет подтверждения MQTT"})},
+        run_timer:{type:"text",value:"—",readonly:true,hidden:true,
+            order:40,title:"Текущий цикл ON, не моточасы"}
     }});
 }
-hhPumpVD(HHM_SVC.outputs.dhwPump,"iset_hhm_k1","HHM ГВС / K1");
-hhPumpVD(HHM_SVC.outputs.floorPump,"iset_hhm_k2","HHM ТП / K2");
-hhPumpVD(HHM_SVC.outputs.basementPump,"iset_hhm_k3","HHM Цоколь / K3");
-hhPumpVD(HHM_SVC.outputs.livingPump,"iset_hhm_k4","HHM Жилые / K4");
-defineVirtualDevice("iset_hhm_dhw",{title:"HHM Исеть / Бойлер ГВС",
+hhPumpVD(HHM_SVC.outputs.dhwPump,"iset_hhm_k1","091 Насос бойлера ГВС / К1",false);
+hhPumpVD(HHM_SVC.outputs.floorPump,"iset_hhm_k2","092 Насос тёплого пола / К2",true);
+hhPumpVD(HHM_SVC.outputs.basementPump,"iset_hhm_k3","093 Насос цоколя / К3",false);
+hhPumpVD(HHM_SVC.outputs.livingPump,"iset_hhm_k4","094 Насос жилой зоны / К4",true);
+defineVirtualDevice("iset_hhm_dhw",{title:"021 Бойлер ГВС / К1",
     cells:{
-        mode:{type:"text",value:"IDLE",readonly:true,title:"Режим"},
-        tank:{type:"text",value:"—",readonly:true,title:"Состояние / нагрев"},
-        priority_timer:{type:"text",value:"—",readonly:true,
-            title:"Приоритет — осталось"},
-        overrun_timer:{type:"text",value:"—",readonly:true,
-            title:"Выбег K1 — осталось"},
-        boost:{type:"pushbutton",title:"Ускорить нагрев ГВС"},
-        reset_fault:{type:"pushbutton",title:"Сброс ошибки ГВС"}
+        priority_timer:{type:"text",value:"—",readonly:true,order:10,
+            title:"Приоритет ГВС: осталось"},
+        overrun_timer:{type:"text",value:"—",readonly:true,order:20,
+            title:"Выбег К1: осталось"},
+        mode:{type:"text",value:"IDLE",readonly:true,order:30,
+            title:"Режим ГВС",enum:hhEnum({
+                IDLE:"Ожидание",ACCELERATED:"Ускоренный нагрев",
+                SUPPORT:"Совместный нагрев",OVERRUN:"Выбег К1",
+                FAULT:"Авария",UNKNOWN:"Нет достоверных данных"})},
+        tank:{type:"text",value:"—",readonly:true,hidden:true,
+            order:40,title:"ГВС: внутренний код / длительность"},
+        tank_view:{type:"text",value:"—",readonly:true,order:45,
+            title:"Нагрев бойлера"},
+        boost:{type:"pushbutton",title:"Ускорить нагрев ГВС",order:50},
+        reset_fault:{type:"pushbutton",title:"Сброс ошибки ГВС",order:60}
     }});
 defineRule("iset_hhm_dhw_boost",{whenChanged:"iset_hhm_dhw/boost",
     then:function(){
@@ -672,14 +703,17 @@ defineRule("iset_hhm_dhw_reset",{whenChanged:"iset_hhm_dhw/reset_fault",
         log.info("[отопление][29_hhm_iset][ГВС]; КОМАНДА=Сброс ошибки");
         hhTick();
     }});
-defineVirtualDevice("iset_hhm_basement",{title:"HHM Исеть / Цоколь",
+defineVirtualDevice("iset_hhm_basement",{title:"022 Отопление цоколя / К3",
     cells:{
-        target_saved:{type:"text",value:String(HHM_SVC.basement.targetC)+" °C",
-            readonly:true,title:"Сохранённая уставка"},
         target_input:{type:"value",readonly:false,value:HHM_SVC.basement.targetC,
-            title:"Новая уставка, °C"},
-        save:{type:"pushbutton",title:"Сохранить уставку"},
-        demand:{type:"text",value:"—",readonly:true,title:"Запрос тепла"}
+            title:"Уставка, °C",order:10},
+        save:{type:"pushbutton",title:"Сохранить уставку",order:20},
+        target_saved:{type:"text",value:String(HHM_SVC.basement.targetC)+" °C",
+            readonly:true,title:"Сохранённая уставка",order:30},
+        demand:{type:"text",value:"—",readonly:true,order:40,
+            title:"Запрос тепла",enum:hhEnum({
+                "true":"Есть запрос","false":"Нет запроса",
+                "null":"Не определён"})}
     }});
 defineRule("iset_hhm_basement_save",{whenChanged:"iset_hhm_basement/save",
     then:function(){
