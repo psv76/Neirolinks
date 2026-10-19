@@ -92,7 +92,7 @@ class SelfUpdateTests(fixtures.Fixture):
 
     def test_check_readonly_metadata_only(self):
         before = self.snapshot()
-        newer = dict(self.package, version='2.2')
+        newer = dict(self.package, version='2.3')
         with patch.object(self.engine.releases, 'package', return_value=newer), \
              patch.object(self.engine.releases, 'asset', side_effect=AssertionError('No package download')):
             r = SelfUpdate(self.engine).execute(check=True)
@@ -106,7 +106,7 @@ class SelfUpdateTests(fixtures.Fixture):
         self.assertEqual(self.calls, [])
 
     def test_package_checksum_failure_before_install(self):
-        self.package['version'] = '2.2'
+        self.package['version'] = '2.3'
         self.data += b'corrupt'
         r = SelfUpdate(self.engine).execute()
         self.assertEqual(r['final_status'], 'failed', r)
