@@ -14,7 +14,7 @@ mode = sys.argv[1]
 legacy_runtime = mode == 'prepare_nli'
 RUNTIME_ROOT = '/usr/lib/neiro-nli' if legacy_runtime else '/usr/lib/nst'
 PRIMARY_CLI = '/usr/bin/nli' if legacy_runtime else '/usr/bin/nst'
-EXPECTED_VERSION = '0.1.9' if legacy_runtime else '2.0'
+EXPECTED_VERSION = '0.1.9' if legacy_runtime else '2.1'
 sys.dont_write_bytecode = True
 sys.path.insert(0, RUNTIME_ROOT)
 import importlib
