@@ -6,8 +6,8 @@ test -f /.dockerenv
 test ! -e /usr/bin/nli
 test ! -e /mnt/data/etc/neiro/nli
 apt-get update -qq
-apt-get install -y /packages/nst_2.2_all.deb
-test "$(dpkg-query -W -f='${Package} ${Version}' nst)" = 'nst 2.2'
+apt-get install -y /packages/nst_2.3_all.deb
+test "$(dpkg-query -W -f='${Package} ${Version}' nst)" = 'nst 2.3'
 test ! -e /usr/bin/nli
 nst --json --version
 PYTHONPATH=/usr/lib/nst python3 -B /tests/wb_clean_smoke.py
