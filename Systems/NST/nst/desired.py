@@ -242,8 +242,12 @@ class DesiredState:
         require(version(__version__) >= version(deployment["minimum_nst"]),
                 "Требуется NST " + deployment["minimum_nst"] + ": nst self-update")
         controller = self.engine.controller or {}
-        require(controller.get("state") not in ("planned", "retired"),
-                controller.get("reason") or "CONTROLLER_NOT_ACTIVE")
+        # The package snapshot can predate the latest approved platform release.
+        # A locally planned controller may be activated ONLY by the verified
+        # published active assignment, including its hardware fingerprint.
+        # A locally retired controller remains blocked until separate review.
+        require(controller.get("state") != "retired",
+                controller.get("reason") or "CONTROLLER_RETIRED")
         resolved = ControllerRegistry(approved["registry"]).resolve(controller.get("identity") or {})
         require(resolved["mutation_allowed"], resolved.get("reason") or "CONTROLLER_NOT_ACTIVE")
         assignment = resolved["assignment"]
