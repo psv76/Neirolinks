@@ -142,6 +142,7 @@ class DiagnosticsTests(fixtures.Fixture):
             "mutation_allowed": True,
             "identity": {"serial": "AFMEUYOT"},
             "assignment": {
+                "object": "05_16_Iset", "node": "house", "role": "house",
                 "capabilities": ["hhm"],
                 "diagnostics_profile": "Systems/NST/diagnostics/iset-house-hhm-v1.json",
             },
