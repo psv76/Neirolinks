@@ -195,7 +195,12 @@ class CleanInstallTests(unittest.TestCase):
         folder.mkdir(parents=True)
         outside = self.root / 'outside'
         outside.mkdir()
-        (folder / 'diagnostics').symlink_to(outside, target_is_directory=True)
+        try:
+            (folder / 'diagnostics').symlink_to(outside, target_is_directory=True)
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows lacks symlink creation privilege")
+            raise
         self.assertFalse(unconfigured_state_compatible(folder))
 
     def test_missing_config_after_success_is_not_mistaken_for_clean_install(self):
