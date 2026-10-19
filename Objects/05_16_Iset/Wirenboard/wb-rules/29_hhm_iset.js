@@ -137,7 +137,7 @@ function hhEnum(map){
 }
 function hhPad3(n){return ("00"+String(n)).slice(-3);}
 function hhRoomActuatorLabel(a){
-    var k=a.path.split("/")[1],v=a.openingRemainingMs;
+    var k="К"+a.path.split("/")[1].slice(1),v=a.openingRemainingMs;
     if(v!==null)return k+" "+hhSec(v);
     var states={
         CLOSED_RELAY:"команда закрыть",OPEN_RELAY:"реле открыто",
