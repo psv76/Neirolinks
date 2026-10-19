@@ -143,6 +143,7 @@ class DiagnosticsTests(fixtures.Fixture):
             "identity": {"serial": "AFMEUYOT"},
             "assignment": {
                 "object": "05_16_Iset", "node": "house", "role": "house",
+                "name": "Исеть — контроллер дома",
                 "capabilities": ["hhm"],
                 "diagnostics_profile": "Systems/NST/diagnostics/iset-house-hhm-v1.json",
             },
