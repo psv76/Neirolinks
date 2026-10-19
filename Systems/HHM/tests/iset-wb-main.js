@@ -27,7 +27,7 @@ var source=fs.readFileSync(path.join(root,
 var count=0;
 function check(s,fn){fn();count++;console.log('PASS '+s);}
 function boot(initialStorage,physical,blockedHardwareReadbacks){
-    var devices={},controls={},outputs=[],events={},timers=[],
+    var devices={},controls={},outputs=[],events={},timers=[],mqttTracks={},
         logs=[],now=100000,storage=initialStorage||{};
     var blocked=blockedHardwareReadbacks||[];
     var dev=new Proxy(controls,{set:function(t,k,value){
@@ -51,7 +51,10 @@ function boot(initialStorage,physical,blockedHardwareReadbacks){
             assert.ok(!events[r.whenChanged],name);
             events[r.whenChanged]=r.then;
         },
-        trackMqtt:function(){},
+        trackMqtt:function(topic,handler){
+            assert.ok(!mqttTracks[topic],'Duplicate trackMqtt: '+topic);
+            mqttTracks[topic]=handler;
+        },
         setInterval:function(fn,period){timers.push({fn:fn,period:period});},
         log:{info:function(s){logs.push(['info',s]);},
             warning:function(s){logs.push(['warning',s]);},
@@ -68,6 +71,10 @@ function boot(initialStorage,physical,blockedHardwareReadbacks){
     return {devices:devices,controls:controls,outputs:outputs,
         storage:storage,logs:logs,timers:timers,
         external:external,click:click,step:step,
+        emit:function(topic,value){
+            assert.ok(mqttTracks[topic],'Unknown MQTT watch '+topic);
+            mqttTracks[topic]({topic:topic,value:value});
+        },
         physicalWrite:function(cmd){return ctx.hhWrite(cmd,now);}};
 }
 check('WB loads full HHM module dependency set and 1s clock',function(){
@@ -447,5 +454,68 @@ check('physical MAO4 missing readback preserves retry and watchdog',function(){
         return x[1].indexOf('Нет подтверждения MQTT')>=0 &&
             x[1].indexOf(p)>=0;
     }), '30s watchdog still warns on missing readback');
+});
+check('six M1W2 channels are diagnosed without changing heating outputs',function(){
+    var w=boot(),spec=[
+        ['wb-m1w2_65',1],['wb-m1w2_65',2],
+        ['wb-m1w2_66',1],['wb-m1w2_66',2],
+        ['wb-m1w2_67',1],['wb-m1w2_67',2]];
+    spec.forEach(function(pair){
+        var d=pair[0],n=pair[1],p=d+'/External Sensor '+n;
+        w.external(p,30);w.external(p+' OK',1);
+        w.external(d+'/ext_sens'+n+'_presense',1);
+    });
+    var before=w.outputs.filter(function(x){return !/^iset_hhm/.test(x.path);}).length;
+    w.step(15000);
+    assert.strictEqual(w.controls['iset_hhm/sensor_issues'],0);
+    assert.strictEqual(w.controls['iset_hhm/sensor_unverified'],6);
+    assert.strictEqual(w.outputs.filter(function(x){
+        return !/^iset_hhm/.test(x.path);
+    }).length,before,'diagnostics must not actuate outputs in preview');
+    assert.ok(w.devices.iset_hhm.cells.sensor_details.readonly);
+});
+check('M1W2 loss and recovery create bounded operator events',function(){
+    var w=boot(),devname='wb-m1w2_67',p=devname+'/External Sensor 1';
+    w.external(p,30);w.external(p+' OK',1);
+    w.external(devname+'/ext_sens1_presense',1);
+    w.step(16000);
+    w.external(devname+'/ext_sens1_presense',0);
+    w.step(1000);
+    assert.ok(w.controls['iset_hhm/sensor_details'].indexOf(
+        'M1W2 сообщает отсутствие датчика')>=0);
+    w.external(devname+'/ext_sens1_presense',1);
+    w.step(1000);
+    assert.ok(w.logs.some(function(x){
+        return x[1].indexOf('Показания датчика восстановились')>=0;
+    }));
+    assert.ok(w.controls['iset_hhm/trace_recent'].indexOf(
+        'SENSOR_RECOVERED')>=0);
+});
+check('M1W2 MQTT retained-only value does not prove fresh measurements',function(){
+    var w=boot(),devname='wb-m1w2_67',p=devname+'/External Sensor 1';
+    var topic='/devices/'+devname+'/controls/External Sensor 1';
+    w.external(p,30);w.external(p+' OK',1);
+    w.external(devname+'/ext_sens1_presense',1);
+    w.emit(topic,30);w.step(16000);
+    assert.ok(w.controls['iset_hhm/sensor_details'].indexOf(
+        'Подача ТП: Свежесть MQTT не подтверждена')>=0);
+    w.external(p,30.5);w.emit(topic,30.5);w.step(1000);
+    assert.ok(w.controls['iset_hhm/sensor_details'].indexOf(
+        'Подача ТП: Есть новые показания')>=0);
+});
+check('machine trace keeps only 24 recent events and no passwords',function(){
+    var w=boot({},true),p='wb-mao4_131/Channel 1 Dimming Level';
+    w.external(p,0);
+    for(var n=1;n<=40;n++){
+        assert.strictEqual(w.physicalWrite({
+            path:p,value:n,action:'MIX_VALVE_POS',
+            reason:'FLOOR_MIXING'}),true);
+    }
+    var trace=JSON.parse(w.controls['iset_hhm/trace_recent']);
+    assert.strictEqual(trace.length,24);
+    assert.ok(trace[0].sequence<trace[23].sequence);
+    assert.strictEqual(trace[23].event,'WRITE');
+    assert.strictEqual(w.controls['iset_hhm/trace_seq']>=40,true);
+    assert.strictEqual(w.devices.iset_hhm.cells.trace_recent.readonly,true);
 });
 console.log('TOTAL PASS '+count);
