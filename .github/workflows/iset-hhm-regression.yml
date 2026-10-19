@@ -6,6 +6,7 @@ on:
       - 'Objects/05_16_Iset/HHM/**'
       - 'Objects/05_16_Iset/Wirenboard/wb-rules/29_hhm_iset.js'
       - 'Systems/HHM/tests/**'
+      - 'Systems/HHM/core/**'
       - 'Systems/NST/diagnostics/iset-house-hhm-v1.json'
       - '.github/workflows/iset-hhm-regression.yml'
   workflow_dispatch:
@@ -15,7 +16,7 @@ permissions:
 
 jobs:
   approved-runtime:
-    name: Iset WB ES5 and HHM regressions
+    name: Iset WB syntax and HHM regressions
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,10 +29,10 @@ jobs:
           for script in Objects/05_16_Iset/HHM/*.js; do node --check "$script"; done
       - name: Check NST diagnostics profile JSON
         run: node -e "const p=require('./Systems/NST/diagnostics/iset-house-hhm-v1.json'); if(p.component!=='hhm'||!Array.isArray(p.current_controls)) process.exit(1);"
-      - name: Run every Iset HHM offline suite
+      - name: Run every HHM offline suite
         run: |
           set -eu
-          for test in Systems/HHM/tests/iset-*.js; do
+          for test in Systems/HHM/tests/*.js; do
             echo "=== $test ==="
             node "$test"
           done

@@ -130,7 +130,8 @@ function hhChanged(path,value){if(dev[path]!==value)dev[path]=value;}
 // Machine-only bounded trace. Never affects heating if MQTT/serialization fails.
 function hhTrace(event,context,detail,at){
     try{
-        var item={schema:1,sequence:++HHM_TRACE_SEQ,
+        var item={schema:1,source:"29_hhm_iset",boot:HHM_BOOT,
+            sequence:++HHM_TRACE_SEQ,
             timestamp_ms:at===undefined?Date.now():at,
             event:event,context:context,detail:detail};
         HHM_TRACE_RING.push(item);
@@ -139,13 +140,17 @@ function hhTrace(event,context,detail,at){
         hhChanged("iset_hhm/trace_recent",JSON.stringify(HHM_TRACE_RING));
     }catch(ignore){}
 }
-// A changed temperature value is proof of a new sample. Retained/same
-// values or stale driver OK by themselves cannot establish freshness.
+// Observe numeric MQTT changes, never claim a physical measurement timestamp.
+// Retained replay (including reconnect) and old APIs without retained metadata
+// cannot prove a live update. Identical publications are not new measurements.
 function hhObserveSensor(path,msg){
     try{
         if(!msg||msg.value===undefined||msg.value===null)return;
-        var v=String(msg.value),o=HHM_SENSOR_OBS[path];
+        var v=hhNum(msg.value),o=HHM_SENSOR_OBS[path];
         if(!o)o=HHM_SENSOR_OBS[path]={lastValue:null,lastChangeAt:null};
+        if(v===null||msg.retained!==false){
+            o.lastValue=v;o.lastChangeAt=null;return;
+        }
         if(o.lastValue!==null&&o.lastValue!==v)
             o.lastChangeAt=Date.now();
         o.lastValue=v;
@@ -177,7 +182,7 @@ function hhSensorMonitor(now){
             }else if(!proof){
                 status="Свежесть MQTT не подтверждена";
                 uncertain++;
-            }else status="Есть новые показания";
+            }else status="Наблюдалось изменение MQTT (не возраст измерения)";
             items.push(s.title+": "+status);
             previous=HHM_SENSOR_LAST_FAULT[s.id];
             // Allow retained MQTT and Modbus devices to settle after
@@ -236,9 +241,32 @@ function hhHumanReason(code){
         EQUIPMENT_PROTECTION:"сработали условия защиты котла",
         TANK_NOT_READY:"температура бойлера недостоверна",
         DHW_TIMEOUT_LATCHED:"превышено время нагрева ГВС",
-        TANK_THERMOSTAT:"температура бойлера достигла условия термостата"
+        TANK_THERMOSTAT:"управление по температуре бойлера",
+        NO_DEMAND:"нет запроса тепла",SOURCE_REQUEST:"есть запрос тепла",
+        SENSOR_UNKNOWN:"нет достоверных данных датчика",
+        LOCAL_OFF:"локально отключено",FLOOR_MIXING:"регулирование ТП",
+        ALL_ROOMS_OFF:"запросы комнат сняты",ROOM_HEAT_DEMAND:"комната запрашивает тепло",
+        ROOM_NO_DEMAND:"нет запроса комнаты",
+        REQUESTED_ZONE_OPEN_WAIT_COMPLETE:"выдержка открытия зоны завершена",
+        INDEPENDENT_PLANT_PROTECTION:"источник недоступен или запрещён защитой",
+        REQUESTED:"запрошен нагрев",NOT_REQUESTED:"нет запроса",
+        DHW_PRIORITY:"приоритет ГВС",DHW_PRIORITY_PAUSE:"пауза по приоритету ГВС",
+        NO_REQUEST:"нет запроса"
     };
-    return reasons[code]||String(code);
+    if(reasons[code])return reasons[code];
+    var floor=hhHumanMode("floor_mode",code),dhw=hhHumanMode("dhw_mode",code);
+    return floor.indexOf("Режим ")!==0?floor:
+        dhw.indexOf("Режим ")!==0?dhw:String(code);
+}
+function hhHumanAction(code){
+    var actions={PUMP_START:"Включить насос",PUMP_STOP:"Отключить насос",
+        ZONE_OPEN:"Открыть NO-привод",ZONE_CLOSE:"Закрыть NO-привод",
+        FLOOR_LOOP_OPEN:"Открыть петлю ТП",FLOOR_HOT_PORT_CLOSE:"Закрыть горячий порт ТП",
+        FLOOR_VALVE_ENABLE:"Разрешить канал MAO4",FLOOR_VALVE_PREFLIGHT:"Проверка MAO4: 1%",
+        FLOOR_PUMP_STOP_PROTECTION:"Отключить К2 по защите",
+        FLOOR_PUMP_START:"Включить К2",FLOOR_PUMP_STOP_NO_DEMAND:"Отключить К2: нет запроса",
+        MIX_ENABLE:"Переключить разрешение смесителя"};
+    return actions[code]||String(code);
 }
 function hhOpTransition(id,context,state,reason){
     if(HHM_PREV[id]===state)return;
@@ -329,12 +357,13 @@ function hhWrite(cmd,at){
         // Normal MAO4 regulator steps and OT ramp are technical telemetry,
         // not operator events. Safety-related output commands still log.
         hhTrace("WRITE",cmd.path,{action:cmd.action,
-            requested:cmd.value,readback_before:before,
+            requested:cmd.value,readback_before:hhReadbackValue(before,cmd.value),
             reason:cmd.reason},at);
-        if(cmd.action!=="MIX_VALVE_POS"&&cmd.action!=="OT_SETPOINT")
+        if(cmd.action!=="MIX_VALVE_POS"&&cmd.action!=="OT_SETPOINT"&&
+           (!prev||prev.value!==cmd.value))
             log.info("[отопление][29_hhm_iset]["+cmd.path+
-                "]; КОМАНДА="+cmd.action+"; значение="+cmd.value+
-                "; причина="+cmd.reason);
+                "]; КОМАНДА="+hhHumanAction(cmd.action)+"; значение="+cmd.value+
+                "; причина="+hhHumanReason(cmd.reason));
         if(cmd.action==="OT_SETPOINT")
             HHM_COORDINATOR.acknowledgeOtWrite(at/1000,cmd.value);
         return true;
@@ -351,6 +380,10 @@ function hhMatchesReadback(actual,wanted){
     var v=hhNum(actual);
     return v!==null&&Math.abs(v-wanted)<=0.5;
 }
+// Do not copy arbitrary MQTT payloads into the trace (size/privacy boundary).
+function hhReadbackValue(actual,wanted){
+    return typeof wanted==="boolean"?hhBool(actual):hhNum(actual);
+}
 function hhIOReadbackWatch(now){
     var pending=[],lost=[],path,record,elapsed,actual;
     for(path in HHM_LAST_WRITE){
@@ -360,7 +393,7 @@ function hhIOReadbackWatch(now){
         if(hhMatchesReadback(actual,record.value)){
             if(record.warned)
                 hhTrace("READBACK_RECOVERED",path,
-                    {requested:record.value,actual:actual},now);
+                    {requested:record.value,actual:hhReadbackValue(actual,record.value)},now);
             if(record.warned)
                 log.info("[отопление][29_hhm_iset]["+path+
                     "]; ВОССТАНОВЛЕНИЕ=MQTT readback совпал с командой");
@@ -373,7 +406,7 @@ function hhIOReadbackWatch(now){
             if(!record.warned){
                 record.warned=true;
                 hhTrace("READBACK_TIMEOUT",path,
-                    {requested:record.value,actual:actual,
+                    {requested:record.value,actual:hhReadbackValue(actual,record.value),
                     elapsed_ms:elapsed},now);
                 log.warning("[отопление][29_hhm_iset]["+path+
                     "]; ОШИБКА=Нет подтверждения MQTT после команды "+

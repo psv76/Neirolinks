@@ -73,10 +73,12 @@ function boot(initialStorage,physical,blockedHardwareReadbacks){
         external:external,click:click,step:step,
         advanceClock:function(ms){now+=ms;},
         watchReadback:function(){ctx.hhIOReadbackWatch(now);},
-        emit:function(topic,value){
+        emit:function(topic,value,retained){
             assert.ok(mqttTracks[topic],'Unknown MQTT watch '+topic);
-            mqttTracks[topic]({topic:topic,value:value});
+            mqttTracks[topic]({topic:topic,value:value,
+                retained:arguments.length<3?false:retained});
         },
+        failTrace:function(){ctx.JSON={stringify:function(){throw new Error('trace unavailable');}};},
         physicalWrite:function(cmd){return ctx.hhWrite(cmd,now);}};
 }
 check('WB loads full HHM module dependency set and 1s clock',function(){
@@ -506,7 +508,7 @@ check('M1W2 MQTT retained-only value does not prove fresh measurements',function
         'Подача ТП: Свежесть MQTT не подтверждена')>=0);
     w.external(p,30.5);w.emit(topic,30.5);w.step(1000);
     assert.ok(w.controls['iset_hhm/sensor_details'].indexOf(
-        'Подача ТП: Есть новые показания')>=0);
+        'Подача ТП: Наблюдалось изменение MQTT')>=0);
 });
 check('machine trace keeps only 24 recent events and no passwords',function(){
     var w=boot({},true),p='wb-mao4_131/Channel 1 Dimming Level';
@@ -522,5 +524,80 @@ check('machine trace keeps only 24 recent events and no passwords',function(){
     assert.strictEqual(trace[23].event,'WRITE');
     assert.strictEqual(w.controls['iset_hhm/trace_seq']>=40,true);
     assert.strictEqual(w.devices.iset_hhm.cells.trace_recent.readonly,true);
+});
+check('retained reconnect, legacy metadata and invalid MQTT never prove live change',function(){
+    [true,undefined,'false',0].forEach(function(metadata){
+        var w=boot(),p='wb-m1w2_67/External Sensor 1';
+        var topic='/devices/wb-m1w2_67/controls/External Sensor 1';
+        w.external(p,30);w.emit(topic,30,false);
+        w.emit(topic,31,false);w.step(16000);
+        assert.ok(w.controls['iset_hhm/sensor_details'].indexOf('Подача ТП: Наблюдалось')>=0);
+        w.emit(topic,32,metadata);w.step(1000);
+        assert.ok(w.controls['iset_hhm/sensor_details'].indexOf('Подача ТП: Свежесть MQTT не подтверждена')>=0);
+        w.emit(topic,'bad',false);w.emit(topic,33,false);w.step(1000);
+        assert.ok(w.controls['iset_hhm/sensor_details'].indexOf('Подача ТП: Свежесть MQTT не подтверждена')>=0);
+    });
+});
+check('same numeric MQTT and silence expire observation without declaring sensor fault',function(){
+    var w=boot(),p='wb-m1w2_67/External Sensor 1';
+    var topic='/devices/wb-m1w2_67/controls/External Sensor 1';
+    w.external(p,30);w.emit(topic,'30',true);w.emit(topic,'30.0',false);
+    w.step(16000);
+    assert.ok(w.controls['iset_hhm/sensor_details'].indexOf('Подача ТП: Свежесть MQTT не подтверждена')>=0);
+    w.emit(topic,31,false);w.step(1000);
+    w.step(300000);
+    assert.ok(w.controls['iset_hhm/sensor_details'].indexOf('Подача ТП: Свежесть MQTT не подтверждена')>=0);
+    assert.ok(!w.logs.some(function(x){return x[1].indexOf('[Подача ТП]; ОШИБКА')>=0;}));
+});
+check('trace sanitizes arbitrary MQTT payloads and identifies boot and source',function(){
+    var p='wb-mao4_131/Channel 1 Dimming Level',w=boot({},true,[p]);
+    w.external(p,'password=secret\n'+new Array(10000).join('x'));
+    w.physicalWrite({path:p,value:25,action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'});
+    w.advanceClock(31000);w.watchReadback();
+    var raw=w.controls['iset_hhm/trace_recent'],trace=JSON.parse(raw);
+    assert.strictEqual(raw.indexOf('secret'),-1);
+    assert.ok(raw.length<16000);
+    assert.strictEqual(trace[trace.length-1].detail.actual,null);
+    assert.strictEqual(trace[trace.length-1].source,'29_hhm_iset');
+    assert.ok(trace[trace.length-1].boot);
+});
+check('trace serialization failure cannot prevent safe close or readback watchdog',function(){
+    var p='wb-mao4_131/Channel 1 Dimming Level',w=boot({},true,[p]);
+    w.external(p,25);w.failTrace();
+    assert.strictEqual(w.physicalWrite({path:p,value:0,action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'}),true);
+    assert.ok(w.outputs.some(function(x){return x.path===p&&x.value===0;}));
+    w.advanceClock(31000);w.watchReadback();
+    assert.ok(w.logs.some(function(x){return x[1].indexOf('Нет подтверждения MQTT')>=0;}));
+});
+check('unconfirmed pump retries remain physical but produce one Russian command event',function(){
+    var p='wb-mr6cu_37/K3',w=boot({},true,[p]);
+    w.external(p,false);w.logs.length=0;
+    var cmd={path:p,value:true,action:'PUMP_START',reason:'REQUESTED'};
+    var before=w.outputs.length;
+    w.physicalWrite(cmd);w.advanceClock(6000);w.physicalWrite(cmd);
+    assert.strictEqual(w.outputs.slice(before).filter(function(x){return x.path===p;}).length,2);
+    assert.strictEqual(w.logs.filter(function(x){return x[1].indexOf('КОМАНДА=Включить насос')>=0;}).length,1);
+});
+check('one minute confirmed MAO4 hold emits zero physical repeats',function(){
+    var p='wb-mao4_131/Channel 1 Dimming Level',w=boot({},true);
+    w.external(p,'25');var before=w.outputs.length;
+    for(var n=0;n<60;n++){
+        w.advanceClock(1000);
+        w.physicalWrite({path:p,value:25,action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'});
+    }
+    assert.strictEqual(w.outputs.slice(before).filter(function(x){return x.path===p;}).length,0);
+    w.external(p,1);
+    w.physicalWrite({path:p,value:0,action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'});
+    assert.strictEqual(w.controls[p],0);
+});
+check('basement persistence failure cannot change acknowledged target',function(){
+    var data={iset_hhm_basement_target_v1:'23'};
+    var storage=new Proxy(data,{set:function(t,k,v){
+        if(k!=='iset_hhm_basement_target_v1')t[k]=v;return true;
+    }}),w=boot(storage);
+    w.external('iset_hhm_basement/target',25);
+    w.click('iset_hhm_basement/save');w.step(1000);
+    assert.strictEqual(w.controls['iset_hhm_basement/target_saved'],'23 °C');
+    assert.strictEqual(data.iset_hhm_basement_target_v1,'23');
 });
 console.log('TOTAL PASS '+count);
