@@ -204,6 +204,42 @@ function hhSensorMonitor(now){
         // Never let diagnostics throw into the calculation/writer path.
     }
 }
+function hhHumanMode(id,code){
+    var source={
+        OT_LINK_INVALID:"Нет связи с котлом по OpenTherm",
+        EQUIPMENT_PROTECTION:"Нагрев запрещён защитой оборудования",
+        NO_DEMAND:"Нет запроса на нагрев",
+        HEAT_REQUESTED:"Запрошен нагрев"
+    },dhw={
+        IDLE:"ГВС: ожидание",ACCELERATED:"ГВС: ускоренный нагрев",
+        SUPPORT:"ГВС: совместный нагрев с отоплением",
+        OVERRUN:"ГВС: выбег насоса",
+        FAULT:"ГВС: авария",UNKNOWN:"ГВС: нет достоверных данных"
+    },floor={
+        OFF:"Тёплый пол отключён",
+        HARD_SUPPLY_STOP:"Тёплый пол: останов К2 по пределу подачи",
+        SUPPLY_SENSOR_UNAVAILABLE:"Тёплый пол: температура подачи недоступна",
+        HOT_PORT_CLOSED_CIRCULATION_ALLOWED:
+            "Тёплый пол: горячий порт закрыт, К2 может продолжать циркуляцию",
+        CIRCULATING:"Тёплый пол: К2 включён по MQTT",
+        WAIT_LOOPS:"Тёплый пол: ожидание открытия петель",
+        WAIT_MAO4_PREFLIGHT:"Тёплый пол: проверка канала MAO4",
+        WAIT_MAO4_STABLE:"Тёплый пол: ожидание подтверждения MAO4",
+        READY:"Тёплый пол: готов к нагреву"
+    };
+    var table=id==="source_mode"?source:id==="dhw_mode"?dhw:floor;
+    return table[code]||"Режим "+String(code);
+}
+function hhHumanReason(code){
+    var reasons={
+        OT_DISCONNECTED:"нет связи OpenTherm",
+        EQUIPMENT_PROTECTION:"сработали условия защиты котла",
+        TANK_NOT_READY:"температура бойлера недостоверна",
+        DHW_TIMEOUT_LATCHED:"превышено время нагрева ГВС",
+        TANK_THERMOSTAT:"температура бойлера достигла условия термостата"
+    };
+    return reasons[code]||String(code);
+}
 function hhOpTransition(id,context,state,reason){
     if(HHM_PREV[id]===state)return;
     var old=HHM_PREV[id];
@@ -211,8 +247,10 @@ function hhOpTransition(id,context,state,reason){
     hhTrace("MODE",context,{previous:old===undefined?null:old,
         state:state,reason:reason||null},Date.now());
     log.info("[отопление][29_hhm_iset]["+context+
-        "]; СОСТОЯНИЕ="+state+"; ранее="+(old===undefined?"—":old)+
-        (reason?"; причина="+reason:""));
+        "]; СОСТОЯНИЕ="+hhHumanMode(id,state)+
+        "; код="+state+"; ранее="+
+        (old===undefined?"при запуске":hhHumanMode(id,old))+
+        (reason?"; причина="+hhHumanReason(reason):""));
 }
 function hhControls(p){
     var o={},i;
