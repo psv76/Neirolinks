@@ -37,7 +37,7 @@ def target(root, logical):
 
 # A read-only diagnostic collection may precede first approved sync. Its
 # archives are evidence, not installed NST configuration or component state.
-DIAGNOSTIC_ARCHIVE_RE = re.compile(r"nst-diagnostics-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}\\.tar\\.gz")
+DIAGNOSTIC_ARCHIVE_RE = re.compile(r"nst-diagnostics-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}\.tar\.gz")
 
 
 def unconfigured_state_compatible(path):
