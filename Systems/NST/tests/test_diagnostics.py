@@ -131,6 +131,53 @@ class DiagnosticsTests(fixtures.Fixture):
         with self.assertRaisesRegex(Error, "Sensitive path"):
             validate_profile(bad)
 
+    def test_iset_hhm_profile_auto_selected_by_exact_registered_controller(self):
+        from nst.diagnostics import SAFE_UNITS
+        raw = (ROOT / "diagnostics/iset-house-hhm-v1.json").read_bytes()
+        profile = validate_profile(json.loads(raw))
+        self.assertEqual(profile["component"], "hhm")
+        self.assertIn("mosquitto", SAFE_UNITS)
+        self.engine.controller = {
+            "state": "active",
+            "mutation_allowed": True,
+            "identity": {"serial": "AFMEUYOT"},
+            "assignment": {
+                "capabilities": ["hhm"],
+                "diagnostics_profile": "Systems/NST/diagnostics/iset-house-hhm-v1.json",
+            },
+        }
+        self.put("/usr/share/nst/diagnostics/iset-house-hhm-v1.json", raw)
+        result = Diagnostics(self.engine).collect("hhm", "30m")
+        self.assertEqual(result["final_status"], "ok", result)
+        files = self.members(result)
+        metadata = json.loads(files["meta.json"])
+        self.assertEqual(metadata["component"], "hhm")
+        controls = json.loads(files["current-controls.json"])
+        names = {item["path"] for item in controls}
+        self.assertIn("wb-mr6cu_37/K4", names)
+        self.assertNotIn("A03/K2", names)
+        self.assertIn("journals/mosquitto.log", files)
+        self.assertEqual(self.system.actions, [])
+
+    def test_unregistered_or_mismatched_controller_cannot_select_wrong_profile(self):
+        raw = (ROOT / "diagnostics/iset-house-hhm-v1.json").read_bytes()
+        self.put("/usr/share/nst/diagnostics/iset-house-hhm-v1.json", raw)
+        self.engine.controller = {
+            "mutation_allowed": False, "state": "planned",
+            "reason": "CONTROLLER_PLANNED",
+            "assignment": {"capabilities": ["hhm"],
+                           "diagnostics_profile": "Systems/NST/diagnostics/iset-house-hhm-v1.json"},
+        }
+        with self.assertRaisesRegex(Error, "CONTROLLER_PLANNED"):
+            Diagnostics(self.engine).profile("hhm")
+        self.engine.controller["mutation_allowed"] = True
+        self.engine.controller["assignment"]["diagnostics_profile"] = "Systems/NST/diagnostics/../iset-house-hhm-v1.json"
+        with self.assertRaisesRegex(Error, "Unsafe controller diagnostics profile name"):
+            Diagnostics(self.engine).profile("hhm")
+        self.engine.controller["assignment"]["diagnostics_profile"] = "Systems/NST/diagnostics/ivolga-boiler-hhm-v1.json"
+        with self.assertRaisesRegex(Error, "unavailable"):
+            Diagnostics(self.engine).profile("hhm")
+
     def test_ivolga_hhm_profile_has_reproducible_502_evidence_channels(self):
         data = json.loads((ROOT / "diagnostics/ivolga-boiler-hhm-v1.json").read_text(encoding="utf-8"))
         validate_profile(data)
