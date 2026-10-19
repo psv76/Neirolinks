@@ -20,7 +20,7 @@ from .util import Error, digest, read_json, require
 DIAGNOSTICS_DIR = STATE_DIR + "/diagnostics"
 MAX_WINDOW = timedelta(days=7)
 DEFAULT_WINDOW = timedelta(hours=6)
-SAFE_UNITS = {"wb-rules", "wb-mqtt-db", "wb-mqtt-serial"}
+SAFE_UNITS = {"wb-rules", "wb-mqtt-db", "wb-mqtt-serial", "mosquitto"}
 SENSITIVE_KEY = re.compile(r"(password|passwd|secret|token|credential|private[_-]?key|api[_-]?key)", re.I)
 SENSITIVE_PATH = re.compile(r"(^|/)(shadow|gshadow|id_rsa|id_ed25519)(?:$|/)|\.(?:pem|key|p12|pfx)$", re.I)
 
@@ -130,9 +130,30 @@ def redact_text(data):
 class Diagnostics:
     def __init__(self, engine, profiles=None):
         self.engine = engine
-        self.profiles = profiles or {
-            "hhm": DATA_DIR + "/diagnostics/ivolga-boiler-hhm-v1.json",
-        }
+        # None selects the exact registered controller. Explicit profiles
+        # remain useful for controlled sandbox tests and tooling.
+        self.profiles = profiles
+
+    def controller_profile(self, component):
+        controller = self.engine.controller or {}
+        require(controller.get("mutation_allowed") is True,
+                controller.get("reason") or "Controller registration not active for diagnostics")
+        assignment = controller.get("assignment") or {}
+        require(component in assignment.get("capabilities", []),
+                "Component not approved for controller diagnostics: " + str(component))
+        reference = assignment.get("diagnostics_profile")
+        prefix = "Systems/NST/diagnostics/"
+        require(isinstance(reference, str) and reference.startswith(prefix),
+                "Invalid controller diagnostics profile reference")
+        name = reference[len(prefix):]
+        require(re.fullmatch(r"[a-z0-9][a-z0-9_-]*\.json", name) is not None,
+                "Unsafe controller diagnostics profile name")
+        path = self.engine.target(DATA_DIR + "/diagnostics/" + name)
+        require(path.is_file() and not path.is_symlink(),
+                "Packaged controller diagnostics profile unavailable")
+        profile = validate_profile(read_json(path))
+        require(profile["component"] == component, "Controller diagnostics component mismatch")
+        return profile
 
     def profile(self, component):
         if component is None:
@@ -152,6 +173,8 @@ class Diagnostics:
                 "source_files": [],
                 "max_history_records": 1,
             }
+        if self.profiles is None:
+            return self.controller_profile(component)
         require(component in self.profiles, "No diagnostics profile for component: " + str(component))
         source = self.profiles[component]
         if isinstance(source, dict):

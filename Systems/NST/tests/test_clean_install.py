@@ -156,6 +156,53 @@ class CleanInstallTests(unittest.TestCase):
         self.engine.config = load_config(root=self.root)
         self.assertEqual(self.sync()['final_status'], 'ok')
 
+    def test_diagnostics_evidence_before_bootstrap_does_not_block_status_check_or_sync(self):
+        from nst.layout import DATA_DIR, STATE_DIR
+        import json
+        default = dict(object='unconfigured', role='unconfigured',
+                       hostname='unconfigured', components={})
+        self.engine.target(DATA_DIR + '/default-config.json').parent.mkdir(parents=True, exist_ok=True)
+        self.engine.target(DATA_DIR + '/default-config.json').write_text(json.dumps(default))
+        archive = self.engine.target(STATE_DIR +
+            '/diagnostics/nst-diagnostics-20261019T075312Z-386c3ae3.tar.gz')
+        archive.parent.mkdir(parents=True)
+        archive.write_bytes(b'preserved evidence')
+        self.assertEqual(load_config(root=self.root), default)
+        self.assertEqual(DesiredState(self.engine, self.source).check()['final_status'], 'ok')
+        result = self.sync()
+        self.assertEqual(result['final_status'], 'ok', result)
+        self.assertEqual(archive.read_bytes(), b'preserved evidence')
+        self.assertEqual(load_config(root=self.root)['object'], self.deployment['object'])
+
+    def test_unexpected_bootstrap_state_cannot_hide_behind_diagnostics(self):
+        from nst.layout import DATA_DIR, STATE_DIR
+        import json
+        default = dict(object='unconfigured', role='unconfigured',
+                       hostname='unconfigured', components={})
+        self.engine.target(DATA_DIR + '/default-config.json').parent.mkdir(parents=True, exist_ok=True)
+        self.engine.target(DATA_DIR + '/default-config.json').write_text(json.dumps(default))
+        path = self.engine.target(STATE_DIR + '/diagnostics')
+        path.mkdir(parents=True)
+        (path / 'not-an-nst-archive.json').write_text('{}')
+        with self.assertRaisesRegex(Error, 'Persistent data exists but config is missing'):
+            load_config(root=self.root)
+        self.assertEqual(self.sync()['final_status'], 'failed')
+        self.assertFalse(self.system.actions)
+
+    def test_diagnostics_symlink_is_not_clean_bootstrap_state(self):
+        from nst.layout import DATA_DIR, STATE_DIR, unconfigured_state_compatible
+        folder = self.engine.target(STATE_DIR)
+        folder.mkdir(parents=True)
+        outside = self.root / 'outside'
+        outside.mkdir()
+        try:
+            (folder / 'diagnostics').symlink_to(outside, target_is_directory=True)
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows lacks symlink creation privilege")
+            raise
+        self.assertFalse(unconfigured_state_compatible(folder))
+
     def test_missing_config_after_success_is_not_mistaken_for_clean_install(self):
         self.assertEqual(self.sync()['final_status'], 'ok')
         self.engine.target(DEFAULT_CONFIG).unlink()

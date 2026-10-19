@@ -5,7 +5,7 @@ import shutil
 import stat
 
 from .core import Engine, MAX_ARTIFACT, now
-from .layout import CONFIG_DIR, DEFAULT_CONFIG, STATE_DIR, BOOTSTRAP_STATE
+from .layout import CONFIG_DIR, DEFAULT_CONFIG, STATE_DIR, BOOTSTRAP_STATE, unconfigured_state_compatible
 from .platform import PLATFORM_STATE, default_platform_state
 from .plugins import PLUGINS
 from .releases import RAW, software_version
@@ -142,7 +142,9 @@ class DeploymentTransaction:
             require(not e.target(DEFAULT_CONFIG).exists(), 'Unexpected bootstrap config')
             for folder in (CONFIG_DIR, STATE_DIR):
                 p = e.target(folder)
-                require(not p.exists() or not any(p.iterdir()), 'Unexpected data before bootstrap')
+                clean = unconfigured_state_compatible(p) if folder == STATE_DIR else (
+                    not p.exists() or not any(p.iterdir()))
+                require(clean, 'Unexpected data before bootstrap')
             write_json(e.target(BOOTSTRAP_STATE), dict(object='unconfigured', role='unconfigured',
                        hostname='unconfigured', components={}))
         with Lock(e.target(STATE_DIR + '/mutation.lock')):

@@ -101,6 +101,6 @@ def build(output, epoch=0):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--output", type=Path, default=ROOT / "dist/nst_2.1_all.deb")
+    p.add_argument("--output", type=Path, default=ROOT / "dist/nst_2.2_all.deb")
     args = p.parse_args()
     build(args.output, int(os.environ.get("SOURCE_DATE_EPOCH", "0")))
