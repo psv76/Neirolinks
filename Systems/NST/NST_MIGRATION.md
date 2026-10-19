@@ -5,7 +5,7 @@
 ## Порядок
 
 1. Сохранить внешнюю резервную копию `/mnt/data`. Исключить параллельные операции NLI, apt и редакторов root.
-2. Установить reviewed `nst_2.0_all.deb`. Пакет конфликтует с `neiro-nli (<= 0.1.9)` и заменяет его runtime; maintainer hooks отсутствуют. Пакет не меняет config, state, logs, backups, pending, audit.
+2. Установить reviewed `nst_2.1_all.deb`. Пакет конфликтует с `neiro-nli (<= 0.1.9)` и заменяет его runtime; maintainer hooks отсутствуют. Пакет не меняет config, state, logs, backups, pending, audit.
 3. Выполнить `nst migrate-nli`. Поддерживается только подтверждённый NLI 0.1.9: версия читается из записи dpkg либо исторического audit.
 4. Проверить `nst status`. Если есть pending — сначала штатный `nst rollback <component>`; новый sync до восстановления запрещён.
 5. `nst check` сравнивает состояние с approved deployment; `nst sync` выполняется отдельно и явно.
