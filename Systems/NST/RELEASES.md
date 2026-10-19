@@ -14,7 +14,7 @@ python3 -B Systems/NST/tools/release_catalog.py --commit <COMMIT> --package Syst
 
 Maintainer отдельно проверяет и публикует stable `nst-approved-package-2.3` с catalog и `.deb`. Новые component approvals используют `nst-approved-components-*`. `install.py` и `nst self-update` выбирают только canonical NST package releases, никогда `neiro-nli` или исторический `neiro-nst 1.0.0`.
 
-Исторические stable Releases `nst-approved-package-2.0` и `nst-approved-package-2.1` сохраняются неизменными. Перед публикацией 2.3 обязательно обновить commit на принятый `main`, собрать пакет и каталог из того же immutable commit, проверить GitHub release assets и SHA256. Обновление 2.3 через штатную установку `.deb` само по себе не вызывает `nst sync` и не меняет HHM.
+Исторические stable Releases `nst-approved-package-2.0`, `nst-approved-package-2.1` и `nst-approved-package-2.2` сохраняются неизменными. Перед публикацией 2.3 обязательно обновить commit на принятый `main`, собрать пакет и каталог из того же immutable commit, проверить GitHub release assets и SHA256. Обновление 2.3 через штатную установку `.deb` само по себе не вызывает `nst sync` и не меняет HHM.
 
 ## Platform
 
