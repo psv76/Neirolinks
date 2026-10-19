@@ -112,7 +112,7 @@ class System:
         return {"status": "ok", "summary": self.run(["/usr/bin/journalctl", "--disk-usage"], timeout=15)}
 
     def journal_unit(self, unit, since, until):
-        require(unit in ("wb-rules", "wb-mqtt-db", "wb-mqtt-serial"), "Unsafe journal unit")
+        require(unit in ("wb-rules", "wb-mqtt-db", "wb-mqtt-serial", "mosquitto"), "Unsafe journal unit")
         require(isinstance(since, str) and since and isinstance(until, str) and until,
                 "Explicit journal window required")
         return self.run(["/usr/bin/journalctl", "-u", unit, "--since", since, "--until", until,
