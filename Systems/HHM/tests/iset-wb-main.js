@@ -67,7 +67,8 @@ function boot(initialStorage,physical,blockedHardwareReadbacks){
     function step(ms){now+=ms;timers.forEach(function(x){x.fn();});}
     return {devices:devices,controls:controls,outputs:outputs,
         storage:storage,logs:logs,timers:timers,
-        external:external,click:click,step:step};
+        external:external,click:click,step:step,
+        physicalWrite:function(cmd){return ctx.hhWrite(cmd,now);}};
 }
 check('WB loads full HHM module dependency set and 1s clock',function(){
     var w=boot();
@@ -396,5 +397,55 @@ check('preview runtime never reports physical readback confirmation',function(){
     var w=boot();
     assert.strictEqual(w.controls['iset_hhm/io_state'],'PREVIEW');
     assert.strictEqual(w.controls['iset_hhm/io_unconfirmed'],0);
+});
+check('floor own state remains equal to shared HHM state after tick',function(){
+    var w=boot();
+    w.external('wb-m1w2_67/External Sensor 1',30);
+    w.step(1000);
+    assert.strictEqual(w.controls['iset_hhm_floor/state'],
+        w.controls['iset_hhm/floor_state']);
+    assert.notStrictEqual(w.controls['iset_hhm_floor/state'],'OFF');
+});
+check('physical MAO4 writer suppresses already-confirmed same position',function(){
+    var w=boot({},true),p='wb-mao4_131/Channel 1 Dimming Level';
+    w.external(p,'25');
+    var before=w.outputs.filter(function(x){return x.path===p;}).length;
+    assert.strictEqual(w.physicalWrite({path:p,value:25,
+        action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'}),true);
+    assert.strictEqual(w.outputs.filter(function(x){return x.path===p;}).length,
+        before,'no-op must not send /on again');
+    assert.strictEqual(w.logs.filter(function(x){
+        return x[1].indexOf('КОМАНДА=MIX_VALVE_POS')>=0;
+    }).length,0,'no per-tick operator log');
+});
+check('physical MAO4 writer still sends changed and safe close values',function(){
+    var w=boot({},true),p='wb-mao4_131/Channel 1 Dimming Level';
+    w.external(p,25);
+    var before=w.outputs.filter(function(x){return x.path===p;}).length;
+    assert.strictEqual(w.physicalWrite({path:p,value:0,
+        action:'MIX_VALVE_POS',reason:'HOT_PORT_PREVENTIVE_CLOSE'}),true);
+    assert.strictEqual(w.outputs.filter(function(x){return x.path===p;}).length,
+        before+1,'emergency close must not be suppressed');
+    assert.strictEqual(w.controls[p],0);
+});
+check('physical MAO4 missing readback preserves retry and watchdog',function(){
+    var p='wb-mao4_131/Channel 1 Dimming Level';
+    var w=boot({},true,[p]);
+    w.external(p,20);
+    var cmd={path:p,value:25,action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'};
+    var initial=w.outputs.filter(function(x){return x.path===p;}).length;
+    w.physicalWrite(cmd);
+    w.physicalWrite(cmd);
+    assert.strictEqual(w.outputs.filter(function(x){return x.path===p;}).length,
+        initial+1,'identical unacknowledged write throttled');
+    w.step(6000);
+    w.physicalWrite(cmd);
+    assert.ok(w.outputs.filter(function(x){return x.path===p;}).length>=
+        initial+2,'retry still allowed after 5s');
+    w.step(31000);
+    assert.ok(w.logs.some(function(x){
+        return x[1].indexOf('Нет подтверждения MQTT')>=0 &&
+            x[1].indexOf(p)>=0;
+    }), '30s watchdog still warns on missing readback');
 });
 console.log('TOTAL PASS '+count);
