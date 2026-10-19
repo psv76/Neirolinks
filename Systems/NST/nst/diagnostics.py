@@ -7,6 +7,7 @@ runtime mutation APIs.
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import tarfile
@@ -186,9 +187,28 @@ class Diagnostics:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
+    def _config_source(self, logical):
+        # Wiren Board persists selected /etc/*.conf files under /mnt/data/etc.
+        # Resolve ONLY an exact canonical WB symlink; never follow arbitrary
+        # links, chained links or paths outside the approved data directory.
+        aliases = {
+            "/etc/wb-mqtt-db.conf": "/mnt/data/etc/wb-mqtt-db.conf",
+            "/etc/wb-mqtt-serial.conf": "/mnt/data/etc/wb-mqtt-serial.conf",
+            "/etc/wb-webui.conf": "/mnt/data/etc/wb-webui.conf",
+        }
+        if logical in aliases:
+            link = self.engine.target("/etc") / logical.rsplit("/", 1)[-1]
+            require(not getattr(link, "is_junction", lambda: False)(),
+                    "Diagnostics config junction rejected: " + logical)
+            if link.is_symlink():
+                require(os.readlink(link) == aliases[logical],
+                        "Diagnostics noncanonical WB config symlink: " + logical)
+                return self.engine.target(aliases[logical])
+        return self.engine.target(logical)
+
     def _copy_file(self, root, logical, category, inventory):
         require(SENSITIVE_PATH.search(logical) is None, "Sensitive path forbidden: " + logical)
-        path = self.engine.target(logical)
+        path = self._config_source(logical) if category == "config" else self.engine.target(logical)
         entry = {"path": logical, "status": "missing"}
         if not path.is_file():
             inventory.append(entry)

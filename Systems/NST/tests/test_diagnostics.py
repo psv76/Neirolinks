@@ -105,6 +105,60 @@ class DiagnosticsTests(fixtures.Fixture):
         self.assertEqual(entry["sha256"], digest(b'{"password":"dont-copy-me","groups":[]}\n'))
         self.assertNotEqual(entry["bundle_sha256"], entry["sha256"])
 
+
+    def test_canonical_wb_persisted_config_alias_is_read_and_redacted(self):
+        from unittest.mock import patch
+        target = self.put("/mnt/data/etc/wb-mqtt-db.conf",
+                          b'{"password":"fixture-only","groups":[]}\\n')
+        link = self.engine.target("/etc") / "wb-mqtt-db.conf"
+        original = Path.is_symlink
+
+        def simulated_is_symlink(path):
+            return path == link or original(path)
+
+        with patch.object(Path, "is_symlink", simulated_is_symlink):
+            with patch("nst.diagnostics.os.readlink",
+                       return_value="/mnt/data/etc/wb-mqtt-db.conf"):
+                result = Diagnostics(self.engine, {"demo": profile()}).collect("demo", "1h")
+        self.assertEqual(result["final_status"], "ok", result)
+        files = self.members(result)
+        self.assertNotIn(b"fixture-only", files["config/etc/wb-mqtt-db.conf"])
+        inventory = json.loads(files["installed-files.json"])
+        entry = next(x for x in inventory if x["path"] == "/etc/wb-mqtt-db.conf")
+        self.assertEqual(entry["sha256"], digest(target.read_bytes()))
+        self.assertTrue(entry["redacted"])
+        self.assertEqual(self.system.actions, [])
+
+    def test_wb_config_alias_rejects_unexpected_destination(self):
+        from unittest.mock import patch
+        link = self.engine.target("/etc") / "wb-mqtt-db.conf"
+        original = Path.is_symlink
+
+        def simulated_is_symlink(path):
+            return path == link or original(path)
+
+        with patch.object(Path, "is_symlink", simulated_is_symlink):
+            with patch("nst.diagnostics.os.readlink",
+                       return_value="/mnt/data/etc/different.conf"):
+                with self.assertRaisesRegex(Error, "noncanonical WB config symlink"):
+                    Diagnostics(self.engine, {"demo": profile()}).collect("demo", "1h")
+        self.assertEqual(self.system.actions, [])
+
+    def test_wb_config_alias_never_approves_unknown_name(self):
+        from unittest.mock import patch
+        alternate = profile()
+        alternate["config_files"] = ["/etc/other-mqtt-db.conf"]
+        link = self.engine.target("/etc") / "other-mqtt-db.conf"
+        original = Path.is_symlink
+
+        def simulated_is_symlink(path):
+            return path == link or original(path)
+
+        with patch.object(Path, "is_symlink", simulated_is_symlink):
+            with self.assertRaisesRegex(Error, "Symlink/junction rejected"):
+                Diagnostics(self.engine, {"demo": alternate}).collect("demo", "1h")
+        self.assertEqual(self.system.actions, [])
+
     def test_common_bundle_requires_no_component_profile_and_includes_managed_source(self):
         result = Diagnostics(self.engine, {}).collect(None, "1h")
         files = self.members(result)

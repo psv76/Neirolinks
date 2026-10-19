@@ -6,7 +6,7 @@ import sys
 assert os.environ.get('NST_DISPOSABLE_CI') == '1' and Path('/.dockerenv').exists()
 sys.path.insert(0, '/usr/lib/nst')
 import nst
-assert nst.__file__.startswith('/usr/lib/nst/nst/') and nst.__version__ == '2.2'
+assert nst.__file__.startswith('/usr/lib/nst/nst/') and nst.__version__ == '2.3'
 from nst.core import Engine
 from nst.layout import load_config
 from nst.controller import load_controller_context
