@@ -559,7 +559,23 @@ function hhTick(){
         hhChanged("iset_hhm/floor_state",report.floor.state);
         hhChanged("iset_hhm_floor/state",report.floor.state);
         hhChanged("iset_hhm_floor/preflight_timer",
-            hhSec(report.floor.valvePreflightRemainingMs));
+            report.floor.state==="OFF"?"Не требуется":
+            report.floor.valvePreflightRemainingMs===null?
+                "Ожидание подтверждения MAO4":
+                hhSec(report.floor.valvePreflightRemainingMs));
+        hhChanged("iset_hhm_floor/valve_position",
+            hhNum(dev[HHM_SVC.outputs.floorValveLevel])===null?
+                "Нет подтверждения положения":
+                String(hhNum(dev[HHM_SVC.outputs.floorValveLevel]))+" % (MQTT)");
+        hhChanged("iset_hhm_floor/valve_enable",
+            hhBool(dev[HHM_SVC.outputs.floorValveEnable])===true?"ON":
+            hhBool(dev[HHM_SVC.outputs.floorValveEnable])===false?"OFF":"UNKNOWN");
+        hhChanged("iset_hhm_floor/pump_relay",
+            report.floor.pumpReadback===true?"ON":
+            report.floor.pumpReadback===false?"OFF":"UNKNOWN");
+        hhChanged("iset_hhm_floor/supply_temperature",
+            hhNum(dev[HHM_SVC.channels.floorSupply])===null?"—":
+            String(hhNum(dev[HHM_SVC.channels.floorSupply]))+" °C");
         hhChanged("iset_hhm/actions",report.commands.length?
             report.commands.map(function(x){return x.action+" "+x.path;})
                 .join(", "):"Нет");
@@ -733,50 +749,98 @@ defineRule("iset_hhm_basement_save",{whenChanged:"iset_hhm_basement/save",
         }catch(e){log.warning("[отопление][29_hhm_iset][цоколь]; ОШИБКА=Запись уставки");}
     }});
 var HHM_FLOOR_CELLS={
+    preflight_timer:{type:"text",value:"—",readonly:true,order:10,
+        title:"До разрешения К2: MAO4 1%"},
+    valve_enable:{type:"text",value:"UNKNOWN",readonly:true,order:20,
+        title:"Разрешение клапана MAO4 (MQTT)",enum:hhEnum({
+            ON:"Включено",OFF:"Выключено",UNKNOWN:"Нет данных"})},
+    valve_position:{type:"text",value:"—",readonly:true,order:30,
+        title:"Клапан: положение выхода 0–10 В"},
+    timer:{type:"text",value:"—",readonly:true,order:40,
+        title:"До открытия петель"},
+    pump_relay:{type:"text",value:"UNKNOWN",readonly:true,order:50,
+        title:"Насос К2: состояние реле",enum:hhEnum({
+            ON:"Включено",OFF:"Выключено",
+            UNKNOWN:"Нет подтверждения"})},
+    supply_temperature:{type:"text",value:"—",readonly:true,order:60,
+        title:"Температура подачи ТП"},
+    state:{type:"text",value:"OFF",readonly:true,order:70,
+        title:"Режим ТП",enum:hhEnum({
+            OFF:"Тёплый пол выключен",
+            HARD_SUPPLY_STOP:"К2 остановлен по пределу подачи",
+            SUPPLY_SENSOR_UNAVAILABLE:"Нет достоверной подачи ТП",
+            HOT_PORT_CLOSED_CIRCULATION_ALLOWED:
+                "Горячий порт закрыт, К2 может работать",
+            CIRCULATING:"Реле К2 включено",
+            WAIT_LOOPS:"Ожидание открытия петель",
+            WAIT_MAO4_PREFLIGHT:"Проверка канала MAO4",
+            WAIT_MAO4_STABLE:"Ожидание подтверждения MAO4",
+            READY:"Готов к запуску"})},
     enable:{type:"switch",value:HHM_FLOOR_SETTINGS!==null&&
-        HHM_FLOOR_SETTINGS.enabled===true,title:"ТП: локально включить"},
+        HHM_FLOOR_SETTINGS.enabled===true,title:"ТП: локально включить",order:80},
     target:{type:"value",readonly:false,value:HHM_FLOOR_SETTINGS===null?
-        34:HHM_FLOOR_SETTINGS.targetC,title:"ТП: целевая подача, °C"},
-    save:{type:"pushbutton",title:"Сохранить настройки ТП"},
-    state:{type:"text",value:"OFF",readonly:true,title:"Состояние"},
-    timer:{type:"text",value:"—",readonly:true,title:"Все петли"},
-    preflight_timer:{type:"text",value:"—",readonly:true,
-        title:"MAO4 1%: подтверждение 10 с"},
+        34:HHM_FLOOR_SETTINGS.targetC,title:"ТП: целевая подача, °C",order:90},
+    save:{type:"pushbutton",title:"Сохранить настройки ТП",order:100}
 };
 for(var HHM_F=0;HHM_F<HHM_SVC.outputs.floorLoops.length;HHM_F++){
     var label=HHM_SVC.outputs.floorLoops[HHM_F].split("/")[1].toLowerCase();
     HHM_FLOOR_CELLS[label+"_timer"]={type:"text",value:"—",
-        readonly:true,title:"Привод "+label+" — таймер"};
+        readonly:true,order:110+HHM_F*10,title:"Привод "+label+" — таймер"};
 }
-defineVirtualDevice("iset_hhm_floor",{title:"HHM Исеть / Тёплый пол",
+defineVirtualDevice("iset_hhm_floor",{title:"012 Тёплый пол / К2",
     cells:HHM_FLOOR_CELLS});
-defineVirtualDevice("iset_hhm",{title:"HHM Исеть / Общее",cells:{
-    status:{type:"text",value:"START",readonly:true,title:"Режим"},
-    source:{type:"text",value:"—",readonly:true,title:"Котёл"},
-    dhw:{type:"text",value:"—",readonly:true,title:"ГВС / приоритет"},
-    k4_start_timer:{type:"text",value:"—",readonly:true,
-        title:"K4: осталось до пуска"},
-    floor_timer:{type:"text",value:"—",readonly:true,
-        title:"ТП: открытие приводов"},
-    floor_state:{type:"text",value:"OFF",readonly:true,title:"ТП"},
-    actions:{type:"text",value:"—",readonly:true,title:"Расчёт команд"},
-    io_state:{type:"text",value:"START",readonly:true,
-        title:"Контроль MQTT-команд"},
-    io_unconfirmed:{type:"value",value:0,readonly:true,
-        title:"Нет подтверждения более 30 с"},
-    io_waiting:{type:"value",value:0,readonly:true,
-        title:"Ожидают подтверждения менее 30 с"},
-    io_details:{type:"text",value:"—",readonly:true,
-        title:"Каналы без подтверждения MQTT"},
-    sensor_issues:{type:"value",value:0,readonly:true,
-        title:"M1W2: ошибка/нет числового значения"},
-    sensor_unverified:{type:"value",value:6,readonly:true,
-        title:"M1W2: свежесть MQTT не подтверждена"},
-    sensor_details:{type:"text",value:"—",readonly:true,
-        title:"Диагностика шести температур M1W2"},
-    trace_seq:{type:"value",value:0,readonly:true,
-        title:"Машинная трасса: номер события"},
-    trace_recent:{type:"text",value:"[]",readonly:true,
+defineVirtualDevice("iset_hhm",{title:"090 Отопление / диагностика",cells:{
+    status:{type:"text",value:"START",readonly:true,order:10,
+        title:"Управление",enum:hhEnum({
+            START:"Запуск", "РАБОЧИЙ HHM":"Управление активно",
+            "РАСЧЁТ, КОМАНД НЕТ":"Только расчёт, без физических команд"})},
+    source:{type:"text",value:"—",readonly:true,hidden:true,
+        title:"Котёл (исходный код)",order:15},
+    source_view:{type:"text",value:"—",readonly:true,order:20,
+        title:"Котёл / разрешение нагрева"},
+    dhw:{type:"text",value:"—",readonly:true,hidden:true,order:25,
+        title:"ГВС (исходный код)"},
+    dhw_view:{type:"text",value:"—",readonly:true,order:30,
+        title:"ГВС / режим"},
+    k4_start_timer:{type:"text",value:"—",readonly:true,hidden:true,
+        title:"К4: исходный таймер",order:35},
+    floor_timer:{type:"text",value:"—",readonly:true,hidden:true,
+        title:"ТП: исходный таймер",order:40},
+    floor_state:{type:"text",value:"OFF",readonly:true,order:45,
+        title:"Тёплый пол",enum:hhEnum({
+            OFF:"Отключён",CIRCULATING:"Реле К2 включено",
+            READY:"Готов к пуску",
+            WAIT_LOOPS:"Ожидание открытия петель",
+            WAIT_MAO4_PREFLIGHT:"Проверка клапана MAO4",
+            WAIT_MAO4_STABLE:"Ожидание подтверждения MAO4",
+            HARD_SUPPLY_STOP:"К2 остановлен по защите",
+            SUPPLY_SENSOR_UNAVAILABLE:"Нет данных подачи",
+            HOT_PORT_CLOSED_CIRCULATION_ALLOWED:
+                "Горячий порт закрыт, К2 может работать"})},
+    actions:{type:"text",value:"—",readonly:true,hidden:true,order:50,
+        title:"Команды текущего цикла (не состояние отопления)"},
+    io_state:{type:"text",value:"START",readonly:true,order:60,
+        title:"Подтверждение MQTT-команд",enum:hhEnum({
+            START:"Ожидание запуска",
+            READBACK_OK:"Отправленные команды подтверждены MQTT",
+            WAIT_READBACK:"Ожидание ответа MQTT",
+            NO_READBACK:"Нет подтверждения MQTT > 30 с",
+            PREVIEW:"Физические команды отключены"})},
+    io_unconfirmed:{type:"value",value:0,readonly:true,order:70,
+        title:"Команды без подтверждения более 30 с"},
+    io_waiting:{type:"value",value:0,readonly:true,order:80,
+        title:"Команды в ожидании подтверждения"},
+    io_details:{type:"text",value:"—",readonly:true,hidden:true,order:90,
+        title:"Детали неподтверждённых каналов"},
+    sensor_issues:{type:"value",value:0,readonly:true,order:100,
+        title:"M1W2: ошибки температурных каналов"},
+    sensor_unverified:{type:"value",value:6,readonly:true,order:110,
+        title:"M1W2: свежесть данных не подтверждена"},
+    sensor_details:{type:"text",value:"—",readonly:true,hidden:true,
+        order:120,title:"Подробности шести каналов M1W2"},
+    trace_seq:{type:"value",value:0,readonly:true,hidden:true,order:130,
+        title:"Трасса: номер события"},
+    trace_recent:{type:"text",value:"[]",readonly:true,hidden:true,order:140,
         title:"Машинная трасса (JSON, последние 24 события)"}
 }});
 defineRule("iset_hhm_floor_save",{
