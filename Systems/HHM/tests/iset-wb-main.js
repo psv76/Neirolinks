@@ -71,6 +71,8 @@ function boot(initialStorage,physical,blockedHardwareReadbacks){
     return {devices:devices,controls:controls,outputs:outputs,
         storage:storage,logs:logs,timers:timers,
         external:external,click:click,step:step,
+        advanceClock:function(ms){now+=ms;},
+        watchReadback:function(){ctx.hhIOReadbackWatch(now);},
         emit:function(topic,value){
             assert.ok(mqttTracks[topic],'Unknown MQTT watch '+topic);
             mqttTracks[topic]({topic:topic,value:value});
@@ -445,11 +447,14 @@ check('physical MAO4 missing readback preserves retry and watchdog',function(){
     w.physicalWrite(cmd);
     assert.strictEqual(w.outputs.filter(function(x){return x.path===p;}).length,
         initial+1,'identical unacknowledged write throttled');
-    w.step(6000);
+    // Advance the test clock WITHOUT running HHM planning: other floor
+    // safety intents would otherwise legitimately supersede this command.
+    w.advanceClock(6000);
     w.physicalWrite(cmd);
     assert.ok(w.outputs.filter(function(x){return x.path===p;}).length>=
         initial+2,'retry still allowed after 5s');
-    w.step(31000);
+    w.advanceClock(31000);
+    w.watchReadback();
     assert.ok(w.logs.some(function(x){
         return x[1].indexOf('Нет подтверждения MQTT')>=0 &&
             x[1].indexOf(p)>=0;
