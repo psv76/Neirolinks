@@ -265,6 +265,74 @@
     {
       "path": "iset_hhm_k4/relay",
       "kind": "calculated"
+    },
+    {
+      "path": "wb-m1w2_65/ext_sens1_presense",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-m1w2_65/External Sensor 1 OK",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-m1w2_65/ext_sens2_presense",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-m1w2_65/External Sensor 2 OK",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-m1w2_66/ext_sens1_presense",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-m1w2_66/External Sensor 1 OK",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-m1w2_66/ext_sens2_presense",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-m1w2_66/External Sensor 2 OK",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-m1w2_67/ext_sens1_presense",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-m1w2_67/External Sensor 1 OK",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-m1w2_67/ext_sens2_presense",
+      "kind": "readback"
+    },
+    {
+      "path": "wb-m1w2_67/External Sensor 2 OK",
+      "kind": "readback"
+    },
+    {
+      "path": "iset_hhm/sensor_issues",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm/sensor_unverified",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm/sensor_details",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm/trace_seq",
+      "kind": "calculated"
+    },
+    {
+      "path": "iset_hhm/trace_recent",
+      "kind": "calculated"
     }
   ],
   "history_channels": [
