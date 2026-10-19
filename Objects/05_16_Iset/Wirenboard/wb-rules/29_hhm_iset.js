@@ -54,6 +54,7 @@ var HHM_LAST_WRITE={};
 // Diagnostic-only state: failures here MUST NOT affect the control plan.
 var HHM_TRACE_RING=[],HHM_TRACE_SEQ=0;
 var HHM_SENSOR_OBS={},HHM_SENSOR_LAST_FAULT={};
+var HHM_SENSOR_START_AT=Date.now();
 var HHM_SENSOR_SPECS=[
     {id:"common",title:"Общая подача",path:HHM_SVC.channels.common},
     {id:"outdoor",title:"Улица",path:HHM_SVC.channels.outdoor},
@@ -179,6 +180,9 @@ function hhSensorMonitor(now){
             }else status="Есть новые показания";
             items.push(s.title+": "+status);
             previous=HHM_SENSOR_LAST_FAULT[s.id];
+            // Allow retained MQTT and Modbus devices to settle after
+            // wb-rules restart; initial missing values are not a fault yet.
+            if(now-HHM_SENSOR_START_AT<15000)continue;
             if(bad&&previous!==true){
                 log.warning("[отопление][29_hhm_iset]["+s.title+
                     "]; ОШИБКА=Диагностика датчика; причина="+status);
