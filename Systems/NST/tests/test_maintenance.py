@@ -92,7 +92,7 @@ class SelfUpdateTests(fixtures.Fixture):
 
     def test_check_readonly_metadata_only(self):
         before = self.snapshot()
-        newer = dict(self.package, version='2.3')
+        newer = dict(self.package, version='2.4')
         with patch.object(self.engine.releases, 'package', return_value=newer), \
              patch.object(self.engine.releases, 'asset', side_effect=AssertionError('No package download')):
             r = SelfUpdate(self.engine).execute(check=True)
