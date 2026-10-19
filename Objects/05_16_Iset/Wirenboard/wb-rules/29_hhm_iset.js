@@ -127,6 +127,32 @@ function hhNum(x){
 function hhSec(ms){return ms===null||ms===undefined?"—":
     String(Math.ceil(ms/1000))+" с";}
 function hhChanged(path,value){if(dev[path]!==value)dev[path]=value;}
+// Only MQTT meta and operator presentation are changed here. Calculations
+// continue consuming the original machine-level states from HHM.
+function hhEnum(map){
+    var result={},keys=Object.keys(map);
+    for(var i=0;i<keys.length;i++)
+        result[keys[i]]={ru:map[keys[i]],en:map[keys[i]]};
+    return result;
+}
+function hhPad3(n){return ("00"+String(n)).slice(-3);}
+function hhRoomActuatorLabel(a){
+    var k=a.path.split("/")[1],v=a.openingRemainingMs;
+    if(v!==null)return k+" "+hhSec(v);
+    var states={
+        CLOSED_RELAY:"команда закрыть",OPEN_RELAY:"реле открыто",
+        OPENING_WAIT:"ожидание открытия",READY:"открытие выдержано",
+        WAIT_OPEN:"команда открыть",READBACK_UNKNOWN:"нет ответа реле"
+    };
+    return k+" "+(states[a.state]||"состояние не определено");
+}
+function hhDhwView(state,elapsed){
+    var text=state==="ACTIVE"?"Нагрев бойлера включён":
+        state==="INACTIVE"?"Нагрев бойлера выключен":
+        state==="FAULT"?"Авария ГВС":"Состояние "+state;
+    return text+(state==="ACTIVE"&&typeof elapsed==="number"&&
+        isFinite(elapsed)?"; длится "+Math.floor(Math.max(0,elapsed))+" с":"");
+}
 // Machine-only bounded trace. Never affects heating if MQTT/serialization fails.
 function hhTrace(event,context,detail,at){
     try{
@@ -444,14 +470,23 @@ function hhRoomView(report){
         var settings=HHM_ROOM.settings(z.id);
         hhChanged(name+"/saved",settings?settings.mode+" / "+
             settings.setpointC+"°C":"Уставка не задана");
-        hhChanged(name+"/wait",zplan.openRemainingMs===null?
-            "Нет данных OPEN":hhSec(zplan.openRemainingMs));
+        hhChanged(name+"/saved_view",settings?
+            (settings.mode==="HEAT"?"Включено":"Выключено")+
+            " / "+settings.setpointC+" °C":"Уставка не задана");
+        hhChanged(name+"/wait",state.heatDemand===false?
+            "Открытие не требуется":state.heatDemand===null?
+            "Запрос не определён":zplan.waitingForReadback?
+            "Нет подтверждения открытия NO":zplan.openRemainingMs===null?
+            "Время открытия недоступно":hhSec(zplan.openRemainingMs));
+        var summaries=[];
         for(var j=0;j<zplan.actuators.length;j++){
             var a=zplan.actuators[j],k=a.path.split("/")[1].toLowerCase();
             hhChanged(name+"/servo_"+k,
                 a.openingRemainingMs===null?a.state:
                     hhSec(a.openingRemainingMs));
+            summaries.push(hhRoomActuatorLabel(a));
         }
+        hhChanged(name+"/actuators_view",summaries.join("; "));
     }
 }
 function hhPumpView(report,path,vd){
@@ -460,17 +495,20 @@ function hhPumpView(report,path,vd){
         t.readback===false?"OFF":"UNKNOWN");
     hhChanged(vd+"/run_timer",hhSec(t.observedRunMs));
     hhChanged(vd+"/stop_timer",hhSec(t.stopWaitMs));
-    var start="По запросу";
-    if(vd==="iset_hhm_k2"){
-        start=t.readback===true?"Работает":
+    var start=t.readback===true?"Насос включён":
+        t.readback===null?"Нет подтверждения реле":"По запросу";
+    if(vd==="iset_hhm_k2"&&t.readback===false){
+        start=
             !report.floor.allLoopsReady?
             (report.floor.remainingOpenMs===null?
                 "Ожидание открытия NO":hhSec(report.floor.remainingOpenMs)):
             report.floor.valvePreflightRemainingMs===null?
                 "Ожидание MAO4":hhSec(report.floor.valvePreflightRemainingMs);
-    }else if(vd==="iset_hhm_k4")
+    }else if(vd==="iset_hhm_k4"&&t.readback===false)
         start=report.living.pumpStartRemainingMs===null?
-            "Ожидание открытия NO":hhSec(report.living.pumpStartRemainingMs);
+            (report.living.requestingZones>0?
+                "Ожидание подтверждения открытия NO":"Нет запроса"):
+            hhSec(report.living.pumpStartRemainingMs);
     hhChanged(vd+"/start_timer",start);
 }
 function hhTick(){
@@ -483,6 +521,12 @@ function hhTick(){
             HHM_PHYSICAL_OUTPUTS?"РАБОЧИЙ HHM":"РАСЧЁТ, КОМАНД НЕТ");
         hhChanged("iset_hhm/source",report.services.source.state+
             " / "+report.services.source.targetC+"°C");
+        hhChanged("iset_hhm/source_view",
+            hhHumanMode("source_mode",report.services.source.state)+
+            (report.services.source.targetC===null?"":": "+
+                report.services.source.targetC+" °C"));
+        hhChanged("iset_hhm/dhw_view",
+            hhHumanMode("dhw_mode",report.services.dhw.mode));
         hhChanged("iset_hhm/dhw",report.services.dhw.mode+
             " / приоритет "+hhSec(report.services.dhw.priorityRemainingS===null?
                 null:report.services.dhw.priorityRemainingS*1000));
@@ -501,6 +545,9 @@ function hhTick(){
                 null:report.services.dhw.overrunRemainingS*1000));
         hhChanged("iset_hhm_dhw/tank",report.services.dhw.state+
             " / "+String(report.services.dhw.heatingElapsedS)+" с");
+        hhChanged("iset_hhm_dhw/tank_view",
+            hhDhwView(report.services.dhw.state,
+                report.services.dhw.heatingElapsedS));
         hhChanged("iset_hhm_basement/target_saved",
             String(HHM_SVC.basement.targetC)+" °C");
         hhChanged("iset_hhm_basement/demand",
