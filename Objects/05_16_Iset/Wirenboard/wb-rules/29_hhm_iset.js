@@ -51,6 +51,17 @@ if(HHM_BASEMENT_TARGET!==null)
 var HHM_BOOT="iset-hhm-"+String(Date.now());
 var HHM_ERRORS={},HHM_PREV={},HHM_MIX_INTENTS=[],HHM_BUSY=false;
 var HHM_LAST_WRITE={};
+// Diagnostic-only state: failures here MUST NOT affect the control plan.
+var HHM_TRACE_RING=[],HHM_TRACE_SEQ=0;
+var HHM_SENSOR_OBS={},HHM_SENSOR_LAST_FAULT={};
+var HHM_SENSOR_SPECS=[
+    {id:"common",title:"Общая подача",path:HHM_SVC.channels.common},
+    {id:"outdoor",title:"Улица",path:HHM_SVC.channels.outdoor},
+    {id:"living",title:"Подача жилой зоны",path:HHM_SVC.channels.livingSupply},
+    {id:"basement",title:"Подача цоколя",path:HHM_SVC.channels.basementSupply},
+    {id:"floor",title:"Подача ТП",path:HHM_SVC.channels.floorSupply},
+    {id:"dhw",title:"Бойлер ГВС",path:HHM_SVC.channels.dhwTank}
+];
 // Explicit user-approved initial settings: every room HEAT / 25 C.
 // Existing valid WB settings always take precedence after restart.
 for(var HHM_SEED=0;HHM_SEED<HHM_ROOM_MAP.zones.length;HHM_SEED++){
@@ -115,10 +126,86 @@ function hhNum(x){
 function hhSec(ms){return ms===null||ms===undefined?"—":
     String(Math.ceil(ms/1000))+" с";}
 function hhChanged(path,value){if(dev[path]!==value)dev[path]=value;}
+// Machine-only bounded trace. Never affects heating if MQTT/serialization fails.
+function hhTrace(event,context,detail,at){
+    try{
+        var item={schema:1,sequence:++HHM_TRACE_SEQ,
+            timestamp_ms:at===undefined?Date.now():at,
+            event:event,context:context,detail:detail};
+        HHM_TRACE_RING.push(item);
+        if(HHM_TRACE_RING.length>24)HHM_TRACE_RING.shift();
+        hhChanged("iset_hhm/trace_seq",HHM_TRACE_SEQ);
+        hhChanged("iset_hhm/trace_recent",JSON.stringify(HHM_TRACE_RING));
+    }catch(ignore){}
+}
+// A changed temperature value is proof of a new sample. Retained/same
+// values or stale driver OK by themselves cannot establish freshness.
+function hhObserveSensor(path,msg){
+    try{
+        if(!msg||msg.value===undefined||msg.value===null)return;
+        var v=String(msg.value),o=HHM_SENSOR_OBS[path];
+        if(!o)o=HHM_SENSOR_OBS[path]={lastValue:null,lastChangeAt:null};
+        if(o.lastValue!==null&&o.lastValue!==v)
+            o.lastChangeAt=Date.now();
+        o.lastValue=v;
+    }catch(ignore){}
+}
+function hhSensorPresencePath(path){
+    var m=/^([^/]+)\/External Sensor ([12])$/.exec(path);
+    return m?m[1]+"/ext_sens"+m[2]+"_presense":null;
+}
+// Observation only. Do not feed these classifications into physical interlocks.
+function hhSensorMonitor(now){
+    try{
+        var problems=0,uncertain=0,items=[],i,s,v,presence,reported,
+            o,status,bad,previous,proof;
+        for(i=0;i<HHM_SENSOR_SPECS.length;i++){
+            s=HHM_SENSOR_SPECS[i];
+            v=hhNum(dev[s.path]);
+            presence=hhBool(dev[hhSensorPresencePath(s.path)]);
+            reported=hhBool(dev[s.path+" OK"]);
+            o=HHM_SENSOR_OBS[s.path];
+            proof=o&&o.lastChangeAt!==null&&
+                now-o.lastChangeAt>=0&&now-o.lastChangeAt<300000;
+            bad=v===null||presence===false||reported===false;
+            if(bad){
+                status=v===null?"Нет числового значения":
+                    presence===false?"M1W2 сообщает отсутствие датчика":
+                    "M1W2 сообщает ошибку датчика";
+                problems++;
+            }else if(!proof){
+                status="Свежесть MQTT не подтверждена";
+                uncertain++;
+            }else status="Есть новые показания";
+            items.push(s.title+": "+status);
+            previous=HHM_SENSOR_LAST_FAULT[s.id];
+            if(bad&&previous!==true){
+                log.warning("[отопление][29_hhm_iset]["+s.title+
+                    "]; ОШИБКА=Диагностика датчика; причина="+status);
+                hhTrace("SENSOR_FAULT",s.id,
+                    {channel:s.path,reason:status},now);
+            }else if(!bad&&previous===true){
+                log.info("[отопление][29_hhm_iset]["+s.title+
+                    "]; СОСТОЯНИЕ=Показания датчика восстановились; "+
+                    "свежесть MQTT="+(proof?"подтверждены изменения":"не доказана"));
+                hhTrace("SENSOR_RECOVERED",s.id,
+                    {channel:s.path,mqtt_change_observed:proof===true},now);
+            }
+            HHM_SENSOR_LAST_FAULT[s.id]=bad;
+        }
+        hhChanged("iset_hhm/sensor_issues",problems);
+        hhChanged("iset_hhm/sensor_unverified",uncertain);
+        hhChanged("iset_hhm/sensor_details",items.join("; "));
+    }catch(e){
+        // Never let diagnostics throw into the calculation/writer path.
+    }
+}
 function hhOpTransition(id,context,state,reason){
     if(HHM_PREV[id]===state)return;
     var old=HHM_PREV[id];
     HHM_PREV[id]=state;
+    hhTrace("MODE",context,{previous:old===undefined?null:old,
+        state:state,reason:reason||null},Date.now());
     log.info("[отопление][29_hhm_iset]["+context+
         "]; СОСТОЯНИЕ="+state+"; ранее="+(old===undefined?"—":old)+
         (reason?"; причина="+reason:""));
@@ -199,6 +286,9 @@ function hhWrite(cmd,at){
             warned:prev&&prev.value===cmd.value&&prev.warned===true};
         // Normal MAO4 regulator steps and OT ramp are technical telemetry,
         // not operator events. Safety-related output commands still log.
+        hhTrace("WRITE",cmd.path,{action:cmd.action,
+            requested:cmd.value,readback_before:before,
+            reason:cmd.reason},at);
         if(cmd.action!=="MIX_VALVE_POS"&&cmd.action!=="OT_SETPOINT")
             log.info("[отопление][29_hhm_iset]["+cmd.path+
                 "]; КОМАНДА="+cmd.action+"; значение="+cmd.value+
@@ -227,6 +317,9 @@ function hhIOReadbackWatch(now){
         actual=dev[path];
         if(hhMatchesReadback(actual,record.value)){
             if(record.warned)
+                hhTrace("READBACK_RECOVERED",path,
+                    {requested:record.value,actual:actual},now);
+            if(record.warned)
                 log.info("[отопление][29_hhm_iset]["+path+
                     "]; ВОССТАНОВЛЕНИЕ=MQTT readback совпал с командой");
             delete HHM_LAST_WRITE[path];
@@ -237,6 +330,9 @@ function hhIOReadbackWatch(now){
             lost.push(path+" ("+Math.floor(elapsed/1000)+" с)");
             if(!record.warned){
                 record.warned=true;
+                hhTrace("READBACK_TIMEOUT",path,
+                    {requested:record.value,actual:actual,
+                    elapsed_ms:elapsed},now);
                 log.warning("[отопление][29_hhm_iset]["+path+
                     "]; ОШИБКА=Нет подтверждения MQTT после команды "+
                     String(record.value)+" в течение 30 с; "+
@@ -298,6 +394,7 @@ function hhTick(){
     HHM_BUSY=true;
     try{
         var now=Date.now(),report=HHM_ENGINE.step(hhInput());
+        hhSensorMonitor(now); // read-only diagnostics, isolated from control
         hhChanged("iset_hhm/status",
             HHM_PHYSICAL_OUTPUTS?"РАБОЧИЙ HHM":"РАСЧЁТ, КОМАНД НЕТ");
         hhChanged("iset_hhm/source",report.services.source.state+
@@ -505,7 +602,17 @@ defineVirtualDevice("iset_hhm",{title:"HHM Исеть / Общее",cells:{
     io_waiting:{type:"value",value:0,readonly:true,
         title:"Ожидают подтверждения менее 30 с"},
     io_details:{type:"text",value:"—",readonly:true,
-        title:"Каналы без подтверждения MQTT"}
+        title:"Каналы без подтверждения MQTT"},
+    sensor_issues:{type:"value",value:0,readonly:true,
+        title:"M1W2: ошибка/нет числового значения"},
+    sensor_unverified:{type:"value",value:6,readonly:true,
+        title:"M1W2: свежесть MQTT не подтверждена"},
+    sensor_details:{type:"text",value:"—",readonly:true,
+        title:"Диагностика шести температур M1W2"},
+    trace_seq:{type:"value",value:0,readonly:true,
+        title:"Машинная трасса: номер события"},
+    trace_recent:{type:"text",value:"[]",readonly:true,
+        title:"Машинная трасса (JSON, последние 24 события)"}
 }});
 defineRule("iset_hhm_floor_save",{
     whenChanged:"iset_hhm_floor/save",then:function(){
@@ -530,6 +637,12 @@ defineRule("iset_hhm_floor_save",{
         }
     }
 });
+for(var HHM_SI=0;HHM_SI<HHM_SENSOR_SPECS.length;HHM_SI++){
+    (function(sensor){
+        trackMqtt("/devices/"+sensor.path.replace("/","/controls/"),
+            function(message){hhObserveSensor(sensor.path,message);});
+    })(HHM_SENSOR_SPECS[HHM_SI]);
+}
 for(HHM_Z=0;HHM_Z<HHM_ROOM_MAP.zones.length;HHM_Z++){
     (function(z){
         var topic="/devices/"+z.primarySensor.split("/")[0]+"/meta/error";
