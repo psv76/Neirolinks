@@ -106,7 +106,7 @@ class SelfUpdateTests(fixtures.Fixture):
         self.assertEqual(self.calls, [])
 
     def test_package_checksum_failure_before_install(self):
-        self.package['version'] = '2.3'
+        self.package['version'] = '2.4'
         self.data += b'corrupt'
         r = SelfUpdate(self.engine).execute()
         self.assertEqual(r['final_status'], 'failed', r)
