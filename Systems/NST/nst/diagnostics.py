@@ -146,7 +146,7 @@ class Diagnostics:
         require(isinstance(reference, str) and reference.startswith(prefix),
                 "Invalid controller diagnostics profile reference")
         name = reference[len(prefix):]
-        require(re.fullmatch(r"[a-z0-9][a-z0-9_-]*\\.json", name) is not None,
+        require(re.fullmatch(r"[a-z0-9][a-z0-9_-]*\.json", name) is not None,
                 "Unsafe controller diagnostics profile name")
         path = self.engine.target(DATA_DIR + "/diagnostics/" + name)
         require(path.is_file() and not path.is_symlink(),
