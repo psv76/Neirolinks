@@ -27,7 +27,7 @@ var source=fs.readFileSync(path.join(root,
 var count=0;
 function check(s,fn){fn();count++;console.log('PASS '+s);}
 function boot(initialStorage,physical,blockedHardwareReadbacks){
-    var devices={},controls={},outputs=[],events={},timers=[],
+    var devices={},controls={},outputs=[],events={},timers=[],mqttTracks={},
         logs=[],now=100000,storage=initialStorage||{};
     var blocked=blockedHardwareReadbacks||[];
     var dev=new Proxy(controls,{set:function(t,k,value){
@@ -51,7 +51,10 @@ function boot(initialStorage,physical,blockedHardwareReadbacks){
             assert.ok(!events[r.whenChanged],name);
             events[r.whenChanged]=r.then;
         },
-        trackMqtt:function(){},
+        trackMqtt:function(topic,handler){
+            assert.ok(!mqttTracks[topic],'Duplicate trackMqtt: '+topic);
+            mqttTracks[topic]=handler;
+        },
         setInterval:function(fn,period){timers.push({fn:fn,period:period});},
         log:{info:function(s){logs.push(['info',s]);},
             warning:function(s){logs.push(['warning',s]);},
@@ -67,7 +70,16 @@ function boot(initialStorage,physical,blockedHardwareReadbacks){
     function step(ms){now+=ms;timers.forEach(function(x){x.fn();});}
     return {devices:devices,controls:controls,outputs:outputs,
         storage:storage,logs:logs,timers:timers,
-        external:external,click:click,step:step};
+        external:external,click:click,step:step,
+        advanceClock:function(ms){now+=ms;},
+        watchReadback:function(){ctx.hhIOReadbackWatch(now);},
+        emit:function(topic,value,retained){
+            assert.ok(mqttTracks[topic],'Unknown MQTT watch '+topic);
+            mqttTracks[topic]({topic:topic,value:value,
+                retained:arguments.length<3?false:retained});
+        },
+        failTrace:function(){ctx.JSON={stringify:function(){throw new Error('trace unavailable');}};},
+        physicalWrite:function(cmd){return ctx.hhWrite(cmd,now);}};
 }
 check('WB loads full HHM module dependency set and 1s clock',function(){
     var w=boot();
@@ -396,5 +408,307 @@ check('preview runtime never reports physical readback confirmation',function(){
     var w=boot();
     assert.strictEqual(w.controls['iset_hhm/io_state'],'PREVIEW');
     assert.strictEqual(w.controls['iset_hhm/io_unconfirmed'],0);
+});
+check('floor own state remains equal to shared HHM state after tick',function(){
+    var w=boot();
+    w.external('wb-m1w2_67/External Sensor 1',30);
+    w.step(1000);
+    assert.strictEqual(w.controls['iset_hhm_floor/state'],
+        w.controls['iset_hhm/floor_state']);
+    assert.notStrictEqual(w.controls['iset_hhm_floor/state'],'OFF');
+});
+check('physical MAO4 writer suppresses already-confirmed same position',function(){
+    var w=boot({},true),p='wb-mao4_131/Channel 1 Dimming Level';
+    w.external(p,'25');
+    var before=w.outputs.filter(function(x){return x.path===p;}).length;
+    assert.strictEqual(w.physicalWrite({path:p,value:25,
+        action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'}),true);
+    assert.strictEqual(w.outputs.filter(function(x){return x.path===p;}).length,
+        before,'no-op must not send /on again');
+    assert.strictEqual(w.logs.filter(function(x){
+        return x[1].indexOf('КОМАНДА=MIX_VALVE_POS')>=0;
+    }).length,0,'no per-tick operator log');
+});
+check('physical MAO4 writer still sends changed and safe close values',function(){
+    var w=boot({},true),p='wb-mao4_131/Channel 1 Dimming Level';
+    w.external(p,25);
+    var before=w.outputs.filter(function(x){return x.path===p;}).length;
+    assert.strictEqual(w.physicalWrite({path:p,value:0,
+        action:'MIX_VALVE_POS',reason:'HOT_PORT_PREVENTIVE_CLOSE'}),true);
+    assert.strictEqual(w.outputs.filter(function(x){return x.path===p;}).length,
+        before+1,'emergency close must not be suppressed');
+    assert.strictEqual(w.controls[p],0);
+});
+check('physical MAO4 missing readback preserves retry and watchdog',function(){
+    var p='wb-mao4_131/Channel 1 Dimming Level';
+    var w=boot({},true,[p]);
+    w.external(p,20);
+    var cmd={path:p,value:25,action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'};
+    var initial=w.outputs.filter(function(x){return x.path===p;}).length;
+    w.physicalWrite(cmd);
+    w.physicalWrite(cmd);
+    assert.strictEqual(w.outputs.filter(function(x){return x.path===p;}).length,
+        initial+1,'identical unacknowledged write throttled');
+    // Advance the test clock WITHOUT running HHM planning: other floor
+    // safety intents would otherwise legitimately supersede this command.
+    w.advanceClock(6000);
+    w.physicalWrite(cmd);
+    assert.ok(w.outputs.filter(function(x){return x.path===p;}).length>=
+        initial+2,'retry still allowed after 5s');
+    w.advanceClock(31000);
+    w.watchReadback();
+    assert.ok(w.logs.some(function(x){
+        return x[1].indexOf('Нет подтверждения MQTT')>=0 &&
+            x[1].indexOf(p)>=0;
+    }), '30s watchdog still warns on missing readback');
+});
+check('six M1W2 channels are diagnosed without changing heating outputs',function(){
+    var w=boot(),spec=[
+        ['wb-m1w2_65',1],['wb-m1w2_65',2],
+        ['wb-m1w2_66',1],['wb-m1w2_66',2],
+        ['wb-m1w2_67',1],['wb-m1w2_67',2]];
+    spec.forEach(function(pair){
+        var d=pair[0],n=pair[1],p=d+'/External Sensor '+n;
+        w.external(p,30);w.external(p+' OK',1);
+        w.external(d+'/ext_sens'+n+'_presense',1);
+    });
+    var before=w.outputs.filter(function(x){return !/^iset_hhm/.test(x.path);}).length;
+    w.step(15000);
+    assert.strictEqual(w.controls['iset_hhm/sensor_issues'],0);
+    assert.strictEqual(w.controls['iset_hhm/sensor_unverified'],6);
+    assert.strictEqual(w.outputs.filter(function(x){
+        return !/^iset_hhm/.test(x.path);
+    }).length,before,'diagnostics must not actuate outputs in preview');
+    assert.ok(w.devices.iset_hhm.cells.sensor_details.readonly);
+});
+check('M1W2 loss and recovery create bounded operator events',function(){
+    var w=boot(),devname='wb-m1w2_67',p=devname+'/External Sensor 1';
+    w.external(p,30);w.external(p+' OK',1);
+    w.external(devname+'/ext_sens1_presense',1);
+    w.step(16000);
+    w.external(devname+'/ext_sens1_presense',0);
+    w.step(1000);
+    assert.ok(w.controls['iset_hhm/sensor_details'].indexOf(
+        'M1W2 сообщает отсутствие датчика')>=0);
+    w.external(devname+'/ext_sens1_presense',1);
+    w.step(1000);
+    assert.ok(w.logs.some(function(x){
+        return x[1].indexOf('Показания датчика восстановились')>=0;
+    }));
+    assert.ok(w.controls['iset_hhm/trace_recent'].indexOf(
+        'SENSOR_RECOVERED')>=0);
+});
+check('M1W2 MQTT retained-only value does not prove fresh measurements',function(){
+    var w=boot(),devname='wb-m1w2_67',p=devname+'/External Sensor 1';
+    var topic='/devices/'+devname+'/controls/External Sensor 1';
+    w.external(p,30);w.external(p+' OK',1);
+    w.external(devname+'/ext_sens1_presense',1);
+    w.emit(topic,30);w.step(16000);
+    assert.ok(w.controls['iset_hhm/sensor_details'].indexOf(
+        'Подача ТП: Свежесть MQTT не подтверждена')>=0);
+    w.external(p,30.5);w.emit(topic,30.5);w.step(1000);
+    assert.ok(w.controls['iset_hhm/sensor_details'].indexOf(
+        'Подача ТП: Наблюдалось изменение MQTT')>=0);
+});
+check('machine trace keeps only 24 recent events and no passwords',function(){
+    var w=boot({},true),p='wb-mao4_131/Channel 1 Dimming Level';
+    w.external(p,0);
+    for(var n=1;n<=40;n++){
+        assert.strictEqual(w.physicalWrite({
+            path:p,value:n,action:'MIX_VALVE_POS',
+            reason:'FLOOR_MIXING'}),true);
+    }
+    var trace=JSON.parse(w.controls['iset_hhm/trace_recent']);
+    assert.strictEqual(trace.length,24);
+    assert.ok(trace[0].sequence<trace[23].sequence);
+    assert.strictEqual(trace[23].event,'WRITE');
+    assert.strictEqual(w.controls['iset_hhm/trace_seq']>=40,true);
+    assert.strictEqual(w.devices.iset_hhm.cells.trace_recent.readonly,true);
+});
+check('retained reconnect, legacy metadata and invalid MQTT never prove live change',function(){
+    [true,undefined,'false',0].forEach(function(metadata){
+        var w=boot(),p='wb-m1w2_67/External Sensor 1';
+        var topic='/devices/wb-m1w2_67/controls/External Sensor 1';
+        w.external(p,30);w.emit(topic,30,false);
+        w.emit(topic,31,false);w.step(16000);
+        assert.ok(w.controls['iset_hhm/sensor_details'].indexOf('Подача ТП: Наблюдалось')>=0);
+        w.emit(topic,32,metadata);w.step(1000);
+        assert.ok(w.controls['iset_hhm/sensor_details'].indexOf('Подача ТП: Свежесть MQTT не подтверждена')>=0);
+        w.emit(topic,'bad',false);w.emit(topic,33,false);w.step(1000);
+        assert.ok(w.controls['iset_hhm/sensor_details'].indexOf('Подача ТП: Свежесть MQTT не подтверждена')>=0);
+    });
+});
+check('same numeric MQTT and silence expire observation without declaring sensor fault',function(){
+    var w=boot(),p='wb-m1w2_67/External Sensor 1';
+    var topic='/devices/wb-m1w2_67/controls/External Sensor 1';
+    w.external(p,30);w.emit(topic,'30',true);w.emit(topic,'30.0',false);
+    w.step(16000);
+    assert.ok(w.controls['iset_hhm/sensor_details'].indexOf('Подача ТП: Свежесть MQTT не подтверждена')>=0);
+    w.emit(topic,31,false);w.step(1000);
+    w.step(300000);
+    assert.ok(w.controls['iset_hhm/sensor_details'].indexOf('Подача ТП: Свежесть MQTT не подтверждена')>=0);
+    assert.ok(!w.logs.some(function(x){return x[1].indexOf('[Подача ТП]; ОШИБКА')>=0;}));
+});
+check('trace sanitizes arbitrary MQTT payloads and identifies boot and source',function(){
+    var p='wb-mao4_131/Channel 1 Dimming Level',w=boot({},true,[p]);
+    w.external(p,'password=secret\n'+new Array(10000).join('x'));
+    w.physicalWrite({path:p,value:25,action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'});
+    w.advanceClock(31000);w.watchReadback();
+    var raw=w.controls['iset_hhm/trace_recent'],trace=JSON.parse(raw);
+    assert.strictEqual(raw.indexOf('secret'),-1);
+    assert.ok(raw.length<16000);
+    assert.strictEqual(trace[trace.length-1].detail.actual,null);
+    assert.strictEqual(trace[trace.length-1].source,'29_hhm_iset');
+    assert.ok(trace[trace.length-1].boot);
+});
+check('trace serialization failure cannot prevent safe close or readback watchdog',function(){
+    var p='wb-mao4_131/Channel 1 Dimming Level',w=boot({},true,[p]);
+    w.external(p,25);w.failTrace();
+    assert.strictEqual(w.physicalWrite({path:p,value:0,action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'}),true);
+    assert.ok(w.outputs.some(function(x){return x.path===p&&x.value===0;}));
+    w.advanceClock(31000);w.watchReadback();
+    assert.ok(w.logs.some(function(x){return x[1].indexOf('Нет подтверждения MQTT')>=0;}));
+});
+check('unconfirmed pump retries remain physical but produce one Russian command event',function(){
+    var p='wb-mr6cu_37/K3',w=boot({},true,[p]);
+    w.external(p,false);w.logs.length=0;
+    var cmd={path:p,value:true,action:'PUMP_START',reason:'REQUESTED'};
+    var before=w.outputs.length;
+    w.physicalWrite(cmd);w.advanceClock(6000);w.physicalWrite(cmd);
+    assert.strictEqual(w.outputs.slice(before).filter(function(x){return x.path===p;}).length,2);
+    assert.strictEqual(w.logs.filter(function(x){return x[1].indexOf('КОМАНДА=Включить насос')>=0;}).length,1);
+});
+check('one minute confirmed MAO4 hold emits zero physical repeats',function(){
+    var p='wb-mao4_131/Channel 1 Dimming Level',w=boot({},true);
+    w.external(p,'25');var before=w.outputs.length;
+    for(var n=0;n<60;n++){
+        w.advanceClock(1000);
+        w.physicalWrite({path:p,value:25,action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'});
+    }
+    assert.strictEqual(w.outputs.slice(before).filter(function(x){return x.path===p;}).length,0);
+    w.external(p,1);
+    w.physicalWrite({path:p,value:0,action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'});
+    assert.strictEqual(w.controls[p],0);
+});
+check('basement persistence failure cannot change acknowledged target',function(){
+    var data={iset_hhm_basement_target_v1:'23'};
+    var storage=new Proxy(data,{set:function(t,k,v){
+        if(k!=='iset_hhm_basement_target_v1')t[k]=v;return true;
+    }}),w=boot(storage);
+    w.external('iset_hhm_basement/target_input',25);
+    w.click('iset_hhm_basement/save');w.step(1000);
+    assert.strictEqual(w.controls['iset_hhm_basement/target_saved'],'23 °C');
+    assert.strictEqual(data.iset_hhm_basement_target_v1,'23');
+});
+check('MAO4 reversal supersedes pending opening even when readback is still closed',function(){
+    var p='wb-mao4_131/Channel 1 Dimming Level',w=boot({},true,[p]);
+    w.external(p,0);
+    w.physicalWrite({path:p,value:25,action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'});
+    var before=w.outputs.length;
+    w.physicalWrite({path:p,value:0,action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'});
+    assert.strictEqual(w.outputs.slice(before).filter(function(x){
+        return x.path===p&&x.value===0;
+    }).length,1,'pending opening must be superseded by a physical close');
+    w.watchReadback();w.advanceClock(31000);w.watchReadback();
+    assert.ok(!w.logs.some(function(x){return x[1].indexOf(p)>=0&&
+        x[1].indexOf('Нет подтверждения MQTT')>=0;}));
+});
+check('missing M1W2 presence and OK remain visible after numeric MQTT changes',function(){
+    var w=boot(),p='wb-m1w2_67/External Sensor 1';
+    var topic='/devices/wb-m1w2_67/controls/External Sensor 1';
+    w.external(p,30);w.emit(topic,30);w.emit(topic,31);w.step(16000);
+    assert.ok(w.controls['iset_hhm/sensor_details'].indexOf(
+        'Подача ТП: Наблюдалось изменение MQTT (не возраст измерения); присутствие/OK не подтверждены')>=0);
+    w.external('wb-m1w2_67/ext_sens1_presense',1);
+    w.external(p+' OK',1);w.step(1000);
+    assert.ok(w.controls['iset_hhm/sensor_details'].indexOf(
+        'Подача ТП: Наблюдалось изменение MQTT')>=0);
+});
+check('operator UI sorts rooms by first NO output without changing MQTT IDs',function(){
+    var w=boot(),rooms=modules.IsetRoomZones.zones,seen={};
+    rooms.forEach(function(z){
+        var id='iset_hhm_'+z.id,vd=w.devices[id],first=Number(
+            z.outputs[0].split('/')[1].substring(1));
+        var prefix=('00'+first).slice(-3);
+        assert.strictEqual(vd.title,prefix+' Отопление / '+z.title);
+        assert.ok(vd.cells.actuators_view.readonly);
+        assert.strictEqual(vd.cells.saved.hidden,true);
+        assert.strictEqual(vd.cells.saved_view.order,45);
+        assert.ok(vd.cells.wait.order<vd.cells.actuators_view.order);
+        assert.ok(vd.cells.demand.enum.HEAT.ru);
+        z.outputs.forEach(function(path){
+            var key='servo_'+path.split('/')[1].toLowerCase();
+            assert.ok(vd.cells[key].hidden);
+        });
+        assert.ok(!seen[id]);seen[id]=true;
+    });
+    assert.strictEqual(Object.keys(seen).length,8);
+    assert.strictEqual(w.devices.iset_hhm.title,'090 Отопление / диагностика');
+});
+check('operator descriptions preserve machine MQTT payloads',function(){
+    var w=boot(),office=w.devices.iset_hhm_office.cells;
+    w.external('wb-msw-v4_22/Temperature',19);
+    w.external('wb-mio-gpio_195:2/K1',false);
+    w.step(1000);
+    assert.strictEqual(w.controls['iset_hhm_office/demand'],'HEAT');
+    assert.strictEqual(w.controls['iset_hhm_office/state'],'NORMAL');
+    assert.strictEqual(w.controls['iset_hhm_office/saved'],'HEAT / 25°C');
+    assert.strictEqual(w.controls['iset_hhm_office/saved_view'],'Включено / 25 °C');
+    assert.strictEqual(office.state.enum.NORMAL.ru,'Работает штатно');
+    assert.strictEqual(w.controls['iset_hhm_office/actuators_view'].indexOf('К1')>=0,true);
+});
+check('no-demand room no longer reports missing OPEN data as an alarm',function(){
+    var w=boot(),p='wb-msw-v4_53/Temperature';
+    w.external(p,29);
+    w.external('wb-mio-gpio_195:2/K2',true);
+    w.external('wb-mio-gpio_195:2/K3',true);
+    w.step(1000);
+    assert.strictEqual(w.controls['iset_hhm_summer_kitchen/demand'],'OFF');
+    assert.strictEqual(w.controls['iset_hhm_summer_kitchen/wait'],
+        'Открытие не требуется');
+    var info=w.controls['iset_hhm_summer_kitchen/actuators_view'];
+    assert.ok(info.indexOf('К2 команда закрыть')>=0,info);
+    assert.ok(info.indexOf('К3 команда закрыть')>=0,info);
+});
+check('pump K4 readback ON never claims it awaits permission to start',function(){
+    var w=boot();
+    w.external('wb-mr6cu_37/K4',true);
+    w.step(1000);
+    assert.strictEqual(w.controls['iset_hhm_k4/relay'],'ON');
+    assert.strictEqual(w.controls['iset_hhm_k4/start_timer'],'Насос включён');
+    assert.strictEqual(w.devices.iset_hhm_k4.cells.run_timer.hidden,true);
+    assert.strictEqual(w.devices.iset_hhm_k4.cells.start_timer.order,10);
+    assert.strictEqual(w.devices.iset_hhm_k4.cells.relay.order,30);
+});
+check('floor operator device follows MAO4 -> K2 -> supply -> loops',function(){
+    var w=boot(),cells=w.devices.iset_hhm_floor.cells;
+    assert.strictEqual(w.devices.iset_hhm_floor.title,'012 Тёплый пол / К2');
+    assert.ok(cells.preflight_timer.order<cells.valve_enable.order);
+    assert.ok(cells.valve_enable.order<cells.valve_position.order);
+    assert.ok(cells.timer.order<cells.pump_relay.order);
+    assert.ok(cells.pump_relay.order<cells.supply_temperature.order);
+    assert.ok(cells.supply_temperature.order<cells.k12_timer.order);
+    w.external('wb-mao4_131/Channel 1 Dimming Level',17);
+    w.external('wb-mao4_131/Channel 1 Switch',true);
+    w.external('wb-mr6cu_37/K2',true);
+    w.external('wb-m1w2_67/External Sensor 1',31.5);
+    w.step(1000);
+    assert.strictEqual(w.controls['iset_hhm_floor/valve_position'],'17 % (MQTT)');
+    assert.strictEqual(w.controls['iset_hhm_floor/pump_relay'],'ON');
+    assert.strictEqual(w.controls['iset_hhm_floor/supply_temperature'],'31.5 °C');
+});
+check('operator diagnostics hide raw telemetry but retain controls',function(){
+    var w=boot(),gen=w.devices.iset_hhm.cells,
+        dhw=w.devices.iset_hhm_dhw.cells,
+        pump=w.devices.iset_hhm_k1.cells;
+    assert.ok(gen.trace_recent.hidden&&gen.trace_seq.hidden);
+    assert.ok(gen.actions.hidden&&gen.source.hidden&&gen.dhw.hidden);
+    assert.strictEqual(gen.io_state.enum.READBACK_OK.ru,
+        'Отправленные команды подтверждены MQTT');
+    assert.ok(dhw.tank.hidden&&dhw.tank_view.readonly);
+    assert.ok(dhw.priority_timer.order<dhw.mode.order);
+    assert.strictEqual(pump.run_timer.hidden,true);
+    assert.strictEqual(pump.relay.enum.ON.ru,'Реле включено');
+    assert.strictEqual(w.controls['iset_hhm_dhw/tank']!==undefined,true);
 });
 console.log('TOTAL PASS '+count);

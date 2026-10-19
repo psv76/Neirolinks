@@ -5,8 +5,18 @@
 function validNumber(x){return typeof x==='number'&&isFinite(x);}
 function relay(x){return x===true||x===1||x==='1'?true:
     x===false||x===0||x==='0'?false:null;}
-function same(a,b){return typeof a==='number'&&typeof b==='number'?
-    Math.abs(a-b)<0.01:a===b;}
+function numericReadback(v){
+    if(typeof v==='number'&&isFinite(v))return v;
+    if(typeof v==='string'&&v.trim()!==''&&isFinite(Number(v)))
+        return Number(v);
+    return null;
+}
+function same(a,b,tolerance){
+    var actual=numericReadback(a),requested=numericReadback(b);
+    if(actual!==null&&requested!==null)
+        return Math.abs(actual-requested)<=tolerance;
+    return a===b;
+}
 exports.create=function(o){
     if(!o||!o.map||!o.services||!o.coordinator||
        !o.roomsPlanner||!o.floorHydraulics)
@@ -88,7 +98,8 @@ exports.create=function(o){
                     return;
                 }
                 if((typeof value==='boolean'&&relay(output[path])===value)||
-                   (typeof value!=='boolean'&&same(output[path],value)))return;
+                   (typeof value!=='boolean'&&same(output[path],value,
+                       path===svc.outputs.floorValveLevel?0.5:0.01)))return;
                 var cmd={path:path,value:value,action:action,reason:reason||''};
                 seen[path]=cmd;commands.push(cmd);
             }

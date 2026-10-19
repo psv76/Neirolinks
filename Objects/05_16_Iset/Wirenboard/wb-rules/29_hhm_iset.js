@@ -51,6 +51,18 @@ if(HHM_BASEMENT_TARGET!==null)
 var HHM_BOOT="iset-hhm-"+String(Date.now());
 var HHM_ERRORS={},HHM_PREV={},HHM_MIX_INTENTS=[],HHM_BUSY=false;
 var HHM_LAST_WRITE={};
+// Diagnostic-only state: failures here MUST NOT affect the control plan.
+var HHM_TRACE_RING=[],HHM_TRACE_SEQ=0;
+var HHM_SENSOR_OBS={},HHM_SENSOR_LAST_FAULT={};
+var HHM_SENSOR_START_AT=Date.now();
+var HHM_SENSOR_SPECS=[
+    {id:"common",title:"Общая подача",path:HHM_SVC.channels.common},
+    {id:"outdoor",title:"Улица",path:HHM_SVC.channels.outdoor},
+    {id:"living",title:"Подача жилой зоны",path:HHM_SVC.channels.livingSupply},
+    {id:"basement",title:"Подача цоколя",path:HHM_SVC.channels.basementSupply},
+    {id:"floor",title:"Подача ТП",path:HHM_SVC.channels.floorSupply},
+    {id:"dhw",title:"Бойлер ГВС",path:HHM_SVC.channels.dhwTank}
+];
 // Explicit user-approved initial settings: every room HEAT / 25 C.
 // Existing valid WB settings always take precedence after restart.
 for(var HHM_SEED=0;HHM_SEED<HHM_ROOM_MAP.zones.length;HHM_SEED++){
@@ -115,6 +127,191 @@ function hhNum(x){
 function hhSec(ms){return ms===null||ms===undefined?"—":
     String(Math.ceil(ms/1000))+" с";}
 function hhChanged(path,value){if(dev[path]!==value)dev[path]=value;}
+// Only MQTT meta and operator presentation are changed here. Calculations
+// continue consuming the original machine-level states from HHM.
+function hhEnum(map){
+    var result={},keys=Object.keys(map);
+    for(var i=0;i<keys.length;i++)
+        result[keys[i]]={ru:map[keys[i]],en:map[keys[i]]};
+    return result;
+}
+function hhPad3(n){return ("00"+String(n)).slice(-3);}
+function hhRoomActuatorLabel(a){
+    var k="К"+a.path.split("/")[1].slice(1),v=a.openingRemainingMs;
+    if(v!==null)return k+" "+hhSec(v);
+    var states={
+        CLOSED_RELAY:"команда закрыть",OPEN_RELAY:"реле открыто",
+        OPENING_WAIT:"ожидание открытия",READY:"открытие выдержано",
+        WAIT_OPEN:"команда открыть",READBACK_UNKNOWN:"нет ответа реле"
+    };
+    return k+" "+(states[a.state]||"состояние не определено");
+}
+function hhDhwView(state,elapsed){
+    var text=state==="ACTIVE"?"Нагрев бойлера включён":
+        state==="INACTIVE"?"Нагрев бойлера выключен":
+        state==="FAULT"?"Авария ГВС":"Состояние "+state;
+    return text+(state==="ACTIVE"&&typeof elapsed==="number"&&
+        isFinite(elapsed)?"; длится "+Math.floor(Math.max(0,elapsed))+" с":"");
+}
+// Machine-only bounded trace. Never affects heating if MQTT/serialization fails.
+function hhTrace(event,context,detail,at){
+    try{
+        var item={schema:1,source:"29_hhm_iset",boot:HHM_BOOT,
+            sequence:++HHM_TRACE_SEQ,
+            timestamp_ms:at===undefined?Date.now():at,
+            event:event,context:context,detail:detail};
+        HHM_TRACE_RING.push(item);
+        if(HHM_TRACE_RING.length>24)HHM_TRACE_RING.shift();
+        hhChanged("iset_hhm/trace_seq",HHM_TRACE_SEQ);
+        hhChanged("iset_hhm/trace_recent",JSON.stringify(HHM_TRACE_RING));
+    }catch(ignore){}
+}
+// Observe numeric MQTT changes, never claim a physical measurement timestamp.
+// Retained replay (including reconnect) and old APIs without retained metadata
+// cannot prove a live update. Identical publications are not new measurements.
+function hhObserveSensor(path,msg){
+    try{
+        if(!msg||msg.value===undefined||msg.value===null)return;
+        var v=hhNum(msg.value),o=HHM_SENSOR_OBS[path];
+        if(!o)o=HHM_SENSOR_OBS[path]={lastValue:null,lastChangeAt:null};
+        if(v===null||msg.retained!==false){
+            o.lastValue=v;o.lastChangeAt=null;return;
+        }
+        if(o.lastValue!==null&&o.lastValue!==v)
+            o.lastChangeAt=Date.now();
+        o.lastValue=v;
+    }catch(ignore){}
+}
+function hhSensorPresencePath(path){
+    var m=/^([^/]+)\/External Sensor ([12])$/.exec(path);
+    return m?m[1]+"/ext_sens"+m[2]+"_presense":null;
+}
+// Observation only. Do not feed these classifications into physical interlocks.
+function hhSensorMonitor(now){
+    try{
+        var problems=0,uncertain=0,items=[],i,s,v,presence,reported,
+            o,status,bad,previous,proof;
+        for(i=0;i<HHM_SENSOR_SPECS.length;i++){
+            s=HHM_SENSOR_SPECS[i];
+            v=hhNum(dev[s.path]);
+            presence=hhBool(dev[hhSensorPresencePath(s.path)]);
+            reported=hhBool(dev[s.path+" OK"]);
+            o=HHM_SENSOR_OBS[s.path];
+            proof=o&&o.lastChangeAt!==null&&
+                now-o.lastChangeAt>=0&&now-o.lastChangeAt<300000;
+            bad=v===null||presence===false||reported===false;
+            if(bad){
+                status=v===null?"Нет числового значения":
+                    presence===false?"M1W2 сообщает отсутствие датчика":
+                    "M1W2 сообщает ошибку датчика";
+                problems++;
+            }else if(!proof){
+                status="Свежесть MQTT не подтверждена";
+                uncertain++;
+            }else status="Наблюдалось изменение MQTT (не возраст измерения)";
+            if(!bad&&(presence===null||reported===null)){
+                status+="; присутствие/OK не подтверждены (присутствие="+
+                    (presence===null?"нет данных":"да")+", OK="+
+                    (reported===null?"нет данных":"да")+")";
+                if(proof)uncertain++;
+            }
+            items.push(s.title+": "+status);
+            previous=HHM_SENSOR_LAST_FAULT[s.id];
+            // Allow retained MQTT and Modbus devices to settle after
+            // wb-rules restart; initial missing values are not a fault yet.
+            if(now-HHM_SENSOR_START_AT<15000)continue;
+            if(bad&&previous!==true){
+                log.warning("[отопление][29_hhm_iset]["+s.title+
+                    "]; ОШИБКА=Диагностика датчика; причина="+status);
+                hhTrace("SENSOR_FAULT",s.id,
+                    {channel:s.path,reason:status},now);
+            }else if(!bad&&previous===true){
+                log.info("[отопление][29_hhm_iset]["+s.title+
+                    "]; СОСТОЯНИЕ=Показания датчика восстановились; "+
+                    "свежесть MQTT="+(proof?"подтверждены изменения":"не доказана"));
+                hhTrace("SENSOR_RECOVERED",s.id,
+                    {channel:s.path,mqtt_change_observed:proof===true},now);
+            }
+            HHM_SENSOR_LAST_FAULT[s.id]=bad;
+        }
+        hhChanged("iset_hhm/sensor_issues",problems);
+        hhChanged("iset_hhm/sensor_unverified",uncertain);
+        hhChanged("iset_hhm/sensor_details",items.join("; "));
+    }catch(e){
+        // Never let diagnostics throw into the calculation/writer path.
+    }
+}
+function hhHumanMode(id,code){
+    var source={
+        OT_LINK_INVALID:"Нет связи с котлом по OpenTherm",
+        EQUIPMENT_PROTECTION:"Нагрев запрещён защитой оборудования",
+        NO_DEMAND:"Нет запроса на нагрев",
+        HEAT_REQUESTED:"Запрошен нагрев"
+    },dhw={
+        IDLE:"ГВС: ожидание",ACCELERATED:"ГВС: ускоренный нагрев",
+        SUPPORT:"ГВС: совместный нагрев с отоплением",
+        OVERRUN:"ГВС: выбег насоса",
+        FAULT:"ГВС: авария",UNKNOWN:"ГВС: нет достоверных данных"
+    },floor={
+        OFF:"Тёплый пол отключён",
+        HARD_SUPPLY_STOP:"Тёплый пол: останов К2 по пределу подачи",
+        SUPPLY_SENSOR_UNAVAILABLE:"Тёплый пол: температура подачи недоступна",
+        HOT_PORT_CLOSED_CIRCULATION_ALLOWED:
+            "Тёплый пол: горячий порт закрыт, К2 может продолжать циркуляцию",
+        CIRCULATING:"Тёплый пол: К2 включён по MQTT",
+        WAIT_LOOPS:"Тёплый пол: ожидание открытия петель",
+        WAIT_MAO4_PREFLIGHT:"Тёплый пол: проверка канала MAO4",
+        WAIT_MAO4_STABLE:"Тёплый пол: ожидание подтверждения MAO4",
+        READY:"Тёплый пол: готов к нагреву"
+    };
+    var table=id==="source_mode"?source:id==="dhw_mode"?dhw:floor;
+    return table[code]||"Режим "+String(code);
+}
+function hhHumanReason(code){
+    var reasons={
+        OT_DISCONNECTED:"нет связи OpenTherm",
+        EQUIPMENT_PROTECTION:"сработали условия защиты котла",
+        TANK_NOT_READY:"температура бойлера недостоверна",
+        DHW_TIMEOUT_LATCHED:"превышено время нагрева ГВС",
+        TANK_THERMOSTAT:"управление по температуре бойлера",
+        NO_DEMAND:"нет запроса тепла",SOURCE_REQUEST:"есть запрос тепла",
+        SENSOR_UNKNOWN:"нет достоверных данных датчика",
+        LOCAL_OFF:"локально отключено",FLOOR_MIXING:"регулирование ТП",
+        ALL_ROOMS_OFF:"запросы комнат сняты",ROOM_HEAT_DEMAND:"комната запрашивает тепло",
+        ROOM_NO_DEMAND:"нет запроса комнаты",
+        REQUESTED_ZONE_OPEN_WAIT_COMPLETE:"выдержка открытия зоны завершена",
+        INDEPENDENT_PLANT_PROTECTION:"источник недоступен или запрещён защитой",
+        REQUESTED:"запрошен нагрев",NOT_REQUESTED:"нет запроса",
+        DHW_PRIORITY:"приоритет ГВС",DHW_PRIORITY_PAUSE:"пауза по приоритету ГВС",
+        NO_REQUEST:"нет запроса"
+    };
+    if(reasons[code])return reasons[code];
+    var floor=hhHumanMode("floor_mode",code),dhw=hhHumanMode("dhw_mode",code);
+    return floor.indexOf("Режим ")!==0?floor:
+        dhw.indexOf("Режим ")!==0?dhw:String(code);
+}
+function hhHumanAction(code){
+    var actions={PUMP_START:"Включить насос",PUMP_STOP:"Отключить насос",
+        ZONE_OPEN:"Открыть NO-привод",ZONE_CLOSE:"Закрыть NO-привод",
+        FLOOR_LOOP_OPEN:"Открыть петлю ТП",FLOOR_HOT_PORT_CLOSE:"Закрыть горячий порт ТП",
+        FLOOR_VALVE_ENABLE:"Разрешить канал MAO4",FLOOR_VALVE_PREFLIGHT:"Проверка MAO4: 1%",
+        FLOOR_PUMP_STOP_PROTECTION:"Отключить К2 по защите",
+        FLOOR_PUMP_START:"Включить К2",FLOOR_PUMP_STOP_NO_DEMAND:"Отключить К2: нет запроса",
+        MIX_ENABLE:"Переключить разрешение смесителя"};
+    return actions[code]||String(code);
+}
+function hhOpTransition(id,context,state,reason){
+    if(HHM_PREV[id]===state)return;
+    var old=HHM_PREV[id];
+    HHM_PREV[id]=state;
+    hhTrace("MODE",context,{previous:old===undefined?null:old,
+        state:state,reason:reason||null},Date.now());
+    log.info("[отопление][29_hhm_iset]["+context+
+        "]; СОСТОЯНИЕ="+hhHumanMode(id,state)+
+        "; код="+state+"; ранее="+
+        (old===undefined?"при запуске":hhHumanMode(id,old))+
+        (reason?"; причина="+hhHumanReason(reason):""));
+}
 function hhControls(p){
     var o={},i;
     for(i=0;i<p.length;i++)o[p[i]]=dev[p[i]];
@@ -173,6 +370,15 @@ function hhWrite(cmd,at){
         // Retry after 5s if the driver's readback remains unchanged.
         var prev=HHM_LAST_WRITE[cmd.path];
         var before=dev[cmd.path];
+        // HHM3Mixing may request the SAME position every second while
+        // holding a step. Accept already-confirmed MAO4 readback as a
+        // successful idempotent no-op; do NOT write into /on or log.
+        // If the readback differs or is invalid, retain retry/watchdog.
+        if(cmd.action==="MIX_VALVE_POS"&&
+           (!prev||prev.value===cmd.value)&&
+           hhMatchesReadback(before,cmd.value))return true;
+        // A different pending request may still reach the device: an old
+        // readback matching the NEW target must not suppress its reversal.
         // If a formerly unknown relay now reports an opposite state,
         // send STOP immediately. Retry throttling is only for identical,
         // unchanged readback conditions.
@@ -183,9 +389,16 @@ function hhWrite(cmd,at){
             value:cmd.value,at:at,observed:before,
             firstAt:prev&&prev.value===cmd.value?prev.firstAt:at,
             warned:prev&&prev.value===cmd.value&&prev.warned===true};
-        log.info("[отопление][29_hhm_iset]["+cmd.path+
-            "]; КОМАНДА="+cmd.action+"; значение="+cmd.value+
-            "; причина="+cmd.reason);
+        // Normal MAO4 regulator steps and OT ramp are technical telemetry,
+        // not operator events. Safety-related output commands still log.
+        hhTrace("WRITE",cmd.path,{action:cmd.action,
+            requested:cmd.value,readback_before:hhReadbackValue(before,cmd.value),
+            reason:cmd.reason},at);
+        if(cmd.action!=="MIX_VALVE_POS"&&cmd.action!=="OT_SETPOINT"&&
+           (!prev||prev.value!==cmd.value))
+            log.info("[отопление][29_hhm_iset]["+cmd.path+
+                "]; КОМАНДА="+hhHumanAction(cmd.action)+"; значение="+cmd.value+
+                "; причина="+hhHumanReason(cmd.reason));
         if(cmd.action==="OT_SETPOINT")
             HHM_COORDINATOR.acknowledgeOtWrite(at/1000,cmd.value);
         return true;
@@ -202,6 +415,10 @@ function hhMatchesReadback(actual,wanted){
     var v=hhNum(actual);
     return v!==null&&Math.abs(v-wanted)<=0.5;
 }
+// Do not copy arbitrary MQTT payloads into the trace (size/privacy boundary).
+function hhReadbackValue(actual,wanted){
+    return typeof wanted==="boolean"?hhBool(actual):hhNum(actual);
+}
 function hhIOReadbackWatch(now){
     var pending=[],lost=[],path,record,elapsed,actual;
     for(path in HHM_LAST_WRITE){
@@ -209,6 +426,9 @@ function hhIOReadbackWatch(now){
         record=HHM_LAST_WRITE[path];
         actual=dev[path];
         if(hhMatchesReadback(actual,record.value)){
+            if(record.warned)
+                hhTrace("READBACK_RECOVERED",path,
+                    {requested:record.value,actual:hhReadbackValue(actual,record.value)},now);
             if(record.warned)
                 log.info("[отопление][29_hhm_iset]["+path+
                     "]; ВОССТАНОВЛЕНИЕ=MQTT readback совпал с командой");
@@ -220,6 +440,9 @@ function hhIOReadbackWatch(now){
             lost.push(path+" ("+Math.floor(elapsed/1000)+" с)");
             if(!record.warned){
                 record.warned=true;
+                hhTrace("READBACK_TIMEOUT",path,
+                    {requested:record.value,actual:hhReadbackValue(actual,record.value),
+                    elapsed_ms:elapsed},now);
                 log.warning("[отопление][29_hhm_iset]["+path+
                     "]; ОШИБКА=Нет подтверждения MQTT после команды "+
                     String(record.value)+" в течение 30 с; "+
@@ -247,14 +470,23 @@ function hhRoomView(report){
         var settings=HHM_ROOM.settings(z.id);
         hhChanged(name+"/saved",settings?settings.mode+" / "+
             settings.setpointC+"°C":"Уставка не задана");
-        hhChanged(name+"/wait",zplan.openRemainingMs===null?
-            "Нет данных OPEN":hhSec(zplan.openRemainingMs));
+        hhChanged(name+"/saved_view",settings?
+            (settings.mode==="HEAT"?"Включено":"Выключено")+
+            " / "+settings.setpointC+" °C":"Уставка не задана");
+        hhChanged(name+"/wait",state.heatDemand===false?
+            "Открытие не требуется":state.heatDemand===null?
+            "Запрос не определён":zplan.waitingForReadback?
+            "Нет подтверждения открытия NO":zplan.openRemainingMs===null?
+            "Время открытия недоступно":hhSec(zplan.openRemainingMs));
+        var summaries=[];
         for(var j=0;j<zplan.actuators.length;j++){
             var a=zplan.actuators[j],k=a.path.split("/")[1].toLowerCase();
             hhChanged(name+"/servo_"+k,
                 a.openingRemainingMs===null?a.state:
                     hhSec(a.openingRemainingMs));
+            summaries.push(hhRoomActuatorLabel(a));
         }
+        hhChanged(name+"/actuators_view",summaries.join("; "));
     }
 }
 function hhPumpView(report,path,vd){
@@ -263,17 +495,20 @@ function hhPumpView(report,path,vd){
         t.readback===false?"OFF":"UNKNOWN");
     hhChanged(vd+"/run_timer",hhSec(t.observedRunMs));
     hhChanged(vd+"/stop_timer",hhSec(t.stopWaitMs));
-    var start="По запросу";
-    if(vd==="iset_hhm_k2"){
-        start=t.readback===true?"Работает":
+    var start=t.readback===true?"Насос включён":
+        t.readback===null?"Нет подтверждения реле":"По запросу";
+    if(vd==="iset_hhm_k2"&&t.readback===false){
+        start=
             !report.floor.allLoopsReady?
             (report.floor.remainingOpenMs===null?
                 "Ожидание открытия NO":hhSec(report.floor.remainingOpenMs)):
             report.floor.valvePreflightRemainingMs===null?
                 "Ожидание MAO4":hhSec(report.floor.valvePreflightRemainingMs);
-    }else if(vd==="iset_hhm_k4")
+    }else if(vd==="iset_hhm_k4"&&t.readback===false)
         start=report.living.pumpStartRemainingMs===null?
-            "Ожидание открытия NO":hhSec(report.living.pumpStartRemainingMs);
+            (report.living.requestingZones>0?
+                "Ожидание подтверждения открытия NO":"Нет запроса"):
+            hhSec(report.living.pumpStartRemainingMs);
     hhChanged(vd+"/start_timer",start);
 }
 function hhTick(){
@@ -281,14 +516,27 @@ function hhTick(){
     HHM_BUSY=true;
     try{
         var now=Date.now(),report=HHM_ENGINE.step(hhInput());
+        hhSensorMonitor(now); // read-only diagnostics, isolated from control
         hhChanged("iset_hhm/status",
             HHM_PHYSICAL_OUTPUTS?"РАБОЧИЙ HHM":"РАСЧЁТ, КОМАНД НЕТ");
         hhChanged("iset_hhm/source",report.services.source.state+
             " / "+report.services.source.targetC+"°C");
+        hhChanged("iset_hhm/source_view",
+            hhHumanMode("source_mode",report.services.source.state)+
+            (report.services.source.targetC===null?"":": "+
+                report.services.source.targetC+" °C"));
+        hhChanged("iset_hhm/dhw_view",
+            hhHumanMode("dhw_mode",report.services.dhw.mode));
         hhChanged("iset_hhm/dhw",report.services.dhw.mode+
             " / приоритет "+hhSec(report.services.dhw.priorityRemainingS===null?
                 null:report.services.dhw.priorityRemainingS*1000));
         hhChanged("iset_hhm_dhw/mode",report.services.dhw.mode);
+        hhOpTransition("dhw_mode","ГВС",report.services.dhw.mode,
+            report.services.dhw.reason);
+        hhOpTransition("source_mode","котёл",report.services.source.state,
+            report.services.source.reason);
+        hhOpTransition("floor_mode","ТП",report.floor.state,
+            report.floor.state);
         hhChanged("iset_hhm_dhw/priority_timer",
             hhSec(report.services.dhw.priorityRemainingS===null?
                 null:report.services.dhw.priorityRemainingS*1000));
@@ -297,6 +545,9 @@ function hhTick(){
                 null:report.services.dhw.overrunRemainingS*1000));
         hhChanged("iset_hhm_dhw/tank",report.services.dhw.state+
             " / "+String(report.services.dhw.heatingElapsedS)+" с");
+        hhChanged("iset_hhm_dhw/tank_view",
+            hhDhwView(report.services.dhw.state,
+                report.services.dhw.heatingElapsedS));
         hhChanged("iset_hhm_basement/target_saved",
             String(HHM_SVC.basement.targetC)+" °C");
         hhChanged("iset_hhm_basement/demand",
@@ -306,8 +557,25 @@ function hhTick(){
         hhChanged("iset_hhm/floor_timer",
             hhSec(report.floor.remainingOpenMs));
         hhChanged("iset_hhm/floor_state",report.floor.state);
+        hhChanged("iset_hhm_floor/state",report.floor.state);
         hhChanged("iset_hhm_floor/preflight_timer",
-            hhSec(report.floor.valvePreflightRemainingMs));
+            report.floor.state==="OFF"?"Не требуется":
+            report.floor.valvePreflightRemainingMs===null?
+                "Ожидание подтверждения MAO4":
+                hhSec(report.floor.valvePreflightRemainingMs));
+        hhChanged("iset_hhm_floor/valve_position",
+            hhNum(dev[HHM_SVC.outputs.floorValveLevel])===null?
+                "Нет подтверждения положения":
+                String(hhNum(dev[HHM_SVC.outputs.floorValveLevel]))+" % (MQTT)");
+        hhChanged("iset_hhm_floor/valve_enable",
+            hhBool(dev[HHM_SVC.outputs.floorValveEnable])===true?"ON":
+            hhBool(dev[HHM_SVC.outputs.floorValveEnable])===false?"OFF":"UNKNOWN");
+        hhChanged("iset_hhm_floor/pump_relay",
+            report.floor.pumpReadback===true?"ON":
+            report.floor.pumpReadback===false?"OFF":"UNKNOWN");
+        hhChanged("iset_hhm_floor/supply_temperature",
+            hhNum(dev[HHM_SVC.channels.floorSupply])===null?"—":
+            String(hhNum(dev[HHM_SVC.channels.floorSupply]))+" °C");
         hhChanged("iset_hhm/actions",report.commands.length?
             report.commands.map(function(x){return x.action+" "+x.path;})
                 .join(", "):"Нет");
@@ -336,25 +604,44 @@ for(var HHM_Z=0;HHM_Z<HHM_ROOM_MAP.zones.length;HHM_Z++){
     (function(z){
         var n="iset_hhm_"+z.id;
         var st=HHM_ROOM.settings(z.id);
+        // UI order is explicit: control IDs and MQTT paths stay unchanged.
         var cells={
-            state:{type:"text",value:"START",readonly:true,title:"Состояние"},
-            demand:{type:"text",value:"UNKNOWN",readonly:true,title:"Запрос тепла"},
-            temp:{type:"text",value:"—",readonly:true,title:"Температура"},
-            saved:{type:"text",value:"—",readonly:true,title:"Уставка сохранена"},
-            setpoint_input:{type:"value",readonly:false,value:st?st.setpointC:0,
-                title:"Уставка, °C"},
             heating_mode:{type:"switch",value:st?st.mode==="HEAT":true,
-                title:"Отопление включено"},
-            apply:{type:"pushbutton",title:"Применить уставку"},
-            wait:{type:"text",value:"—",readonly:true,
-                title:"Открытие всей зоны"}
+                title:"Отопление включено",order:10},
+            setpoint_input:{type:"value",readonly:false,value:st?st.setpointC:0,
+                title:"Уставка, °C",order:20},
+            apply:{type:"pushbutton",title:"Применить уставку",order:30},
+            saved:{type:"text",value:"—",readonly:true,hidden:true,
+                title:"Уставка (код HHM)",order:40},
+            saved_view:{type:"text",value:"—",readonly:true,order:45,
+                title:"Сохранённый режим / уставка"},
+            demand:{type:"text",value:"UNKNOWN",readonly:true,order:50,
+                title:"Запрос тепла",enum:hhEnum({
+                    HEAT:"Есть запрос",OFF:"Нет запроса",
+                    UNKNOWN:"Нет достоверного запроса"})},
+            wait:{type:"text",value:"—",readonly:true,order:60,
+                title:"До открытия зоны"},
+            actuators_view:{type:"text",value:"—",readonly:true,order:70,
+                title:"Приводы: команды реле / таймеры"},
+            temp:{type:"text",value:"—",readonly:true,order:80,
+                title:"Температура воздуха, °C"},
+            state:{type:"text",value:"START",readonly:true,order:90,
+                title:"Термостат",enum:hhEnum({
+                    START:"Запуск",NORMAL:"Работает штатно",
+                    USER_OFF:"Выключен пользователем",
+                    SENSOR_ERROR:"Ошибка датчика",
+                    NO_VALID_TEMPERATURE:"Нет достоверной температуры",
+                    NOT_COMMISSIONED:"Не настроен"})}
         };
         for(var k=0;k<z.outputs.length;k++){
             var kname=z.outputs[k].split("/")[1].toLowerCase();
-            cells["servo_"+kname]={type:"text",value:"—",
-                readonly:true,title:"Привод "+kname+" — таймер"};
+            cells["servo_"+kname]={type:"text",value:"—",readonly:true,
+                hidden:true,order:100+k,
+                title:"Реле "+kname+" — исходный статус / таймер"};
         }
-        defineVirtualDevice(n,{title:"HHM Исеть / "+z.title,cells:cells});
+        var first=Number(z.outputs[0].split("/")[1].slice(1));
+        defineVirtualDevice(n,{title:hhPad3(first)+" Отопление / "+z.title,
+            cells:cells});
         defineRule("iset_hhm_apply_"+z.id,{
             whenChanged:n+"/apply",then:function(){
                 var target=hhNum(dev[n+"/setpoint_input"]);
@@ -377,30 +664,42 @@ for(var HHM_Z=0;HHM_Z<HHM_ROOM_MAP.zones.length;HHM_Z++){
         });
     })(HHM_ROOM_MAP.zones[HHM_Z]);
 }
-function hhPumpVD(path,name,title){
+function hhPumpVD(path,name,title,delayed){
     defineVirtualDevice(name,{title:title,cells:{
-        relay:{type:"text",value:"UNKNOWN",readonly:true,title:"Реле"},
-        run_timer:{type:"text",value:"—",readonly:true,title:"Работает, с"},
-        stop_timer:{type:"text",value:"—",readonly:true,
-            title:"Ожидание OFF, с"},
         start_timer:{type:"text",value:"—",readonly:true,
-            title:"До разрешения пуска"}
+            hidden:!delayed,order:10,
+            title:"До разрешения включения"},
+        stop_timer:{type:"text",value:"—",readonly:true,order:20,
+            title:"Ожидание подтверждения OFF (прошло)"},
+        relay:{type:"text",value:"UNKNOWN",readonly:true,order:30,
+            title:"Команда на реле насоса",enum:hhEnum({
+                ON:"Реле включено",OFF:"Реле выключено",
+                UNKNOWN:"Нет подтверждения MQTT"})},
+        run_timer:{type:"text",value:"—",readonly:true,hidden:true,
+            order:40,title:"Текущий цикл ON, не моточасы"}
     }});
 }
-hhPumpVD(HHM_SVC.outputs.dhwPump,"iset_hhm_k1","HHM ГВС / K1");
-hhPumpVD(HHM_SVC.outputs.floorPump,"iset_hhm_k2","HHM ТП / K2");
-hhPumpVD(HHM_SVC.outputs.basementPump,"iset_hhm_k3","HHM Цоколь / K3");
-hhPumpVD(HHM_SVC.outputs.livingPump,"iset_hhm_k4","HHM Жилые / K4");
-defineVirtualDevice("iset_hhm_dhw",{title:"HHM Исеть / Бойлер ГВС",
+hhPumpVD(HHM_SVC.outputs.dhwPump,"iset_hhm_k1","091 Насос бойлера ГВС / К1",false);
+hhPumpVD(HHM_SVC.outputs.floorPump,"iset_hhm_k2","092 Насос тёплого пола / К2",true);
+hhPumpVD(HHM_SVC.outputs.basementPump,"iset_hhm_k3","093 Насос цоколя / К3",false);
+hhPumpVD(HHM_SVC.outputs.livingPump,"iset_hhm_k4","094 Насос жилой зоны / К4",true);
+defineVirtualDevice("iset_hhm_dhw",{title:"021 Бойлер ГВС / К1",
     cells:{
-        mode:{type:"text",value:"IDLE",readonly:true,title:"Режим"},
-        tank:{type:"text",value:"—",readonly:true,title:"Состояние / нагрев"},
-        priority_timer:{type:"text",value:"—",readonly:true,
-            title:"Приоритет — осталось"},
-        overrun_timer:{type:"text",value:"—",readonly:true,
-            title:"Выбег K1 — осталось"},
-        boost:{type:"pushbutton",title:"Ускорить нагрев ГВС"},
-        reset_fault:{type:"pushbutton",title:"Сброс ошибки ГВС"}
+        priority_timer:{type:"text",value:"—",readonly:true,order:10,
+            title:"Приоритет ГВС: осталось"},
+        overrun_timer:{type:"text",value:"—",readonly:true,order:20,
+            title:"Выбег К1: осталось"},
+        mode:{type:"text",value:"IDLE",readonly:true,order:30,
+            title:"Режим ГВС",enum:hhEnum({
+                IDLE:"Ожидание",ACCELERATED:"Ускоренный нагрев",
+                SUPPORT:"Совместный нагрев",OVERRUN:"Выбег К1",
+                FAULT:"Авария",UNKNOWN:"Нет достоверных данных"})},
+        tank:{type:"text",value:"—",readonly:true,hidden:true,
+            order:40,title:"ГВС: внутренний код / длительность"},
+        tank_view:{type:"text",value:"—",readonly:true,order:45,
+            title:"Нагрев бойлера"},
+        boost:{type:"pushbutton",title:"Ускорить нагрев ГВС",order:50},
+        reset_fault:{type:"pushbutton",title:"Сброс ошибки ГВС",order:60}
     }});
 defineRule("iset_hhm_dhw_boost",{whenChanged:"iset_hhm_dhw/boost",
     then:function(){
@@ -420,14 +719,17 @@ defineRule("iset_hhm_dhw_reset",{whenChanged:"iset_hhm_dhw/reset_fault",
         log.info("[отопление][29_hhm_iset][ГВС]; КОМАНДА=Сброс ошибки");
         hhTick();
     }});
-defineVirtualDevice("iset_hhm_basement",{title:"HHM Исеть / Цоколь",
+defineVirtualDevice("iset_hhm_basement",{title:"022 Отопление цоколя / К3",
     cells:{
-        target_saved:{type:"text",value:String(HHM_SVC.basement.targetC)+" °C",
-            readonly:true,title:"Сохранённая уставка"},
         target_input:{type:"value",readonly:false,value:HHM_SVC.basement.targetC,
-            title:"Новая уставка, °C"},
-        save:{type:"pushbutton",title:"Сохранить уставку"},
-        demand:{type:"text",value:"—",readonly:true,title:"Запрос тепла"}
+            title:"Уставка, °C",order:10},
+        save:{type:"pushbutton",title:"Сохранить уставку",order:20},
+        target_saved:{type:"text",value:String(HHM_SVC.basement.targetC)+" °C",
+            readonly:true,title:"Сохранённая уставка",order:30},
+        demand:{type:"text",value:"—",readonly:true,order:40,
+            title:"Запрос тепла",enum:hhEnum({
+                "true":"Есть запрос","false":"Нет запроса",
+                "null":"Не определён"})}
     }});
 defineRule("iset_hhm_basement_save",{whenChanged:"iset_hhm_basement/save",
     then:function(){
@@ -447,41 +749,99 @@ defineRule("iset_hhm_basement_save",{whenChanged:"iset_hhm_basement/save",
         }catch(e){log.warning("[отопление][29_hhm_iset][цоколь]; ОШИБКА=Запись уставки");}
     }});
 var HHM_FLOOR_CELLS={
+    preflight_timer:{type:"text",value:"—",readonly:true,order:10,
+        title:"До разрешения К2: MAO4 1%"},
+    valve_enable:{type:"text",value:"UNKNOWN",readonly:true,order:20,
+        title:"Разрешение клапана MAO4 (MQTT)",enum:hhEnum({
+            ON:"Включено",OFF:"Выключено",UNKNOWN:"Нет данных"})},
+    valve_position:{type:"text",value:"—",readonly:true,order:30,
+        title:"Клапан: положение выхода 0–10 В"},
+    timer:{type:"text",value:"—",readonly:true,order:40,
+        title:"До открытия петель"},
+    pump_relay:{type:"text",value:"UNKNOWN",readonly:true,order:50,
+        title:"Насос К2: состояние реле",enum:hhEnum({
+            ON:"Включено",OFF:"Выключено",
+            UNKNOWN:"Нет подтверждения"})},
+    supply_temperature:{type:"text",value:"—",readonly:true,order:60,
+        title:"Температура подачи ТП"},
+    state:{type:"text",value:"OFF",readonly:true,order:70,
+        title:"Режим ТП",enum:hhEnum({
+            OFF:"Тёплый пол выключен",
+            HARD_SUPPLY_STOP:"К2 остановлен по пределу подачи",
+            SUPPLY_SENSOR_UNAVAILABLE:"Нет достоверной подачи ТП",
+            HOT_PORT_CLOSED_CIRCULATION_ALLOWED:
+                "Горячий порт закрыт, К2 может работать",
+            CIRCULATING:"Реле К2 включено",
+            WAIT_LOOPS:"Ожидание открытия петель",
+            WAIT_MAO4_PREFLIGHT:"Проверка канала MAO4",
+            WAIT_MAO4_STABLE:"Ожидание подтверждения MAO4",
+            READY:"Готов к запуску"})},
     enable:{type:"switch",value:HHM_FLOOR_SETTINGS!==null&&
-        HHM_FLOOR_SETTINGS.enabled===true,title:"ТП: локально включить"},
+        HHM_FLOOR_SETTINGS.enabled===true,title:"ТП: локально включить",order:80},
     target:{type:"value",readonly:false,value:HHM_FLOOR_SETTINGS===null?
-        34:HHM_FLOOR_SETTINGS.targetC,title:"ТП: целевая подача, °C"},
-    save:{type:"pushbutton",title:"Сохранить настройки ТП"},
-    state:{type:"text",value:"OFF",readonly:true,title:"Состояние"},
-    timer:{type:"text",value:"—",readonly:true,title:"Все петли"},
-    preflight_timer:{type:"text",value:"—",readonly:true,
-        title:"MAO4 1%: подтверждение 10 с"},
+        34:HHM_FLOOR_SETTINGS.targetC,title:"ТП: целевая подача, °C",order:90},
+    save:{type:"pushbutton",title:"Сохранить настройки ТП",order:100}
 };
 for(var HHM_F=0;HHM_F<HHM_SVC.outputs.floorLoops.length;HHM_F++){
     var label=HHM_SVC.outputs.floorLoops[HHM_F].split("/")[1].toLowerCase();
     HHM_FLOOR_CELLS[label+"_timer"]={type:"text",value:"—",
-        readonly:true,title:"Привод "+label+" — таймер"};
+        readonly:true,order:110+HHM_F*10,title:"Привод "+label+" — таймер"};
 }
-defineVirtualDevice("iset_hhm_floor",{title:"HHM Исеть / Тёплый пол",
+defineVirtualDevice("iset_hhm_floor",{title:"012 Тёплый пол / К2",
     cells:HHM_FLOOR_CELLS});
-defineVirtualDevice("iset_hhm",{title:"HHM Исеть / Общее",cells:{
-    status:{type:"text",value:"START",readonly:true,title:"Режим"},
-    source:{type:"text",value:"—",readonly:true,title:"Котёл"},
-    dhw:{type:"text",value:"—",readonly:true,title:"ГВС / приоритет"},
-    k4_start_timer:{type:"text",value:"—",readonly:true,
-        title:"K4: осталось до пуска"},
-    floor_timer:{type:"text",value:"—",readonly:true,
-        title:"ТП: открытие приводов"},
-    floor_state:{type:"text",value:"OFF",readonly:true,title:"ТП"},
-    actions:{type:"text",value:"—",readonly:true,title:"Расчёт команд"},
-    io_state:{type:"text",value:"START",readonly:true,
-        title:"Контроль MQTT-команд"},
-    io_unconfirmed:{type:"value",value:0,readonly:true,
-        title:"Нет подтверждения более 30 с"},
-    io_waiting:{type:"value",value:0,readonly:true,
-        title:"Ожидают подтверждения менее 30 с"},
-    io_details:{type:"text",value:"—",readonly:true,
-        title:"Каналы без подтверждения MQTT"}
+defineVirtualDevice("iset_hhm",{title:"090 Отопление / диагностика",cells:{
+    status:{type:"text",value:"START",readonly:true,order:10,
+        title:"Управление",enum:hhEnum({
+            START:"Запуск", "РАБОЧИЙ HHM":"Управление активно",
+            "РАСЧЁТ, КОМАНД НЕТ":"Только расчёт, без физических команд"})},
+    source:{type:"text",value:"—",readonly:true,hidden:true,
+        title:"Котёл (исходный код)",order:15},
+    source_view:{type:"text",value:"—",readonly:true,order:20,
+        title:"Котёл / разрешение нагрева"},
+    dhw:{type:"text",value:"—",readonly:true,hidden:true,order:25,
+        title:"ГВС (исходный код)"},
+    dhw_view:{type:"text",value:"—",readonly:true,order:30,
+        title:"ГВС / режим"},
+    k4_start_timer:{type:"text",value:"—",readonly:true,hidden:true,
+        title:"К4: исходный таймер",order:35},
+    floor_timer:{type:"text",value:"—",readonly:true,hidden:true,
+        title:"ТП: исходный таймер",order:40},
+    floor_state:{type:"text",value:"OFF",readonly:true,order:45,
+        title:"Тёплый пол",enum:hhEnum({
+            OFF:"Отключён",CIRCULATING:"Реле К2 включено",
+            READY:"Готов к пуску",
+            WAIT_LOOPS:"Ожидание открытия петель",
+            WAIT_MAO4_PREFLIGHT:"Проверка клапана MAO4",
+            WAIT_MAO4_STABLE:"Ожидание подтверждения MAO4",
+            HARD_SUPPLY_STOP:"К2 остановлен по защите",
+            SUPPLY_SENSOR_UNAVAILABLE:"Нет данных подачи",
+            HOT_PORT_CLOSED_CIRCULATION_ALLOWED:
+                "Горячий порт закрыт, К2 может работать"})},
+    actions:{type:"text",value:"—",readonly:true,hidden:true,order:50,
+        title:"Команды текущего цикла (не состояние отопления)"},
+    io_state:{type:"text",value:"START",readonly:true,order:60,
+        title:"Подтверждение MQTT-команд",enum:hhEnum({
+            START:"Ожидание запуска",
+            READBACK_OK:"Отправленные команды подтверждены MQTT",
+            WAIT_READBACK:"Ожидание ответа MQTT",
+            NO_READBACK:"Нет подтверждения MQTT > 30 с",
+            PREVIEW:"Физические команды отключены"})},
+    io_unconfirmed:{type:"value",value:0,readonly:true,order:70,
+        title:"Команды без подтверждения более 30 с"},
+    io_waiting:{type:"value",value:0,readonly:true,order:80,
+        title:"Команды в ожидании подтверждения"},
+    io_details:{type:"text",value:"—",readonly:true,hidden:true,order:90,
+        title:"Детали неподтверждённых каналов"},
+    sensor_issues:{type:"value",value:0,readonly:true,order:100,
+        title:"M1W2: ошибки температурных каналов"},
+    sensor_unverified:{type:"value",value:6,readonly:true,order:110,
+        title:"M1W2: свежесть данных не подтверждена"},
+    sensor_details:{type:"text",value:"—",readonly:true,hidden:true,
+        order:120,title:"Подробности шести каналов M1W2"},
+    trace_seq:{type:"value",value:0,readonly:true,hidden:true,order:130,
+        title:"Трасса: номер события"},
+    trace_recent:{type:"text",value:"[]",readonly:true,hidden:true,order:140,
+        title:"Машинная трасса (JSON, последние 24 события)"}
 }});
 defineRule("iset_hhm_floor_save",{
     whenChanged:"iset_hhm_floor/save",then:function(){
@@ -506,6 +866,12 @@ defineRule("iset_hhm_floor_save",{
         }
     }
 });
+for(var HHM_SI=0;HHM_SI<HHM_SENSOR_SPECS.length;HHM_SI++){
+    (function(sensor){
+        trackMqtt("/devices/"+sensor.path.replace("/","/controls/"),
+            function(message){hhObserveSensor(sensor.path,message);});
+    })(HHM_SENSOR_SPECS[HHM_SI]);
+}
 for(HHM_Z=0;HHM_Z<HHM_ROOM_MAP.zones.length;HHM_Z++){
     (function(z){
         var topic="/devices/"+z.primarySensor.split("/")[0]+"/meta/error";

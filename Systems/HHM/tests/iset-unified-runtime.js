@@ -15,7 +15,7 @@ var Floor=require('../../../Objects/05_16_Iset/HHM/isethhm_floor_hydraulics');
 var Runtime=require('../../../Objects/05_16_Iset/HHM/isethhm_runtime');
 var n=0;
 function test(name,fn){fn();n++;console.log('PASS '+name);}
-function make(){
+function make(mixing,mixerIntents){
     var storage={},s=Store.create(storage,'office');
     storage[s.key]=s.proposeInitial('HEAT',22);
     var rooms=Rooms.create({map:M,Simple:Simple,Settings:Store,
@@ -27,7 +27,8 @@ function make(){
     return Runtime.create({map:M,services:S,coordinator:coordinator,
         roomsPlanner:RoomPlan.create({map:M,openWaitMs:120000}),
         floorHydraulics:Floor.create({outputs:S.outputs,
-            actuatorOpenWaitMs:120000})});
+            actuatorOpenWaitMs:120000}),
+        mixing:mixing,mixerIntents:mixerIntents});
 }
 function frame(t){
     var outputs={};
@@ -150,5 +151,41 @@ test('restarting WB resets observed pump runtime, not total equipment runtime',f
     f.bootEpoch='next';f.roomsFrame.bootEpoch='next';
     f.nowMs=115000;f.roomsFrame.nowMs=f.nowMs;
     assert.strictEqual(x.step(f).pumpTimers[S.outputs.dhwPump].observedRunMs,0);
+});
+function plannedMixCommand(readback,requested){
+    var intents=[],mixer={step:function(){
+        intents.push({path:S.outputs.floorValveLevel,value:requested,
+            action:'MIX_VALVE_POS'});
+        return {status:'OFFLINE_TEST'};
+    }};
+    var x=make(mixer,{drain:function(){
+        var a=intents;intents=[];return a;
+    }});
+    var f=frame(100000);
+    f.floorControl.enabled=true;f.floorControl.sourceRequestC=40;
+    f.plant.outputs[S.outputs.floorPump]=true;
+    f.plant.outputs[S.outputs.floorValveEnable]=true;
+    f.plant.outputs[S.outputs.floorValveLevel]=readback;
+    return command(x.step(f),S.outputs.floorValveLevel);
+}
+test('MAO4 string readback equals integer request: no repeat',function(){
+    assert.strictEqual(plannedMixCommand('45',45),undefined);
+    assert.strictEqual(plannedMixCommand('43.2',43.2),undefined);
+});
+test('MAO4 rounding by half a percent prevents repeated command',function(){
+    assert.strictEqual(plannedMixCommand(43,43.4),undefined);
+    assert.strictEqual(plannedMixCommand('43',43.4),undefined);
+});
+test('MAO4 meaningful step remains a physical intent',function(){
+    var a=plannedMixCommand('43',43.7);
+    assert.ok(a);assert.strictEqual(a.value,43.7);
+});
+test('MAO4 safe close is not suppressed by numeric normalization',function(){
+    var a=plannedMixCommand('45',0);
+    assert.ok(a);assert.strictEqual(a.value,0);
+});
+test('MAO4 missing or invalid readback still requests write',function(){
+    assert.ok(plannedMixCommand(null,43.2));
+    assert.ok(plannedMixCommand('invalid',43.2));
 });
 console.log('TOTAL PASS '+n);
