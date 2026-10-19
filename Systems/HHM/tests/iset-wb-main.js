@@ -624,4 +624,91 @@ check('missing M1W2 presence and OK remain visible after numeric MQTT changes',f
     assert.ok(w.controls['iset_hhm/sensor_details'].indexOf(
         'Подача ТП: Наблюдалось изменение MQTT')>=0);
 });
+check('operator UI sorts rooms by first NO output without changing MQTT IDs',function(){
+    var w=boot(),rooms=modules.IsetRoomZones.zones,seen={};
+    rooms.forEach(function(z){
+        var id='iset_hhm_'+z.id,vd=w.devices[id],first=Number(
+            z.outputs[0].split('/')[1].substring(1));
+        var prefix=('00'+first).slice(-3);
+        assert.strictEqual(vd.title,prefix+' Отопление / '+z.title);
+        assert.ok(vd.cells.actuators_view.readonly);
+        assert.strictEqual(vd.cells.saved.hidden,true);
+        assert.strictEqual(vd.cells.saved_view.order,45);
+        assert.ok(vd.cells.wait.order<vd.cells.actuators_view.order);
+        assert.ok(vd.cells.demand.enum.HEAT.ru);
+        z.outputs.forEach(function(path){
+            var key='servo_'+path.split('/')[1].toLowerCase();
+            assert.ok(vd.cells[key].hidden);
+        });
+        assert.ok(!seen[id]);seen[id]=true;
+    });
+    assert.strictEqual(Object.keys(seen).length,8);
+    assert.strictEqual(w.devices.iset_hhm.title,'090 Отопление / диагностика');
+});
+check('operator descriptions preserve machine MQTT payloads',function(){
+    var w=boot(),office=w.devices.iset_hhm_office.cells;
+    w.external('wb-msw-v4_22/Temperature',19);
+    w.external('wb-mio-gpio_195:2/K1',false);
+    w.step(1000);
+    assert.strictEqual(w.controls['iset_hhm_office/demand'],'HEAT');
+    assert.strictEqual(w.controls['iset_hhm_office/state'],'NORMAL');
+    assert.strictEqual(w.controls['iset_hhm_office/saved'],'HEAT / 25°C');
+    assert.strictEqual(w.controls['iset_hhm_office/saved_view'],'Включено / 25 °C');
+    assert.strictEqual(office.state.enum.NORMAL.ru,'Работает штатно');
+    assert.strictEqual(w.controls['iset_hhm_office/actuators_view'].indexOf('К1')>=0,true);
+});
+check('no-demand room no longer reports missing OPEN data as an alarm',function(){
+    var w=boot(),p='wb-msw-v4_53/Temperature';
+    w.external(p,29);
+    w.external('wb-mio-gpio_195:2/K2',true);
+    w.external('wb-mio-gpio_195:2/K3',true);
+    w.step(1000);
+    assert.strictEqual(w.controls['iset_hhm_summer_kitchen/demand'],'OFF');
+    assert.strictEqual(w.controls['iset_hhm_summer_kitchen/wait'],
+        'Открытие не требуется');
+    var info=w.controls['iset_hhm_summer_kitchen/actuators_view'];
+    assert.ok(info.indexOf('К2 команда закрыть')>=0,info);
+    assert.ok(info.indexOf('К3 команда закрыть')>=0,info);
+});
+check('pump K4 readback ON never claims it awaits permission to start',function(){
+    var w=boot();
+    w.external('wb-mr6cu_37/K4',true);
+    w.step(1000);
+    assert.strictEqual(w.controls['iset_hhm_k4/relay'],'ON');
+    assert.strictEqual(w.controls['iset_hhm_k4/start_timer'],'Насос включён');
+    assert.strictEqual(w.devices.iset_hhm_k4.cells.run_timer.hidden,true);
+    assert.strictEqual(w.devices.iset_hhm_k4.cells.start_timer.order,10);
+    assert.strictEqual(w.devices.iset_hhm_k4.cells.relay.order,30);
+});
+check('floor operator device follows MAO4 -> K2 -> supply -> loops',function(){
+    var w=boot(),cells=w.devices.iset_hhm_floor.cells;
+    assert.strictEqual(w.devices.iset_hhm_floor.title,'012 Тёплый пол / К2');
+    assert.ok(cells.preflight_timer.order<cells.valve_enable.order);
+    assert.ok(cells.valve_enable.order<cells.valve_position.order);
+    assert.ok(cells.timer.order<cells.pump_relay.order);
+    assert.ok(cells.pump_relay.order<cells.supply_temperature.order);
+    assert.ok(cells.supply_temperature.order<cells.k12_timer.order);
+    w.external('wb-mao4_131/Channel 1 Dimming Level',17);
+    w.external('wb-mao4_131/Channel 1 Switch',true);
+    w.external('wb-mr6cu_37/K2',true);
+    w.external('wb-m1w2_67/External Sensor 1',31.5);
+    w.step(1000);
+    assert.strictEqual(w.controls['iset_hhm_floor/valve_position'],'17 % (MQTT)');
+    assert.strictEqual(w.controls['iset_hhm_floor/pump_relay'],'ON');
+    assert.strictEqual(w.controls['iset_hhm_floor/supply_temperature'],'31.5 °C');
+});
+check('operator diagnostics hide raw telemetry but retain controls',function(){
+    var w=boot(),gen=w.devices.iset_hhm.cells,
+        dhw=w.devices.iset_hhm_dhw.cells,
+        pump=w.devices.iset_hhm_k1.cells;
+    assert.ok(gen.trace_recent.hidden&&gen.trace_seq.hidden);
+    assert.ok(gen.actions.hidden&&gen.source.hidden&&gen.dhw.hidden);
+    assert.strictEqual(gen.io_state.enum.READBACK_OK.ru,
+        'Отправленные команды подтверждены MQTT');
+    assert.ok(dhw.tank.hidden&&dhw.tank_view.readonly);
+    assert.ok(dhw.priority_timer.order<dhw.mode.order);
+    assert.strictEqual(pump.run_timer.hidden,true);
+    assert.strictEqual(pump.relay.enum.ON.ru,'Реле включено');
+    assert.strictEqual(w.controls['iset_hhm_dhw/tank']!==undefined,true);
+});
 console.log('TOTAL PASS '+count);
