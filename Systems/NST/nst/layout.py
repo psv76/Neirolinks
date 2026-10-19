@@ -1,5 +1,6 @@
 """Canonical NST persistent layout; old NLI stores require explicit migration."""
 import os
+import re
 from .util import beneath, read_json, require, safe_relative
 
 CONFIG_DIR = "/mnt/data/etc/neirolinks/nst"
@@ -31,6 +32,28 @@ def target(root, logical):
                 return beneath(root, (persistent + logical[len(alias):])[1:])
             break  # plain directories remain supported on non-WB test installations
     return beneath(root, logical[1:])
+
+
+
+# A read-only diagnostic collection may precede first approved sync. Its
+# archives are evidence, not installed NST configuration or component state.
+DIAGNOSTIC_ARCHIVE_RE = re.compile(r"nst-diagnostics-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}\\.tar\\.gz")
+
+
+def unconfigured_state_compatible(path):
+    """Accept only the collector's archive directory in an otherwise clean state."""
+    if not path.exists():
+        return True
+    if path.is_symlink() or not path.is_dir():
+        return False
+    for item in path.iterdir():
+        if item.name != "diagnostics" or item.is_symlink() or not item.is_dir():
+            return False
+        for archive in item.iterdir():
+            if (archive.is_symlink() or not archive.is_file()
+                    or DIAGNOSTIC_ARCHIVE_RE.fullmatch(archive.name) is None):
+                return False
+    return True
 
 
 def legacy_data_present(root):
@@ -71,5 +94,7 @@ def load_config(path=None, root="/"):
         return initial
     for folder in (CONFIG_DIR, STATE_DIR, LOG_DIR):
         p = target(root, folder)
-        require(not p.exists() or not any(p.iterdir()), "Persistent data exists but config is missing: " + folder)
+        clean = unconfigured_state_compatible(p) if folder == STATE_DIR else (
+            not p.exists() or not any(p.iterdir()))
+        require(clean, "Persistent data exists but config is missing: " + folder)
     return read_json(target(root, DATA_DIR + "/default-config.json"))
