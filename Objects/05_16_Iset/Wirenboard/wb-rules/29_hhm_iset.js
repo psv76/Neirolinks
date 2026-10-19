@@ -183,6 +183,12 @@ function hhSensorMonitor(now){
                 status="Свежесть MQTT не подтверждена";
                 uncertain++;
             }else status="Наблюдалось изменение MQTT (не возраст измерения)";
+            if(!bad&&(presence===null||reported===null)){
+                status+="; присутствие/OK не подтверждены (присутствие="+
+                    (presence===null?"нет данных":"да")+", OK="+
+                    (reported===null?"нет данных":"да")+")";
+                if(proof)uncertain++;
+            }
             items.push(s.title+": "+status);
             previous=HHM_SENSOR_LAST_FAULT[s.id];
             // Allow retained MQTT and Modbus devices to settle after
@@ -343,7 +349,10 @@ function hhWrite(cmd,at){
         // successful idempotent no-op; do NOT write into /on or log.
         // If the readback differs or is invalid, retain retry/watchdog.
         if(cmd.action==="MIX_VALVE_POS"&&
+           (!prev||prev.value===cmd.value)&&
            hhMatchesReadback(before,cmd.value))return true;
+        // A different pending request may still reach the device: an old
+        // readback matching the NEW target must not suppress its reversal.
         // If a formerly unknown relay now reports an opposite state,
         // send STOP immediately. Retry throttling is only for identical,
         // unchanged readback conditions.

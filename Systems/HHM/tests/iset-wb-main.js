@@ -595,9 +595,33 @@ check('basement persistence failure cannot change acknowledged target',function(
     var storage=new Proxy(data,{set:function(t,k,v){
         if(k!=='iset_hhm_basement_target_v1')t[k]=v;return true;
     }}),w=boot(storage);
-    w.external('iset_hhm_basement/target',25);
+    w.external('iset_hhm_basement/target_input',25);
     w.click('iset_hhm_basement/save');w.step(1000);
     assert.strictEqual(w.controls['iset_hhm_basement/target_saved'],'23 °C');
     assert.strictEqual(data.iset_hhm_basement_target_v1,'23');
+});
+check('MAO4 reversal supersedes pending opening even when readback is still closed',function(){
+    var p='wb-mao4_131/Channel 1 Dimming Level',w=boot({},true,[p]);
+    w.external(p,0);
+    w.physicalWrite({path:p,value:25,action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'});
+    var before=w.outputs.length;
+    w.physicalWrite({path:p,value:0,action:'MIX_VALVE_POS',reason:'FLOOR_MIXING'});
+    assert.strictEqual(w.outputs.slice(before).filter(function(x){
+        return x.path===p&&x.value===0;
+    }).length,1,'pending opening must be superseded by a physical close');
+    w.watchReadback();w.advanceClock(31000);w.watchReadback();
+    assert.ok(!w.logs.some(function(x){return x[1].indexOf(p)>=0&&
+        x[1].indexOf('Нет подтверждения MQTT')>=0;}));
+});
+check('missing M1W2 presence and OK remain visible after numeric MQTT changes',function(){
+    var w=boot(),p='wb-m1w2_67/External Sensor 1';
+    var topic='/devices/wb-m1w2_67/controls/External Sensor 1';
+    w.external(p,30);w.emit(topic,30);w.emit(topic,31);w.step(16000);
+    assert.ok(w.controls['iset_hhm/sensor_details'].indexOf(
+        'Подача ТП: Наблюдалось изменение MQTT (не возраст измерения); присутствие/OK не подтверждены')>=0);
+    w.external('wb-m1w2_67/ext_sens1_presense',1);
+    w.external(p+' OK',1);w.step(1000);
+    assert.ok(w.controls['iset_hhm/sensor_details'].indexOf(
+        'Подача ТП: Наблюдалось изменение MQTT')>=0);
 });
 console.log('TOTAL PASS '+count);
