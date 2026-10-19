@@ -169,6 +169,30 @@
         "path": "Objects/05_16_Iset/HHM/release_candidates/iset-hhm-house-0.1-PHYSICAL.json",
         "sha256": "cf6a80522826a63052127fc8b8938cb9d9668c0b8f016a638b7f1ad6be6256f0"
       }
+    },
+    {
+      "component": "hhm",
+      "object": "05_16_Iset",
+      "role": "house",
+      "track": "stable",
+      "version": "0.2",
+      "approved": true,
+      "release_state": "stable",
+      "draft": false,
+      "prerelease": false,
+      "minimum_nst": "2.0",
+      "approval": {
+        "kind": "github_release",
+        "tag": "nst-approved-components-hhm-iset-0.2",
+        "published_at": "2026-10-19T21:00:42Z",
+        "catalog_sha256": "2c1753a49975c9eb39710062b32234cb4ec321fa64ba01312b85746b5bd29e20",
+        "release_commit": "3cd19df385e45e565f12cba9836a73e4406de7d0"
+      },
+      "manifest": {
+        "commit": "3cd19df385e45e565f12cba9836a73e4406de7d0",
+        "path": "Objects/05_16_Iset/HHM/release_candidates/iset-hhm-house-0.2-PHYSICAL.json",
+        "sha256": "5a7e7a5feb709768465956a25a4ae96190b95439fec314f899be1eb7e37b24dc"
+      }
     }
   ]
 }
