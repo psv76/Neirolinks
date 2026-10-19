@@ -1,20 +1,22 @@
 # NST — NEIROLINKS Service Tool
 
-NST 2.0 — сервисный инструмент для установки approved desired state и обслуживания контроллеров Wiren Board.
+NST 2.1 — сервисный инструмент для установки approved desired state и обслуживания контроллеров Wiren Board.
 
 Нормативный источник: [стандарт именования и версий](../../EIM/Standards/Software_naming_and_versioning_standard.md).
 
 ## Версия и состав
 
-Выбрана **2.0**: чистая установка по registry/deployment, транзакция компонентов вместе с object files и перенос persistent storage меняют архитектуру и существенно расширяют функциональность. Это изменение X; начальная ревизия Y равна 0.
+Изначально выбрана **2.0**: чистая установка по registry/deployment, транзакция компонентов вместе с object files и перенос persistent storage меняют архитектуру и существенно расширяют функциональность. Это изменение X; начальная ревизия Y равна 0.
 
-Пакет `nst`, артефакт `nst_2.0_all.deb`, CLI `/usr/bin/nst`, Python package `nst` в `/usr/lib/nst`, данные `/usr/share/nst`, документация `/usr/share/doc/nst`.
+Версия **2.1** исправляет первоначальную регистрацию контроллера: более старый реестр в установленном пакете со статусом `planned` не должен блокировать переход к новому опубликованному approved Platform `active` при совпадении аппаратной идентичности и всех проверках. Исходный immutable пакет NST 2.0 и Release не изменяются.
+
+Пакет `nst`, артефакт `nst_2.1_all.deb`, CLI `/usr/bin/nst`, Python package `nst` в `/usr/lib/nst`, данные `/usr/share/nst`, документация `/usr/share/doc/nst`.
 
 Persistent config/state/logs: `/mnt/data/etc/neirolinks/nst`, `/mnt/data/var/lib/neirolinks/nst`, `/mnt/data/var/log/neirolinks/nst`.
 
 ## Чистая установка
 
-Установить reviewed пакет `nst_2.0_all.deb` с зависимостями обычным пакетным менеджером. Установка пакета не запускает сервисы инженерной автоматики и не пишет persistent config. Предварительная установка NLI не нужна; `/usr/bin/nli` не поставляется.
+Установить reviewed пакет `nst_2.1_all.deb` с зависимостями обычным пакетным менеджером. Установка пакета не запускает сервисы инженерной автоматики и не пишет persistent config. Предварительная установка NLI не нужна; `/usr/bin/nli` не поставляется.
 
 1. `nst status` — локальные identity и состояние; первоначальный профиль unconfigured.
 2. `nst check` — получить последний approved platform release, проверить hardware serial/fingerprint, registry/profile, deployment и показать план без записи данных.

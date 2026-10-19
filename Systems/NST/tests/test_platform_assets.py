@@ -46,6 +46,18 @@ class PlatformAssetTests(unittest.TestCase):
             return self.blobs[url]
         return self.fixture.fetch(url, *args)
 
+    def test_approved_active_after_stale_packaged_planned_allows_read_only_check(self):
+        from nst.controller import ControllerRegistry
+        # The installed package is older than the published platform registry.
+        identity = {"serial": "ABCDE", "serial_source": "test", "fingerprint": None}
+        self.fixture.engine.controller = ControllerRegistry(registry("planned")).resolve(identity)
+        before_actions = list(self.fixture.system.actions)
+        result = self.desired.check()
+        self.assertEqual(result["final_status"], "ok", result)
+        self.assertEqual(result["approved_platform"]["tag"], "nst-approved-platform-2.0")
+        self.assertEqual(before_actions, self.fixture.system.actions)
+        self.assertFalse(self.fixture.engine.target("/mnt/data/etc/neirolinks/nst").exists())
+
     def test_clean_sync_uses_assets_checksums_profile_and_manifests(self):
         result = self.desired.sync()
         self.assertEqual(result['final_status'], 'ok', result)

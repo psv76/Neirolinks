@@ -78,11 +78,11 @@ class SelfUpdateTests(fixtures.Fixture):
         def run(argv, timeout=None):
             self.calls.append(argv)
             if argv[:2] == ['/usr/bin/dpkg-deb', '-f']:
-                return 'Package: nst\nVersion: 2.0\nArchitecture: all'
+                return 'Package: nst\nVersion: ' + __version__ + '\nArchitecture: all'
             if argv[:2] == ['/usr/bin/dpkg-query', '-W']:
-                return '2.0'
+                return __version__
             if argv[0] == '/usr/bin/nst':
-                return '{"version": "2.0"}'
+                return json.dumps({"version": __version__})
             self.assertEqual(argv[:2], ['/usr/bin/dpkg', '--install'])
             return ''
         self.system.run = run
@@ -92,7 +92,7 @@ class SelfUpdateTests(fixtures.Fixture):
 
     def test_check_readonly_metadata_only(self):
         before = self.snapshot()
-        newer = dict(self.package, version='2.1')
+        newer = dict(self.package, version='2.2')
         with patch.object(self.engine.releases, 'package', return_value=newer), \
              patch.object(self.engine.releases, 'asset', side_effect=AssertionError('No package download')):
             r = SelfUpdate(self.engine).execute(check=True)
@@ -106,7 +106,7 @@ class SelfUpdateTests(fixtures.Fixture):
         self.assertEqual(self.calls, [])
 
     def test_package_checksum_failure_before_install(self):
-        self.package['version'] = '2.1'
+        self.package['version'] = '2.2'
         self.data += b'corrupt'
         r = SelfUpdate(self.engine).execute()
         self.assertEqual(r['final_status'], 'failed', r)

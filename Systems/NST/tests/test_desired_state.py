@@ -37,10 +37,11 @@ def registry(state="active"):
 
 
 class Source:
-    def __init__(self, deployment, manifest, unavailable=False):
+    def __init__(self, deployment, manifest, unavailable=False, approved_registry=None):
         self.deployment = deployment
         self.manifest = manifest
         self.unavailable = unavailable
+        self.approved_registry = approved_registry
 
     def latest(self, serial):
         if self.unavailable:
@@ -49,7 +50,7 @@ class Source:
         return {
             "tag": "nst-approved-platform-test",
             "published_at": "2026-09-29T00:00:00Z",
-            "registry": registry(),
+            "registry": self.approved_registry if self.approved_registry is not None else registry(),
             "registry_sha256": "1" * 64,
             "deployment": self.deployment,
             "deployment_sha256": digest((json.dumps(self.deployment, sort_keys=True) + "\n").encode()),
@@ -147,15 +148,42 @@ class DesiredStateTests(fixtures.Fixture):
         self.assertEqual(result["plan"]["components"][0]["changed_files"],
                          [self.new["files"][0]["target"]])
 
-    def test_planned_controller_cannot_check_or_sync_production_desired_state(self):
+    def test_old_packaged_planned_registry_can_check_new_approved_active_release(self):
+        # Regression #204 / AFMEUYOT: 2.0 package embedded the pre-approval
+        # planned snapshot, although the published Platform 2.0 is active.
         identity = {"serial": "ABCDE", "serial_source": "test", "fingerprint": None}
         self.engine.controller = ControllerRegistry(registry("planned")).resolve(identity)
         deployment = self.deployment(self.new)
         desired = DesiredState(self.engine, Source(deployment, self.new))
         before = self.snapshot()
+        result = desired.check()
+        self.assertEqual(result["final_status"], "ok", result)
+        self.assertEqual(result["plan"]["status"], "changes_required")
+        self.assertEqual(before, self.snapshot())
+
+    def test_locally_planned_controller_stays_blocked_without_approved_active_release(self):
+        identity = {"serial": "ABCDE", "serial_source": "test", "fingerprint": None}
+        self.engine.controller = ControllerRegistry(registry("planned")).resolve(identity)
+        deployment = self.deployment(self.new)
+        desired = DesiredState(self.engine, Source(deployment, self.new,
+            approved_registry=registry("planned")))
+        before = self.snapshot()
         self.assertEqual(desired.check()["final_status"], "failed")
         self.assertEqual(desired.sync()["final_status"], "failed")
         self.assertEqual(before, self.snapshot())
+
+    def test_old_planned_registry_does_not_bypass_approved_hardware_fingerprint(self):
+        identity = {"serial": "ABCDE", "serial_source": "test",
+                    "fingerprint": {"sha256": "f" * 64, "sources": ["emmc_serial"]}}
+        self.engine.controller = ControllerRegistry(registry("planned")).resolve(identity)
+        approved = registry("active")
+        approved["controllers"]["ABCDE"]["fingerprint_sha256"] = "a" * 64
+        desired = DesiredState(self.engine, Source(self.deployment(self.new), self.new,
+            approved_registry=approved))
+        result = desired.check()
+        self.assertEqual(result["final_status"], "failed")
+        self.assertIn("FINGERPRINT_MISMATCH", result["error"])
+        self.assertFalse(self.system.actions)
 
     def test_sync_uses_existing_transaction_engine_and_records_exact_deployment(self):
         deployment = self.deployment(self.new)
