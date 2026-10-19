@@ -42,7 +42,7 @@ if __name__ == '__main__':
     p.add_argument('--commit', required=True)
     p.add_argument('--manifest', action='append', default=[])
     p.add_argument('--package', type=Path)
-    p.add_argument('--package-version', default='2.0')
+    p.add_argument('--package-version', default='2.1')
     p.add_argument('--minimum-nst', default='2.0')
     p.add_argument('--output', type=Path, default=Path('nst-catalog.json'))
     args = p.parse_args()
