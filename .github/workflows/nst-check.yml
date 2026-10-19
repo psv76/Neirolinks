@@ -48,9 +48,9 @@ jobs:
       - name: Build Debian package
         run: |
           python -B Systems/NST/tools/build_deb.py
-          sha256sum Systems/NST/dist/nst_2.2_all.deb
-          dpkg-deb --info Systems/NST/dist/nst_2.2_all.deb
-          dpkg-deb --contents Systems/NST/dist/nst_2.2_all.deb
+          sha256sum Systems/NST/dist/nst_2.3_all.deb
+          dpkg-deb --info Systems/NST/dist/nst_2.3_all.deb
+          dpkg-deb --contents Systems/NST/dist/nst_2.3_all.deb
       - name: Clean rootfs install without NLI and desired-state bootstrap
         run: |
           docker run --rm -e NST_DISPOSABLE_CI=1 \
@@ -100,6 +100,6 @@ jobs:
             debian:trixie-slim sh /tests/wb_package_smoke.sh fit
       - uses: actions/upload-artifact@v4
         with:
-          name: nst-2.2-deb
-          path: Systems/NST/dist/nst_2.2_all.deb*
+          name: nst-2.3-deb
+          path: Systems/NST/dist/nst_2.3_all.deb*
           if-no-files-found: error
