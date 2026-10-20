@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from sqlalchemy import create_engine, event, func, select
 
+from nl_project_2.cables.conduit_audit import load_conduit_membership_audit
 from nl_project_2.cables.physical_identity_repository import (
     load_physical_segment_resolutions,
 )
-from nl_project_2.cables.conduit_audit import load_conduit_membership_audit
 from nl_project_2.persistence.schema import (
     board,
     cable_line,
