@@ -31,6 +31,15 @@ class IvolgaEvidenceProfileV2(unittest.TestCase):
         self.assertTrue(required.issubset(set(self.updated["history_channels"])))
         self.assertTrue(required.issubset({x["path"] for x in self.updated["current_controls"]}))
 
+
+    def test_registry_and_controller_point_to_packaged_v2(self):
+        registry=json.loads((ROOT / "generated/controller-registry.json").read_text(encoding="utf-8"))
+        controller=json.loads((ROOT.parents[1] / "Objects/05_31_Ivolga_13/controllers/ABF62SL.json").read_text(encoding="utf-8"))
+        expected="Systems/NST/diagnostics/ivolga-boiler-hhm-v2.json"
+        self.assertEqual(registry["controllers"]["ABF62SL"]["diagnostics_profile"], expected)
+        self.assertEqual(controller["diagnostics_profile"], expected)
+        self.assertEqual(registry["controllers"]["AFMEUYOT"]["diagnostics_profile"], "Systems/NST/diagnostics/iset-house-hhm-v1.json")
+
     def test_other_circuits_and_unique_channels(self):
         channels=self.updated["history_channels"]
         self.assertEqual(len(channels),len(set(channels)))
