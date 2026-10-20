@@ -116,6 +116,7 @@ class AtomicConduitAssignmentService:
         project_id: str,
         expected_project_revision: int,
         changes: tuple[AssignmentChange, ...],
+        expected_current_assignments: Mapping[tuple[str, str], str | None],
         failure_hook: Callable[[], None] | None = None,
     ) -> AtomicAssignmentResult:
         if not changes:
@@ -185,6 +186,16 @@ class AtomicConduitAssignmentService:
                         raise PhysicalAssignmentError(
                             f"Target Conduit not active in this Project: {change.target_conduit_id}"
                         )
+
+            if set(expected_current_assignments) != request_keys:
+                raise PhysicalAssignmentError(
+                    "Exact expected assignment identities required for the entire batch"
+                )
+            for key in request_keys:
+                if current.get(key) != expected_current_assignments[key]:
+                    raise PhysicalAssignmentError(
+                        f"Physical segment {key} was reassigned: refresh before editing"
+                    )
 
             effective = tuple(
                 change for change in changes
