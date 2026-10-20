@@ -792,6 +792,7 @@ class BusService:
                 for row in connection.execute(
                     select(
                         bus_segment_conduit_assignment.c.bus_segment_id.label("segment_id"),
+                        bus_segment_conduit_assignment.c.conduit_id.label("conduit_id"),
                         conduit.c.designation,
                     )
                     .join(
@@ -900,6 +901,7 @@ class BusService:
                     "gofra_type": segment.get("gofra_type") or "",
                     "gofra_color": segment.get("gofra_color") or "",
                     "gofra_id": assigned.get("designation") or segment.get("gofra_id") or "",
+                    "conduit_id": assigned.get("conduit_id"),
                     "cable_length_m": length,
                     "physical_length_m": length,
                     "calculation_status": "READY" if length is not None else "INCOMPLETE",
