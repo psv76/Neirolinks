@@ -217,6 +217,16 @@ class AtomicConduitAssignmentService:
             for cid in affected:
                 if cid not in conduits:
                     raise PhysicalAssignmentError(f"Current Conduit was deleted: {cid}")
+            # Legacy assignments to inactive segments (including BUS TRACK)
+            # must not disappear from the in-memory compatibility picture.
+            # A new member cannot be added until such physical corruption is
+            # investigated explicitly and the old assignments are repaired.
+            for member_key, owner_conduit in current.items():
+                if owner_conduit in affected and member_key not in resolved:
+                    raise PhysicalAssignmentError(
+                        f"Conduit {owner_conduit}: unresolvable existing "
+                        f"assignment {member_key}"
+                    )
 
             members: dict[tuple[str, str], dict] = {}
             for row in uow.execute(
