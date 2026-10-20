@@ -15,9 +15,7 @@ from uuid import UUID
 
 NetworkKind = Literal["CABLE", "BUS"]
 PhysicalKind = Literal["BOARD", "EL_BOX", "FIELD_DEVICE", "FIELD_PORT", "INSTANCE_RESOURCE"]
-_VALID_KINDS = frozenset(
-    {"BOARD", "EL_BOX", "FIELD_DEVICE", "FIELD_PORT", "INSTANCE_RESOURCE"}
-)
+_VALID_KINDS = frozenset({"BOARD", "EL_BOX", "FIELD_DEVICE", "FIELD_PORT", "INSTANCE_RESOURCE"})
 _VALID_NETWORKS = frozenset({"CABLE", "BUS"})
 _VALID_MOUNT_WAYS = frozenset(
     {"По полу", "В стяжке", "По потолку", "В стене", "В брусе", "В кабель-канале"}
@@ -128,9 +126,7 @@ def _require_member(member: SegmentFact) -> None:
         _require_id(member.conduit_id, "conduit_id")
 
 
-def _validate_shared_tube(
-    tube: ConduitFact, members: list[SegmentFact]
-) -> None:
+def _validate_shared_tube(tube: ConduitFact, members: list[SegmentFact]) -> None:
     """No positive compatibility claim when physical or technical data is absent."""
 
     reference_span = tube.span
@@ -145,13 +141,9 @@ def _validate_shared_tube(
         if reference_span is None:
             reference_span = member.span
         if member.span.key() != reference_span.key():
-            raise PhysicalAssignmentError(
-                f"Conduit {tube.conduit_id}: physical boundaries differ"
-            )
+            raise PhysicalAssignmentError(f"Conduit {tube.conduit_id}: physical boundaries differ")
         if member.mount_way not in _VALID_MOUNT_WAYS:
-            raise PhysicalAssignmentError(
-                f"Segment {member.segment_id}: route method is unknown"
-            )
+            raise PhysicalAssignmentError(f"Segment {member.segment_id}: route method is unknown")
         if member.mount_way == "В кабель-канале":
             raise PhysicalAssignmentError("Cable channel is not a protective Conduit")
         if reference_mount is None:
@@ -175,9 +167,7 @@ def _validate_shared_tube(
             )
     elif members and tube.permitted_cable_classes is not None:
         if not classes.issubset(tube.permitted_cable_classes):
-            raise PhysicalAssignmentError(
-                f"Conduit {tube.conduit_id}: cable class not permitted"
-            )
+            raise PhysicalAssignmentError(f"Conduit {tube.conduit_id}: cable class not permitted")
     if len(kinds) > 1 and not tube.allow_mixed_networks:
         raise PhysicalAssignmentError(
             f"Conduit {tube.conduit_id}: ordinary/BUS sharing not approved"
@@ -231,9 +221,7 @@ def plan_conduit_assignments(
         if change.target_conduit_id is not None:
             _require_id(change.target_conduit_id, "target_conduit_id")
             if change.target_conduit_id not in conduit_by_id:
-                raise PhysicalAssignmentError(
-                    f"Unknown target Conduit: {change.target_conduit_id}"
-                )
+                raise PhysicalAssignmentError(f"Unknown target Conduit: {change.target_conduit_id}")
         original = segment_by_key[key].conduit_id
         if original is not None:
             affected.add(original)
@@ -241,9 +229,7 @@ def plan_conduit_assignments(
             affected.add(change.target_conduit_id)
         target_by_key[key] = change.target_conduit_id
 
-    resulting_members: dict[str, list[SegmentFact]] = {
-        conduit_id: [] for conduit_id in affected
-    }
+    resulting_members: dict[str, list[SegmentFact]] = {conduit_id: [] for conduit_id in affected}
     for member in segments:
         target = target_by_key.get(member.key(), member.conduit_id)
         if target in resulting_members:
