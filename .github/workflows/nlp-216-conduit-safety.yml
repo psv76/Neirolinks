@@ -54,6 +54,7 @@ jobs:
             tests/cables/test_conduit_audit.py \
             tests/cables/test_atomic_conduit_command.py
       - name: Run physical assignment contract suites (SQLite with FK ON)
+        if: always()
         env:
           PYTHONPATH: src
           QT_QPA_PLATFORM: offscreen
