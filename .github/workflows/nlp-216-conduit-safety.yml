@@ -53,6 +53,18 @@ jobs:
             tests/cables/test_physical_identity_repository.py \
             tests/cables/test_conduit_audit.py \
             tests/cables/test_atomic_conduit_command.py
+      - name: Format candidates for draft PR review (temporary)
+        if: always()
+        run: |
+          FILES="src/nl_project_2/cables/physical_conduit.py src/nl_project_2/cables/physical_identity.py src/nl_project_2/cables/physical_identity_repository.py src/nl_project_2/cables/conduit_audit.py src/nl_project_2/cables/atomic_conduit_command.py tests/cables/test_physical_conduit.py tests/cables/test_physical_identity.py tests/cables/test_physical_identity_repository.py tests/cables/test_conduit_audit.py tests/cables/test_atomic_conduit_command.py"
+          python -m ruff check --fix $FILES
+          python -m ruff format $FILES
+          for file in $FILES; do
+            echo "NLP_FORMAT_START:$file"
+            base64 -w 0 "$file"
+            echo
+            echo "NLP_FORMAT_END:$file"
+          done
       - name: Run physical assignment contract suites (SQLite with FK ON)
         if: always()
         env:
