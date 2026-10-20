@@ -34,5 +34,5 @@
       "target": "/etc/wb-rules/610_Boiler_state.js"
     }
   ],
-  "diagnostics_profile": "Systems/NST/diagnostics/ivolga-boiler-hhm-v1.json"
+  "diagnostics_profile": "Systems/NST/diagnostics/ivolga-boiler-hhm-v2.json"
 }
