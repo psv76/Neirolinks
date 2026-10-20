@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy import create_engine, event, func, select
 
+from nl_project_2.cables import CableService
 from nl_project_2.cables.conduit_audit import load_conduit_membership_audit
 from nl_project_2.cables.physical_identity_repository import (
     load_physical_segment_resolutions,
@@ -161,4 +162,7 @@ def test_shared_box_with_different_line_local_endpoints_is_same_physical_interva
         assert audits[0].bus_count == 0
         assert audits[0].physical_span.key() == resolved[0].span.key()
 
+    # Production service facade reads the same immutable facts, no writes.
+    via_service = CableService(engine).conduit_physical_audit(project_id)
+    assert via_service == audits
     engine.dispose()
