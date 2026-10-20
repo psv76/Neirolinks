@@ -7,8 +7,9 @@ material compatibility still require independent positive verification.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, Literal
+from typing import Literal
 
 from .physical_conduit import PhysicalSpan
 from .physical_identity import SegmentResolution
