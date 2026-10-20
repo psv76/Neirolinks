@@ -353,6 +353,12 @@ class RoutesPrototype(QWidget):
         return groups
 
     def rebuild(self, *_args):
+        # QStandardItemModel.clear() resets QTreeView header sections on Windows.
+        # Restore the INITIAL Lines-like widths once, then respect user resizing.
+        widths = (
+            [self.view.columnWidth(col) for col in range(len(HEADERS))]
+            if getattr(self, "_columns_ready", False) else WIDTHS
+        )
         self._restoring = True
         self.filtered_groups, self.filtered_unassigned = filtered_snapshot(
             self.snapshot, self.search.text(),
@@ -380,6 +386,9 @@ class RoutesPrototype(QWidget):
                     flat_rows.extend(children)
             self.flat_model.expanded = set(self.expanded)
             self.flat_model.set_rows(flat_rows)
+        for col, width in enumerate(widths):
+            self.view.setColumnWidth(col, width)
+        self._columns_ready = True
         self._restore_selection()
         self._restoring = False
         count = sum(len(segments) for _, segments in self.filtered_groups)
