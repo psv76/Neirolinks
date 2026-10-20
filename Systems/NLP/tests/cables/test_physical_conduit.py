@@ -196,7 +196,7 @@ def test_mismatched_mount_methods_and_cable_classes_rejected():
             ],
             changes=[move("s2", "tube-a")],
         )
-    with pytest.raises(PhysicalAssignmentError, match="compatibility"):
+    with pytest.raises(PhysicalAssignmentError, match="cable class not permitted"):
         plan(
             conduits=[tube("tube-a", approved=frozenset({"AC_230"}))],
             members=[segment("s1", cable_class="DATA")],
