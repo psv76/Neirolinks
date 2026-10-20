@@ -18,6 +18,11 @@ from nl_project_2.cables.physical_conduit import (
 )
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
+    bus,
+    bus_endpoint,
+    bus_segment,
+    bus_segment_conduit_assignment,
+    catalog_release,
     board,
     cable_line,
     cable_point,
@@ -25,8 +30,12 @@ from nl_project_2.persistence.schema import (
     cable_topology_endpoint,
     conduit,
     conduit_segment_assignment,
+    instance_resource,
     metadata,
+    passport_definition,
+    passport_resource_definition,
     project,
+    project_instance,
 )
 
 
@@ -403,4 +412,225 @@ def test_missing_snapshot_identity_rejected_before_commit(database):
             expected_current_assignments={},
             changes=(AssignmentChange("CABLE", S1, TUBE2),),
         )
+    assert _revision(database) == 0
+
+
+
+BUS_TUBE = uid(900)
+BUS_SEGMENT = uid(901)
+BUS_ROOT_RESOURCE = uid(902)
+BUS_TARGET_RESOURCE = uid(903)
+
+
+def _seed_isolated_bus(connection):
+    catalog_id = uid(910)
+    passport_id = uid(911)
+    passport_resource_id = uid(912)
+    instance_id = uid(913)
+    bus_id = uid(914)
+    endpoint_id = uid(915)
+    connection.execute(
+        catalog_release.insert().values(
+            id=catalog_id,
+            release_code="TEST_PHYSICAL_216",
+            schema_version=1,
+            content_sha256="a" * 64,
+            installed_at_utc=__import__("datetime").datetime.now(
+                __import__("datetime").UTC
+            ),
+            status="ACTIVE",
+        )
+    )
+    connection.execute(
+        passport_definition.insert().values(
+            id=passport_id,
+            catalog_release_id=catalog_id,
+            passport_key="PHYSICAL_216_CONTROLLER",
+            version=1,
+            name="Test controller",
+            equipment_class="CONTROLLER",
+            functional_role="BUS",
+            schema_version=1,
+            source_reference="TEST_ONLY",
+            content_sha256="b" * 64,
+        )
+    )
+    connection.execute(
+        passport_resource_definition.insert().values(
+            id=passport_resource_id,
+            passport_definition_id=passport_id,
+            resource_key="RS485",
+            ordinal=0,
+            resource_kind="RS485_INTERFACE",
+            direction="BIDIRECTIONAL",
+            medium="RS485",
+        )
+    )
+    connection.execute(
+        project_instance.insert().values(
+            id=instance_id,
+            project_id=PROJECT,
+            designation="TEST_A01",
+            passport_definition_id=passport_id,
+            parameters_json={},
+        )
+    )
+    for n, resource_id in enumerate((BUS_ROOT_RESOURCE, BUS_TARGET_RESOURCE)):
+        connection.execute(
+            instance_resource.insert().values(
+                id=resource_id,
+                project_id=PROJECT,
+                project_instance_id=instance_id,
+                resource_key="RS485",
+                ordinal=n,
+                passport_resource_definition_id=passport_resource_id,
+                resource_kind="RS485_INTERFACE",
+                direction="BIDIRECTIONAL",
+                medium="RS485",
+                snapshot_json={},
+            )
+        )
+    connection.execute(
+        bus.insert().values(
+            id=bus_id,
+            project_id=PROJECT,
+            designation="901",
+            bus_kind="RS485",
+            root_resource_id=BUS_ROOT_RESOURCE,
+            topology_policy="LINEAR_SUFFIX_ORDER",
+            cable_type="UTP Cat5e",
+        )
+    )
+    connection.execute(
+        bus_endpoint.insert().values(
+            id=endpoint_id,
+            project_id=PROJECT,
+            bus_id=bus_id,
+            endpoint_kind="INSTANCE_RESOURCE",
+            resource_id=BUS_TARGET_RESOURCE,
+            endpoint_role="DEVICE",
+            address="901.01",
+        )
+    )
+    connection.execute(
+        bus_segment.insert().values(
+            id=BUS_SEGMENT,
+            project_id=PROJECT,
+            bus_id=bus_id,
+            source_endpoint_id=None,
+            target_endpoint_id=endpoint_id,
+            connection_kind="CABLE",
+            mount_way="По полу",
+        )
+    )
+    connection.execute(
+        conduit.insert().values(
+            id=BUS_TUBE,
+            project_id=PROJECT,
+            designation="003.PND25",
+            conduit_number=3,
+            conduit_type="ПНД25",
+            color="Синий",
+            length_m_decimal="25",
+            path_json={"origin": "USER_EMPTY", "length_source": "SEGMENT_GEOMETRY"},
+        )
+    )
+
+
+def _mixed_approval(uow, project_id, affected_tubes, affected_segments):
+    assert project_id == PROJECT
+    spans = {}
+    for tube_id in affected_tubes:
+        if tube_id == BUS_TUBE:
+            spans[tube_id] = ConduitFact(
+                conduit_id=BUS_TUBE,
+                span=PhysicalSpan(
+                    PhysicalBoundary("INSTANCE_RESOURCE", BUS_ROOT_RESOURCE),
+                    PhysicalBoundary("INSTANCE_RESOURCE", BUS_TARGET_RESOURCE),
+                ),
+                mount_way="По полу",
+                permitted_cable_classes=frozenset({"DATA"}),
+            )
+        else:
+            spans[tube_id] = _conduit_facts(tube_id)
+    return ApprovedPhysicalFacts(
+        conduit_facts=spans,
+        segment_classes={
+            key: "DATA" if key[0] == "BUS" else "AC_230"
+            for key in affected_segments
+        },
+    )
+
+
+def _mixed_changes():
+    return (
+        AssignmentChange("CABLE", S1, TUBE2),
+        AssignmentChange("BUS", BUS_SEGMENT, BUS_TUBE),
+    )
+
+
+def _mixed_expected():
+    return {("CABLE", S1): TUBE1, ("BUS", BUS_SEGMENT): None}
+
+
+def test_mixed_ordinary_and_bus_batch_writes_both_tables_once(database):
+    with database.begin() as connection:
+        _seed_isolated_bus(connection)
+    service = AtomicConduitAssignmentService(
+        database,
+        approval_provider=_mixed_approval,
+        cable_mirror_updater=_mirror,
+    )
+    result = service.apply(
+        project_id=PROJECT,
+        expected_project_revision=0,
+        expected_current_assignments=_mixed_expected(),
+        changes=_mixed_changes(),
+    )
+    assert result.project_revision == 1
+    assert result.affected_conduits == (TUBE1, TUBE2, BUS_TUBE)
+    assert _memberships(database) == ((S1, TUBE2),)
+    with database.connect() as connection:
+        bus_assignments = connection.execute(
+            select(
+                bus_segment_conduit_assignment.c.bus_segment_id,
+                bus_segment_conduit_assignment.c.conduit_id,
+            )
+        ).all()
+        bus_fact = connection.execute(
+            select(bus_segment).where(bus_segment.c.id == BUS_SEGMENT)
+        ).mappings().one()
+        assert bus_assignments == [(BUS_SEGMENT, BUS_TUBE)]
+        assert bus_fact["gofra_id"] == "003.PND25"
+    assert _revision(database) == 1
+
+
+def test_mixed_ordinary_bus_rolls_back_both_assignment_tables(database):
+    with database.begin() as connection:
+        _seed_isolated_bus(connection)
+    service = AtomicConduitAssignmentService(
+        database,
+        approval_provider=_mixed_approval,
+        cable_mirror_updater=_mirror,
+    )
+
+    def fail():
+        raise RuntimeError("abort both networks")
+
+    with pytest.raises(RuntimeError, match="abort both"):
+        service.apply(
+            project_id=PROJECT,
+            expected_project_revision=0,
+            expected_current_assignments=_mixed_expected(),
+            changes=_mixed_changes(),
+            failure_hook=fail,
+        )
+    assert _memberships(database) == ((S1, TUBE1),)
+    with database.connect() as connection:
+        assert connection.execute(
+            select(bus_segment_conduit_assignment)
+        ).all() == []
+        assert connection.execute(
+            select(bus_segment.c.gofra_id).where(bus_segment.c.id == BUS_SEGMENT)
+        ).scalar_one() is None
     assert _revision(database) == 0
