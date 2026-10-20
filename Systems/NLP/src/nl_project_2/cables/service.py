@@ -44,6 +44,7 @@ from nl_project_2.persistence.schema import (
 from nl_project_2.persistence.uow import UnitOfWork
 from nl_project_2.resource_labels import resource_user_label
 
+from .conduit_audit import load_conduit_membership_audit
 from .domain import (
     MOUNT_WAY_BY_ROUTE_METHOD,
     ROUTE_METHOD_BY_MOUNT_WAY,
@@ -104,6 +105,16 @@ class HdmiSelectionResult:
 class CableService:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
+
+    def conduit_physical_audit(self, project_id: str):
+        """Read-only diagnostics of confirmed physical ends in current tubes.
+
+        PHYSICAL_MATCH asserts only Q03 endpoint identity; it is NOT permission
+        for a mixed-voltage or ordinary/BUS assignment without compatibility.
+        This call never writes, recalculates, migrates or touches DWG.
+        """
+        with self._engine.connect() as connection:
+            return load_conduit_membership_audit(connection, project_id)
 
     def list_lines(self, project_id: str) -> list[dict]:
         with self._engine.connect() as connection:
