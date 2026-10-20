@@ -14,7 +14,6 @@ from nl_project_2.cables.physical_conduit import (
     plan_conduit_assignments,
 )
 
-
 BOARD = PhysicalBoundary("BOARD", "00000000-0000-4000-8000-000000000001")
 BOX = PhysicalBoundary("EL_BOX", "00000000-0000-4000-8000-000000000002")
 DEVICE = PhysicalBoundary("FIELD_DEVICE", "00000000-0000-4000-8000-000000000003")
