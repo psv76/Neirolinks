@@ -50,9 +50,7 @@ class SegmentResolution:
 
     @property
     def issues(self) -> tuple[str, ...]:
-        return tuple(
-            issue for issue in (self.source.issue, self.target.issue) if issue is not None
-        )
+        return tuple(issue for issue in (self.source.issue, self.target.issue) if issue is not None)
 
 
 def _missing(reason: str) -> BoundaryResolution:
@@ -102,9 +100,7 @@ def resolve_cable_endpoint(
     if point_kind in {"DEVICE_POINT", "BUS_POINT", "INSTALLATION_GROUP"}:
         physical_owners = tuple(dict.fromkeys(owners.point_devices.get(point_id, ())))
         if len(physical_owners) != 1:
-            return _missing(
-                "CABLE_POINT: device boundary must have one confirmed physical owner"
-            )
+            return _missing("CABLE_POINT: device boundary must have one confirmed physical owner")
         return _owner("FIELD_DEVICE", physical_owners[0], owners.device_ids)
     return _missing("CABLE_POINT: unsupported physical point kind")
 
@@ -119,9 +115,7 @@ def resolve_bus_endpoint(
     """Bus root is an instance_resource; bus device is its typed physical owner."""
 
     if is_root:
-        return _owner(
-            "INSTANCE_RESOURCE", bus.get("root_resource_id"), owners.resource_ids
-        )
+        return _owner("INSTANCE_RESOURCE", bus.get("root_resource_id"), owners.resource_ids)
     if endpoint is None or endpoint.get("bus_id") != bus.get("id"):
         return _missing("BUS_ENDPOINT: missing or belongs to another bus")
     kind = endpoint.get("endpoint_kind")
