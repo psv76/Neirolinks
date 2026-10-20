@@ -21,7 +21,7 @@ class PhysicalEdgeRow:
 
 
 def _endpoint_key(endpoint: object) -> tuple[str, str] | None:
-    """Prefer a typed stable reference to a display label."""
+    """Resolve typed topology identity; display labels are never valid join keys."""
 
     if not isinstance(endpoint, dict):
         return None
@@ -31,7 +31,6 @@ def _endpoint_key(endpoint: object) -> tuple[str, str] | None:
         or endpoint.get("reference")
         or endpoint.get("resource_id")
         or (endpoint.get("board") if kind == "BOARD_OUTPUT" else None)
-        or endpoint.get("label")
     )
     return (kind, str(value)) if value is not None and str(value) else None
 
@@ -42,11 +41,16 @@ def physical_edge_layout(edges: list[dict]) -> tuple[PhysicalEdgeRow, ...]:
     References are available in current cable/BUS topology read models. No
     synthetic common segment is inserted for a shared BOARD_OUTPUT. An orphan
     or invalid cyclic remainder is drawn separately, not given a fake parent.
+    Ambiguous converging physical endpoints never get an arbitrary parent.
     """
 
     sources = [_endpoint_key(edge.get("source")) for edge in edges]
     targets = [_endpoint_key(edge.get("target")) for edge in edges]
-    target_keys = {key for key in targets if key is not None}
+    target_counts: dict[tuple[str, str], int] = {}
+    for target in targets:
+        if target is not None:
+            target_counts[target] = target_counts.get(target, 0) + 1
+    target_keys = set(target_counts)
     adjacency: dict[tuple[str, str], list[int]] = {}
     for index, source in enumerate(sources):
         if source is not None:
@@ -65,12 +69,12 @@ def physical_edge_layout(edges: list[dict]) -> tuple[PhysicalEdgeRow, ...]:
         children.setdefault(parent, []).append(index)
         order.append(index)
         target = targets[index]
-        if target is not None:
+        if target is not None and target_counts[target] == 1:
             for child in adjacency.get(target, ()):
                 visit(child, index)
 
     for index, source in enumerate(sources):
-        if source is None or source not in target_keys:
+        if source is None or source not in target_keys or target_counts[source] != 1:
             visit(index, None)
     for index in range(len(edges)):
         visit(index, None)
