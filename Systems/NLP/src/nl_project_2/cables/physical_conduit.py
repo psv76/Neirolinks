@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
 
-
 NetworkKind = Literal["CABLE", "BUS"]
 PhysicalKind = Literal["BOARD", "EL_BOX", "FIELD_DEVICE", "FIELD_PORT", "INSTANCE_RESOURCE"]
 _VALID_KINDS = frozenset(
