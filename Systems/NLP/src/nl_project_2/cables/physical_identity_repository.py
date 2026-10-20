@@ -135,9 +135,7 @@ def load_physical_segment_resolutions(connection, project_id: str) -> tuple[Segm
         if line is None:
             continue
         resolved.append(
-            resolve_cable_segment(
-                segment, line=line, endpoints=cable_endpoints, owners=owners
-            )
+            resolve_cable_segment(segment, line=line, endpoints=cable_endpoints, owners=owners)
         )
 
     active_buses = {
@@ -168,9 +166,7 @@ def load_physical_segment_resolutions(connection, project_id: str) -> tuple[Segm
         owner_bus = active_buses.get(segment["bus_id"])
         if owner_bus is None:
             continue
-        result = resolve_bus_segment(
-            segment, bus=owner_bus, endpoints=bus_endpoints, owners=owners
-        )
+        result = resolve_bus_segment(segment, bus=owner_bus, endpoints=bus_endpoints, owners=owners)
         if result is not None:
             resolved.append(result)
 
