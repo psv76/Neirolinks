@@ -7,12 +7,15 @@ from sqlalchemy import create_engine, event, func, select
 from nl_project_2.cables.physical_identity_repository import (
     load_physical_segment_resolutions,
 )
+from nl_project_2.cables.conduit_audit import load_conduit_membership_audit
 from nl_project_2.persistence.schema import (
     board,
     cable_line,
     cable_point,
     cable_segment,
     cable_topology_endpoint,
+    conduit,
+    conduit_segment_assignment,
     metadata,
     project,
 )
@@ -99,6 +102,16 @@ def test_shared_box_with_different_line_local_endpoints_is_same_physical_interva
                 logical_identity="BOX.010",
             )
         )
+        connection.execute(
+            conduit.insert().values(
+                id=uid(700),
+                project_id=project_id,
+                designation="001.PND25",
+                conduit_number=1,
+                conduit_type="ПНД25",
+                length_m_decimal="12",
+            )
+        )
         for index in (1, 2):
             line_id = uid(100 + index)
             endpoint_id = uid(400 + index)
@@ -121,6 +134,14 @@ def test_shared_box_with_different_line_local_endpoints_is_same_physical_interva
                     mount_way="По полу",
                 )
             )
+            connection.execute(
+                conduit_segment_assignment.insert().values(
+                    id=uid(800 + index),
+                    project_id=project_id,
+                    conduit_id=uid(700),
+                    cable_segment_id=uid(500 + index),
+                )
+            )
 
     with engine.connect() as connection:
         before = connection.execute(select(func.count()).select_from(cable_segment)).scalar_one()
@@ -133,5 +154,11 @@ def test_shared_box_with_different_line_local_endpoints_is_same_physical_interva
         assert resolved[1].target.boundary.identity == box_id
         assert resolved[0].span.key() == resolved[1].span.key()
         assert resolved[0].source.boundary.identity == board_id
+        audits = load_conduit_membership_audit(connection, project_id)
+        assert len(audits) == 1
+        assert audits[0].state == "PHYSICAL_MATCH"
+        assert audits[0].ordinary_count == 2
+        assert audits[0].bus_count == 0
+        assert audits[0].physical_span.key() == resolved[0].span.key()
 
     engine.dispose()
