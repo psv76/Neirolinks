@@ -118,12 +118,14 @@ def load_conduit_membership_audit(connection, project_id: str) -> tuple[ConduitA
         conduit_segment_assignment,
     )
 
-    conduits = tuple(connection.execute(
-        select(conduit.c.id).where(
-            conduit.c.project_id == project_id,
-            conduit.c.lifecycle == "ACTIVE",
-        )
-    ).scalars())
+    conduits = tuple(
+        connection.execute(
+            select(conduit.c.id).where(
+                conduit.c.project_id == project_id,
+                conduit.c.lifecycle == "ACTIVE",
+            )
+        ).scalars()
+    )
     ordinary = connection.execute(
         select(
             conduit_segment_assignment.c.conduit_id,
