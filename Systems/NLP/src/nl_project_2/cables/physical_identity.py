@@ -12,8 +12,8 @@ Continuous transit at an EL_BOX is NOT modeled as electrical commutation.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping
 
 from .physical_conduit import PhysicalBoundary, PhysicalSpan
 
