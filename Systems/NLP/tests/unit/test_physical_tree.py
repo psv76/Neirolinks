@@ -142,3 +142,27 @@ def test_full_layout_preserves_each_segment_exactly_once():
         "A->B",
         "BOARD->C",
     ]
+
+
+def test_bus_points_use_stable_endpoint_ids_not_display_addresses():
+    root = {
+        "segment_id": "bus1",
+        "source": {"kind": "BUS_ROOT", "reference": "501.000", "label": "RS-485"},
+        "target": {"kind": "BUS_POINT", "endpoint_id": "id-1", "label": "501.01"},
+        "calculation_status": "READY",
+    }
+    continuation = {
+        "segment_id": "bus2",
+        "source": {"kind": "BUS_POINT", "endpoint_id": "id-1", "label": "renamed"},
+        "target": {"kind": "BUS_POINT", "endpoint_id": "id-2", "label": "501.02"},
+        "calculation_status": "READY",
+    }
+    same_label_different_endpoint = {
+        "segment_id": "bus3",
+        "source": {"kind": "BUS_POINT", "endpoint_id": "id-other", "label": "501.01"},
+        "target": {"kind": "BUS_POINT", "endpoint_id": "id-3", "label": "501.03"},
+        "calculation_status": "READY",
+    }
+    rows = physical_edge_layout([root, continuation, same_label_different_endpoint])
+    assert [row.edge["segment_id"] for row in rows] == ["bus1", "bus2", "bus3"]
+    assert [row.parent_index for row in rows] == [None, 0, None]
