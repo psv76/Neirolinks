@@ -249,6 +249,7 @@ def test_atomic_two_cable_move_commits_once_and_invalidates_auto_length(database
     result = service.apply(
         project_id=PROJECT,
         expected_project_revision=0,
+        expected_current_assignments={("CABLE", S1): TUBE1, ("CABLE", S2): None},
         changes=(
             AssignmentChange("CABLE", S1, TUBE2),
             AssignmentChange("CABLE", S2, TUBE2),
@@ -275,6 +276,7 @@ def test_batch_rejection_of_one_wrong_span_rolls_back_everything(database):
         _service(database, incompatible=True).apply(
             project_id=PROJECT,
             expected_project_revision=0,
+            expected_current_assignments={("CABLE", S1): TUBE1, ("CABLE", S2): None},
             changes=(
                 AssignmentChange("CABLE", S1, TUBE2),
                 AssignmentChange("CABLE", S2, TUBE2),
@@ -293,6 +295,7 @@ def test_failure_after_changes_still_rolls_back_project_revision_and_tubes(datab
         _service(database).apply(
             project_id=PROJECT,
             expected_project_revision=0,
+            expected_current_assignments={("CABLE", S1): TUBE1},
             changes=(AssignmentChange("CABLE", S1, TUBE2),),
             failure_hook=fail,
         )
@@ -310,6 +313,7 @@ def test_stale_expected_project_revision_denied_before_any_mutation(database):
         _service(database).apply(
             project_id=PROJECT,
             expected_project_revision=7,
+            expected_current_assignments={("CABLE", S1): TUBE1},
             changes=(AssignmentChange("CABLE", S1, TUBE2),),
         )
     assert _revision(database) == 0
@@ -325,6 +329,7 @@ def test_without_trusted_approval_or_mirror_callbacks_no_writes(database):
             service.apply(
                 project_id=PROJECT,
                 expected_project_revision=0,
+                expected_current_assignments={("CABLE", S1): TUBE1},
                 changes=(AssignmentChange("CABLE", S1, TUBE2),),
             )
     assert _revision(database) == 0
@@ -335,6 +340,7 @@ def test_noop_repeated_request_is_idempotent_and_does_not_invalidate(database):
     result = _service(database).apply(
         project_id=PROJECT,
         expected_project_revision=0,
+        expected_current_assignments={("CABLE", S1): TUBE1},
         changes=(AssignmentChange("CABLE", S1, TUBE1),),
     )
     assert not result.applied
@@ -356,6 +362,7 @@ def test_duplicated_or_unknown_member_in_a_batch_never_writes(database):
             _service(database).apply(
                 project_id=PROJECT,
                 expected_project_revision=0,
+                expected_current_assignments={("CABLE", S1): TUBE1},
                 changes=changes,
             )
         assert _revision(database) == 0
@@ -366,8 +373,33 @@ def test_remove_one_of_multiple_segments_is_one_transaction(database):
     result = _service(database).apply(
         project_id=PROJECT,
         expected_project_revision=0,
+        expected_current_assignments={("CABLE", S1): TUBE1},
         changes=(AssignmentChange("CABLE", S1, None),),
     )
     assert result.affected_conduits == (TUBE1,)
     assert _memberships(database) == ()
     assert _revision(database) == 1
+
+
+
+def test_stale_membership_snapshot_rejected_without_any_write(database):
+    with pytest.raises(PhysicalAssignmentError, match="reassigned"):
+        _service(database).apply(
+            project_id=PROJECT,
+            expected_project_revision=0,
+            expected_current_assignments={("CABLE", S1): None},
+            changes=(AssignmentChange("CABLE", S1, TUBE2),),
+        )
+    assert _revision(database) == 0
+    assert _memberships(database) == ((S1, TUBE1),)
+
+
+def test_missing_snapshot_identity_rejected_before_commit(database):
+    with pytest.raises(PhysicalAssignmentError, match="Exact expected"):
+        _service(database).apply(
+            project_id=PROJECT,
+            expected_project_revision=0,
+            expected_current_assignments={},
+            changes=(AssignmentChange("CABLE", S1, TUBE2),),
+        )
+    assert _revision(database) == 0
