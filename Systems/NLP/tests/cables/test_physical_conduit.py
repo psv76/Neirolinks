@@ -15,9 +15,9 @@ from nl_project_2.cables.physical_conduit import (
 )
 
 
-BOARD = PhysicalBoundary("BOARD", "board-id-1")
-BOX = PhysicalBoundary("EL_BOX", "BOX.001")
-DEVICE = PhysicalBoundary("FIELD_DEVICE", "field-device-id-5")
+BOARD = PhysicalBoundary("BOARD", "00000000-0000-4000-8000-000000000001")
+BOX = PhysicalBoundary("EL_BOX", "00000000-0000-4000-8000-000000000002")
+DEVICE = PhysicalBoundary("FIELD_DEVICE", "00000000-0000-4000-8000-000000000003")
 SPAN = PhysicalSpan(BOARD, BOX)
 REVERSED = PhysicalSpan(BOX, BOARD)
 OTHER_SPAN = PhysicalSpan(BOX, DEVICE)
@@ -223,6 +223,8 @@ def test_unknown_objects_and_duplicate_requests_rejected():
 def test_unidentified_physical_boundary_or_box_is_not_accepted():
     with pytest.raises(PhysicalAssignmentError):
         PhysicalBoundary("EL_BOX", "Гостиная")
+    with pytest.raises(PhysicalAssignmentError):
+        PhysicalBoundary("EL_BOX", "BOX.001")  # display designation is not owner ID
     with pytest.raises(PhysicalAssignmentError):
         PhysicalBoundary("EL_BOX", "")
     with pytest.raises(PhysicalAssignmentError):
