@@ -4,7 +4,7 @@ QT_QPA_PLATFORM=offscreen renders the actual PySide6 widgets without disturbing
 the user's desktop. This deliberately never imports production NL Project.
 """
 import os
-os.environ["QT_QPA_PLATFORM"] = "offscreen"
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from pathlib import Path
 from PySide6.QtCore import QItemSelectionModel, Qt
 from PySide6.QtWidgets import QApplication
