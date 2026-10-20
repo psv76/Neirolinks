@@ -128,9 +128,7 @@ class AtomicConduitAssignmentService:
         if self._cable_mirror_updater is None and any(
             change.network_kind == "CABLE" for change in changes
         ):
-            raise PhysicalAssignmentError(
-                "Atomic DWG-facing cable mirror updater is not installed"
-            )
+            raise PhysicalAssignmentError("Atomic DWG-facing cable mirror updater is not installed")
 
         # A write lock *before* physical read prevents another SQLite writer
         # changing membership during our preflight even if it does not bump
@@ -198,7 +196,8 @@ class AtomicConduitAssignmentService:
                     )
 
             effective = tuple(
-                change for change in changes
+                change
+                for change in changes
                 if current.get(change.key()) != change.target_conduit_id
             )
             if not effective:
@@ -224,8 +223,7 @@ class AtomicConduitAssignmentService:
             for member_key, owner_conduit in current.items():
                 if owner_conduit in affected and member_key not in resolved:
                     raise PhysicalAssignmentError(
-                        f"Conduit {owner_conduit}: unresolvable existing "
-                        f"assignment {member_key}"
+                        f"Conduit {owner_conduit}: unresolvable existing assignment {member_key}"
                     )
 
             members: dict[tuple[str, str], dict] = {}
@@ -252,12 +250,9 @@ class AtomicConduitAssignmentService:
                 members[("BUS", row["id"])] = dict(row)
 
             relevant_keys = frozenset(
-                key for key in resolved
-                if key in request_keys or current.get(key) in affected
+                key for key in resolved if key in request_keys or current.get(key) in affected
             )
-            approval = self._approval_provider(
-                uow, project_id, frozenset(affected), relevant_keys
-            )
+            approval = self._approval_provider(uow, project_id, frozenset(affected), relevant_keys)
             if not isinstance(approval, ApprovedPhysicalFacts):
                 raise PhysicalAssignmentError("Unverified technical approval response")
             for cid in affected:
@@ -284,8 +279,7 @@ class AtomicConduitAssignmentService:
                     )
                 )
             approved_conduits = tuple(
-                approval.conduit_facts.get(cid, ConduitFact(cid, None))
-                for cid in conduits
+                approval.conduit_facts.get(cid, ConduitFact(cid, None)) for cid in conduits
             )
             plan = plan_conduit_assignments(
                 conduits=approved_conduits,
@@ -315,8 +309,9 @@ class AtomicConduitAssignmentService:
                         "id": new_id(),
                         "project_id": project_id,
                         "conduit_id": target,
-                        "cable_segment_id" if key[0] == "CABLE" else "bus_segment_id":
-                            change.segment_id,
+                        "cable_segment_id"
+                        if key[0] == "CABLE"
+                        else "bus_segment_id": change.segment_id,
                     }
                     uow.execute(assignment.insert().values(**fields))
                 chosen = conduits.get(target) if target is not None else None
@@ -324,9 +319,7 @@ class AtomicConduitAssignmentService:
                     # This updater must live in the SAME DB transaction and
                     # must reject ambiguous/shared DWG-facing device mirrors.
                     assert self._cable_mirror_updater is not None
-                    self._cable_mirror_updater(
-                        uow, project_id, change.segment_id, chosen
-                    )
+                    self._cable_mirror_updater(uow, project_id, change.segment_id, chosen)
                 else:
                     uow.execute(
                         update(bus_segment)
