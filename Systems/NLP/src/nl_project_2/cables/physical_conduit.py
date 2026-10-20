@@ -10,8 +10,8 @@ calling this planner. Its result is not permission to skip database validation.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from uuid import UUID
 from typing import Literal
+from uuid import UUID
 
 
 NetworkKind = Literal["CABLE", "BUS"]
