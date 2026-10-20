@@ -15,7 +15,6 @@ from .physical_conduit import PhysicalSpan
 from .physical_identity import SegmentResolution
 from .physical_identity_repository import load_physical_segment_resolutions
 
-
 AuditState = Literal["EMPTY", "PHYSICAL_MATCH", "UNRESOLVED", "BOUNDARY_CONFLICT"]
 
 
