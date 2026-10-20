@@ -9,8 +9,8 @@ calling this planner. Its result is not permission to skip database validation.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
+from uuid import UUID
 from typing import Literal
 
 
@@ -41,9 +41,16 @@ class PhysicalBoundary:
             raise PhysicalAssignmentError("Unknown physical boundary identity")
         if not self.identity.strip() or self.identity != self.identity.strip():
             raise PhysicalAssignmentError("Physical boundary identity is missing")
-        if self.kind == "EL_BOX" and re.fullmatch(r"BOX\.[0-9]{3}", self.identity) is None:
-            # The caller must provide the canonical Project BOX identity.
-            raise PhysicalAssignmentError("EL_BOX requires canonical BOX.NNN identity")
+        # Every accepted kind refers to a persisted Project physical-owner UUID.
+        # BOX.001 is a *display designation*, not the shared cable_point.id.
+        # Migration 000000000014 permits one cable_point.id in several CableLines.
+        try:
+            if str(UUID(self.identity)) != self.identity:
+                raise ValueError("Not a canonical UUID")
+        except (ValueError, AttributeError) as exc:
+            raise PhysicalAssignmentError(
+                "Physical boundary needs a confirmed canonical Project owner ID"
+            ) from exc
 
     def key(self) -> tuple[str, str]:
         return self.kind, self.identity
