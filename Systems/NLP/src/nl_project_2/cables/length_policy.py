@@ -9,7 +9,7 @@ wired to the legacy recalculation services (Issue #216, Stage C).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import ROUND_CEILING, Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, getcontext, localcontext
 from typing import Iterable, Literal
 
 
@@ -96,7 +96,17 @@ def round_up_quantity(length_m: object, step_m: object) -> Decimal:
     step = _length(step_m, field="step_m")
     if step <= 0:
         raise ValueError("step_m must be positive")
-    return (length / step).to_integral_value(rounding=ROUND_CEILING) * step
+    # Decimal division uses a finite working precision and can round away a
+    # very small positive excess above an exact multiple. Work with exact
+    # rational numerator/denominator instead, then convert the count to meters.
+    length_n, length_d = length.as_integer_ratio()
+    step_n, step_d = step.as_integer_ratio()
+    numerator = length_n * step_d
+    denominator = length_d * step_n
+    count = (numerator + denominator - 1) // denominator
+    with localcontext() as context:
+        context.prec = max(getcontext().prec, len(str(count)) + len(step.as_tuple().digits) + 2)
+        return Decimal(count) * step
 
 
 def route_length(geometry_m: object, policy: LengthPolicy) -> Decimal:
