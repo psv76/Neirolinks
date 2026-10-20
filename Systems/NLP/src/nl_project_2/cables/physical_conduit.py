@@ -9,6 +9,7 @@ calling this planner. Its result is not permission to skip database validation.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Literal
 
@@ -40,7 +41,7 @@ class PhysicalBoundary:
             raise PhysicalAssignmentError("Unknown physical boundary identity")
         if not self.identity.strip() or self.identity != self.identity.strip():
             raise PhysicalAssignmentError("Physical boundary identity is missing")
-        if self.kind == "EL_BOX" and not self.identity.startswith("BOX."):
+        if self.kind == "EL_BOX" and re.fullmatch(r"BOX\.[0-9]{3}", self.identity) is None:
             # The caller must provide the canonical Project BOX identity.
             raise PhysicalAssignmentError("EL_BOX requires canonical BOX.NNN identity")
 
