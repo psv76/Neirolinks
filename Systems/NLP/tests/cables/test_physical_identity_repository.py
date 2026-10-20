@@ -33,9 +33,7 @@ def test_shared_box_with_different_line_local_endpoints_is_same_physical_interva
     event.listen(
         engine,
         "connect",
-        lambda dbapi_connection, _record: dbapi_connection.execute(
-            "PRAGMA foreign_keys=ON"
-        ),
+        lambda dbapi_connection, _record: dbapi_connection.execute("PRAGMA foreign_keys=ON"),
     )
     metadata.create_all(engine)
     project_id, board_id, box_id = uid(1), uid(2), uid(3)
