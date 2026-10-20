@@ -1,0 +1,67 @@
+name: NLP 216 physical Conduit safety
+
+on:
+  pull_request:
+    paths:
+      - 'Systems/NLP/src/nl_project_2/cables/**'
+      - 'Systems/NLP/src/nl_project_2/persistence/**'
+      - 'Systems/NLP/tests/cables/test_atomic_conduit_command.py'
+      - 'Systems/NLP/tests/cables/test_physical_*.py'
+      - 'Systems/NLP/tests/cables/test_conduit_audit.py'
+      - '.github/workflows/nlp-216-conduit-safety.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safety:
+    name: Strict tests for physical Conduit and atomic batch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: Systems/NLP
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install isolated test dependencies
+        run: python -m pip install 'SQLAlchemy>=2,<3' 'alembic>=1.13,<2' 'pytest>=8,<10' 'ruff>=0.9,<1'
+      - name: Ruff physical assignment modules and regressions
+        run: |
+          python -m ruff check \
+            src/nl_project_2/cables/physical_conduit.py \
+            src/nl_project_2/cables/physical_identity.py \
+            src/nl_project_2/cables/physical_identity_repository.py \
+            src/nl_project_2/cables/conduit_audit.py \
+            src/nl_project_2/cables/atomic_conduit_command.py \
+            tests/cables/test_physical_conduit.py \
+            tests/cables/test_physical_identity.py \
+            tests/cables/test_physical_identity_repository.py \
+            tests/cables/test_conduit_audit.py \
+            tests/cables/test_atomic_conduit_command.py
+          python -m ruff format --check \
+            src/nl_project_2/cables/physical_conduit.py \
+            src/nl_project_2/cables/physical_identity.py \
+            src/nl_project_2/cables/physical_identity_repository.py \
+            src/nl_project_2/cables/conduit_audit.py \
+            src/nl_project_2/cables/atomic_conduit_command.py \
+            tests/cables/test_physical_conduit.py \
+            tests/cables/test_physical_identity.py \
+            tests/cables/test_physical_identity_repository.py \
+            tests/cables/test_conduit_audit.py \
+            tests/cables/test_atomic_conduit_command.py
+      - name: Run physical assignment contract suites (SQLite with FK ON)
+        if: always()
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q \
+            tests/cables/test_physical_conduit.py \
+            tests/cables/test_physical_identity.py \
+            tests/cables/test_physical_identity_repository.py \
+            tests/cables/test_conduit_audit.py \
+            tests/cables/test_atomic_conduit_command.py
