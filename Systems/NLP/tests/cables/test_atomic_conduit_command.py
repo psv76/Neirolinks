@@ -417,7 +417,6 @@ def test_missing_snapshot_identity_rejected_before_commit(database):
     assert _revision(database) == 0
 
 
-
 BUS_TUBE = uid(900)
 BUS_SEGMENT = uid(901)
 BUS_ROOT_RESOURCE = uid(902)
@@ -555,10 +554,7 @@ def _mixed_approval(uow, project_id, affected_tubes, affected_segments):
             spans[tube_id] = _conduit_facts(tube_id)
     return ApprovedPhysicalFacts(
         conduit_facts=spans,
-        segment_classes={
-            key: "DATA" if key[0] == "BUS" else "AC_230"
-            for key in affected_segments
-        },
+        segment_classes={key: "DATA" if key[0] == "BUS" else "AC_230" for key in affected_segments},
     )
 
 
@@ -597,9 +593,11 @@ def test_mixed_ordinary_and_bus_batch_writes_both_tables_once(database):
                 bus_segment_conduit_assignment.c.conduit_id,
             )
         ).all()
-        bus_fact = connection.execute(
-            select(bus_segment).where(bus_segment.c.id == BUS_SEGMENT)
-        ).mappings().one()
+        bus_fact = (
+            connection.execute(select(bus_segment).where(bus_segment.c.id == BUS_SEGMENT))
+            .mappings()
+            .one()
+        )
         assert bus_assignments == [(BUS_SEGMENT, BUS_TUBE)]
         assert bus_fact["gofra_id"] == "003.PND25"
     assert _revision(database) == 1
@@ -627,10 +625,11 @@ def test_mixed_ordinary_bus_rolls_back_both_assignment_tables(database):
         )
     assert _memberships(database) == ((S1, TUBE1),)
     with database.connect() as connection:
-        assert connection.execute(
-            select(bus_segment_conduit_assignment)
-        ).all() == []
-        assert connection.execute(
-            select(bus_segment.c.gofra_id).where(bus_segment.c.id == BUS_SEGMENT)
-        ).scalar_one() is None
+        assert connection.execute(select(bus_segment_conduit_assignment)).all() == []
+        assert (
+            connection.execute(
+                select(bus_segment.c.gofra_id).where(bus_segment.c.id == BUS_SEGMENT)
+            ).scalar_one()
+            is None
+        )
     assert _revision(database) == 0
