@@ -118,9 +118,7 @@ def test_field_port_resolves_to_physical_device_owner():
 def test_missing_board_and_ambiguous_device_group_fail_closed():
     idx = owners(point_kind="INSTALLATION_GROUP", members=(DEVICE, uid(9)))
     line_a, endpoints, segment = cable_example(0)
-    unresolved = resolve_cable_segment(
-        segment, line=line_a, endpoints=endpoints, owners=idx
-    )
+    unresolved = resolve_cable_segment(segment, line=line_a, endpoints=endpoints, owners=idx)
     assert unresolved.span is None
     assert "one confirmed physical owner" in unresolved.target.issue
 
@@ -161,9 +159,7 @@ def test_bus_device_and_cable_device_share_canonical_owner():
             "field_device_id": DEVICE,
         }
     }
-    bus = resolve_bus_segment(
-        bus_segment, bus=bus_line, endpoints=bus_eps, owners=idx
-    )
+    bus = resolve_bus_segment(bus_segment, bus=bus_line, endpoints=bus_eps, owners=idx)
     assert cable.complete and bus.complete
     assert cable.target.boundary == bus.target.boundary
     assert bus.source.boundary.kind == "INSTANCE_RESOURCE"
@@ -217,8 +213,6 @@ def test_wrong_line_endpoint_is_not_resolved_by_matching_ids():
     idx = owners()
     line, endpoints, segment = cable_example(0)
     endpoints[segment["target_endpoint_id"]]["cable_line_id"] = uid(999)
-    result = resolve_cable_segment(
-        segment, line=line, endpoints=endpoints, owners=idx
-    )
+    result = resolve_cable_segment(segment, line=line, endpoints=endpoints, owners=idx)
     assert not result.complete
     assert "another line" in result.target.issue
