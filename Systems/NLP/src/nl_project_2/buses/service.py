@@ -825,6 +825,7 @@ class BusService:
                 ).strip()
                 return {
                     "kind": "BUS_POINT",
+                    "endpoint_id": endpoint_id,
                     "label": address,
                     "description": description,
                     "device_kind": str(meta.get("block_kind") or ""),
@@ -839,6 +840,7 @@ class BusService:
             )
             return {
                 "kind": "BUS_POINT",
+                "endpoint_id": endpoint_id,
                 "label": address,
                 "description": label,
                 "device_kind": str(meta.get("instance_designation") or ""),
