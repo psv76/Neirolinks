@@ -70,7 +70,10 @@ def _seed(connection) -> None:
     )
     connection.execute(
         board.insert().values(
-            id=BOARD, project_id=PROJECT, designation="ЩР-1", board_kind="DISTRIBUTION",
+            id=BOARD,
+            project_id=PROJECT,
+            designation="ЩР-1",
+            board_kind="DISTRIBUTION",
         )
     )
     connection.execute(
@@ -164,8 +167,10 @@ def _seed(connection) -> None:
         if i == 1:
             connection.execute(
                 conduit_segment_assignment.insert().values(
-                    id=new_id(), project_id=PROJECT,
-                    cable_segment_id=segment_id, conduit_id=TUBE1,
+                    id=new_id(),
+                    project_id=PROJECT,
+                    cable_segment_id=segment_id,
+                    conduit_id=TUBE1,
                 )
             )
 
@@ -174,7 +179,8 @@ def _seed(connection) -> None:
 def database():
     engine = create_engine("sqlite+pysqlite:///:memory:")
     event.listen(
-        engine, "connect",
+        engine,
+        "connect",
         lambda dbapi, _record: dbapi.execute("PRAGMA foreign_keys=ON"),
     )
     metadata.create_all(engine)
@@ -195,12 +201,16 @@ def _revision(engine) -> int:
 
 def _memberships(engine) -> tuple[tuple[str, str], ...]:
     with engine.connect() as connection:
-        return tuple(sorted(connection.execute(
-            select(
-                conduit_segment_assignment.c.cable_segment_id,
-                conduit_segment_assignment.c.conduit_id,
+        return tuple(
+            sorted(
+                connection.execute(
+                    select(
+                        conduit_segment_assignment.c.cable_segment_id,
+                        conduit_segment_assignment.c.conduit_id,
+                    )
+                ).all()
             )
-        ).all()))
+        )
 
 
 def _approval(*, incompatible: bool = False):
@@ -209,9 +219,7 @@ def _approval(*, incompatible: bool = False):
         assert set(affected_tubes).issubset({TUBE1, TUBE2})
         return ApprovedPhysicalFacts(
             conduit_facts={
-                tube_id: _conduit_facts(
-                    tube_id, mismatched=incompatible and tube_id == TUBE2
-                )
+                tube_id: _conduit_facts(tube_id, mismatched=incompatible and tube_id == TUBE2)
                 for tube_id in affected_tubes
             },
             segment_classes={key: "AC_230" for key in affected_segments},
@@ -223,10 +231,12 @@ def _approval(*, incompatible: bool = False):
 def _mirror(uow, project_id, segment_id, chosen):
     assert project_id == PROJECT
     uow.execute(
-        update(cable_segment).where(
+        update(cable_segment)
+        .where(
             cable_segment.c.project_id == project_id,
             cable_segment.c.id == segment_id,
-        ).values(
+        )
+        .values(
             gofra_type=chosen["conduit_type"] if chosen else None,
             gofra_color=chosen["color"] if chosen else None,
             row_version=cable_segment.c.row_version + 1,
@@ -258,10 +268,7 @@ def test_atomic_two_cable_move_commits_once_and_invalidates_auto_length(database
     assert _revision(database) == 1
     assert _memberships(database) == ((S1, TUBE2), (S2, TUBE2))
     with database.connect() as connection:
-        tubes = {
-            row["id"]: row
-            for row in connection.execute(select(conduit)).mappings()
-        }
+        tubes = {row["id"]: row for row in connection.execute(select(conduit)).mappings()}
         assert tubes[TUBE1]["length_m_decimal"] is None
         assert tubes[TUBE1]["path_json"]["length_source"] == "STALE_AFTER_ASSIGNMENT"
         assert tubes[TUBE2]["length_m_decimal"] == "30"
@@ -286,6 +293,7 @@ def test_batch_rejection_of_one_wrong_span_rolls_back_everything(database):
 
 def test_failure_after_changes_still_rolls_back_project_revision_and_tubes(database):
     before = _memberships(database)
+
     def fail() -> None:
         raise RuntimeError("injected abort before commit")
 
@@ -300,9 +308,7 @@ def test_failure_after_changes_still_rolls_back_project_revision_and_tubes(datab
     assert _revision(database) == 0
     assert _memberships(database) == before
     with database.connect() as connection:
-        source = connection.execute(
-            select(conduit).where(conduit.c.id == TUBE1)
-        ).mappings().one()
+        source = connection.execute(select(conduit).where(conduit.c.id == TUBE1)).mappings().one()
         assert source["length_m_decimal"] == "17"
 
 
@@ -345,9 +351,7 @@ def test_noop_repeated_request_is_idempotent_and_does_not_invalidate(database):
     assert result.project_revision == 0
     assert _revision(database) == 0
     with database.connect() as connection:
-        tube = connection.execute(
-            select(conduit).where(conduit.c.id == TUBE1)
-        ).mappings().one()
+        tube = connection.execute(select(conduit).where(conduit.c.id == TUBE1)).mappings().one()
         assert tube["length_m_decimal"] == "17"
 
 
@@ -377,7 +381,6 @@ def test_remove_one_of_multiple_segments_is_one_transaction(database):
     assert result.affected_conduits == (TUBE1,)
     assert _memberships(database) == ()
     assert _revision(database) == 1
-
 
 
 def test_stale_membership_snapshot_rejected_without_any_write(database):
