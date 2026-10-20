@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from sqlalchemy import create_engine, event, select, update
 
@@ -18,16 +20,16 @@ from nl_project_2.cables.physical_conduit import (
 )
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
+    board,
     bus,
     bus_endpoint,
     bus_segment,
     bus_segment_conduit_assignment,
-    catalog_release,
-    board,
     cable_line,
     cable_point,
     cable_segment,
     cable_topology_endpoint,
+    catalog_release,
     conduit,
     conduit_segment_assignment,
     instance_resource,
@@ -435,9 +437,7 @@ def _seed_isolated_bus(connection):
             release_code="TEST_PHYSICAL_216",
             schema_version=1,
             content_sha256="a" * 64,
-            installed_at_utc=__import__("datetime").datetime.now(
-                __import__("datetime").UTC
-            ),
+            installed_at_utc=datetime.now(UTC),
             status="ACTIVE",
         )
     )
