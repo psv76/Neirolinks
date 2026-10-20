@@ -40,6 +40,25 @@ app.processEvents()
 assert "12 сегм." in a.match_label.text()
 assert a.tree_model.rowCount() == 1
 a.grab().save(str(out / "A_without_conduit.png"))
+a.membership.setCurrentText("Все")
+a.set_expand_all(True)
+app.processEvents()
+first_tube = a.tree_model.index(0, 0)
+first_child = a.tree_model.index(0, 0, first_tube)
+second_child = a.tree_model.index(1, 0, first_tube)
+a.view.selectionModel().select(
+    first_child, QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows
+)
+a.view.selectionModel().select(
+    second_child, QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows
+)
+app.processEvents()
+assert len(a.saved_selection) == 2
+a.grab().save(str(out / "A_multiselect.png"))
+a.view.collapse(first_tube)
+app.processEvents()
+assert "скрыто выбранных: 2" in a.selection_label.text(), a.selection_label.text()
+a.grab().save(str(out / "A_hidden_selection.png"))
 
 b.set_expand_all(True)
 app.processEvents()
@@ -49,7 +68,12 @@ assert root_idx.data() != seg_idx.data()
 assert seg_idx.data(int(Qt.ItemDataRole.UserRole)+2) == "SEGMENT"
 segment_id = seg_idx.data(int(Qt.ItemDataRole.UserRole)+1)
 b.view.selectionModel().select(seg_idx, QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows)
+other_seg_idx = b.flat_model.index(5, 0)  # Segment in the second conduit.
+b.view.selectionModel().select(
+    other_seg_idx, QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows
+)
 app.processEvents()
+assert len(b.saved_selection) == 2, b.saved_selection
 assert segment_id in b.saved_selection, (segment_id, b.saved_selection)
 b.grab().save(str(out / "B_multiselect.png"))
 b._flat_toggle(root_idx.data(int(Qt.ItemDataRole.UserRole)+1))
@@ -63,6 +87,11 @@ b.set_expand_all(True)
 app.processEvents()
 assert "5 сегм." in b.match_label.text(), b.match_label.text()
 b.grab().save(str(out / "B_required_conduit.png"))
+b.membership.setCurrentText("Без трубы")
+app.processEvents()
+assert "12 сегм." in b.match_label.text()
+assert b.flat_model.rows[0].kind == "SEGMENT"
+b.grab().save(str(out / "B_without_conduit.png"))
 b.membership.setCurrentText("Все")
 b.search.setText("Cat5e")
 b.set_expand_all(True)
