@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import pytest
-from sqlalchemy import create_engine, event, func, select, update
+from sqlalchemy import create_engine, event, select, update
 
 from nl_project_2.cables.atomic_conduit_command import (
     ApprovedPhysicalFacts,
