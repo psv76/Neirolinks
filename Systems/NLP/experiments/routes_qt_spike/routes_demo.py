@@ -150,7 +150,8 @@ class TableBModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.DisplayRole:
             if index.column() == 0:
                 if row.kind == "SEGMENT":
-                    return "    ↳ Сегмент"
+                    return ("Сегмент" if row.segment and row.segment.conduit_id is None
+                            else "    ↳ Сегмент")
                 return ("▾ " if row.identity in self.expanded else "▸ ") + (
                     "Труба" if row.kind == "CONDUIT" else "Без трубы"
                 )
@@ -328,8 +329,8 @@ class RoutesPrototype(QWidget):
         self.selection_label.setStyleSheet("color: #4b5563")
         main.addWidget(self.selection_label)
 
-        self.search.textChanged.connect(self.rebuild)
-        self.membership.currentIndexChanged.connect(self.rebuild)
+        self.search.textChanged.connect(self._filter_changed)
+        self.membership.currentIndexChanged.connect(self._filter_changed)
         self.sort.currentIndexChanged.connect(self.rebuild)
         self.reset_button.clicked.connect(self.reset_filters)
         self.expand_button.clicked.connect(lambda: self.set_expand_all(True))
@@ -346,11 +347,22 @@ class RoutesPrototype(QWidget):
             ]
             groups.append((root, children))
         if self.filtered_unassigned:
-            groups.append((
-                Display("GROUP", "group:none", count=len(self.filtered_unassigned)),
-                [Display("SEGMENT", s.id, segment=s) for s in self.filtered_unassigned],
-            ))
+            if self.variant == "A":
+                groups.append((
+                    Display("GROUP", "group:none", count=len(self.filtered_unassigned)),
+                    [Display("SEGMENT", s.id, segment=s) for s in self.filtered_unassigned],
+                ))
+            else:
+                # B is a flat registry: non-assigned segments are standalone rows.
+                groups.extend(
+                    (Display("SEGMENT", s.id, segment=s), [])
+                    for s in self.filtered_unassigned
+                )
         return groups
+
+    def _filter_changed(self, *_args):
+        self._expand_matching = True
+        self.rebuild()
 
     def rebuild(self, *_args):
         # QStandardItemModel.clear() resets QTreeView header sections on Windows.
@@ -365,6 +377,14 @@ class RoutesPrototype(QWidget):
             self.membership.currentText(), self.sort.currentText()
         )
         groups = self._group_rows()
+        if getattr(self, "_expand_matching", False):
+            if self.search.text().strip() or self.membership.currentText() in (
+                "Без трубы", "Требует трубы"
+            ):
+                self.expanded.update(
+                    root.identity for root, children in groups if children
+                )
+            self._expand_matching = False
         if self.variant == "A":
             model = self.tree_model
             model.clear()
