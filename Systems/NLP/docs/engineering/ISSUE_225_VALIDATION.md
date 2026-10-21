@@ -83,3 +83,33 @@ recorded in #225 before creation. Retain for PR review; after merge/abandonment,
 remove through Git worktree management only after verifying no unique unpushed
 work. `%TEMP%\NL_Project_3\issue-225` holds disposable test databases/logs and
 may be removed after review. The canonical runtime checkout was not changed.
+
+
+## Post-review repairs (2026-10-21; verification pending)
+
+Independent review found three synchronization risks, addressed in follow-up
+commits on the same PR branch. The original `792 passed` run listed above
+**predates these commits** and must not be represented as their validation.
+
+- RS-485 source reconstruction uses the **complete set of accepted Project
+  BusEndpoint addresses**, including a temporarily missing DWG insertion.
+  Adding a new intermediate point reconnects only the appropriate successor;
+  route and conduit ownership remain unchanged.
+- Existing `BUS_POINT_ID` changes are **explicit structural collisions**.
+  Renumber/exchange is not yet a supported generic DWG Update operation.
+  Even if structural apply is forced, the materializer checks endpoint/device
+  ownership transactionally and rejects it before any committed changes.
+- A consistently changed `BUS_CABLE_TYPE` can update the whole Bus in one
+  transaction. An incomplete scanned set of accepted endpoints is rejected
+  rather than changing the Bus owner based on a subset.
+
+Added regression scenarios in `tests/buses/test_issue225_sync.py`:
+missing middle RS-485 point + selective change, inserting an intermediate point,
+free-address renumber and swap for all bus kinds, whole-bus cable type change
+for RS485/DALI/KNX, and rejection of changes from incomplete DWG snapshots.
+
+**Pending:** rerun `tools/format-check.ps1`, `tools/check.ps1` and
+`tools/test.ps1` on the updated PR head; verify precise test counts and log
+actual results here and in PR. At the time of this follow-up, the previously
+available remote Windows device was offline. No live DWG/SQLite, AutoCAD
+connection, or workstation main runtime was touched.
