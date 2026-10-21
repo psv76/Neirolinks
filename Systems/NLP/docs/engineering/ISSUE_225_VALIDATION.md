@@ -85,7 +85,7 @@ work. `%TEMP%\NL_Project_3\issue-225` holds disposable test databases/logs and
 may be removed after review. The canonical runtime checkout was not changed.
 
 
-## Post-review repairs (2026-10-21; verification pending)
+## Post-review repairs (2026-10-21; Windows verification completed)
 
 Independent review found three synchronization risks, addressed in follow-up
 commits on the same PR branch. The original `792 passed` run listed above
@@ -109,8 +109,35 @@ free-address renumber and swap for all bus kinds, cross-bus renumber, whole-bus 
 for RS485/DALI/KNX, and rejection of changes from incomplete DWG snapshots. UI localization has a
 regression test for the new actionable errors.
 
-**Pending:** rerun `tools/format-check.ps1`, `tools/check.ps1` and
-`tools/test.ps1` on the updated PR head; verify precise test counts and log
-actual results here and in PR. At the time of this follow-up, the previously
-available remote Windows device was offline. No live DWG/SQLite, AutoCAD
-connection, or workstation main runtime was touched.
+### Windows regression execution after independent review
+
+Remote Desktop Commander device `Perepelkin` was online for this check.
+The recorded isolated worktree was fast-forwarded from `6a3e1aa` to
+`101c8a7`; no worktree changes were present before test execution.
+A targeted rerun discovered an additional cross-bus `BUS_POINT_ID` apply
+bypass: forcing structural apply did not raise for `920.001 → 921.001`.
+The application path now rejects any selected accepted `BUS_POINT_ID`
+renumber before writing Project data, including forced structural apply.
+No same-bus, cross-bus or address-swap identity changes are accepted.
+
+**Verified on the updated isolated Windows worktree, 2026-10-21:**
+
+- `tools/format-check.ps1`: **PASS**, 261 files formatted.
+  Ruff formatting corrections were applied to `service.py` and the
+  issue-specific regression tests before the final run.
+- `tools/check.ps1`: **PASS**, compileall and Ruff.
+- Targeted `tests/buses/test_issue225_sync.py` and
+  `tests/objects/test_object_ui.py`: **41 passed** in **54.28 s**.
+- `tools/test.ps1`: **805 passed, 0 failed, 0 skipped, 1 existing
+  SQLite datetime adapter DeprecationWarning**, **521.59 s**.
+  Marker expression: `not live_cad and not manual_acceptance`.
+
+Pytest was run with an explicit isolated `--basetemp` under
+`%TEMP%\NL_Project_3\issue-225\review-20261021-1325-full` because
+the shared pytest temp directory returned a Windows permission error.
+This setup issue was not a product-test failure.
+
+These are **automated test results, not real AutoCAD/live acceptance**.
+The canonical runtime checkout, SQLite database, live DWG and AutoCAD
+were not modified, opened or saved. PR stays unmerged pending separate
+review and named-DWG smoke authorization.

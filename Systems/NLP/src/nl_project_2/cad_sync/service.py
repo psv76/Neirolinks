@@ -506,9 +506,7 @@ class DwgSyncService:
                         "Project rebind; restore the existing point ID before Update"
                     )
                     if bus_point_renumber
-                    else (
-                        "Structural identity/topology change requires explicit structural apply"
-                    )
+                    else ("Structural identity/topology change requires explicit structural apply")
                 )
             changes.append(
                 SyncChange(
@@ -695,6 +693,18 @@ class DwgSyncService:
         }
         if not selected <= applicable:
             raise DwgSyncError("Selection contains a non-applicable or implicit change")
+        # A selected existing bus identity must never be re-bound by generic
+        # DWG import, even when allow_structural=True. In particular a move to
+        # another Bus can otherwise bypass local endpoint ownership checks.
+        if any(
+            change.field_path in selected
+            and change.field == "BUS_POINT_ID"
+            and change.detail_status == "STRUCTURAL_IDENTITY_REVIEW"
+            for change in proposal.changes
+        ):
+            raise DwgSyncError(
+                "BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION: use the accepted Project identity"
+            )
         selected_projection_handles = {
             handle
             for change in proposal.changes
@@ -2473,12 +2483,8 @@ class DwgSyncService:
                     )
                 ).mappings()
             )
-            endpoint_by_address = {
-                row["address"]: row["id"] for row in existing_endpoints
-            }
-            endpoint_row_by_address = {
-                row["address"]: row for row in existing_endpoints
-            }
+            endpoint_by_address = {row["address"]: row["id"] for row in existing_endpoints}
+            endpoint_row_by_address = {row["address"]: row for row in existing_endpoints}
             endpoint_by_device = {
                 row["field_device_id"]: row
                 for row in existing_endpoints
@@ -2494,9 +2500,7 @@ class DwgSyncService:
                     bus_endpoint.c.address,
                 ).where(
                     bus_endpoint.c.project_id == project_id,
-                    bus_endpoint.c.field_device_id.in_(
-                        {device_ids[plan.handle] for plan in plans}
-                    ),
+                    bus_endpoint.c.field_device_id.in_({device_ids[plan.handle] for plan in plans}),
                 )
             ):
                 accepted_addresses_by_device[existing_owner.field_device_id].add(
@@ -2522,9 +2526,7 @@ class DwgSyncService:
                         f"{owned['address']} -> {plan.point_id}"
                     )
                 if assigned is not None and assigned["field_device_id"] != device_id:
-                    raise DwgSyncError(
-                        f"BUS_POINT_ID_OWNER_CONFLICT:{designation}:{plan.point_id}"
-                    )
+                    raise DwgSyncError(f"BUS_POINT_ID_OWNER_CONFLICT:{designation}:{plan.point_id}")
             inserted_endpoint = False
             for plan in plans:
                 endpoint_id = endpoint_by_address.get(plan.point_id)
@@ -2646,11 +2648,8 @@ class DwgSyncService:
                         .where(
                             bus_segment.c.project_id == project_id,
                             bus_segment.c.bus_id == bus_row["id"],
-                            bus_segment.c.target_endpoint_id
-                            == endpoint_by_address[address],
-                            bus_segment.c.source_endpoint_id.is_distinct_from(
-                                expected_upstream
-                            ),
+                            bus_segment.c.target_endpoint_id == endpoint_by_address[address],
+                            bus_segment.c.source_endpoint_id.is_distinct_from(expected_upstream),
                         )
                         .values(source_endpoint_id=expected_upstream)
                     )
