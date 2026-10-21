@@ -37,6 +37,7 @@ jobs:
             src/nl_project_2/cables/physical_identity_repository.py \
             src/nl_project_2/cables/conduit_audit.py \
             src/nl_project_2/cables/atomic_conduit_command.py \
+            src/nl_project_2/cables/route_mirror.py \
             tests/cables/test_physical_conduit.py \
             tests/cables/test_physical_identity.py \
             tests/cables/test_physical_identity_repository.py \
@@ -48,6 +49,7 @@ jobs:
             src/nl_project_2/cables/physical_identity_repository.py \
             src/nl_project_2/cables/conduit_audit.py \
             src/nl_project_2/cables/atomic_conduit_command.py \
+            src/nl_project_2/cables/route_mirror.py \
             tests/cables/test_physical_conduit.py \
             tests/cables/test_physical_identity.py \
             tests/cables/test_physical_identity_repository.py \
