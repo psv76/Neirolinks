@@ -96,7 +96,7 @@ commits on the same PR branch. The original `792 passed` run listed above
   Adding a new intermediate point reconnects only the appropriate successor;
   route and conduit ownership remain unchanged.
 - Existing `BUS_POINT_ID` changes are **explicit structural collisions**.
-  Renumber/exchange is not yet a supported generic DWG Update operation.
+  Renumber/exchange (including a cross-bus move) is not yet a supported generic DWG Update operation.
   Even if structural apply is forced, the materializer checks endpoint/device
   ownership transactionally and rejects it before any committed changes.
 - A consistently changed `BUS_CABLE_TYPE` can update the whole Bus in one
@@ -105,8 +105,9 @@ commits on the same PR branch. The original `792 passed` run listed above
 
 Added regression scenarios in `tests/buses/test_issue225_sync.py`:
 missing middle RS-485 point + selective change, inserting an intermediate point,
-free-address renumber and swap for all bus kinds, whole-bus cable type change
-for RS485/DALI/KNX, and rejection of changes from incomplete DWG snapshots.
+free-address renumber and swap for all bus kinds, cross-bus renumber, whole-bus cable type change
+for RS485/DALI/KNX, and rejection of changes from incomplete DWG snapshots. UI localization has a
+regression test for the new actionable errors.
 
 **Pending:** rerun `tools/format-check.ps1`, `tools/check.ps1` and
 `tools/test.ps1` on the updated PR head; verify precise test counts and log
