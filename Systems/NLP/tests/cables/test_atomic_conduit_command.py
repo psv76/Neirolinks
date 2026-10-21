@@ -11,7 +11,6 @@ from nl_project_2.cables.atomic_conduit_command import (
     ApprovedPhysicalFacts,
     AtomicConduitAssignmentService,
 )
-from nl_project_2.cables.route_mirror import reconcile_ordinary_route_mirrors
 from nl_project_2.cables.physical_conduit import (
     AssignmentChange,
     ConduitFact,
