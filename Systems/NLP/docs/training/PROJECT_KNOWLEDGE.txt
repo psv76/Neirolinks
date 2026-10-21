@@ -1,0 +1,84 @@
+NEIROLINKS — NL PROJECT 3.0 — КРАТКАЯ БАЗА ЗНАНИЙ ДЛЯ CHATGPT ПРОЕКТИРОВЩИКА
+Версия: учебный draft 0.1, 2026-10-21.
+Назначение: помощь электрику, осваивающему AutoCAD для чертежей освещения NEIROLINKS.
+Это справка, а не техническая библиотека блоков и не замена задания руководителя.
+
+ПЕРВОИСТОЧНИКИ
+Репозиторий: https://github.com/psv76/Neirolinks
+Учебный раздел (до мержа — черновая ветка): https://github.com/psv76/Neirolinks/tree/docs/232-nlp3-cad-designer-guide/Systems/NLP/docs/training
+Точные canonical blocks и ATTDEF:
+https://github.com/psv76/Neirolinks/blob/main/Systems/NLP/docs/autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md
+Физическая topology:
+https://github.com/psv76/Neirolinks/blob/main/Systems/NLP/docs/autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md
+Геометрия DWG:
+https://github.com/psv76/Neirolinks/blob/main/Systems/NLP/docs/product/20_AUTOCAD_BLOCK_CONTRACT.md
+Кабели и трубы:
+https://github.com/psv76/Neirolinks/blob/main/Systems/NLP/docs/product/22_CABLE_LENGTHS_AND_CONDUITS.md
+DALI и RS-485:
+https://github.com/psv76/Neirolinks/blob/main/Systems/NLP/docs/product/23_DATA_BUS_TOPOLOGY.md
+DWG-синхронизация:
+https://github.com/psv76/Neirolinks/blob/main/Systems/NLP/docs/product/25_DWG_SYNCHRONIZATION.md
+Статус контракта: machine AutoCAD contract 3.0.0, 71 canonical block definitions (Repair 08). Несмотря на отдельные старые заголовки «2.0» в нормативных файлах, текущая линия продукта — NL Project 3.0. Этот файл НЕ содержит всех 71 exact ATTDEF sets. Для неизвестного блока сначала открыть exact reference.
+
+БАЗОВЫЕ ПРАВИЛА
+1) AutoCAD — основная среда рисования; NLP 3.0 — второе представление того же инженерного проекта.
+2) X/Y: 1 drawing unit = 1 мм. MOUNT_HEIGHT: мм от чистого пола. LENGTH у линейного изделия: мм.
+3) Использовать только canonical block definitions NEIROLINKS; внешний вид блока не гарантирует совместимости с NLP.
+4) Exact ATTDEF set конкретного блока обязателен. Не добавлять произвольные или legacy теги.
+5) DEVICE_NAME — описание конкретного изделия; BUILDING+ROOM должны быть согласованы с помещениями Project.
+6) CABLE_ID=XYY[.ZZ] — ID линии и её точки, суффикс НЕ новая линия. BOARD — принадлежность линии щиту; CABLE_SOURCE — непосредственный физический источник входящего участка (не равен автоматически BOARD).
+7) Допустимые формы CABLE_SOURCE: пусто, BOX.010, 331.02, 902.003/K1 (примеры формата).
+8) MOUNT_WAY и GOFRA_* — свойства входящего физического сегмента; BOARD и CABLE_TYPE — свойства базовой линии.
+9) SW_* и BTN_* НЕ имеют CABLE_SOURCE. Для общей линии выключателей 2YY.ZZ суффиксы задают числовой порядок от щита.
+10) DALI: BUS_POINT_ID=9YY.ZZZ, BUS_SOURCE задаёт upstream point той же шины; корень 9YY.000. BUS_POINT_ID не является DALI short address.
+11) RS-485: линейная последовательность по числовым suffix BUS_POINT_ID, без BUS_SOURCE; расположение устройства внутри EL_BOX не создаёт автоматически bus edge.
+12) Светодиодный LED_TYPE допускает MONO, CCT, RGB, RGBW; MIX в пользовательском DWG не принимается.
+13) После «Обновить» возможна передача допустимых изменений AutoCAD↔Project, однако DWG не сохраняется автоматически.
+
+СВЕТИЛЬНИКИ
+LIGHT_IN_230V — встраиваемый 230 В.
+LIGHT_OUT_230V — накладной 230 В.
+LIGHT_IN_DALI_230V — встраиваемый DALI 230 В.
+LIGHT_OUT_DALI_230V — накладной DALI 230 В.
+LIGHT_LED, LIGHT_LED_IP67 — линейное LED изделие.
+LIGHT_TRACK_230V, LIGHT_TRACK_48V, LIGHT_TRACK_DALI_48V — светильники на соответствующих физических треках.
+TRACK_230V, TRACK_48V, TRACK_DALI — сами физические треки.
+Точный перечень остальных светильников см. exact reference.
+
+LIGHT_IN_230V и LIGHT_OUT_230V — Exact ATTDEF:
+DEVICE_NAME, BUILDING, ROOM, MOUNT_HEIGHT,
+CABLE_ID, CABLE_TYPE, BOARD, CABLE_SOURCE,
+MOUNT_WAY, GOFRA_TYPE, GOFRA_COLOR, GOFRA_ID,
+LOAD_TYPE, LOAD_NAME, CALC_POWER, COMMENT_1, COMMENT_2.
+Допустимые LOAD_TYPE для этих блоков: LIGHT_MAIN, LIGHT_DECOR, LIGHT_TECH, LIGHT_NIGHT, LIGHT_STREET.
+
+ВЫКЛЮЧАТЕЛИ
+SW_IN_1 — одноклавишный внутренний; SW_IN_2 — двухклавишный внутренний; другие SW_*, BTN_* — только по exact reference.
+SW_IN_2 — Exact ATTDEF:
+DEVICE_NAME, BUILDING, ROOM, MOUNT_HEIGHT,
+CABLE_ID, CABLE_TYPE, BOARD, MOUNT_WAY,
+GOFRA_TYPE, GOFRA_COLOR, GOFRA_ID, LOAD_NAME,
+KEY_1, KEY_2, COMMENT_1, COMMENT_2.
+У SW_IN_2 нет LOAD_TYPE и CABLE_SOURCE.
+Не определять значения KEY_n по догадке, только по функциональному заданию.
+
+УСЛОВНЫЙ ПРИМЕР № 1 (НЕ НУМЕРАЦИЯ РЕАЛЬНОГО ОБЪЕКТА)
+Два LIGHT_IN_230V на одной линии:
+первый: CABLE_ID=111.01, CABLE_SOURCE=<пусто>;
+второй: CABLE_ID=111.02, CABLE_SOURCE=111.01.
+Оба на одной базовой CableLine 111; общий BOARD и CABLE_TYPE по заданию.
+Не заполнять реальные высоты, марки и мощность выдуманными данными.
+
+УСЛОВНЫЙ ПРИМЕР № 2 (НЕ НУМЕРАЦИЯ РЕАЛЬНОГО ОБЪЕКТА)
+Два выключателя на общей UTP: CABLE_ID=201.01 и 201.02.
+Не создавать CABLE_SOURCE; порядок определён суффиксом.
+Назначения клавиш согласовать с ответственным проектировщиком.
+
+УСЛОВНЫЙ ПРИМЕР № 3 (НЕ НУМЕРАЦИЯ РЕАЛЬНОГО ОБЪЕКТА)
+Первый DALI point BUS_POINT_ID=905.001, BUS_SOURCE=905.000.
+Обычное питание светильника и DALI-шина описываются независимо.
+
+ЧТО ОТВЕЧАТЬ, ЕСЛИ ДАННЫХ НЕТ
+Нельзя самостоятельно выбирать ID, BOARD, тип кабеля, способ прокладки, трубу, мощность, число клавиш или назначение клавиш, номер DALI/RS-485, порт и каталог. Сначала спросить исходные данные задания.
+Если требуется exact ATTDEF отсутствующего здесь блока, сказать: «Не могу подтвердить состав атрибутов без первоисточника AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md». Не сочинять комплект.
+Краткий формат ответа: Что сделать сейчас в AutoCAD → точные имена полей → ссылка на первоисточник → что надо уточнить.
