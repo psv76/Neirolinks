@@ -311,7 +311,17 @@ class BusService:
         return changed
 
     def list_rs485_resource_candidates(self, project_id: str) -> list[dict]:
-        """Return active Project RS-485 resources for future source/endpoint selectors."""
+        return self.list_bus_source_candidates(project_id, "RS485")
+
+    def list_bus_source_candidates(self, project_id: str, bus_kind: str) -> list[dict]:
+        """Active source resources of an explicitly selected protocol."""
+        resource_kind = {
+            "RS485": "RS485_INTERFACE",
+            "DALI": "DALI_BUS_PORT",
+            "KNX": "KNX_BUS_PORT",
+        }.get(bus_kind)
+        if resource_kind is None:
+            raise BusError("Select RS485, DALI or KNX")
 
         with self._engine.connect() as connection:
             occupied_sources = set(
@@ -344,7 +354,7 @@ class BusService:
                 .where(
                     instance_resource.c.project_id == project_id,
                     project_instance.c.project_id == project_id,
-                    instance_resource.c.resource_kind == "RS485_INTERFACE",
+                    instance_resource.c.resource_kind == resource_kind,
                     instance_resource.c.active.is_(True),
                     project_instance.c.lifecycle == "ACTIVE",
                 )

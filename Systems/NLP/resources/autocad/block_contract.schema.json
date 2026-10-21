@@ -53,7 +53,14 @@
           "attribute_profile": {"type": "string"},
           "optional_attributes": {"type": "array", "items": {"type": "string"}},
           "key_counts": {"type": "object"},
-          "posts": {"type": "object"}
+          "posts": {"type": "object"},
+          "allowed_groups": {"type":"array", "items":{"type":"string"}},
+          "bus_kind": {"enum":["RS485","DALI","KNX"]},
+          "bus_link_kind": {"enum":["CABLE","TRACK"]},
+          "cable_link_kind": {"enum":["CABLE","TRACK"]},
+          "load_type_group": {"type":"string"},
+          "allowed_load_types": {"type":"array", "items":{"type":"string"}},
+          "derived_phase": {"type":"integer"}
         }
       }
     },

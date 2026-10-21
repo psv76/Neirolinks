@@ -11,7 +11,7 @@ NL Project 3.0 — Windows desktop-система NEIROLINKS для проект
 - Stage 0: Issue `#142` / PR `#144` merged — accepted Lines UI, one-click DWG workflow and local cell-specific remediation;
 - current stage: Issue `#146` — external/runtime identity 3.0;
 - schema head: `000000000012_timber_mount_way`;
-- AutoCAD machine contract: `3.0.0`, 71 canonical block definitions / 10 groups;
+- AutoCAD machine contract: `3.1.0`, 72 canonical block definitions / 10 groups;
 - equipment catalog release remains `nlp2.mvp.equipment.2026-08-24.repair-05` as an immutable catalog identity;
 - PR #144 Windows non-live/non-manual regression: **715 passed, 0 failed, 1 existing warning**.
 

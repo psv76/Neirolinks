@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QGraphicsScene,
     QGraphicsView,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -32,6 +33,7 @@ class _Rs485ResourceDialog(QDialog):
         designation_label: str,
         candidates: list[dict],
         designation: str = "",
+        resource_label: str = "RS-485 resource",
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -52,7 +54,7 @@ class _Rs485ResourceDialog(QDialog):
 
         form = QFormLayout()
         form.addRow(designation_label, self.designation_edit)
-        form.addRow("RS-485 resource", self.resource_combo)
+        form.addRow(resource_label, self.resource_combo)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel,
             parent=self,
@@ -80,9 +82,9 @@ class BusWorkspaceDialog(QDialog):
         self.setWindowTitle("Шины данных")
         self.resize(1100, 820)
 
-        self.create_rs485_button = QPushButton("Создать RS-485", self)
+        self.create_rs485_button = QPushButton("Создать шину", self)
         self.create_rs485_button.setObjectName("createRs485BusButton")
-        self.create_rs485_button.clicked.connect(self._create_rs485_bus)
+        self.create_rs485_button.clicked.connect(lambda: self.create_bus())
         self.add_endpoint_button = QPushButton("Добавить точку", self)
         self.add_endpoint_button.setObjectName("addRs485EndpointButton")
         self.add_endpoint_button.clicked.connect(self._add_rs485_endpoint)
@@ -264,6 +266,50 @@ class BusWorkspaceDialog(QDialog):
             f"STATUS: {topology.status}; длина: {topology.total_length_mm} мм; проверки: {errors}"
         )
         self._update_action_state()
+
+    def create_bus(self, designation: str = "") -> bool:
+        kind, accepted = QInputDialog.getItem(
+            self, "Создать шину", "Тип шины", ("RS485", "DALI", "KNX"), 0, False
+        )
+        if not accepted:
+            return False
+        if kind == "RS485":
+            return self.create_rs485_bus(designation)
+        candidates = [
+            item
+            for item in self.service.list_bus_source_candidates(self.project_id, kind)
+            if item["source_available"]
+        ]
+        if not candidates:
+            QMessageBox.warning(
+                self, "Шина не создана", f"Нет свободного источника {kind} в Project."
+            )
+            return False
+        dialog = _Rs485ResourceDialog(
+            title=f"Создать {kind}",
+            designation_label="Обозначение шины",
+            candidates=candidates,
+            designation=designation,
+            resource_label="Источник",
+            parent=self,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return False
+        selected_designation, resource_id = dialog.values()
+        try:
+            receipt = self.service.create_branched_bus(
+                project_id=self.project_id,
+                bus_kind=kind,
+                designation=selected_designation,
+                root_resource_id=resource_id,
+                points=(),
+                branches=(),
+            )
+        except BusError as exc:
+            QMessageBox.warning(self, "Шина не создана", str(exc))
+            return False
+        self.refresh(receipt.bus_id)
+        return True
 
     def _create_rs485_bus(self) -> None:
         self.create_rs485_bus()

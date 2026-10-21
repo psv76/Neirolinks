@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 
@@ -97,8 +97,11 @@ class _BatchFacts:
 
 
 class CadContractValidator:
-    def __init__(self, catalog: BlockContractCatalog) -> None:
+    def __init__(
+        self, catalog: BlockContractCatalog, *, project_bus_kinds: Mapping[str, str] | None = None
+    ) -> None:
         self.catalog = catalog
+        self._project_bus_kinds = dict(project_bus_kinds or {})
         self._owned_attribute_tags = frozenset(
             tag
             for rule in catalog.blocks.values()
@@ -780,33 +783,51 @@ class CadContractValidator:
                     )
                 )
             else:
-                bus_kind = (
-                    "DALI" if "BUS_SOURCE" in rule.required_definition_attributes else "RS485"
-                )
+                bus_kind = self._bus_kind(rule, bus_point_id)
+                if bus_kind is None:
+                    issues.append(
+                        self._issue(
+                            "BUS_TYPE_REQUIRED",
+                            "Выберите или создайте шину Project "
+                            "с типом RS485/DALI/KNX и источником",
+                            observation,
+                            "BUS_POINT_ID",
+                        )
+                    )
+                elif rule.bus_kind and bus_kind != rule.bus_kind:
+                    issues.append(
+                        self._issue(
+                            "BUS_TYPE_CONFLICT",
+                            f"Тип шины Project {bus_kind} несовместим "
+                            f"с блоком {rule.name} ({rule.bus_kind})",
+                            observation,
+                            "BUS_POINT_ID",
+                        )
+                    )
                 facts.bus_rows.append(
                     (
                         observation.handle,
                         bus_point_id,
                         bus_source,
-                        bus_kind,
+                        bus_kind or "",
                         attributes.get("BUS_CABLE_TYPE", ""),
                     )
                 )
-                if bus_kind == "DALI":
+                if bus_kind in {"DALI", "KNX"}:
                     if not bus_source or _BUS_POINT_ID.fullmatch(bus_source) is None:
                         issues.append(
                             self._issue(
                                 "BUS_SOURCE_FORMAT",
-                                "DALI BUS_SOURCE must match 9YY.ZZZ",
+                                f"{bus_kind} BUS_SOURCE must match 9YY.ZZZ",
                                 observation,
                                 "BUS_SOURCE",
                             )
                         )
-                elif bus_source:
+                elif bus_kind == "RS485" and bus_source:
                     issues.append(
                         self._issue(
                             "RS485_BUS_SOURCE_FORBIDDEN",
-                            "RS-485 blocks do not declare BUS_SOURCE",
+                            "Для RS-485 значение BUS_SOURCE должно быть пустым",
                             observation,
                             "BUS_SOURCE",
                         )
@@ -859,8 +880,17 @@ class CadContractValidator:
                     )
         return issues
 
-    @staticmethod
+    def _bus_kind(self, rule: BlockRule, point_id: str) -> str | None:
+        designation = point_id[:3]
+        if designation in self._project_bus_kinds:
+            kind = self._project_bus_kinds[designation]
+            return kind if kind in {"RS485", "DALI", "KNX"} else None
+        # Specialized legacy blocks declare their protocol explicitly in the contract.
+        # A universal outlet has no fallback and needs an actual Project Bus.
+        return rule.bus_kind
+
     def _read_payload(
+        self,
         observation: CadObservation,
         rule: BlockRule,
         attributes: dict[str, str],
@@ -902,9 +932,7 @@ class CadContractValidator:
             bus_point_id=bus_point_id or None,
             bus_id=bus_match.group("bus") if bus_match else None,
             bus_source=attributes.get("BUS_SOURCE") or None,
-            bus_type=("DALI" if "BUS_SOURCE" in rule.required_definition_attributes else "RS485")
-            if bus_match
-            else None,
+            bus_type=self._bus_kind(rule, bus_point_id) if bus_match else None,
             cable_link_kind=rule.cable_link_kind,
             bus_link_kind=rule.bus_link_kind,
             derived_phase=rule.derived_phase,
@@ -1268,13 +1296,38 @@ class CadContractValidator:
             )
 
         bus_points = {point for _handle, point, _source, _kind, _cable_type in facts.bus_rows}
+        rows_by_point = defaultdict(list)
+        for row in facts.bus_rows:
+            rows_by_point[row[1]].append(row)
+        for point, rows in rows_by_point.items():
+            if len(rows) > 1:
+                handles = tuple(sorted(row[0] for row in rows))
+                issues.append(
+                    self._issue(
+                        "DUPLICATE_BUS_POINT_ID",
+                        f"Точка {point} встречается несколько раз",
+                        handle=handles[0],
+                        field="BUS_POINT_ID",
+                        related_handles=handles,
+                    )
+                )
+                if len({row[2] for row in rows}) > 1:
+                    issues.append(
+                        self._issue(
+                            "BUS_SOURCE_DOUBLE_PARENT",
+                            f"У точки {point} несколько upstream точек",
+                            handle=handles[0],
+                            field="BUS_SOURCE",
+                            related_handles=handles,
+                        )
+                    )
         bus_adjacency: dict[str, set[str]] = defaultdict(set)
         cable_types: dict[str, set[str]] = defaultdict(set)
         for handle, point, source, kind, cable_type in facts.bus_rows:
             bus_id = point[:3]
             if cable_type:
                 cable_types[bus_id].add(cable_type)
-            if kind == "DALI":
+            if kind in {"DALI", "KNX"}:
                 if source[:3] != bus_id:
                     issues.append(
                         self._issue(
@@ -1298,12 +1351,36 @@ class CadContractValidator:
         bus_nodes = set(bus_adjacency) | {
             node for values in bus_adjacency.values() for node in values
         }
-        if _graph_has_cycle(bus_adjacency, bus_nodes):
-            issues.append(
-                self._issue(
-                    "BUS_SOURCE_CYCLE", "DALI topology contains a cycle/ring", field="BUS_SOURCE"
+        for bus_id in sorted({point[:3] for point in bus_points}):
+            nodes = {node for node in bus_nodes if node[:3] == bus_id}
+            if _graph_has_cycle(bus_adjacency, nodes):
+                handles = tuple(row[0] for row in facts.bus_rows if row[1][:3] == bus_id)
+                issues.append(
+                    self._issue(
+                        "BUS_SOURCE_CYCLE",
+                        f"Шина {bus_id} содержит цикл/кольцо",
+                        field="BUS_SOURCE",
+                        related_handles=handles,
+                    )
                 )
-            )
+        reachable = set()
+        pending = [f"{point[:3]}.000" for point in bus_points]
+        while pending:
+            node = pending.pop()
+            if node in reachable:
+                continue
+            reachable.add(node)
+            pending.extend(bus_adjacency.get(node, ()))
+        for handle, point, _source, kind, _cable_type in facts.bus_rows:
+            if kind in {"DALI", "KNX"} and point not in reachable:
+                issues.append(
+                    self._issue(
+                        "BUS_POINT_UNREACHABLE",
+                        f"Точка {point} не достижима от root шины",
+                        handle=handle,
+                        field="BUS_SOURCE",
+                    )
+                )
         for bus_id, values in sorted(cable_types.items()):
             if len(values) > 1:
                 issues.append(
@@ -1311,6 +1388,9 @@ class CadContractValidator:
                         "BUS_CABLE_TYPE_INCONSISTENT",
                         f"BUS_ID {bus_id} has inconsistent BUS_CABLE_TYPE: {sorted(values)}",
                         field="BUS_CABLE_TYPE",
+                        related_handles=tuple(
+                            row[0] for row in facts.bus_rows if row[1][:3] == bus_id
+                        ),
                     )
                 )
         return issues

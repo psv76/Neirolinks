@@ -1,7 +1,7 @@
 # NL Project 2.0 — справочник атрибутов блоков AutoCAD
 **Дата:** 2026-08-30  
 **Редакция:** после полного аудита и принятых сокращений  
-**Статус:** принятый exact reference для Repair 08, machine contract `3.0.0` / 71 definitions; статус пользовательской приёмки указан в [STATUS.md](../STATUS.md).
+**Статус:** принятый exact reference для Repair 08, machine contract `3.1.0` / 72 definitions; статус пользовательской приёмки указан в [STATUS.md](../STATUS.md).
 ## 1. Назначение
 Документ является рабочим справочником для редактирования canonical block definitions AutoCAD.
 Правило использования:
@@ -65,9 +65,9 @@ Physical port ATTDEF (`COM1`, `COM2`, `K1`, `K2`, `IN_1`, `IN_2`, `W1`, `W2`) п
 
 Типы и suffix защитных труб для обычных и bus-полей определяет [22_CABLE_LENGTHS_AND_CONDUITS.md, раздел 8](../product/22_CABLE_LENGTHS_AND_CONDUITS.md#8-тип-цвет-и-обозначение-трубы). Русское `ППЛ` сохраняет технический код `PP`; поддержка `МПТ16` относится к contract/validation и не означает наличие catalog passport/product.
 ### 2.7. `LOAD_TYPE`
-`LOAD_TYPE` сохраняется только у светильников/LED, розеток, кабельных выводов и щитов. Он удалён у `SW_*`, `BTN_*`, `SENSOR_*`, `WB_M1W2`, `WB_MAI2`, `FAN`, `AIR_VALVE`, `CONTROL_PANEL_*`, `TRACK_*`, `WB_MRM2_MINI`.
+`LOAD_TYPE` сохраняется только у светильников/LED, розеток, ordinary/DALI кабельных выводов и щитов. Универсальный bus-only `CABLE_OUTLET_BUS` не содержит `LOAD_TYPE`, `CALC_POWER` или `PHASE`. Он удалён у `SW_*`, `BTN_*`, `SENSOR_*`, `WB_M1W2`, `WB_MAI2`, `FAN`, `AIR_VALVE`, `CONTROL_PANEL_*`, `TRACK_*`, `WB_MRM2_MINI`.
 ### 2.8. `PHASE` и `CALC_POWER`
-`PHASE` удалён из обычных однофазных розеточных blocks и из `SOCKET_OUT_380V`: значение 1/3 выводится из canonical block name. `PHASE` сохраняется у `CABLE_OUTLET*`, `FAN`, `AIR_VALVE`.
+`PHASE` удалён из обычных однофазных розеточных blocks и из `SOCKET_OUT_380V`: значение 1/3 выводится из canonical block name. `PHASE` сохраняется у ordinary/DALI `CABLE_OUTLET*` (кроме bus-only `CABLE_OUTLET_BUS`), `FAN`, `AIR_VALVE`.
 
 `CALC_POWER` удалён из `SOCKET_ETHERNET`. Для `CONTROL_PANEL_*` PoE-мощность является Project/catalog-owned свойством выбранной модели панели и ATTDEF `CALC_POWER` не вводится.
 ### 2.9. Canonical rename / new blocks
@@ -78,9 +78,10 @@ SENSOR_MAI2 -> WB_MAI2
 SOCKET_OUT_380V
 CABLE_OUTLET_DALI
 CABLE_OUTLET_FRAME_DALI
+CABLE_OUTLET_BUS
 ```
 ## 3. Canonical block catalog
-В target reference включено **71** canonical block definitions.
+В target reference включено **72** canonical block definitions.
 - **Рамки:** `FRAME_1`, `FRAME_2`, `FRAME_3`, `FRAME_4`, `FRAME_5`, `FRAME_1_IP44`, `FRAME_2_IP44`, `FRAME_3_IP44`
 - **Светильники:** `LIGHT_OUT_230V`, `LIGHT_IN_230V`, `LIGHT_OUT_DALI_230V`, `LIGHT_IN_DALI_230V`, `LIGHT_TRACK_230V`, `LIGHT_TRACK_48V`, `LIGHT_TRACK_DALI_48V`, `LIGHT_IN_IP44`, `LIGHT_OUT_IP54`, `LIGHT_LUSTRA`, `LIGHT_BRA`, `LIGHT_BRA_IP54`
 - **Светодиодные линии:** `LIGHT_LED`, `LIGHT_LED_IP67`
@@ -88,7 +89,7 @@ CABLE_OUTLET_FRAME_DALI
 - **Выключатели:** `SW_IN_1`, `SW_IN_2`, `SW_IN_3`, `SW_IN_4`, `SW_OUT_1`, `SW_OUT_2`, `SW_IN_1_IP44`, `SW_IN_2_IP44`, `SW_OUT_1_IP44`, `SW_OUT_2_IP44`
 - **Кнопки:** `BTN_IN_1`, `BTN_IN_2`, `BTN_IN_3`, `BTN_IN_4`
 - **Розетки:** `SOCKET_IN`, `SOCKET_IN_IP44`, `SOCKET_OUT`, `SOCKET_OUT_IP54`, `SOCKET_OUT_380V`, `SOCKET_ETHERNET`
-- **Кабельные выводы:** `CABLE_OUTLET`, `CABLE_OUTLET_FRAME`, `CABLE_OUTLET_DALI`, `CABLE_OUTLET_FRAME_DALI`
+- **Кабельные выводы:** `CABLE_OUTLET_BUS`, `CABLE_OUTLET`, `CABLE_OUTLET_FRAME`, `CABLE_OUTLET_DALI`, `CABLE_OUTLET_FRAME_DALI`
 - **Датчики:** `SENSOR_1WIRE`, `SENSOR_MSW`, `SENSOR_WATER`, `SENSOR_MOTION`
 - **Оборудование:** `FAN`, `AIR_VALVE`
 - **Панели управления:** `CONTROL_PANEL_4`, `CONTROL_PANEL_9`, `CONTROL_PANEL_10`, `CONTROL_PANEL_11`
@@ -1437,6 +1438,31 @@ COMMENT_2
 - `CABLE_LIGHT_TECH` — Вывод технического освещения.
 - `CABLE_LIGHT_NIGHT` — Вывод ночного освещения.
 - `CABLE_LIGHT_STREET` — Вывод уличного освещения.
+
+#### `CABLE_OUTLET_BUS`
+
+Одна физическая точка шины; слой `BUS`, DEVICE_TYPE `CABLE_OUTLET` (derived),
+`bus_link_kind=CABLE`, ordinary cable link отсутствует. Тип задаёт Project Bus.
+RS485: BUS_SOURCE пуст; DALI/KNX: обязательный parent той же шины.
+
+**Exact ATTDEF set:**
+
+```text
+DEVICE_NAME
+BUILDING
+ROOM
+MOUNT_HEIGHT
+BUS_POINT_ID
+BUS_CABLE_TYPE
+BUS_MOUNT_WAY
+BUS_GOFRA_TYPE
+BUS_GOFRA_COLOR
+BUS_GOFRA_ID
+LOAD_NAME
+COMMENT_1
+COMMENT_2
+BUS_SOURCE
+```
 
 #### `CABLE_OUTLET_DALI`
 Назначение/примечание: Физический кабельный вывод с одновременной ordinary cable topology и DALI bus topology.

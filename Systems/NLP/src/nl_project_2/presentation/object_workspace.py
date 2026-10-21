@@ -750,7 +750,7 @@ class DwgSyncResolutionDialog(QDialog):
                     "Источник",
                     "—",
                     f"{designation}.001…",
-                    "В DWG найдены точки шины, но физический источник RS-485 не назначен.",
+                    "В DWG найдены точки шины, но тип и физический источник шины не назначены.",
                 )
                 for column, value in enumerate(values):
                     self.table.setItem(row, column, QTableWidgetItem(value))
@@ -2076,7 +2076,7 @@ class ObjectWorkspace(QWidget):
                         proposal.project_id,
                         self,
                     )
-                    created_bus_root = bus_dialog.create_rs485_bus(designation) or created_bus_root
+                    created_bus_root = bus_dialog.create_bus(designation) or created_bus_root
 
             selected_import = dialog.selected_import_paths()
             if selected_import:

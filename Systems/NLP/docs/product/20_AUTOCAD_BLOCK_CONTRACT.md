@@ -2,7 +2,7 @@
 
 ## Active Repair08 contract (normative)
 
-Текущий machine contract: `3.0.0`, ровно 71 canonical definition. Exact canonical names, ATTDEF sets и `LOAD_TYPE` allow-lists определяет [AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](../autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md); topology/ownership определяет соседний [CURRENT_TOPOLOGY_ARCHITECTURE.md](../autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md). Machine projection — [resources/autocad/block_contract.json](../../resources/autocad/block_contract.json); расхождение с exact reference является ошибкой parity.
+Текущий machine contract: `3.1.0`, ровно 72 canonical definition. Exact canonical names, ATTDEF sets и `LOAD_TYPE` allow-lists определяет [AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](../autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md); topology/ownership определяет соседний [CURRENT_TOPOLOGY_ARCHITECTURE.md](../autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md). Machine projection — [resources/autocad/block_contract.json](../../resources/autocad/block_contract.json); расхождение с exact reference является ошибкой parity.
 
 Target planning ATTDEF не содержат `DEVICE_TYPE`, `POSTS`, global `SOURCE`, исходящие box fields, `CABLE_LINK`, `BUS_LINK`, `LINE_ROLE`, `ROOT_ENDPOINT`, `BUS_ID`, `BUS_TYPE`. Эти значения Project-owned/derived. `DEVICE_NAME` остаётся пользовательским planning fact.
 
@@ -10,7 +10,7 @@ Target planning ATTDEF не содержат `DEVICE_TYPE`, `POSTS`, global `SOU
 
 Physical ports `COM1/COM2/K1/K2/IN_1/IN_2/W1/W2` — editable projections canonical edges. Reciprocal port/`CABLE_SOURCE` uses previous Project baseline: one changed side wins deterministically; consistent two-side change passes; incompatible change = `DUAL_PROJECTION_REQUIRES_ATTENTION`, no silent winner. `WB_MRM2_MINI` has one feeder set and independent ports; `WB_M1W2` has `W1/W2`.
 
-Bus identity: `BUS_POINT_ID=9YY.ZZZ`, reserved root `9YY.000`; `BUS_ID/BUS_TYPE` не ATTDEF. DALI uses explicit `BUS_SOURCE` branching without cross-bus/cycles. RS-485 has no `BUS_SOURCE`, order is `.ZZZ`. `BUS_CABLE_TYPE` is line-owned; `BUS_MOUNT_WAY/BUS_GOFRA_*` belong to incoming `BusSegment`. Derived `CABLE_LINK/BUS_LINK=TRACK` creates no fake external cable/conduit.
+Bus identity: `BUS_POINT_ID=9YY.ZZZ`, reserved root `9YY.000`; `BUS_ID/BUS_TYPE` не ATTDEF. DALI uses explicit `BUS_SOURCE` branching without cross-bus/cycles. RS-485 has empty `BUS_SOURCE` on the universal outlet (absent on specialized blocks), order is `.ZZZ`. `BUS_CABLE_TYPE` is line-owned; `BUS_MOUNT_WAY/BUS_GOFRA_*` belong to incoming `BusSegment`. Derived `CABLE_LINK/BUS_LINK=TRACK` creates no fake external cable/conduit.
 
 Exact canonical successors include `LIGHT_*_230V`, `WB_M1W2`, `WB_MAI2` and four ordinary/DALI cable-outlet variants. Retired generic light/sensor names are input-only explicit aliases and never emitted. Ordinary lights/outlets have no bus fields; DALI 230 V variants have independent ordinary+bus networks; track lights contain no route facts for internal track links. Socket/phase/PoE boundaries follow exact reference.
 
@@ -25,3 +25,28 @@ Project-to-DWG intersects its closed allow-list with the exact ATTDEF set, perfo
 Вертикальное положение устройства задаётся атрибутом `MOUNT_HEIGHT` в миллиметрах от чистого пола. Для расчётов NL Project использует `MOUNT_HEIGHT` как координату по высоте.
 
 `LENGTH` линейного изделия в DWG задаётся в миллиметрах; значение не пересчитывается по эвристике масштаба.
+
+## Универсальный кабельный вывод шины
+
+`CABLE_OUTLET_BUS` — одна физическая точка шины на слое `BUS`, с типом
+устройства `CABLE_OUTLET`, `bus_link_kind=CABLE` и без ordinary cable link.
+Тип RS485/DALI/KNX принадлежит Project Bus, не имени блока и не наличию
+ATTDEF `BUS_SOURCE`. При неизвестной шине пользователь выбирает тип и
+свободный физический источник; неизвестный тип не заменяется RS485.
+Несовместимость типа существующей шины со специализированным блоком — конфликт.
+
+`BUS_POINT_ID=9YY.ZZZ` — физическая identity, не аппаратный адрес.
+`.000` принадлежит Project root и запрещён для полевой вставки.
+Для RS485 значение `BUS_SOURCE` пусто: порядок определяется числовым `.ZZZ`.
+Для DALI и KNX TP значение обязательно и указывает ближайшую upstream точку
+той же шины, включая `.000`. Разрешены линия, звезда и дерево; запрещены
+кольца, двойной parent, неизвестный parent и недостижимые точки.
+Общая механика физических edges не меняет ограничения питания, адресации,
+длины/числа устройств и логических групп каждого протокола.
+
+Один входящий `BusSegment` учитывается один раз. `BUS_CABLE_TYPE` принадлежит
+шине; `BUS_MOUNT_WAY` и `BUS_GOFRA_*` — входящему сегменту. Пустой
+`BUS_GOFRA_ID` допустим до штатного назначения трубы по conduit contract.
+Входящий и отходящий кабель у привода не требуют двух вставок вывода.
+Вывод не создаёт обычную CableLine, привод, нагрузку или ProjectInstance;
+отдельная розетка питания остаётся отдельным физическим объектом.

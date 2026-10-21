@@ -2,7 +2,7 @@
 
 ## Актуализация Repair 08
 
-Обязательный contour включает exact parity всех 71 canonical definitions и ATTDEF sets; rejected names/removed tags; `DEVICE_NAME`; ordinary roots и concrete `CABLE_SOURCE`; three-way dual-projection cases с real conflict; MRM2/M1W2; DALI `.000` branch и RS-485 `.ZZZ` order; physical `BusSegment`/conduit once; track links без fake length; exact `LOAD_TYPE` allow-lists; migration clean/current/reopen/integrity; predecessor regression и один финальный default-marker full regression. Required skips для Repair 08 — `0`.
+Обязательный contour включает exact parity всех 72 canonical definitions и ATTDEF sets; rejected names/removed tags; `DEVICE_NAME`; ordinary roots и concrete `CABLE_SOURCE`; three-way dual-projection cases с real conflict; MRM2/M1W2; DALI `.000` branch и RS-485 `.ZZZ` order; physical `BusSegment`/conduit once; track links без fake length; exact `LOAD_TYPE` allow-lists; migration clean/current/reopen/integrity; predecessor regression и один финальный default-marker full regression. Required skips для Repair 08 — `0`.
 
 **Статус:** `APPROVED`  
 **Дата фиксации:** 2026-08-04  

@@ -151,6 +151,18 @@ class DwgSyncService:
         self._contract = load_contract()
         self._validator = CadContractValidator(self._contract)
 
+    def _validate_project_batch(self, project_id, batch):
+        with self._engine.connect() as connection:
+            kinds = dict(
+                connection.execute(
+                    select(bus.c.designation, bus.c.bus_kind).where(
+                        bus.c.project_id == project_id,
+                        bus.c.lifecycle == "ACTIVE",
+                    )
+                ).all()
+            )
+        return CadContractValidator(self._contract, project_bus_kinds=kinds).validate(batch)
+
     def scan_active(
         self,
         *,
@@ -187,7 +199,7 @@ class DwgSyncService:
         batch: CadObservationBatch,
         progress: Callable[[DwgScanProgress], None] | None = None,
     ) -> ScanProposal:
-        validation = self._validator.validate(batch)
+        validation = self._validate_project_batch(project_id, batch)
         if progress is not None:
             progress(DwgScanProgress("FORMING_CHANGES"))
         snapshot = normalize_validated_snapshot(validation.observations)
@@ -284,6 +296,7 @@ class DwgSyncService:
                     baselines[fact.owner_path] = accepted_baselines[previous_path]
             project_owner_values = _load_project_owner_values(
                 connection,
+                binding_id=binding_id,
                 project_id=project_id,
                 snapshot=snapshot,
                 devices=devices,
@@ -691,7 +704,9 @@ class DwgSyncService:
 
         validated = {
             item.observation.handle: item
-            for item in self._validator.validate(proposal.batch).observations
+            for item in self._validate_project_batch(
+                proposal.project_id, proposal.batch
+            ).observations
             if not item.ignored_project_data
         }
         snapshot = normalize_validated_snapshot(tuple(validated.values()))
@@ -1078,12 +1093,13 @@ class DwgSyncService:
                     definition=observation.definition,
                 )
             )
-        validation = self._validator.validate(
+        validation = self._validate_project_batch(
+            proposal.project_id,
             CadObservationBatch(
                 proposal.batch.document_identity,
                 tuple(rewritten),
                 proposal.batch.source_metadata,
-            )
+            ),
         )
         blocking = [
             issue
@@ -1629,6 +1645,7 @@ class DwgSyncService:
     def _upsert_devices(self, uow, project_id, binding_id, validated, selected, active_handles):
         result: dict[str, str] = {}
         previous_bases: set[str] = set()
+        canonical_bus_fields = _project_bus_fields(uow, project_id)
         for handle, item in validated.items():
             if handle not in active_handles:
                 continue
@@ -1646,6 +1663,8 @@ class DwgSyncService:
             )
             dwg_fields = _fields(item)
             values = dict(existing["normalized_fields_json"] or {}) if existing else {}
+            if existing:
+                values.update(canonical_bus_fields.get(existing["id"], {}))
             previous_cable_id = str(values.get("CABLE_ID") or "").strip()
             if previous_cable_id:
                 previous_bases.add(previous_cable_id.split(".", 1)[0])
@@ -2334,14 +2353,11 @@ class DwgSyncService:
             ).mappings()
         }
 
+        canonical_bus_fields = _project_bus_fields(uow, project_id)
         for plan in snapshot.bus_points:
             device_id = device_ids.get(plan.handle)
             if device_id is None:
                 continue
-            if plan.handle in active_handles:
-                grouped[plan.bus_id].append(plan)
-                continue
-
             # A BUS-capable field device may already be accepted in Project before
             # its Bus/root exists (for example because an ordinary CableLine uses
             # one of its physical W/K ports). When the bus root is created later,
@@ -2349,7 +2365,9 @@ class DwgSyncService:
             # without importing any unselected DWG changes. Rebuild the bus plan
             # strictly from persisted accepted Project evidence and only when the
             # current DWG point identity still matches that accepted identity.
-            fields = persisted_bus_fields_by_device_id.get(device_id, {})
+            fields = dict(persisted_bus_fields_by_device_id.get(device_id, {}))
+            if plan.handle not in active_handles:
+                fields.update(canonical_bus_fields.get(device_id, {}))
             if (
                 str(fields.get("BUS_POINT_ID") or "").strip() != plan.point_id
                 or str(fields.get("BUS_ID") or "").strip() != plan.bus_id
@@ -2452,6 +2470,21 @@ class DwgSyncService:
                     source_endpoint = endpoint_by_address.get(plan.source)
                     if source_endpoint is None:
                         raise DwgSyncError(f"BUS_SOURCE_NOT_FOUND:{plan.source}")
+                if (
+                    plan.handle not in active_handles
+                    and device_ids[plan.handle] in canonical_bus_fields
+                ):
+                    if plan.bus_kind == "RS485":
+                        uow.execute(
+                            update(bus_segment)
+                            .where(
+                                bus_segment.c.bus_id == bus_row["id"],
+                                bus_segment.c.target_endpoint_id == target_endpoint,
+                                bus_segment.c.source_endpoint_id.is_distinct_from(source_endpoint),
+                            )
+                            .values(source_endpoint_id=source_endpoint)
+                        )
+                    continue
                 route = dict(plan.route)
                 if plan.connection_kind == "TRACK" and any(route.values()):
                     raise DwgSyncError(f"TRACK_BUS_ROUTE_FORBIDDEN:{plan.point_id}")
@@ -3735,9 +3768,55 @@ def _legacy_box_owner_path(owner_key: str, field: str, fields: dict) -> str | No
     return None
 
 
+def _project_bus_fields(connection, project_id):
+    source = bus_endpoint.alias("bus_source_read")
+    rows = connection.execute(
+        select(
+            field_device.c.id,
+            bus.c.designation,
+            bus.c.bus_kind,
+            bus.c.cable_type,
+            bus_segment.c.mount_way,
+            bus_segment.c.gofra_type,
+            bus_segment.c.gofra_color,
+            conduit.c.designation.label("gofra_id"),
+            source.c.address.label("source_address"),
+        )
+        .select_from(bus_segment)
+        .join(bus, bus.c.id == bus_segment.c.bus_id)
+        .join(bus_endpoint, bus_endpoint.c.id == bus_segment.c.target_endpoint_id)
+        .join(field_device, field_device.c.id == bus_endpoint.c.field_device_id)
+        .outerjoin(source, source.c.id == bus_segment.c.source_endpoint_id)
+        .outerjoin(
+            bus_segment_conduit_assignment,
+            bus_segment_conduit_assignment.c.bus_segment_id == bus_segment.c.id,
+        )
+        .outerjoin(conduit, conduit.c.id == bus_segment_conduit_assignment.c.conduit_id)
+        .where(
+            bus.c.project_id == project_id,
+            bus.c.lifecycle == "ACTIVE",
+            field_device.c.lifecycle == "ACTIVE",
+        )
+    ).mappings()
+    return {
+        row["id"]: {
+            "BUS_CABLE_TYPE": row["cable_type"] or "",
+            "BUS_SOURCE": ""
+            if row["bus_kind"] == "RS485"
+            else (row["source_address"] or f"{row['designation']}.000"),
+            "BUS_MOUNT_WAY": row["mount_way"] or "",
+            "BUS_GOFRA_TYPE": row["gofra_type"] or "",
+            "BUS_GOFRA_COLOR": row["gofra_color"] or "",
+            "BUS_GOFRA_ID": row["gofra_id"] or "",
+        }
+        for row in rows
+    }
+
+
 def _load_project_owner_values(
     connection,
     *,
+    binding_id: str | None,
     project_id: str,
     snapshot: NormalizedCadSnapshot,
     devices: dict[str, dict[str, Any]],
@@ -3747,6 +3826,18 @@ def _load_project_owner_values(
     """Read each Project value from its schema-7 authoritative owner."""
 
     result: dict[str, Any] = {}
+    bus_fields_by_device = _project_bus_fields(connection, project_id)
+    bus_fields_by_handle = {
+        row.entity_handle: bus_fields_by_device[row.id]
+        for row in connection.execute(
+            select(field_device.c.id, field_device.c.entity_handle).where(
+                field_device.c.project_id == project_id,
+                field_device.c.dwg_document_binding_id == binding_id,
+                field_device.c.lifecycle == "ACTIVE",
+            )
+        )
+        if row.id in bus_fields_by_device
+    }
     device_locations = {
         row["entity_handle"]: {
             "ROOM": row["room_name"],
@@ -3952,7 +4043,9 @@ def _load_project_owner_values(
         else:
             fields = devices.get(fact.primary_handle)
             if fields is not None:
-                if fact.field in {"ROOM", "BUILDING"}:
+                if fact.field in bus_fields_by_handle.get(fact.primary_handle, {}):
+                    result[fact.owner_path] = bus_fields_by_handle[fact.primary_handle][fact.field]
+                elif fact.field in {"ROOM", "BUILDING"}:
                     canonical_value = device_locations.get(fact.primary_handle, {}).get(fact.field)
                     result[fact.owner_path] = (
                         canonical_value if canonical_value is not None else fields.get(fact.field)

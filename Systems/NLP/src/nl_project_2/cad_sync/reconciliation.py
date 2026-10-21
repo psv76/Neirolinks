@@ -168,6 +168,8 @@ def normalize_validated_snapshot(
         point_identity = _point_identity(item) if identity is not None else None
         point_key = None if identity is None else _point_key(identity.base, point_identity)
         excluded = LINE_FIELDS | set(ROUTE_FIELDS) | SPECIAL_FIELDS | {"CABLE_ID", "CABLE_SOURCE"}
+        if identity is None:
+            excluded = excluded - {"LOAD_NAME"}
         insertion_values: dict[str, Any] = {
             "BLOCK_NAME": item.observation.effective_name,
             "LAYER": item.observation.layer,

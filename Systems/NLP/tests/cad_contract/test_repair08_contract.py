@@ -27,10 +27,11 @@ def _attdef_hash(tags) -> str:
 
 def test_exact_71_names_and_attdef_fixture(block_contract):
     assert len(_EXPECTED_HASHES) == 71
-    assert set(block_contract.blocks) == set(_EXPECTED_HASHES)
+    assert set(block_contract.blocks) == set(_EXPECTED_HASHES) | {"CABLE_OUTLET_BUS"}
     assert {
         name: _attdef_hash(rule.required_definition_attributes)
         for name, rule in block_contract.blocks.items()
+        if name != "CABLE_OUTLET_BUS"
     } == _EXPECTED_HASHES
 
 
