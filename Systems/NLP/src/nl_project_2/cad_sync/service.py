@@ -2484,12 +2484,38 @@ class DwgSyncService:
                 for row in existing_endpoints
                 if row["field_device_id"] is not None
             }
-            # Guard both free-address renumbers and exchanges between devices.
+            # A field device may already own a bus endpoint on a *different*
+            # Bus. Validate that identity as well; a cross-bus move must not
+            # leave the original endpoint in place and create a second one.
+            accepted_addresses_by_device: dict[str, set[str]] = defaultdict(set)
+            for existing_owner in uow.execute(
+                select(
+                    bus_endpoint.c.field_device_id,
+                    bus_endpoint.c.address,
+                ).where(
+                    bus_endpoint.c.project_id == project_id,
+                    bus_endpoint.c.field_device_id.in_(
+                        {device_ids[plan.handle] for plan in plans}
+                    ),
+                )
+            ):
+                accepted_addresses_by_device[existing_owner.field_device_id].add(
+                    existing_owner.address
+                )
+            # Guard free-address renumbers, swaps, and cross-Bus moves.
             # Failing inside the transaction preserves all accepted topology.
             for plan in plans:
                 device_id = device_ids[plan.handle]
                 owned = endpoint_by_device.get(device_id)
                 assigned = endpoint_row_by_address.get(plan.point_id)
+                if any(
+                    address != plan.point_id
+                    for address in accepted_addresses_by_device.get(device_id, ())
+                ):
+                    raise DwgSyncError(
+                        f"BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION:{designation}:"
+                        f"accepted endpoint -> {plan.point_id}"
+                    )
                 if owned is not None and owned["address"] != plan.point_id:
                     raise DwgSyncError(
                         f"BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION:{designation}:"
