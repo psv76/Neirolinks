@@ -623,3 +623,131 @@ def test_mixed_ordinary_bus_rolls_back_both_assignment_tables(database):
             is None
         )
     assert _revision(database) == 0
+
+
+
+BOX_DEVICE = uid(1400)
+
+
+def _seed_shared_dwg_box_mirror(engine):
+    """Three separate CableLines, one physical BOX insertion and one old tube."""
+
+    with engine.begin() as connection:
+        connection.execute(
+            field_device.insert().values(
+                id=BOX_DEVICE,
+                project_id=PROJECT,
+                block_kind="EL_BOX",
+                normalized_fields_json={
+                    "DEVICE_NAME": "Коробка",
+                    "GOFRA_TYPE": "ПНД25",
+                    "GOFRA_COLOR": "Синий",
+                    "GOFRA_ID": "001.PND25",
+                },
+            )
+        )
+        connection.execute(
+            cable_point_field_device.insert().values(
+                id=uid(1401),
+                project_id=PROJECT,
+                cable_point_id=BOX,
+                field_device_id=BOX_DEVICE,
+            )
+        )
+        for sid in (S2, S3):
+            connection.execute(
+                conduit_segment_assignment.insert().values(
+                    id=new_id(), project_id=PROJECT,
+                    cable_segment_id=sid, conduit_id=TUBE1,
+                )
+            )
+        connection.execute(
+            update(cable_segment)
+            .where(cable_segment.c.project_id == PROJECT)
+            .values(gofra_type="ПНД25", gofra_color="Синий")
+        )
+
+
+def _shared_three_moves():
+    return tuple(AssignmentChange("CABLE", sid, TUBE2) for sid in (S1, S2, S3))
+
+
+def _shared_three_old():
+    return {("CABLE", sid): TUBE1 for sid in (S1, S2, S3)}
+
+
+def _box_fields(engine):
+    with engine.connect() as connection:
+        return connection.execute(
+            select(field_device.c.normalized_fields_json)
+            .where(field_device.c.id == BOX_DEVICE)
+        ).scalar_one()
+
+
+def test_shared_dwg_box_three_segments_one_batch_updates_one_projection(database):
+    _seed_shared_dwg_box_mirror(database)
+    result = _service(database).apply(
+        project_id=PROJECT,
+        expected_project_revision=0,
+        expected_current_assignments=_shared_three_old(),
+        changes=_shared_three_moves(),
+    )
+    assert len(result.applied) == 3
+    assert _revision(database) == 1
+    assert _memberships(database) == ((S1, TUBE2), (S2, TUBE2), (S3, TUBE2))
+    fields = _box_fields(database)
+    assert fields["GOFRA_ID"] == "002.PND25"
+    assert fields["GOFRA_TYPE"] == "ПНД25"
+    assert fields["GOFRA_COLOR"] == "Синий"
+    assert fields["DEVICE_NAME"] == "Коробка"
+
+
+def test_shared_dwg_device_conflicting_two_tubes_rolls_back_everything(database):
+    _seed_shared_dwg_box_mirror(database)
+    before = _memberships(database)
+    with pytest.raises(PhysicalAssignmentError, match="conflicting incoming"):
+        _service(database).apply(
+            project_id=PROJECT,
+            expected_project_revision=0,
+            expected_current_assignments={("CABLE", S1): TUBE1},
+            changes=(AssignmentChange("CABLE", S1, TUBE2),),
+        )
+    assert _revision(database) == 0
+    assert _memberships(database) == before
+    assert _box_fields(database)["GOFRA_ID"] == "001.PND25"
+
+
+def test_dwg_route_baseline_conflict_rejected_without_overwrite(database):
+    _seed_shared_dwg_box_mirror(database)
+    with database.begin() as connection:
+        fields = dict(_box_fields(database))
+        fields["GOFRA_ID"] = "098.PND25"
+        connection.execute(
+            update(field_device)
+            .where(field_device.c.id == BOX_DEVICE)
+            .values(normalized_fields_json=fields)
+        )
+    with pytest.raises(PhysicalAssignmentError, match="baseline is not reconciled"):
+        _service(database).apply(
+            project_id=PROJECT,
+            expected_project_revision=0,
+            expected_current_assignments=_shared_three_old(),
+            changes=_shared_three_moves(),
+        )
+    assert _revision(database) == 0
+    assert _memberships(database) == ((S1, TUBE1), (S2, TUBE1), (S3, TUBE1))
+    assert _box_fields(database)["GOFRA_ID"] == "098.PND25"
+
+
+def test_conflict_then_success_is_order_independent(database):
+    _seed_shared_dwg_box_mirror(database)
+    changes = tuple(reversed(_shared_three_moves()))
+    result = _service(database).apply(
+        project_id=PROJECT,
+        expected_project_revision=0,
+        expected_current_assignments=_shared_three_old(),
+        changes=changes,
+    )
+    assert len(result.applied) == 3
+    assert _box_fields(database)["GOFRA_ID"] == "002.PND25"
+    assert _revision(database) == 1
