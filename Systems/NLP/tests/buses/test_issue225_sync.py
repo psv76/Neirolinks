@@ -10,6 +10,7 @@ from nl_project_2.cad_contract import (
 )
 from nl_project_2.cad_sync import ChangeClass, DwgSyncService, WriteResult
 from nl_project_2.persistence.schema import (
+    bus,
     bus_endpoint,
     bus_segment,
     cable_line,
@@ -374,3 +375,220 @@ def test_lengths_and_specification_have_one_physical_segment(database):
     assert all("Электрокарниз" not in row.name for row in report["rows"])
     refs = [ref for row in report["rows"] for ref in row.source_refs]
     assert len(refs) == len(set(refs))
+
+
+def _bus_edges(connection):
+    endpoint_addresses = {
+        row.id: row.address
+        for row in connection.execute(
+            select(bus_endpoint.c.id, bus_endpoint.c.address)
+        )
+    }
+    return {
+        (
+            endpoint_addresses.get(row.source_endpoint_id, "920.000"),
+            endpoint_addresses[row.target_endpoint_id],
+        )
+        for row in connection.execute(
+            select(bus_segment.c.source_endpoint_id, bus_segment.c.target_endpoint_id)
+        )
+    }
+
+
+def test_rs485_missing_middle_point_does_not_rewire_on_selective_apply(database):
+    setup_bus(database, "RS485")
+    sync = DwgSyncService(database.engine)
+    project_id = database.test_project_id
+    rows = tuple(outlet(i, BUS_GOFRA_ID=f"00{i}.PP20") for i in (1, 2, 3))
+    initial = sync.preview(project_id=project_id, batch=batch(*rows))
+    sync.apply_dwg_to_project(
+        initial,
+        selected_paths={
+            item.field_path
+            for item in initial.changes
+            if item.change_class is ChangeClass.NEW_DWG_INSERTION
+        },
+        confirmed=True,
+    )
+    expected = {
+        ("920.000", "920.001"),
+        ("920.001", "920.002"),
+        ("920.002", "920.003"),
+    }
+    with database.engine.connect() as connection:
+        assert _bus_edges(connection) == expected
+
+    # The DWG scan is missing an accepted middle insertion, but the user
+    # only accepts a note on the still-visible 003. No deletion was approved.
+    observed = (rows[0], rewritten(rows[2], COMMENT_1="DWG note"))
+    proposal = sync.preview(project_id=project_id, batch=batch(*observed))
+    assert any(
+        item.handle == "A2" and item.change_class is ChangeClass.MISSING_DWG_INSERTION
+        for item in proposal.changes
+    )
+    comment = next(
+        item for item in proposal.changes
+        if item.handle == "A3" and item.field == "COMMENT_1"
+    )
+    sync.apply_dwg_to_project(
+        proposal,
+        selected_paths={comment.field_path},
+        confirmed=True,
+    )
+    with database.engine.connect() as connection:
+        assert _bus_edges(connection) == expected
+        assert connection.scalar(select(func.count()).select_from(bus_segment)) == 3
+
+
+def test_rs485_inserting_point_between_accepted_points_repairs_successor(database):
+    setup_bus(database, "RS485")
+    sync = DwgSyncService(database.engine)
+    project_id = database.test_project_id
+    first = outlet(1, BUS_GOFRA_ID="001.PP20")
+    middle = outlet(2, BUS_GOFRA_ID="002.PP20")
+    last = outlet(3, BUS_GOFRA_ID="003.PP20")
+    initial = sync.preview(project_id=project_id, batch=batch(first, last))
+    sync.apply_dwg_to_project(
+        initial,
+        selected_paths={
+            item.field_path for item in initial.changes
+            if item.change_class is ChangeClass.NEW_DWG_INSERTION
+        },
+        confirmed=True,
+    )
+    with database.engine.connect() as connection:
+        assert _bus_edges(connection) == {
+            ("920.000", "920.001"),
+            ("920.001", "920.003"),
+        }
+
+    proposal = sync.preview(project_id=project_id, batch=batch(first, middle, last))
+    insertion = next(
+        item for item in proposal.changes
+        if item.handle == "A2" and item.change_class is ChangeClass.NEW_DWG_INSERTION
+    )
+    sync.apply_dwg_to_project(
+        proposal, selected_paths={insertion.field_path}, confirmed=True
+    )
+    with database.engine.connect() as connection:
+        assert _bus_edges(connection) == {
+            ("920.000", "920.001"),
+            ("920.001", "920.002"),
+            ("920.002", "920.003"),
+        }
+    assert all(
+        item.change_class is ChangeClass.EQUAL
+        for item in sync.preview(project_id=project_id, batch=batch(first, middle, last)).changes
+    )
+
+
+@pytest.mark.parametrize("change_kind", ["free_number", "swap"])
+def test_existing_bus_point_renumber_is_explicitly_blocked(database, change_kind):
+    from nl_project_2.cad_sync import DwgSyncError
+
+    setup_bus(database, "RS485")
+    sync = DwgSyncService(database.engine)
+    project_id = database.test_project_id
+    rows = tuple(outlet(i, BUS_GOFRA_ID=f"00{i}.PP20") for i in (1, 2))
+    initial = sync.preview(project_id=project_id, batch=batch(*rows))
+    sync.apply_dwg_to_project(
+        initial,
+        selected_paths={
+            item.field_path for item in initial.changes
+            if item.change_class is ChangeClass.NEW_DWG_INSERTION
+        },
+        confirmed=True,
+    )
+    if change_kind == "swap":
+        changed = (
+            rewritten(rows[0], BUS_POINT_ID="920.002"),
+            rewritten(rows[1], BUS_POINT_ID="920.001"),
+        )
+    else:
+        changed = (rewritten(rows[0], BUS_POINT_ID="920.004"), rows[1])
+    proposal = sync.preview(project_id=project_id, batch=batch(*changed))
+    renumbers = [
+        item for item in proposal.changes
+        if item.field == "BUS_POINT_ID"
+        and item.change_class is ChangeClass.IDENTITY_COLLISION
+    ]
+    assert len(renumbers) == (2 if change_kind == "swap" else 1)
+    assert all(item.detail_status == "STRUCTURAL_IDENTITY_REVIEW" for item in renumbers)
+    with pytest.raises(DwgSyncError, match="BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION"):
+        sync.apply_dwg_to_project(
+            proposal,
+            selected_paths={item.field_path for item in renumbers},
+            confirmed=True,
+            allow_structural=True,
+        )
+    with database.engine.connect() as connection:
+        endpoint_owners = {
+            row.address: row.field_device_id
+            for row in connection.execute(
+                select(bus_endpoint.c.address, bus_endpoint.c.field_device_id)
+            )
+        }
+        assert set(endpoint_owners) == {"920.001", "920.002"}
+        assert len(set(endpoint_owners.values())) == 2
+        assert _bus_edges(connection) == {
+            ("920.000", "920.001"),
+            ("920.001", "920.002"),
+        }
+
+
+def test_bus_cable_type_changes_only_when_all_accepted_points_agree(database):
+    setup_bus(database, "RS485")
+    sync = DwgSyncService(database.engine)
+    project_id = database.test_project_id
+    rows = tuple(outlet(i, BUS_GOFRA_ID=f"00{i}.PP20") for i in (1, 2, 3))
+    initial = sync.preview(project_id=project_id, batch=batch(*rows))
+    sync.apply_dwg_to_project(
+        initial,
+        selected_paths={
+            item.field_path for item in initial.changes
+            if item.change_class is ChangeClass.NEW_DWG_INSERTION
+        },
+        confirmed=True,
+    )
+
+    # All accepted DWG points change the Bus-owned type in one operation.
+    revised = tuple(rewritten(row, BUS_CABLE_TYPE="FTP 6e") for row in rows)
+    proposal = sync.preview(project_id=project_id, batch=batch(*revised))
+    changes = [
+        item for item in proposal.changes
+        if item.field == "BUS_CABLE_TYPE"
+        and item.change_class is ChangeClass.DWG_CHANGED
+    ]
+    assert len(changes) == 3
+    sync.apply_dwg_to_project(
+        proposal,
+        selected_paths={item.field_path for item in changes},
+        confirmed=True,
+    )
+    with database.engine.connect() as connection:
+        assert connection.scalar(
+            select(bus.c.cable_type).where(bus.c.designation == "920")
+        ) == "FTP 6e"
+    assert all(
+        item.change_class is ChangeClass.EQUAL
+        for item in sync.preview(project_id=project_id, batch=batch(*revised)).changes
+    )
+
+    # An incomplete DWG snapshot must not silently rewrite the whole Bus.
+    incomplete = (rewritten(revised[0], BUS_CABLE_TYPE="FTP 7e"),)
+    proposal = sync.preview(project_id=project_id, batch=batch(*incomplete))
+    change = next(
+        item for item in proposal.changes
+        if item.field == "BUS_CABLE_TYPE"
+        and item.change_class is ChangeClass.DWG_CHANGED
+    )
+    from nl_project_2.cad_sync import DwgSyncError
+
+    with pytest.raises(DwgSyncError, match="BUS_CABLE_TYPE_PARTIAL_CHANGE"):
+        sync.apply_dwg_to_project(
+            proposal, selected_paths={change.field_path}, confirmed=True
+        )
+    with database.engine.connect() as connection:
+        assert connection.scalar(
+            select(bus.c.cable_type).where(bus.c.designation == "920")
+        ) == "FTP 6e"
