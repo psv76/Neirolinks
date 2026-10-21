@@ -67,3 +67,13 @@ jobs:
             tests/cables/test_physical_identity_repository.py \
             tests/cables/test_conduit_audit.py \
             tests/cables/test_atomic_conduit_command.py
+      - name: Existing CAD sync and cable recalculation regressions
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q \
+            tests/cad_sync/test_sync_service.py \
+            tests/cad_sync/test_p0003_reconciliation.py \
+            tests/cad_sync/test_issue134_box_identity.py \
+            tests/cables/test_p0004_segment_recalculation.py
