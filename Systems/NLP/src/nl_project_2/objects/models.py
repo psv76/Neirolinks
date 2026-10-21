@@ -29,7 +29,7 @@ class ProjectSettings:
     cable_reserve_at_endpoint_m: Decimal | None = Decimal("0.3")
     cable_meander_percent: Decimal | None = Decimal("5")
     cable_obstacle_percent: Decimal | None = Decimal("10")
-    cable_timber_segment_reserve_m: Decimal | None = Decimal("0.5")
+    cable_rounding_step_m: Decimal | None = Decimal("1")
 
 
 @dataclass(frozen=True, slots=True)

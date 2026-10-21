@@ -175,8 +175,8 @@ def calculate_segment_length(
         level_change = abs(second.base_mark_mm - first.base_mark_mm)
         vertical_second = abs(second.mount_height_mm - second.base_mark_mm)
     elif route_method is RouteMethod.CEILING:
-        first_ceiling = first.room_height_m * 1000
-        second_ceiling = second.room_height_m * 1000
+        first_ceiling = first.base_mark_mm + first.room_height_m * 1000
+        second_ceiling = second.base_mark_mm + second.room_height_m * 1000
         vertical_first = abs(first_ceiling - first.mount_height_mm)
         level_change = abs(second_ceiling - first_ceiling)
         vertical_second = abs(second_ceiling - second.mount_height_mm)
@@ -191,30 +191,23 @@ def calculate_segment_length(
     else:  # pragma: no cover - StrEnum protects public callers
         raise CableCalculationError(f"Unsupported route method: {route_method}")
     geometry = (xy + vertical_first + level_change + vertical_second) / 1000
-    cable_reserve = Decimal("0.5") if route_method is RouteMethod.TIMBER else Decimal(0)
-    length = geometry + cable_reserve
-    return length, {
+    return geometry, {
         "route_method": str(route_method),
         "xy_mm": str(xy),
         "vertical_first_mm": str(vertical_first),
         "level_change_mm": str(level_change),
         "vertical_second_mm": str(vertical_second),
         "geometry_m": str(geometry),
-        "cable_reserve_m": str(cable_reserve),
-        "length_m": str(length),
+        "length_m": str(geometry),
     }
 
 
 def conduit_length_from_segment_length(length_m, route_method: RouteMethod) -> Decimal:
-    """Return conduit geometry without cable-only reserves."""
+    """Return pure segment geometry. All mount methods store G without allowances."""
 
-    length = _decimal(length_m, "length_m", non_negative=True)
-    if route_method is RouteMethod.TIMBER:
-        geometry = length - Decimal("0.5")
-        if geometry < 0:
-            raise CableCalculationError("TIMBER segment length cannot be below its cable reserve")
-        return geometry
-    return length
+    # Keep the API name during the transition; the TIMBER special allowance
+    # is removed by accepted Q08, so no subtractive transform is valid.
+    return _decimal(length_m, "length_m", non_negative=True)
 
 
 def calculate_automatic_length(
