@@ -237,9 +237,7 @@ def reconcile_ordinary_route_mirrors(
         if owner:
             members_by_device[owner].append(sid)
 
-    affected_devices = {
-        segment_owners[sid] for sid in changes if segment_owners[sid] is not None
-    }
+    affected_devices = {segment_owners[sid] for sid in changes if segment_owners[sid] is not None}
     for device_id in sorted(affected_devices):
         related = members_by_device[device_id]
         before: set[tuple[str, str, str]] = set()
