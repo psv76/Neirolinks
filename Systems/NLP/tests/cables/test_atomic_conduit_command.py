@@ -11,6 +11,7 @@ from nl_project_2.cables.atomic_conduit_command import (
     ApprovedPhysicalFacts,
     AtomicConduitAssignmentService,
 )
+from nl_project_2.cables.route_mirror import reconcile_ordinary_route_mirrors
 from nl_project_2.cables.physical_conduit import (
     AssignmentChange,
     ConduitFact,
@@ -27,11 +28,13 @@ from nl_project_2.persistence.schema import (
     bus_segment_conduit_assignment,
     cable_line,
     cable_point,
+    cable_point_field_device,
     cable_segment,
     cable_topology_endpoint,
     catalog_release,
     conduit,
     conduit_segment_assignment,
+    field_device,
     instance_resource,
     metadata,
     passport_definition,
@@ -239,20 +242,7 @@ def _approval(*, incompatible: bool = False):
     return provider
 
 
-def _mirror(uow, project_id, segment_id, chosen):
-    assert project_id == PROJECT
-    uow.execute(
-        update(cable_segment)
-        .where(
-            cable_segment.c.project_id == project_id,
-            cable_segment.c.id == segment_id,
-        )
-        .values(
-            gofra_type=chosen["conduit_type"] if chosen else None,
-            gofra_color=chosen["color"] if chosen else None,
-            row_version=cable_segment.c.row_version + 1,
-        )
-    )
+_mirror = reconcile_ordinary_route_mirrors
 
 
 def _service(engine, *, incompatible=False):
