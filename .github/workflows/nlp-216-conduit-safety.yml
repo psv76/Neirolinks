@@ -27,8 +27,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - name: Install Qt Linux loader dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0
       - name: Install isolated test dependencies
-        run: python -m pip install 'SQLAlchemy>=2,<3' 'alembic>=1.13,<2' 'pytest>=8,<10' 'ruff>=0.9,<1'
+        run: python -m pip install 'SQLAlchemy>=2,<3' 'alembic>=1.13,<2' 'pytest>=8,<10' 'ruff>=0.9,<1' 'PySide6>=6.10,<7'
       - name: Ruff physical assignment modules and regressions
         run: |
           python -m ruff check \
@@ -37,6 +41,7 @@ jobs:
             src/nl_project_2/cables/physical_identity_repository.py \
             src/nl_project_2/cables/conduit_audit.py \
             src/nl_project_2/cables/atomic_conduit_command.py \
+            src/nl_project_2/cables/route_mirror.py \
             tests/cables/test_physical_conduit.py \
             tests/cables/test_physical_identity.py \
             tests/cables/test_physical_identity_repository.py \
@@ -48,6 +53,7 @@ jobs:
             src/nl_project_2/cables/physical_identity_repository.py \
             src/nl_project_2/cables/conduit_audit.py \
             src/nl_project_2/cables/atomic_conduit_command.py \
+            src/nl_project_2/cables/route_mirror.py \
             tests/cables/test_physical_conduit.py \
             tests/cables/test_physical_identity.py \
             tests/cables/test_physical_identity_repository.py \
@@ -65,3 +71,13 @@ jobs:
             tests/cables/test_physical_identity_repository.py \
             tests/cables/test_conduit_audit.py \
             tests/cables/test_atomic_conduit_command.py
+      - name: Existing CAD sync and cable recalculation regressions
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q \
+            tests/cad_sync/test_sync_service.py \
+            tests/cad_sync/test_p0003_reconciliation.py \
+            tests/cad_sync/test_issue134_box_identity.py \
+            tests/cables/test_p0004_segment_recalculation.py

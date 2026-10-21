@@ -66,10 +66,9 @@ class CableMirrorUpdater(Protocol):
         self,
         uow: UnitOfWork,
         project_id: str,
-        segment_id: str,
-        conduit_row: Mapping | None,
+        changes: Mapping[str, tuple[str | None, str | None]],
     ) -> None:
-        """Update *all* DWG-facing Project mirror facts in the same UoW."""
+        """Reconcile all ordinary DWG-facing facts once, after every batch write."""
         ...
 
 
@@ -289,6 +288,11 @@ class AtomicConduitAssignmentService:
 
             # From here onward ALL statements and mirrored metadata stay inside
             # one UoW. No external callbacks, files, AutoCAD or notifications.
+            ordinary_before_after = {
+                change.segment_id: (current.get(change.key()), change.target_conduit_id)
+                for change in effective
+                if change.network_kind == "CABLE"
+            }
             for change in effective:
                 key = change.key()
                 if change.network_kind == "CABLE":
@@ -315,12 +319,7 @@ class AtomicConduitAssignmentService:
                     }
                     uow.execute(assignment.insert().values(**fields))
                 chosen = conduits.get(target) if target is not None else None
-                if key[0] == "CABLE":
-                    # This updater must live in the SAME DB transaction and
-                    # must reject ambiguous/shared DWG-facing device mirrors.
-                    assert self._cable_mirror_updater is not None
-                    self._cable_mirror_updater(uow, project_id, change.segment_id, chosen)
-                else:
+                if key[0] == "BUS":
                     uow.execute(
                         update(bus_segment)
                         .where(
@@ -336,6 +335,12 @@ class AtomicConduitAssignmentService:
                             updated_at_utc=now,
                         )
                     )
+            # Only after the entire ordinary+BUS membership delta has been
+            # applied, reconcile each DWG insertion once with before/after
+            # signatures. This eliminates order-dependent "last writer wins".
+            if ordinary_before_after:
+                assert self._cable_mirror_updater is not None
+                self._cable_mirror_updater(uow, project_id, ordinary_before_after)
             for cid in plan.affected_conduit_ids:
                 tube = conduits[cid]
                 path = dict(tube["path_json"] or {})
