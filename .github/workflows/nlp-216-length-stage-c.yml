@@ -78,8 +78,9 @@ jobs:
           PYTHONPATH: src
           QT_QPA_PLATFORM: offscreen
         run: |
-          # pythoncom/AutoCAD STA bridge is Windows-only; exercised by the
-          # separately recorded Windows run, not importable on Linux.
+          # Win32 AutoCAD STA and AF_PIPE bridge IPC cannot execute on Linux.
+          # Both files were executed in the separately recorded Windows run.
           python -m pytest -q \
             --ignore=tests/cad_sync/test_sta_bridge.py \
+            --ignore=tests/cad_sync/test_bridge_client.py \
             tests/cables tests/buses tests/objects tests/cad_sync tests/specification
