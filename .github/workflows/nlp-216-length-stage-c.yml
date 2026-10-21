@@ -78,5 +78,8 @@ jobs:
           PYTHONPATH: src
           QT_QPA_PLATFORM: offscreen
         run: |
+          # pythoncom/AutoCAD STA bridge is Windows-only; exercised by the
+          # separately recorded Windows run, not importable on Linux.
           python -m pytest -q \
+            --ignore=tests/cad_sync/test_sta_bridge.py \
             tests/cables tests/buses tests/objects tests/cad_sync tests/specification
