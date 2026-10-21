@@ -284,6 +284,22 @@ def _localized_sync_error(message: str) -> str:
     for prefix, template in prefixes.items():
         if message.startswith(prefix):
             return template.format(value=message[len(prefix) :])
+    if message.startswith("BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION:"):
+        return (
+            "Номер существующей точки шины нельзя менять обычной синхронизацией. "
+            "Восстановите принятый BUS_POINT_ID в DWG; перенумерация требует "
+            "отдельной операции изменения связей Project."
+        )
+    if message.startswith("BUS_POINT_ID_OWNER_CONFLICT:"):
+        return (
+            "Этот BUS_POINT_ID уже принадлежит другому устройству. "
+            "Проверьте номера и привязки точек шины."
+        )
+    if message.startswith("BUS_CABLE_TYPE_PARTIAL_CHANGE:"):
+        return (
+            "Нельзя менять марку кабеля по неполному набору точек шины. "
+            "Обновите тип кабеля на всех принятых точках или исправьте DWG-снимок."
+        )
     return message
 
 
