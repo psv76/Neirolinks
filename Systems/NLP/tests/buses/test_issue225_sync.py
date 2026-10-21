@@ -602,3 +602,46 @@ def test_bus_cable_type_changes_only_when_all_accepted_points_agree(database, ki
         assert connection.scalar(
             select(bus.c.cable_type).where(bus.c.designation == "920")
         ) == "FTP 6e"
+
+
+def test_existing_bus_point_cannot_move_to_another_bus(database):
+    from nl_project_2.cad_sync import DwgSyncError
+
+    roots = _rs485_resources(database, count=2)
+    service = BusService(database.engine)
+    project_id = database.test_project_id
+    for designation, root in zip(("920", "921"), roots, strict=True):
+        service.create_rs485_bus(
+            project_id=project_id,
+            designation=designation,
+            root_resource_id=root,
+            points=(),
+        )
+    sync = DwgSyncService(database.engine)
+    original = outlet(1, BUS_GOFRA_ID="001.PP20")
+    initial = sync.preview(project_id=project_id, batch=batch(original))
+    sync.apply_dwg_to_project(
+        initial,
+        selected_paths={
+            item.field_path for item in initial.changes
+            if item.change_class is ChangeClass.NEW_DWG_INSERTION
+        },
+        confirmed=True,
+    )
+    moved = rewritten(original, BUS_POINT_ID="921.001")
+    proposal = sync.preview(project_id=project_id, batch=batch(moved))
+    renumber = next(
+        item for item in proposal.changes
+        if item.field == "BUS_POINT_ID"
+        and item.change_class is ChangeClass.IDENTITY_COLLISION
+    )
+    with pytest.raises(DwgSyncError, match="BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION"):
+        sync.apply_dwg_to_project(
+            proposal,
+            selected_paths={renumber.field_path},
+            confirmed=True,
+            allow_structural=True,
+        )
+    with database.engine.connect() as connection:
+        addresses = list(connection.execute(select(bus_endpoint.c.address)).scalars())
+        assert addresses == ["920.001"]
