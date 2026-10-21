@@ -501,10 +501,14 @@ class DwgSyncService:
                 status = ChangeClass.IDENTITY_COLLISION
                 detail_status = "STRUCTURAL_IDENTITY_REVIEW"
                 reason = (
-                    "BUS_POINT_ID renumber requires a dedicated, owner-aware Project rebind; "
-                    "restore the existing point ID before Update"
+                    (
+                        "BUS_POINT_ID renumber requires a dedicated, owner-aware "
+                        "Project rebind; restore the existing point ID before Update"
+                    )
                     if bus_point_renumber
-                    else "Structural identity/topology change requires explicit structural apply"
+                    else (
+                        "Structural identity/topology change requires explicit structural apply"
+                    )
                 )
             changes.append(
                 SyncChange(
@@ -2469,8 +2473,12 @@ class DwgSyncService:
                     )
                 ).mappings()
             )
-            endpoint_by_address = {row["address"]: row["id"] for row in existing_endpoints}
-            endpoint_row_by_address = {row["address"]: row for row in existing_endpoints}
+            endpoint_by_address = {
+                row["address"]: row["id"] for row in existing_endpoints
+            }
+            endpoint_row_by_address = {
+                row["address"]: row for row in existing_endpoints
+            }
             endpoint_by_device = {
                 row["field_device_id"]: row
                 for row in existing_endpoints
@@ -2612,8 +2620,11 @@ class DwgSyncService:
                         .where(
                             bus_segment.c.project_id == project_id,
                             bus_segment.c.bus_id == bus_row["id"],
-                            bus_segment.c.target_endpoint_id == endpoint_by_address[address],
-                            bus_segment.c.source_endpoint_id.is_distinct_from(expected_upstream),
+                            bus_segment.c.target_endpoint_id
+                            == endpoint_by_address[address],
+                            bus_segment.c.source_endpoint_id.is_distinct_from(
+                                expected_upstream
+                            ),
                         )
                         .values(source_endpoint_id=expected_upstream)
                     )
