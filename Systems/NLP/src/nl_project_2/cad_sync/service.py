@@ -478,9 +478,20 @@ class DwgSyncService:
             safe_dwg_source_change = (
                 fact.field == "CABLE_SOURCE" and status is ChangeClass.DWG_CHANGED
             )
+            # Existing BUS_POINT_ID is a physical identity, not a free-form field.
+            # A renumber needs a dedicated owner-aware rebind operation; do not
+            # classify it as a routine one-sided DWG change.
+            previous_bus_point = str(
+                devices.get(fact.primary_handle, {}).get("BUS_POINT_ID") or ""
+            ).strip()
+            bus_point_renumber = (
+                fact.field == "BUS_POINT_ID"
+                and bool(previous_bus_point)
+                and previous_bus_point != str(fact.value or "").strip()
+            )
             safe_structural_change = safe_dwg_source_change or safe_dwg_cable_id_change
             if (
-                fact.structural
+                (fact.structural or bus_point_renumber)
                 and status
                 not in {
                     ChangeClass.EQUAL,
@@ -489,7 +500,12 @@ class DwgSyncService:
             ):
                 status = ChangeClass.IDENTITY_COLLISION
                 detail_status = "STRUCTURAL_IDENTITY_REVIEW"
-                reason = "Structural identity/topology change requires explicit structural apply"
+                reason = (
+                    "BUS_POINT_ID renumber requires a dedicated, owner-aware Project rebind; "
+                    "restore the existing point ID before Update"
+                    if bus_point_renumber
+                    else "Structural identity/topology change requires explicit structural apply"
+                )
             changes.append(
                 SyncChange(
                     f"{fact.primary_handle}:{fact.field}",
@@ -504,7 +520,7 @@ class DwgSyncService:
                     fact.owner_key,
                     fact.owner_path,
                     fact.affected_handles,
-                    fact.structural and not safe_structural_change,
+                    (fact.structural or bus_point_renumber) and not safe_structural_change,
                     detail_status,
                 )
             )
@@ -2420,25 +2436,62 @@ class DwgSyncService:
                     f"BUS_CABLE_TYPE_INCONSISTENT:{designation}:{sorted(cable_types)}"
                 )
             cable_type = next(iter(cable_types), "")
-            if bus_row.get("cable_type") and cable_type and bus_row["cable_type"] != cable_type:
-                raise DwgSyncError(
-                    f"BUS_CABLE_TYPE_CONFLICT:{designation}:{bus_row['cable_type']} != {cable_type}"
-                )
-            if cable_type and not bus_row.get("cable_type"):
+            if cable_type and cable_type != (bus_row.get("cable_type") or ""):
+                # BUS_CABLE_TYPE is a single Bus owner, not a collection of
+                # independent endpoint attributes. Only a complete, agreed
+                # Project projection may replace the current whole-bus value.
+                if bus_row.get("cable_type"):
+                    project_device_ids = set(
+                        uow.execute(
+                            select(bus_endpoint.c.field_device_id).where(
+                                bus_endpoint.c.project_id == project_id,
+                                bus_endpoint.c.bus_id == bus_row["id"],
+                                bus_endpoint.c.field_device_id.is_not(None),
+                            )
+                        ).scalars()
+                    )
+                    observed_device_ids = {device_ids[plan.handle] for plan in plans}
+                    if not project_device_ids <= observed_device_ids:
+                        raise DwgSyncError(
+                            f"BUS_CABLE_TYPE_PARTIAL_CHANGE:{designation}:"
+                            "all accepted bus points must participate in the change"
+                        )
                 uow.execute(
                     update(bus).where(bus.c.id == bus_row["id"]).values(cable_type=cable_type)
                 )
 
             affected_bus_ids.add(bus_row["id"])
-            endpoint_by_address = {
-                row["address"]: row["id"]
-                for row in uow.execute(
+            existing_endpoints = list(
+                uow.execute(
                     select(bus_endpoint).where(
                         bus_endpoint.c.project_id == project_id,
                         bus_endpoint.c.bus_id == bus_row["id"],
                     )
                 ).mappings()
+            )
+            endpoint_by_address = {row["address"]: row["id"] for row in existing_endpoints}
+            endpoint_row_by_address = {row["address"]: row for row in existing_endpoints}
+            endpoint_by_device = {
+                row["field_device_id"]: row
+                for row in existing_endpoints
+                if row["field_device_id"] is not None
             }
+            # Guard both free-address renumbers and exchanges between devices.
+            # Failing inside the transaction preserves all accepted topology.
+            for plan in plans:
+                device_id = device_ids[plan.handle]
+                owned = endpoint_by_device.get(device_id)
+                assigned = endpoint_row_by_address.get(plan.point_id)
+                if owned is not None and owned["address"] != plan.point_id:
+                    raise DwgSyncError(
+                        f"BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION:{designation}:"
+                        f"{owned['address']} -> {plan.point_id}"
+                    )
+                if assigned is not None and assigned["field_device_id"] != device_id:
+                    raise DwgSyncError(
+                        f"BUS_POINT_ID_OWNER_CONFLICT:{designation}:{plan.point_id}"
+                    )
+            inserted_endpoint = False
             for plan in plans:
                 endpoint_id = endpoint_by_address.get(plan.point_id)
                 if endpoint_id is None:
@@ -2456,14 +2509,35 @@ class DwgSyncService:
                         )
                     )
                     endpoint_by_address[plan.point_id] = endpoint_id
+                    inserted_endpoint = True
+
+            # The accepted Project bus (including points temporarily absent from
+            # the DWG scan) is the RS-485 chain. The current scan is not a
+            # replacement for the accepted physical inventory.
+            rs485_upstream: dict[str, str | None] = {}
+            if bus_row["bus_kind"] == "RS485":
+                previous_rs485 = None
+                addresses = sorted(
+                    (
+                        address
+                        for address in endpoint_by_address
+                        if isinstance(address, str)
+                        and address.startswith(f"{designation}.")
+                        and len(address) == 7
+                        and address[4:].isdigit()
+                        and address[4:] != "000"
+                    ),
+                    key=lambda address: int(address[4:]),
+                )
+                for address in addresses:
+                    rs485_upstream[address] = previous_rs485
+                    previous_rs485 = endpoint_by_address[address]
 
             ordered = sorted(plans, key=lambda plan: int(plan.point_id.rsplit(".", 1)[1]))
-            previous_rs485 = None
             for plan in ordered:
                 target_endpoint = endpoint_by_address[plan.point_id]
                 if plan.bus_kind == "RS485":
-                    source_endpoint = previous_rs485
-                    previous_rs485 = target_endpoint
+                    source_endpoint = rs485_upstream[plan.point_id]
                 elif plan.source == f"{designation}.000":
                     source_endpoint = None
                 else:
@@ -2528,6 +2602,21 @@ class DwgSyncService:
                     connection_kind=plan.connection_kind,
                     route=route,
                 )
+            if bus_row["bus_kind"] == "RS485" and inserted_endpoint:
+                # Inserting a point between two accepted endpoints changes the
+                # successor's upstream, even when its DWG insertion was not
+                # selected. It must not change the successor's route/conduit.
+                for address, expected_upstream in rs485_upstream.items():
+                    uow.execute(
+                        update(bus_segment)
+                        .where(
+                            bus_segment.c.project_id == project_id,
+                            bus_segment.c.bus_id == bus_row["id"],
+                            bus_segment.c.target_endpoint_id == endpoint_by_address[address],
+                            bus_segment.c.source_endpoint_id.is_distinct_from(expected_upstream),
+                        )
+                        .values(source_endpoint_id=expected_upstream)
+                    )
         return affected_bus_ids
 
     def _materialize_bus_segment_conduit(
