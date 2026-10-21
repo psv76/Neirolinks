@@ -625,7 +625,6 @@ def test_mixed_ordinary_bus_rolls_back_both_assignment_tables(database):
     assert _revision(database) == 0
 
 
-
 BOX_DEVICE = uid(1400)
 
 
@@ -657,8 +656,10 @@ def _seed_shared_dwg_box_mirror(engine):
         for sid in (S2, S3):
             connection.execute(
                 conduit_segment_assignment.insert().values(
-                    id=new_id(), project_id=PROJECT,
-                    cable_segment_id=sid, conduit_id=TUBE1,
+                    id=new_id(),
+                    project_id=PROJECT,
+                    cable_segment_id=sid,
+                    conduit_id=TUBE1,
                 )
             )
         connection.execute(
@@ -679,8 +680,7 @@ def _shared_three_old():
 def _box_fields(engine):
     with engine.connect() as connection:
         return connection.execute(
-            select(field_device.c.normalized_fields_json)
-            .where(field_device.c.id == BOX_DEVICE)
+            select(field_device.c.normalized_fields_json).where(field_device.c.id == BOX_DEVICE)
         ).scalar_one()
 
 
@@ -722,8 +722,7 @@ def test_dwg_route_baseline_conflict_rejected_without_overwrite(database):
     with database.begin() as connection:
         fields = dict(
             connection.execute(
-                select(field_device.c.normalized_fields_json)
-                .where(field_device.c.id == BOX_DEVICE)
+                select(field_device.c.normalized_fields_json).where(field_device.c.id == BOX_DEVICE)
             ).scalar_one()
         )
         fields["GOFRA_ID"] = "098.PND25"
