@@ -206,7 +206,7 @@ def reconcile_ordinary_route_mirrors(
     if tube_ids != set(tubes):
         raise PhysicalAssignmentError("Ordinary route mirror: missing/inactive tube")
 
-    for sid, (old_id, new_id) in changes.items():
+    for sid, (_old_id, new_id) in changes.items():
         if current_assignments.get(sid) != new_id:
             raise PhysicalAssignmentError(
                 f"Segment {sid}: route assignment differs from atomic batch"
