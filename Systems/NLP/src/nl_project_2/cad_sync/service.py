@@ -151,6 +151,18 @@ class DwgSyncService:
         self._contract = load_contract()
         self._validator = CadContractValidator(self._contract)
 
+    def _validate_project_batch(self, project_id, batch):
+        with self._engine.connect() as connection:
+            kinds = dict(
+                connection.execute(
+                    select(bus.c.designation, bus.c.bus_kind).where(
+                        bus.c.project_id == project_id,
+                        bus.c.lifecycle == "ACTIVE",
+                    )
+                ).all()
+            )
+        return CadContractValidator(self._contract, project_bus_kinds=kinds).validate(batch)
+
     def scan_active(
         self,
         *,
@@ -187,7 +199,7 @@ class DwgSyncService:
         batch: CadObservationBatch,
         progress: Callable[[DwgScanProgress], None] | None = None,
     ) -> ScanProposal:
-        validation = self._validator.validate(batch)
+        validation = self._validate_project_batch(project_id, batch)
         if progress is not None:
             progress(DwgScanProgress("FORMING_CHANGES"))
         snapshot = normalize_validated_snapshot(validation.observations)
@@ -284,6 +296,7 @@ class DwgSyncService:
                     baselines[fact.owner_path] = accepted_baselines[previous_path]
             project_owner_values = _load_project_owner_values(
                 connection,
+                binding_id=binding_id,
                 project_id=project_id,
                 snapshot=snapshot,
                 devices=devices,
@@ -465,9 +478,20 @@ class DwgSyncService:
             safe_dwg_source_change = (
                 fact.field == "CABLE_SOURCE" and status is ChangeClass.DWG_CHANGED
             )
+            # Existing BUS_POINT_ID is a physical identity, not a free-form field.
+            # A renumber needs a dedicated owner-aware rebind operation; do not
+            # classify it as a routine one-sided DWG change.
+            previous_bus_point = str(
+                devices.get(fact.primary_handle, {}).get("BUS_POINT_ID") or ""
+            ).strip()
+            bus_point_renumber = (
+                fact.field == "BUS_POINT_ID"
+                and bool(previous_bus_point)
+                and previous_bus_point != str(fact.value or "").strip()
+            )
             safe_structural_change = safe_dwg_source_change or safe_dwg_cable_id_change
             if (
-                fact.structural
+                (fact.structural or bus_point_renumber)
                 and status
                 not in {
                     ChangeClass.EQUAL,
@@ -476,7 +500,14 @@ class DwgSyncService:
             ):
                 status = ChangeClass.IDENTITY_COLLISION
                 detail_status = "STRUCTURAL_IDENTITY_REVIEW"
-                reason = "Structural identity/topology change requires explicit structural apply"
+                reason = (
+                    (
+                        "BUS_POINT_ID renumber requires a dedicated, owner-aware "
+                        "Project rebind; restore the existing point ID before Update"
+                    )
+                    if bus_point_renumber
+                    else ("Structural identity/topology change requires explicit structural apply")
+                )
             changes.append(
                 SyncChange(
                     f"{fact.primary_handle}:{fact.field}",
@@ -491,7 +522,7 @@ class DwgSyncService:
                     fact.owner_key,
                     fact.owner_path,
                     fact.affected_handles,
-                    fact.structural and not safe_structural_change,
+                    (fact.structural or bus_point_renumber) and not safe_structural_change,
                     detail_status,
                 )
             )
@@ -662,6 +693,18 @@ class DwgSyncService:
         }
         if not selected <= applicable:
             raise DwgSyncError("Selection contains a non-applicable or implicit change")
+        # A selected existing bus identity must never be re-bound by generic
+        # DWG import, even when allow_structural=True. In particular a move to
+        # another Bus can otherwise bypass local endpoint ownership checks.
+        if any(
+            change.field_path in selected
+            and change.field == "BUS_POINT_ID"
+            and change.detail_status == "STRUCTURAL_IDENTITY_REVIEW"
+            for change in proposal.changes
+        ):
+            raise DwgSyncError(
+                "BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION: use the accepted Project identity"
+            )
         selected_projection_handles = {
             handle
             for change in proposal.changes
@@ -691,7 +734,9 @@ class DwgSyncService:
 
         validated = {
             item.observation.handle: item
-            for item in self._validator.validate(proposal.batch).observations
+            for item in self._validate_project_batch(
+                proposal.project_id, proposal.batch
+            ).observations
             if not item.ignored_project_data
         }
         snapshot = normalize_validated_snapshot(tuple(validated.values()))
@@ -1078,12 +1123,13 @@ class DwgSyncService:
                     definition=observation.definition,
                 )
             )
-        validation = self._validator.validate(
+        validation = self._validate_project_batch(
+            proposal.project_id,
             CadObservationBatch(
                 proposal.batch.document_identity,
                 tuple(rewritten),
                 proposal.batch.source_metadata,
-            )
+            ),
         )
         blocking = [
             issue
@@ -1629,6 +1675,7 @@ class DwgSyncService:
     def _upsert_devices(self, uow, project_id, binding_id, validated, selected, active_handles):
         result: dict[str, str] = {}
         previous_bases: set[str] = set()
+        canonical_bus_fields = _project_bus_fields(uow, project_id)
         for handle, item in validated.items():
             if handle not in active_handles:
                 continue
@@ -1646,6 +1693,8 @@ class DwgSyncService:
             )
             dwg_fields = _fields(item)
             values = dict(existing["normalized_fields_json"] or {}) if existing else {}
+            if existing:
+                values.update(canonical_bus_fields.get(existing["id"], {}))
             previous_cable_id = str(values.get("CABLE_ID") or "").strip()
             if previous_cable_id:
                 previous_bases.add(previous_cable_id.split(".", 1)[0])
@@ -2334,14 +2383,11 @@ class DwgSyncService:
             ).mappings()
         }
 
+        canonical_bus_fields = _project_bus_fields(uow, project_id)
         for plan in snapshot.bus_points:
             device_id = device_ids.get(plan.handle)
             if device_id is None:
                 continue
-            if plan.handle in active_handles:
-                grouped[plan.bus_id].append(plan)
-                continue
-
             # A BUS-capable field device may already be accepted in Project before
             # its Bus/root exists (for example because an ordinary CableLine uses
             # one of its physical W/K ports). When the bus root is created later,
@@ -2349,7 +2395,9 @@ class DwgSyncService:
             # without importing any unselected DWG changes. Rebuild the bus plan
             # strictly from persisted accepted Project evidence and only when the
             # current DWG point identity still matches that accepted identity.
-            fields = persisted_bus_fields_by_device_id.get(device_id, {})
+            fields = dict(persisted_bus_fields_by_device_id.get(device_id, {}))
+            if plan.handle not in active_handles:
+                fields.update(canonical_bus_fields.get(device_id, {}))
             if (
                 str(fields.get("BUS_POINT_ID") or "").strip() != plan.point_id
                 or str(fields.get("BUS_ID") or "").strip() != plan.bus_id
@@ -2402,25 +2450,84 @@ class DwgSyncService:
                     f"BUS_CABLE_TYPE_INCONSISTENT:{designation}:{sorted(cable_types)}"
                 )
             cable_type = next(iter(cable_types), "")
-            if bus_row.get("cable_type") and cable_type and bus_row["cable_type"] != cable_type:
-                raise DwgSyncError(
-                    f"BUS_CABLE_TYPE_CONFLICT:{designation}:{bus_row['cable_type']} != {cable_type}"
-                )
-            if cable_type and not bus_row.get("cable_type"):
+            if cable_type and cable_type != (bus_row.get("cable_type") or ""):
+                # BUS_CABLE_TYPE is a single Bus owner, not a collection of
+                # independent endpoint attributes. Only a complete, agreed
+                # Project projection may replace the current whole-bus value.
+                if bus_row.get("cable_type"):
+                    project_device_ids = set(
+                        uow.execute(
+                            select(bus_endpoint.c.field_device_id).where(
+                                bus_endpoint.c.project_id == project_id,
+                                bus_endpoint.c.bus_id == bus_row["id"],
+                                bus_endpoint.c.field_device_id.is_not(None),
+                            )
+                        ).scalars()
+                    )
+                    observed_device_ids = {device_ids[plan.handle] for plan in plans}
+                    if not project_device_ids <= observed_device_ids:
+                        raise DwgSyncError(
+                            f"BUS_CABLE_TYPE_PARTIAL_CHANGE:{designation}:"
+                            "all accepted bus points must participate in the change"
+                        )
                 uow.execute(
                     update(bus).where(bus.c.id == bus_row["id"]).values(cable_type=cable_type)
                 )
 
             affected_bus_ids.add(bus_row["id"])
-            endpoint_by_address = {
-                row["address"]: row["id"]
-                for row in uow.execute(
+            existing_endpoints = list(
+                uow.execute(
                     select(bus_endpoint).where(
                         bus_endpoint.c.project_id == project_id,
                         bus_endpoint.c.bus_id == bus_row["id"],
                     )
                 ).mappings()
+            )
+            endpoint_by_address = {row["address"]: row["id"] for row in existing_endpoints}
+            endpoint_row_by_address = {row["address"]: row for row in existing_endpoints}
+            endpoint_by_device = {
+                row["field_device_id"]: row
+                for row in existing_endpoints
+                if row["field_device_id"] is not None
             }
+            # A field device may already own a bus endpoint on a *different*
+            # Bus. Validate that identity as well; a cross-bus move must not
+            # leave the original endpoint in place and create a second one.
+            accepted_addresses_by_device: dict[str, set[str]] = defaultdict(set)
+            for existing_owner in uow.execute(
+                select(
+                    bus_endpoint.c.field_device_id,
+                    bus_endpoint.c.address,
+                ).where(
+                    bus_endpoint.c.project_id == project_id,
+                    bus_endpoint.c.field_device_id.in_({device_ids[plan.handle] for plan in plans}),
+                )
+            ):
+                accepted_addresses_by_device[existing_owner.field_device_id].add(
+                    existing_owner.address
+                )
+            # Guard free-address renumbers, swaps, and cross-Bus moves.
+            # Failing inside the transaction preserves all accepted topology.
+            for plan in plans:
+                device_id = device_ids[plan.handle]
+                owned = endpoint_by_device.get(device_id)
+                assigned = endpoint_row_by_address.get(plan.point_id)
+                if any(
+                    address != plan.point_id
+                    for address in accepted_addresses_by_device.get(device_id, ())
+                ):
+                    raise DwgSyncError(
+                        f"BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION:{designation}:"
+                        f"accepted endpoint -> {plan.point_id}"
+                    )
+                if owned is not None and owned["address"] != plan.point_id:
+                    raise DwgSyncError(
+                        f"BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION:{designation}:"
+                        f"{owned['address']} -> {plan.point_id}"
+                    )
+                if assigned is not None and assigned["field_device_id"] != device_id:
+                    raise DwgSyncError(f"BUS_POINT_ID_OWNER_CONFLICT:{designation}:{plan.point_id}")
+            inserted_endpoint = False
             for plan in plans:
                 endpoint_id = endpoint_by_address.get(plan.point_id)
                 if endpoint_id is None:
@@ -2438,20 +2545,56 @@ class DwgSyncService:
                         )
                     )
                     endpoint_by_address[plan.point_id] = endpoint_id
+                    inserted_endpoint = True
+
+            # The accepted Project bus (including points temporarily absent from
+            # the DWG scan) is the RS-485 chain. The current scan is not a
+            # replacement for the accepted physical inventory.
+            rs485_upstream: dict[str, str | None] = {}
+            if bus_row["bus_kind"] == "RS485":
+                previous_rs485 = None
+                addresses = sorted(
+                    (
+                        address
+                        for address in endpoint_by_address
+                        if isinstance(address, str)
+                        and address.startswith(f"{designation}.")
+                        and len(address) == 7
+                        and address[4:].isdigit()
+                        and address[4:] != "000"
+                    ),
+                    key=lambda address: int(address[4:]),
+                )
+                for address in addresses:
+                    rs485_upstream[address] = previous_rs485
+                    previous_rs485 = endpoint_by_address[address]
 
             ordered = sorted(plans, key=lambda plan: int(plan.point_id.rsplit(".", 1)[1]))
-            previous_rs485 = None
             for plan in ordered:
                 target_endpoint = endpoint_by_address[plan.point_id]
                 if plan.bus_kind == "RS485":
-                    source_endpoint = previous_rs485
-                    previous_rs485 = target_endpoint
+                    source_endpoint = rs485_upstream[plan.point_id]
                 elif plan.source == f"{designation}.000":
                     source_endpoint = None
                 else:
                     source_endpoint = endpoint_by_address.get(plan.source)
                     if source_endpoint is None:
                         raise DwgSyncError(f"BUS_SOURCE_NOT_FOUND:{plan.source}")
+                if (
+                    plan.handle not in active_handles
+                    and device_ids[plan.handle] in canonical_bus_fields
+                ):
+                    if plan.bus_kind == "RS485":
+                        uow.execute(
+                            update(bus_segment)
+                            .where(
+                                bus_segment.c.bus_id == bus_row["id"],
+                                bus_segment.c.target_endpoint_id == target_endpoint,
+                                bus_segment.c.source_endpoint_id.is_distinct_from(source_endpoint),
+                            )
+                            .values(source_endpoint_id=source_endpoint)
+                        )
+                    continue
                 route = dict(plan.route)
                 if plan.connection_kind == "TRACK" and any(route.values()):
                     raise DwgSyncError(f"TRACK_BUS_ROUTE_FORBIDDEN:{plan.point_id}")
@@ -2495,6 +2638,21 @@ class DwgSyncService:
                     connection_kind=plan.connection_kind,
                     route=route,
                 )
+            if bus_row["bus_kind"] == "RS485" and inserted_endpoint:
+                # Inserting a point between two accepted endpoints changes the
+                # successor's upstream, even when its DWG insertion was not
+                # selected. It must not change the successor's route/conduit.
+                for address, expected_upstream in rs485_upstream.items():
+                    uow.execute(
+                        update(bus_segment)
+                        .where(
+                            bus_segment.c.project_id == project_id,
+                            bus_segment.c.bus_id == bus_row["id"],
+                            bus_segment.c.target_endpoint_id == endpoint_by_address[address],
+                            bus_segment.c.source_endpoint_id.is_distinct_from(expected_upstream),
+                        )
+                        .values(source_endpoint_id=expected_upstream)
+                    )
         return affected_bus_ids
 
     def _materialize_bus_segment_conduit(
@@ -3735,9 +3893,55 @@ def _legacy_box_owner_path(owner_key: str, field: str, fields: dict) -> str | No
     return None
 
 
+def _project_bus_fields(connection, project_id):
+    source = bus_endpoint.alias("bus_source_read")
+    rows = connection.execute(
+        select(
+            field_device.c.id,
+            bus.c.designation,
+            bus.c.bus_kind,
+            bus.c.cable_type,
+            bus_segment.c.mount_way,
+            bus_segment.c.gofra_type,
+            bus_segment.c.gofra_color,
+            conduit.c.designation.label("gofra_id"),
+            source.c.address.label("source_address"),
+        )
+        .select_from(bus_segment)
+        .join(bus, bus.c.id == bus_segment.c.bus_id)
+        .join(bus_endpoint, bus_endpoint.c.id == bus_segment.c.target_endpoint_id)
+        .join(field_device, field_device.c.id == bus_endpoint.c.field_device_id)
+        .outerjoin(source, source.c.id == bus_segment.c.source_endpoint_id)
+        .outerjoin(
+            bus_segment_conduit_assignment,
+            bus_segment_conduit_assignment.c.bus_segment_id == bus_segment.c.id,
+        )
+        .outerjoin(conduit, conduit.c.id == bus_segment_conduit_assignment.c.conduit_id)
+        .where(
+            bus.c.project_id == project_id,
+            bus.c.lifecycle == "ACTIVE",
+            field_device.c.lifecycle == "ACTIVE",
+        )
+    ).mappings()
+    return {
+        row["id"]: {
+            "BUS_CABLE_TYPE": row["cable_type"] or "",
+            "BUS_SOURCE": ""
+            if row["bus_kind"] == "RS485"
+            else (row["source_address"] or f"{row['designation']}.000"),
+            "BUS_MOUNT_WAY": row["mount_way"] or "",
+            "BUS_GOFRA_TYPE": row["gofra_type"] or "",
+            "BUS_GOFRA_COLOR": row["gofra_color"] or "",
+            "BUS_GOFRA_ID": row["gofra_id"] or "",
+        }
+        for row in rows
+    }
+
+
 def _load_project_owner_values(
     connection,
     *,
+    binding_id: str | None,
     project_id: str,
     snapshot: NormalizedCadSnapshot,
     devices: dict[str, dict[str, Any]],
@@ -3747,6 +3951,18 @@ def _load_project_owner_values(
     """Read each Project value from its schema-7 authoritative owner."""
 
     result: dict[str, Any] = {}
+    bus_fields_by_device = _project_bus_fields(connection, project_id)
+    bus_fields_by_handle = {
+        row.entity_handle: bus_fields_by_device[row.id]
+        for row in connection.execute(
+            select(field_device.c.id, field_device.c.entity_handle).where(
+                field_device.c.project_id == project_id,
+                field_device.c.dwg_document_binding_id == binding_id,
+                field_device.c.lifecycle == "ACTIVE",
+            )
+        )
+        if row.id in bus_fields_by_device
+    }
     device_locations = {
         row["entity_handle"]: {
             "ROOM": row["room_name"],
@@ -3952,7 +4168,9 @@ def _load_project_owner_values(
         else:
             fields = devices.get(fact.primary_handle)
             if fields is not None:
-                if fact.field in {"ROOM", "BUILDING"}:
+                if fact.field in bus_fields_by_handle.get(fact.primary_handle, {}):
+                    result[fact.owner_path] = bus_fields_by_handle[fact.primary_handle][fact.field]
+                elif fact.field in {"ROOM", "BUILDING"}:
                     canonical_value = device_locations.get(fact.primary_handle, {}).get(fact.field)
                     result[fact.owner_path] = (
                         canonical_value if canonical_value is not None else fields.get(fact.field)

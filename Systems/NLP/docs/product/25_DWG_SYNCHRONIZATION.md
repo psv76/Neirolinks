@@ -23,7 +23,7 @@ Ordinary topology uses `CABLE_SOURCE=<empty>|BOX.NNN|XYY.ZZ|9YY.ZZZ/PORT`; root 
 
 Project-to-DWG may write only a Project-originated/resolved value that is both in the closed allow-list and present in the exact ATTDEF set of the observed Repair08 canonical block. It never emits retired tags/names or Project-derived type/post/link/root/bus facts. Binding, revision, Handle, name/layer and exact read-back are mandatory.
 
-Exact names/ATTDEF and topology semantics are owned by [AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](../autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md) and [CURRENT_TOPOLOGY_ARCHITECTURE.md](../autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md). Machine contract version is `3.0.0` with 71 definitions.
+Exact names/ATTDEF and topology semantics are owned by [AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](../autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md) and [CURRENT_TOPOLOGY_ARCHITECTURE.md](../autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md). Machine contract version is `3.1.0` with 72 definitions.
 
 ## 2. Обычный пользовательский workflow «Обновить»
 
@@ -82,3 +82,32 @@ Selective/automatic apply должен разрешать source dependency из
 Канонизация сохраняет исходный текст DWG как evidence и записывает устойчивый `room_id`. Она не создаёт здания/помещения, не угадывает ambiguous/unresolved room и не подменяет three-way classification изменений имён `ROOM` / `BUILDING`. Существующая room relation остаётся источником Project-имён, включая Project rename, DWG rename и `BOTH_CHANGED_CONFLICT`.
 
 После успешной привязки зависимые derived lengths могут быть пересчитаны из уже принятых Project facts. Pending/unselected DWG geometry или route facts не должны импортироваться только ради такого пересчёта.
+
+## Универсальный вывод шины
+
+Для `CABLE_OUTLET_BUS` preview, import и проверка Project→DWG используют
+актуальный тип существующей Project Bus. Неизвестная шина требует явного
+выбора RS485/DALI/KNX и источника, после чего выполняется новый preview.
+`BUS_SOURCE` для DALI/KNX и bus-route сохраняют three-way ownership и
+read-back; RS485 требует пустого `BUS_SOURCE`. DWG никогда не определяет
+Project bus kind. Физическая identity хранится в field_device/BusEndpoint,
+без фиктивного ProjectInstance. Live smoke требует отдельно заданного DWG
+и разрешения; автоматические тесты используют изолированные БД и CAD doubles.
+
+Точки RS-485, временно отсутствующие в DWG, сохраняются в принятом списке
+`BusEndpoint` в Project. Выборочное применение других изменений не вправе
+исключать их из последовательности и перестраивать соединения по неполному
+DWG-снимку. При включении новой точки между существующими Project пересчитывает
+связи по полному принятому списку точек, не изменяя маршруты и назначения труб.
+
+`BUS_POINT_ID` уже принятой физической точки является структурной identity.
+Обычная синхронизация **не** выполняет перенумерацию или обмен адресами
+между `field_device` / `BusEndpoint`: такое изменение выдаёт
+`STRUCTURAL_IDENTITY_REVIEW` и блокирует apply. Для перенумерации требуется
+отдельная owner-aware операция с явным подтверждением и проверкой всех связей;
+пока она не реализована, пользователь должен восстановить принятый номер в DWG.
+
+`BUS_CABLE_TYPE` принадлежит всей шине Project. Согласованное DWG-изменение
+марки кабеля на **всех принятых полевых точках шины** допускается одной
+транзакцией согласно three-way выбору; неполный DWG-снимок и разнородные
+значения не должны молча изменять общее свойство `Bus`.

@@ -45,6 +45,7 @@ class BlockRule:
     derived_phase: int | None = None
     cable_link_kind: str | None = None
     bus_link_kind: str | None = None
+    bus_kind: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,7 +154,7 @@ def load_contract(path: Path | None = None) -> BlockContractCatalog:
                 required_definition_attributes=frozenset(required_definitions),
                 optional_attributes=frozenset(optional),
                 forbidden_attributes=frozenset(forbidden),
-                allowed_groups=allowed_groups,
+                allowed_groups=frozenset(family.get("allowed_groups", allowed_groups)),
                 key_count=key_count,
                 posts=int(posts[name]) if name in posts else None,
                 allowed_load_types=frozenset(
@@ -171,6 +172,7 @@ def load_contract(path: Path | None = None) -> BlockContractCatalog:
                 ),
                 cable_link_kind=family.get("cable_link_kind"),
                 bus_link_kind=family.get("bus_link_kind"),
+                bus_kind=family.get("bus_kind"),
             )
 
     for name, raw_logical in _mapping(data.get("logical_blocks"), "logical_blocks").items():

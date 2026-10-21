@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QGraphicsTextItem,
     QGraphicsView,
+    QInputDialog,
     QLineEdit,
     QMessageBox,
 )
@@ -110,6 +111,7 @@ def test_bus_workspace_graph_is_derived_and_project_scoped(database, qtbot):
 
 
 def test_rs485_create_uses_service_candidates_labels_and_cancel(database, qtbot, monkeypatch):
+    monkeypatch.setattr(QInputDialog, "getItem", lambda *a, **kw: ("RS485", True))
     project_id = database.test_project_id
     resources = [
         _create_rs485_resource(database, project_id, designation)

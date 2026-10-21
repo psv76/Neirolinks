@@ -641,3 +641,14 @@ def test_local_line_room_warning_opens_direct_remediation(database, qtbot, monke
     )
 
     assert sync_calls == ["sync"]
+
+
+def test_bus_update_errors_are_actionable():
+    renumber = _localized_sync_error("BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION:920")
+    assert "BUS_POINT_ID" in renumber and "перенумерация" in renumber
+
+    collision = _localized_sync_error("BUS_POINT_ID_OWNER_CONFLICT:920:920.002")
+    assert "принадлежит другому устройству" in collision
+
+    incomplete = _localized_sync_error("BUS_CABLE_TYPE_PARTIAL_CHANGE:920")
+    assert "неполному набору точек" in incomplete

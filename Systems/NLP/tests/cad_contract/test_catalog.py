@@ -9,7 +9,7 @@ from nl_project_2.cad_contract import ContractCatalogError, default_contract_pat
 
 
 def test_machine_contract_has_exact_approved_shape(block_contract):
-    assert block_contract.contract_version == "3.0.0"
+    assert block_contract.contract_version == "3.1.0"
     assert set(block_contract.blocks) == set(block_contract.approved_block_names)
     assert len(block_contract.functional_groups) == 10
     assert set(block_contract.source_documents) == {
