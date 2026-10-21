@@ -34,6 +34,7 @@
 - [FAQ.md](FAQ.md) — короткие ответы на типовые вопросы.
 - [CHATGPT_PROJECT_SETUP.md](CHATGPT_PROJECT_SETUP.md) — как подключить **свой ChatGPT** к базе знаний и спрашивать с доказательствами.
 - [PROJECT_INSTRUCTIONS.txt](PROJECT_INSTRUCTIONS.txt) — готовые инструкции для помощника.
+- [PROJECT_KNOWLEDGE.txt](PROJECT_KNOWLEDGE.txt) — единый текст для загрузки в ChatGPT Project без подключения GitHub.
 
 ## Как пользоваться источниками
 
