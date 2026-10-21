@@ -19,6 +19,7 @@ from sqlalchemy import Engine, delete, select, update
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
     bus,
+    bus_endpoint,
     bus_segment,
     bus_segment_conduit_assignment,
     cable_line,
@@ -204,6 +205,26 @@ class AtomicConduitAssignmentService:
                 uow.rollback()
                 return AtomicAssignmentResult((), (), expected_project_revision)
 
+            # BUS_GOFRA_* is an insertion-owned reconciliation projection.
+            # Updating bus_segment alone would leave Project->DWG reading the
+            # old values. Fail closed until a transactional BUS mirror exists.
+            changed_bus_ids = [c.segment_id for c in effective if c.network_kind == "BUS"]
+            if (
+                changed_bus_ids
+                and uow.execute(
+                    select(bus_segment.c.id)
+                    .join(bus_endpoint, bus_endpoint.c.id == bus_segment.c.target_endpoint_id)
+                    .where(
+                        bus_segment.c.project_id == project_id,
+                        bus_endpoint.c.project_id == project_id,
+                        bus_segment.c.id.in_(changed_bus_ids),
+                        bus_endpoint.c.endpoint_kind == "FIELD_DEVICE",
+                    )
+                ).first()
+                is not None
+            ):
+                raise PhysicalAssignmentError("BUS DWG route projection is not installed")
+
             affected: set[str] = set()
             for change in effective:
                 old = current.get(change.key())
@@ -259,6 +280,10 @@ class AtomicConduitAssignmentService:
                 if fact is None or fact.conduit_id != cid or fact.span is None:
                     raise PhysicalAssignmentError(
                         f"Conduit {cid}: confirmed Project physical bounds are required"
+                    )
+                if fact.permitted_cable_classes is None:
+                    raise PhysicalAssignmentError(
+                        f"Conduit {cid}: positive cable class compatibility is required"
                     )
 
             physical_facts = []

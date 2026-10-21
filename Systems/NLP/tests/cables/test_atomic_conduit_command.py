@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
@@ -35,6 +36,7 @@ from nl_project_2.persistence.schema import (
     conduit,
     conduit_segment_assignment,
     field_device,
+    field_port,
     instance_resource,
     metadata,
     passport_definition,
@@ -176,6 +178,8 @@ def _seed(connection) -> None:
                 source_endpoint_id=root_endpoint_id,
                 target_endpoint_id=box_endpoint_id,
                 mount_way="По полу",
+                gofra_type="ПНД25" if i == 1 else None,
+                gofra_color="Синий" if i == 1 else None,
             )
         )
         if i == 1:
@@ -755,3 +759,228 @@ def test_conflict_then_success_is_order_independent(database):
     assert len(result.applied) == 3
     assert _box_fields(database)["GOFRA_ID"] == "002.PND25"
     assert _revision(database) == 1
+
+
+def test_single_member_requires_positive_class_approval(database):
+    def incomplete_approval(*args):
+        approved = _approval()(*args)
+        return replace(
+            approved,
+            conduit_facts={
+                cid: replace(fact, permitted_cable_classes=None)
+                for cid, fact in approved.conduit_facts.items()
+            },
+        )
+
+    service = AtomicConduitAssignmentService(
+        database, approval_provider=incomplete_approval, cable_mirror_updater=_mirror
+    )
+    before = _memberships(database)
+    with pytest.raises(PhysicalAssignmentError, match="compatibility|class"):
+        service.apply(
+            project_id=PROJECT,
+            expected_project_revision=0,
+            expected_current_assignments={("CABLE", S1): TUBE1},
+            changes=(AssignmentChange("CABLE", S1, TUBE2),),
+        )
+    assert _memberships(database) == before
+    assert _revision(database) == 0
+
+
+@pytest.mark.parametrize("drift", [None, "Красный"])
+def test_segment_route_baseline_drift_is_not_silently_overwritten(database, drift):
+    _seed_shared_dwg_box_mirror(database)
+    with database.begin() as connection:
+        connection.execute(
+            update(cable_segment).where(cable_segment.c.id == S1).values(gofra_color=drift)
+        )
+    before = _memberships(database)
+    with pytest.raises(PhysicalAssignmentError, match="baseline"):
+        _service(database).apply(
+            project_id=PROJECT,
+            expected_project_revision=0,
+            expected_current_assignments=_shared_three_old(),
+            changes=_shared_three_moves(),
+        )
+    assert _memberships(database) == before
+    assert _revision(database) == 0
+    assert _box_fields(database)["GOFRA_ID"] == "001.PND25"
+    with database.connect() as connection:
+        assert (
+            connection.execute(
+                select(cable_segment.c.gofra_color).where(cable_segment.c.id == S1)
+            ).scalar_one()
+            == drift
+        )
+
+
+def test_bus_device_assignment_requires_transactional_dwg_projection(database):
+    """BUS_GOFRA is read by reconciliation from the insertion, not bus_segment."""
+    device_id = uid(1600)
+    with database.begin() as connection:
+        _seed_isolated_bus(connection)
+        connection.execute(
+            field_device.insert().values(
+                id=device_id,
+                project_id=PROJECT,
+                block_kind="WB_MRM2_MINI",
+                normalized_fields_json={
+                    "BUS_GOFRA_ID": "",
+                    "BUS_GOFRA_TYPE": "",
+                    "BUS_GOFRA_COLOR": "",
+                },
+            )
+        )
+        connection.execute(
+            update(bus_endpoint)
+            .where(bus_endpoint.c.id == uid(915))
+            .values(endpoint_kind="FIELD_DEVICE", resource_id=None, field_device_id=device_id)
+        )
+
+    def approval(uow, project_id, affected_tubes, affected_segments):
+        return ApprovedPhysicalFacts(
+            conduit_facts={
+                BUS_TUBE: ConduitFact(
+                    BUS_TUBE,
+                    PhysicalSpan(
+                        PhysicalBoundary("INSTANCE_RESOURCE", BUS_ROOT_RESOURCE),
+                        PhysicalBoundary("FIELD_DEVICE", device_id),
+                    ),
+                    "По полу",
+                    frozenset({"DATA"}),
+                )
+            },
+            segment_classes={key: "DATA" for key in affected_segments},
+        )
+
+    service = AtomicConduitAssignmentService(database, approval_provider=approval)
+    with pytest.raises(PhysicalAssignmentError, match="BUS.*projection"):
+        service.apply(
+            project_id=PROJECT,
+            expected_project_revision=0,
+            expected_current_assignments={("BUS", BUS_SEGMENT): None},
+            changes=(AssignmentChange("BUS", BUS_SEGMENT, BUS_TUBE),),
+        )
+    assert _revision(database) == 0
+    with database.connect() as connection:
+        assert connection.execute(select(bus_segment_conduit_assignment)).all() == []
+        assert (
+            connection.execute(
+                select(field_device.c.normalized_fields_json).where(field_device.c.id == device_id)
+            ).scalar_one()["BUS_GOFRA_ID"]
+            == ""
+        )
+
+
+@pytest.mark.parametrize("mixed_allowed", [False, True])
+def test_actual_ordinary_bus_same_conduit_requires_mixed_approval(database, mixed_allowed):
+    with database.begin() as connection:
+        _seed_isolated_bus(connection)
+        for endpoint_id, resource_id in (
+            (uid(401), BUS_ROOT_RESOURCE),
+            (uid(501), BUS_TARGET_RESOURCE),
+        ):
+            connection.execute(
+                update(cable_topology_endpoint)
+                .where(cable_topology_endpoint.c.id == endpoint_id)
+                .values(
+                    endpoint_kind="INSTANCE_RESOURCE",
+                    cable_point_id=None,
+                    instance_resource_id=resource_id,
+                )
+            )
+    span = PhysicalSpan(
+        PhysicalBoundary("INSTANCE_RESOURCE", BUS_ROOT_RESOURCE),
+        PhysicalBoundary("INSTANCE_RESOURCE", BUS_TARGET_RESOURCE),
+    )
+
+    def approval(_uow, _project, _tubes, members):
+        return ApprovedPhysicalFacts(
+            {
+                TUBE1: ConduitFact(
+                    TUBE1, span, "По полу", frozenset({"AC_230", "DATA"}), mixed_allowed
+                )
+            },
+            {key: "DATA" if key[0] == "BUS" else "AC_230" for key in members},
+        )
+
+    service = AtomicConduitAssignmentService(database, approval_provider=approval)
+    request = dict(
+        project_id=PROJECT,
+        expected_project_revision=0,
+        expected_current_assignments={("BUS", BUS_SEGMENT): None},
+        changes=(AssignmentChange("BUS", BUS_SEGMENT, TUBE1),),
+    )
+    if mixed_allowed:
+        service.apply(**request)
+    else:
+        with pytest.raises(PhysicalAssignmentError, match="sharing not approved"):
+            service.apply(**request)
+    assert _revision(database) == int(mixed_allowed)
+    assert _memberships(database) == ((S1, TUBE1),)
+    with database.connect() as connection:
+        rows = (
+            connection.execute(select(bus_segment_conduit_assignment.c.conduit_id)).scalars().all()
+        )
+        assert rows == ([TUBE1] if mixed_allowed else [])
+
+
+@pytest.mark.parametrize("drift", [False, True])
+def test_field_port_shared_insertion_mirror_and_baseline_guard(database, drift):
+    _seed_shared_dwg_box_mirror(database)
+    port_id = uid(1700)
+    with database.begin() as connection:
+        connection.execute(
+            field_port.insert().values(
+                id=port_id,
+                project_id=PROJECT,
+                field_device_id=BOX_DEVICE,
+                port_tag="COM1",
+                port_kind="RELAY_COMMON",
+                direction="IN",
+                contract_version=1,
+            )
+        )
+        connection.execute(
+            update(cable_topology_endpoint)
+            .where(cable_topology_endpoint.c.id.in_([uid(501), uid(502), uid(503)]))
+            .values(endpoint_kind="FIELD_PORT", cable_point_id=None, field_port_id=port_id)
+        )
+        if drift:
+            connection.execute(
+                update(field_device)
+                .where(field_device.c.id == BOX_DEVICE)
+                .values(normalized_fields_json={"GOFRA_ID": "unreconciled"})
+            )
+
+    def approval(_uow, _project, tubes, members):
+        return ApprovedPhysicalFacts(
+            {
+                cid: replace(
+                    _conduit_facts(cid),
+                    span=PhysicalSpan(
+                        PhysicalBoundary("BOARD", BOARD),
+                        PhysicalBoundary("FIELD_DEVICE", BOX_DEVICE),
+                    ),
+                )
+                for cid in tubes
+            },
+            {key: "AC_230" for key in members},
+        )
+
+    service = AtomicConduitAssignmentService(
+        database, approval_provider=approval, cable_mirror_updater=_mirror
+    )
+    request = dict(
+        project_id=PROJECT,
+        expected_project_revision=0,
+        expected_current_assignments=_shared_three_old(),
+        changes=_shared_three_moves(),
+    )
+    if drift:
+        with pytest.raises(PhysicalAssignmentError, match="baseline"):
+            service.apply(**request)
+    else:
+        service.apply(**request)
+    assert _revision(database) == int(not drift)
+    assert _box_fields(database)["GOFRA_ID"] == ("unreconciled" if drift else "002.PND25")
