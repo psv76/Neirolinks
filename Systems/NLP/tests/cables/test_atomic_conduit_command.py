@@ -18,6 +18,7 @@ from nl_project_2.cables.physical_conduit import (
     PhysicalBoundary,
     PhysicalSpan,
 )
+from nl_project_2.cables.route_mirror import reconcile_ordinary_route_mirrors
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
     board,
@@ -719,7 +720,12 @@ def test_shared_dwg_device_conflicting_two_tubes_rolls_back_everything(database)
 def test_dwg_route_baseline_conflict_rejected_without_overwrite(database):
     _seed_shared_dwg_box_mirror(database)
     with database.begin() as connection:
-        fields = dict(_box_fields(database))
+        fields = dict(
+            connection.execute(
+                select(field_device.c.normalized_fields_json)
+                .where(field_device.c.id == BOX_DEVICE)
+            ).scalar_one()
+        )
         fields["GOFRA_ID"] = "098.PND25"
         connection.execute(
             update(field_device)
