@@ -15,12 +15,15 @@ from nl_project_2.persistence.schema import (
     assembly_material_fact,
     bus,
     bus_segment,
+    bus_segment_conduit_assignment,
     cable_length_fact,
     cable_line,
     cable_line_product_selection,
     cable_product_definition,
+    cable_segment,
     commercial_fact,
     conduit,
+    conduit_segment_assignment,
     field_device,
     field_device_product_selection,
     led_line_profile,
@@ -256,6 +259,7 @@ class SpecificationService:
             + self._bus_cable_sources(project_id, context)
             + self._conduit_sources(project_id, context)
             + self._bus_conduit_sources(project_id, context)
+            + self._orphan_ordinary_conduit_sources(project_id)
             + self._led_sources(project_id, context)
             + self._material_sources(project_id, context)
         )
@@ -640,6 +644,14 @@ class SpecificationService:
                 code = "CABLE_PRODUCT_REQUIRED"
                 message = "Тип и длина кабеля рассчитаны, точное изделие не выбрано"
                 action = "Выбрать кабель из активного каталога"
+            elif source.source_kind == "CONDUIT" and source.quantity is None:
+                code = "CONDUIT_LENGTH_REQUIRED"
+                message = "Длина физической трубы не подтверждена"
+                action = "Определить длину одной физической Conduit по принятому Q08"
+            elif source.source_kind in {"BUS_SEGMENT_CONDUIT", "CABLE_SEGMENT_CONDUIT"}:
+                code = "CONDUIT_ASSIGNMENT_REQUIRED"
+                message = "Для сегмента не подтверждена действующая физическая труба"
+                action = "Проверить и назначить конкретную Conduit по каноническим границам"
             if code:
                 yield SpecificationIssue(
                     code,
@@ -647,7 +659,7 @@ class SpecificationService:
                     source.source_id,
                     message,
                     status="DATA_REQUIRED",
-                    blocking=False,
+                    blocking=code in {"CONDUIT_LENGTH_REQUIRED", "CONDUIT_ASSIGNMENT_REQUIRED"},
                     required_action=action,
                 )
 
@@ -670,11 +682,9 @@ class SpecificationService:
             )
         output = []
         for row in rows:
-            path = row["path_json"] or {}
-            if path.get("origin") == "AUTO_BUS_SEGMENT":
-                # Legacy rows created for bus segments did not receive their derived
-                # length. Bus conduit demand is now derived directly from bus_segment.
-                continue
+            # Every active physical Conduit is exactly one material source,
+            # including legacy AUTO_BUS_SEGMENT rows. Their length may be unknown,
+            # but must never be replaced by each carried BUS cable length.
             override = context["overrides"].get(("CONDUIT", row["id"]), {})
             scope = _override_value(override, "supply_scope", row["supply_scope"] or "NEIROLINKS")
             included = _override_value(override, "included", True)
@@ -711,6 +721,13 @@ class SpecificationService:
         return output
 
     def _bus_conduit_sources(self, project_id: str, context: dict) -> list[SpecificationSource]:
+        """Report unverified BUS tube demand; NEVER add BUS cable length as tube length.
+
+        Every assigned ACTIVE physical tube is already represented exactly once
+        in _conduit_sources() by conduit.id, even when created by legacy sync.
+        An unassigned BUS_GOFRA label alone cannot establish a physical Conduit:
+        retain the demand with an unknown quantity and an actionable issue.
+        """
         with self._engine.connect() as connection:
             rows = list(
                 connection.execute(
@@ -718,37 +735,120 @@ class SpecificationService:
                         bus_segment.c.id,
                         bus_segment.c.bus_id,
                         bus_segment.c.gofra_type,
-                        bus_segment.c.length_m_decimal,
-                    ).where(
+                        bus_segment.c.gofra_color,
+                        bus_segment.c.gofra_id,
+                        bus_segment_conduit_assignment.c.conduit_id.label("assigned_conduit_id"),
+                        conduit.c.lifecycle.label("assigned_conduit_lifecycle"),
+                    )
+                    .join(bus, bus.c.id == bus_segment.c.bus_id)
+                    .outerjoin(
+                        bus_segment_conduit_assignment,
+                        (bus_segment_conduit_assignment.c.bus_segment_id == bus_segment.c.id)
+                        & (bus_segment_conduit_assignment.c.project_id == project_id),
+                    )
+                    .outerjoin(
+                        conduit,
+                        (conduit.c.id == bus_segment_conduit_assignment.c.conduit_id)
+                        & (conduit.c.project_id == project_id),
+                    )
+                    .where(
                         bus_segment.c.project_id == project_id,
-                        bus_segment.c.gofra_type.is_not(None),
+                        bus.c.project_id == project_id,
+                        bus.c.lifecycle == "ACTIVE",
+                        bus_segment.c.connection_kind == "CABLE",
                     )
                 ).mappings()
             )
         output: list[SpecificationSource] = []
         for row in rows:
-            conduit_type = str(row["gofra_type"] or "").strip()
-            if not conduit_type:
+            # One Conduit already has one specification source, regardless of how
+            # many ordinary/BUS segments pass through it.
+            if row["assigned_conduit_id"] and row["assigned_conduit_lifecycle"] == "ACTIVE":
                 continue
-            diameter = _diameter_from_conduit_type(conduit_type)
+            conduit_type = str(row["gofra_type"] or "").strip()
+            designation = str(row["gofra_id"] or "").strip()
+            color = str(row["gofra_color"] or "").strip()
+            if not row["assigned_conduit_id"] and not (conduit_type or designation or color):
+                continue  # No indication that a protective tube is required.
+            if row["assigned_conduit_id"]:
+                reason = "назначение указывает на неактивную или отсутствующую физическую трубу"
+            else:
+                reason = "нет подтверждённого назначения на физическую Conduit"
             output.append(
                 SpecificationSource(
                     "BUS_SEGMENT_CONDUIT",
                     row["id"],
-                    f"CONDUIT:{conduit_type}:{diameter}",
-                    f"Труба {conduit_type} Ø{diameter} мм",
+                    f"UNRESOLVED_CONDUIT:BUS:{row['id']}",
+                    f"Труба шины — требуется проверка: {conduit_type or 'тип неизвестен'}",
                     None,
-                    _optional_decimal(row["length_m_decimal"]),
+                    None,
                     "m",
                     "NEIROLINKS",
                     True,
-                    True,
+                    False,
+                    note=reason,
                     trace=(
-                        f"Сегмент шины {row['bus_id']}; длина трубы {row['length_m_decimal']} m"
+                        f"BUS segment {row['id']}; {reason}; GOFRA_ID={designation or 'не задан'}"
                     ),
                 )
             )
         return output
+
+    def _orphan_ordinary_conduit_sources(self, project_id: str) -> list[SpecificationSource]:
+        """Keep invalid ordinary segment -> retired/missing tube links visible.
+
+        A missing assignment is normal for an ordinary cable; an assignment
+        to an inactive physical Conduit is *not*. Never count the cable
+        segment's route length as a replacement protective tube.
+        """
+        with self._engine.connect() as connection:
+            rows = list(
+                connection.execute(
+                    select(
+                        conduit_segment_assignment.c.cable_segment_id,
+                        conduit_segment_assignment.c.conduit_id,
+                        conduit.c.lifecycle.label("conduit_lifecycle"),
+                    )
+                    .join(
+                        cable_segment,
+                        cable_segment.c.id == conduit_segment_assignment.c.cable_segment_id,
+                    )
+                    .join(cable_line, cable_line.c.id == cable_segment.c.cable_line_id)
+                    .outerjoin(
+                        conduit,
+                        (conduit.c.id == conduit_segment_assignment.c.conduit_id)
+                        & (conduit.c.project_id == project_id),
+                    )
+                    .where(
+                        conduit_segment_assignment.c.project_id == project_id,
+                        cable_segment.c.project_id == project_id,
+                        cable_line.c.project_id == project_id,
+                        cable_line.c.lifecycle == "ACTIVE",
+                    )
+                ).mappings()
+            )
+        return [
+            SpecificationSource(
+                "CABLE_SEGMENT_CONDUIT",
+                row["cable_segment_id"],
+                f"UNRESOLVED_CONDUIT:CABLE:{row['cable_segment_id']}",
+                "Труба кабеля — назначение на неактивную Conduit",
+                None,
+                None,
+                "m",
+                "NEIROLINKS",
+                True,
+                False,
+                note="Физическая труба неактивна или отсутствует; количество неизвестно",
+                trace=(
+                    f"CableSegment {row['cable_segment_id']}; "
+                    f"назначена Conduit {row['conduit_id']}, "
+                    "которая не включена в действующую спецификацию"
+                ),
+            )
+            for row in rows
+            if row["conduit_lifecycle"] != "ACTIVE"
+        ]
 
     def _led_sources(self, project_id: str, context: dict) -> list[SpecificationSource]:
         if self._automation is None:
