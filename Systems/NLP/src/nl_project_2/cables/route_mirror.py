@@ -206,12 +206,17 @@ def reconcile_ordinary_route_mirrors(
     if tube_ids != set(tubes):
         raise PhysicalAssignmentError("Ordinary route mirror: missing/inactive tube")
 
-    for sid, (_old_id, new_id) in changes.items():
+    for sid, (old_id, new_id) in changes.items():
         if current_assignments.get(sid) != new_id:
             raise PhysicalAssignmentError(
                 f"Segment {sid}: route assignment differs from atomic batch"
             )
         row = all_segments[sid]
+        old_route = _route(tubes.get(old_id))
+        if (row["gofra_type"] or "", row["gofra_color"] or "") != old_route[:2]:
+            raise PhysicalAssignmentError(
+                f"Segment {sid}: route baseline is not reconciled with Project"
+            )
         new_route = _route(tubes.get(new_id))
         if (row["gofra_type"] or "", row["gofra_color"] or "") != new_route[:2]:
             result = uow.execute(
