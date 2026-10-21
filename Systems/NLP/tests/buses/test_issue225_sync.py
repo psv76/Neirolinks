@@ -482,14 +482,18 @@ def test_rs485_inserting_point_between_accepted_points_repairs_successor(databas
     )
 
 
+@pytest.mark.parametrize("kind", ["RS485", "DALI", "KNX"])
 @pytest.mark.parametrize("change_kind", ["free_number", "swap"])
-def test_existing_bus_point_renumber_is_explicitly_blocked(database, change_kind):
+def test_existing_bus_point_renumber_is_explicitly_blocked(database, kind, change_kind):
     from nl_project_2.cad_sync import DwgSyncError
 
-    setup_bus(database, "RS485")
+    setup_bus(database, kind)
     sync = DwgSyncService(database.engine)
     project_id = database.test_project_id
-    rows = tuple(outlet(i, BUS_GOFRA_ID=f"00{i}.PP20") for i in (1, 2))
+    rows = tuple(
+        outlet(i, "" if kind == "RS485" else "920.000", BUS_GOFRA_ID=f"00{i}.PP20")
+        for i in (1, 2)
+    )
     initial = sync.preview(project_id=project_id, batch=batch(*rows))
     sync.apply_dwg_to_project(
         initial,
@@ -532,15 +536,23 @@ def test_existing_bus_point_renumber_is_explicitly_blocked(database, change_kind
         assert len(set(endpoint_owners.values())) == 2
         assert _bus_edges(connection) == {
             ("920.000", "920.001"),
-            ("920.001", "920.002"),
+            ("920.001" if kind == "RS485" else "920.000", "920.002"),
         }
 
 
-def test_bus_cable_type_changes_only_when_all_accepted_points_agree(database):
-    setup_bus(database, "RS485")
+@pytest.mark.parametrize("kind", ["RS485", "DALI", "KNX"])
+def test_bus_cable_type_changes_only_when_all_accepted_points_agree(database, kind):
+    setup_bus(database, kind)
     sync = DwgSyncService(database.engine)
     project_id = database.test_project_id
-    rows = tuple(outlet(i, BUS_GOFRA_ID=f"00{i}.PP20") for i in (1, 2, 3))
+    rows = tuple(
+        outlet(
+            i,
+            "" if kind == "RS485" else "920.000",
+            BUS_GOFRA_ID=f"00{i}.PP20",
+        )
+        for i in (1, 2, 3)
+    )
     initial = sync.preview(project_id=project_id, batch=batch(*rows))
     sync.apply_dwg_to_project(
         initial,
