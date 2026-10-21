@@ -476,10 +476,8 @@ def test_rs485_inserting_point_between_accepted_points_repairs_successor(databas
             ("920.001", "920.002"),
             ("920.002", "920.003"),
         }
-    assert all(
-        item.change_class is ChangeClass.EQUAL
-        for item in sync.preview(project_id=project_id, batch=batch(first, middle, last)).changes
-    )
+    after = sync.preview(project_id=project_id, batch=batch(first, middle, last))
+    assert all(item.change_class is ChangeClass.EQUAL for item in after.changes)
 
 
 @pytest.mark.parametrize("kind", ["RS485", "DALI", "KNX"])
