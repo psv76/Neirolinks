@@ -9,6 +9,7 @@ on:
       - 'Systems/NLP/src/nl_project_2/cad_sync/reconciliation.py'
       - 'Systems/NLP/src/nl_project_2/cad_contract/validator.py'
       - 'Systems/NLP/tests/cad_sync/test_issue237_d10_track_internal_power.py'
+      - 'Systems/NLP/docs/engineering/ISSUE_237_D10_TRACK_POWER_MEMBERSHIP.md'
   workflow_dispatch:
 
 permissions:
