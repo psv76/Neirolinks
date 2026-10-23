@@ -81,6 +81,7 @@ from .physical_dali_store import (
     persist_selected_physical_graph,
     read_project_physical_sources,
 )
+from .track_power import TrackInternalPowerError, selected_internal_track_power
 from .project_bus_context import load_project_bus_context
 from .reconciliation import (
     ROUTE_FIELDS,
@@ -1891,6 +1892,20 @@ class DwgSyncService:
             # back all new devices and links on any topology rejection.
             raise DwgSyncError(str(exc)) from exc
         recalculate_bus_segments(uow, project_id, bus_ids=affected_bus_ids)
+        try:
+            internal_track_power = selected_internal_track_power(
+                uow,
+                project_id=project_id,
+                active_handles=active_handles,
+                device_ids=device_ids,
+            )
+        except TrackInternalPowerError as exc:
+            raise DwgSyncError(str(exc)) from exc
+        internal_by_handle = {link.light_handle: link for link in internal_track_power}
+        point_keys = dict(snapshot.point_key_by_handle)
+        internal_point_keys = {
+            point_keys[handle] for handle in internal_by_handle if handle in point_keys
+        }
 
         endpoint_ids: dict[str, str] = {}
         points_by_base: dict[str, list] = defaultdict(list)
@@ -2071,12 +2086,30 @@ class DwgSyncService:
             line_ids=line_ids,
             active_handles=active_handles,
         )
+        # A rail-mounted 48 V light has accepted Project membership but no
+        # separate installed physical cable run, measured length or conduit.
+        # Do not silently discard a previously accepted external segment:
+        # that requires a separately reviewed migration.
+        for key in sorted(internal_point_keys):
+            target = endpoint_ids.get(key)
+            if target is None:
+                continue
+            old = uow.execute(
+                select(cable_segment.c.id).where(
+                    cable_segment.c.project_id == project_id,
+                    cable_segment.c.target_endpoint_id == target,
+                )
+            ).scalar_one_or_none()
+            if old is not None:
+                raise DwgSyncError(f"TRACK_POWER_LEGACY_SEGMENT_REQUIRES_REVIEW:{key}")
         source_endpoints: dict[str, str] = {}
         segment_ids: dict[str, str] = {}
         active_segments = [
             plan
             for plan in snapshot.segments
-            if plan.target_point_key in endpoint_ids and plan.base in line_ids
+            if plan.target_point_key in endpoint_ids
+            and plan.base in line_ids
+            and plan.target_point_key not in internal_point_keys
         ]
         points_by_key = {point.key: point for point in snapshot.points}
         for plan in active_segments:
@@ -4162,6 +4195,16 @@ def _load_project_owner_values(
             )
             source_path = previous_path or fact.owner_path
             if fact.field == "CABLE_SOURCE":
+                # For an internal TRACK_DALI rail member, the accepted
+                # field_device owner is canonical. There deliberately is
+                # no external cable_segment to read from Project.
+                stored = devices.get(fact.primary_handle, {})
+                if (
+                    stored.get("BLOCK_NAME") == "LIGHT_TRACK_DALI_48V"
+                    and str(stored.get("CABLE_SOURCE") or "").startswith("TRACK.")
+                ):
+                    result[fact.owner_path] = stored["CABLE_SOURCE"]
+                    continue
                 if source_path in canonical_sources:
                     result[fact.owner_path] = canonical_sources[source_path]
                 elif legacy_path in canonical_sources:
