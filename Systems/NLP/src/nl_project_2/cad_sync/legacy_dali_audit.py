@@ -16,6 +16,8 @@ from typing import Any
 
 from sqlalchemy import Connection, select
 
+from .project_bus_context import load_project_bus_context
+
 from nl_project_2.persistence.schema import (
     bus,
     bus_endpoint,
@@ -63,6 +65,7 @@ def audit_accepted_dali_project(connection: Connection, *, project_id: str) -> L
     explicitly REVIEW until parent identity, bus and owner are unambiguous.
     No caller should mutate persistence based solely on this result.
     """
+    root_context = load_project_bus_context(connection, project_id)
     buses = {
         str(row["designation"]): dict(row)
         for row in connection.execute(
@@ -199,6 +202,8 @@ def audit_accepted_dali_project(connection: Connection, *, project_id: str) -> L
             reasons.add("BUS_ROOT_NOT_ACCEPTED")
         elif bus_row["bus_kind"] != "DALI":
             reasons.add("BUS_KIND_NOT_DALI")
+        elif f"{bus_name}.000" not in root_context.verified_dali_roots:
+            reasons.add("BUS_ROOT_UNVERIFIED")
         address = candidate["address"]
         if passive:
             expected = "BOX" if row["block_kind"] == "EL_BOX_OUT_100x100" else "TRACK"
@@ -325,8 +330,43 @@ def audit_accepted_dali_project(connection: Connection, *, project_id: str) -> L
                 reasons=tuple(sorted(reasons)),
             )
         )
+    # If a source BOX/TRACK is itself blocked, dependent records must not
+    # appear ready. Propagate REVIEW through the accepted physical chain.
+    review_identity = {
+        row.identity
+        for row in results
+        if row.identity_kind == "PHYSICAL" and row.disposition == "REVIEW"
+    }
+    pending = list(results)
+    while True:
+        updated = []
+        for row in pending:
+            if row.source in review_identity and row.source != row.identity:
+                reasons = tuple(sorted(set(row.reasons) | {"SOURCE_PHYSICAL_REQUIRES_REVIEW"}))
+                row = LegacyDaliReviewRow(
+                    row.field_device_id,
+                    row.dwg_binding_id,
+                    row.handle,
+                    row.block_name,
+                    row.bus_designation,
+                    row.identity,
+                    row.identity_kind,
+                    row.source,
+                    "REVIEW",
+                    reasons,
+                )
+            updated.append(row)
+        new_review = {
+            row.identity
+            for row in updated
+            if row.identity_kind == "PHYSICAL" and row.disposition == "REVIEW"
+        }
+        pending = updated
+        if new_review == review_identity:
+            break
+        review_identity = new_review
     ordered = tuple(
-        sorted(results, key=lambda x: (x.bus_designation, x.identity, x.field_device_id))
+        sorted(pending, key=lambda x: (x.bus_designation, x.identity, x.field_device_id))
     )
     counts = Counter(x.disposition for x in ordered)
     counts.update({"TOTAL": len(ordered)})
