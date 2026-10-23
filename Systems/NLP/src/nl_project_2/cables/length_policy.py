@@ -8,10 +8,10 @@ wired to the legacy recalculation services (Issue #216, Stage C).
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation, getcontext, localcontext
-from typing import Iterable, Literal
-
+from typing import Literal
 
 TerminationKind = Literal["BOARD", "EL_BOX", "ENDPOINT"]
 
@@ -195,8 +195,7 @@ def calculate_conduit_quantity(
     routed = None if geometry is None else route_length(geometry, policy)
     automatic = None if routed is None else round_up_quantity(routed, step)
     manual = (
-        None if manual_override_m is None
-        else _length(manual_override_m, field="manual_override_m")
+        None if manual_override_m is None else _length(manual_override_m, field="manual_override_m")
     )
     if manual is not None:
         source: Literal["AUTOMATIC", "MANUAL", "INCOMPLETE"] = "MANUAL"

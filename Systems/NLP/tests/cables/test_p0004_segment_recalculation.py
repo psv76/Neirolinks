@@ -15,7 +15,7 @@ from nl_project_2.cables import (
 )
 from nl_project_2.cables.recalculation import board_reserve_for_line
 from nl_project_2.objects.models import ProjectCard, ProjectSettings
-from nl_project_2.objects.service import ObjectService
+from nl_project_2.objects.service import ObjectService, ObjectValidationError
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
     board,
@@ -65,7 +65,6 @@ def _project(database):
             cable_reserve_at_endpoint_m=Decimal("0"),
             cable_meander_percent=Decimal("0"),
             cable_obstacle_percent=Decimal("0"),
-            cable_timber_segment_reserve_m=Decimal("0.5"),
         ),
     )
     return objects, project_id, room_a, room_b, building_id
@@ -188,7 +187,7 @@ def _rows(database):
         (RouteMethod.FLOOR, "4.1"),
         (RouteMethod.CEILING, "8.4"),
         (RouteMethod.WALL, "3"),
-        (RouteMethod.TIMBER, "3.5"),
+        (RouteMethod.TIMBER, "3"),
         (RouteMethod.CABLE_CHANNEL, "3"),
     ],
 )
@@ -410,7 +409,7 @@ def test_conduit_presence_matrix(mount_way, tube, present):
     assert conduit_is_present(mount_way, tube) is present
 
 
-def test_timber_segment_adds_cable_reserve_but_not_conduit_reserve(database):
+def test_timber_segment_geometry_has_no_special_cable_reserve(database):
     _objects, project_id, room_a, room_b, _building = _project(database)
     line_id, segments, _ = _graph(
         database, project_id, (room_a, room_b), routes=[(0, 1, "В брусе", "ППЛ25")]
@@ -419,8 +418,8 @@ def test_timber_segment_adds_cable_reserve_but_not_conduit_reserve(database):
     service.recalculate(project_id=project_id, segment_ids=segments)
 
     segment_rows, _facts, tubes, _assignments = _rows(database)
-    assert Decimal(segment_rows[0]["calculated_length_m_decimal"]) == Decimal("3.5")
-    assert service.effective_length(project_id, line_id).automatic_m == Decimal("3.5")
+    assert Decimal(segment_rows[0]["calculated_length_m_decimal"]) == Decimal("3")
+    assert service.effective_length(project_id, line_id).automatic_m == Decimal("3")
     assert len(tubes) == 1
     assert tubes[0]["conduit_type"] == "ППЛ25"
     assert Decimal(tubes[0]["length_m_decimal"]) == Decimal("3")
@@ -482,7 +481,7 @@ def test_dedicated_shared_and_confirmed_conduit_lengths(database):
         row["conduit_id"] for row in assignments if row["cable_segment_id"] == first_segments[0]
     )
     first_tube = next(row for row in tubes if row["id"] == first_tube_id)
-    assert Decimal(first_tube["length_m_decimal"]) == Decimal("4.1")
+    assert Decimal(first_tube["length_m_decimal"]) == Decimal("5")
     service.move_segment_to_conduit(
         project_id=project_id,
         cable_segment_id=second_segments[0],
@@ -715,7 +714,7 @@ def test_topology_exposes_segment_chain_and_mount_way_breakdown(database):
     assert Decimal(breakdown["По полу"]["cable_m"]) == Decimal("4.1")
     assert Decimal(breakdown["В брусе"]["physical_m"]) == Decimal("1.3")
     assert Decimal(breakdown["В брусе"]["cable_m"]) == Decimal("1.3")
-    assert Decimal(topology["timber_reserve_m"]) == Decimal("0.5")
+    assert "timber_reserve_m" not in topology
 
 
 def test_topology_reports_exact_incomplete_geometry_reason(database):
@@ -747,7 +746,7 @@ def test_new_project_cable_length_policy_defaults(database):
     assert settings.cable_reserve_at_endpoint_m == Decimal("0.3")
     assert settings.cable_meander_percent == Decimal("5")
     assert settings.cable_obstacle_percent == Decimal("10")
-    assert settings.cable_timber_segment_reserve_m == Decimal("0.5")
+    assert settings.cable_rounding_step_m == Decimal("1")
 
 
 def test_distribution_box_reserve_counts_only_real_branching_box(database):
@@ -760,7 +759,6 @@ def test_distribution_box_reserve_counts_only_real_branching_box(database):
             cable_reserve_at_endpoint_m=Decimal("0"),
             cable_meander_percent=Decimal("0"),
             cable_obstacle_percent=Decimal("0"),
-            cable_timber_segment_reserve_m=Decimal("0"),
         ),
     )
     service = CableService(database.engine)
@@ -827,7 +825,6 @@ def test_endpoint_reserve_counts_only_underbox_mechanisms(database):
             cable_reserve_at_endpoint_m=Decimal("0.3"),
             cable_meander_percent=Decimal("0"),
             cable_obstacle_percent=Decimal("0"),
-            cable_timber_segment_reserve_m=Decimal("0"),
         ),
     )
     line_id, segments, _ = _graph(
@@ -869,7 +866,6 @@ def test_percentage_reserves_then_round_up_once_per_line(database):
             cable_reserve_at_endpoint_m=Decimal("0"),
             cable_meander_percent=Decimal("5"),
             cable_obstacle_percent=Decimal("10"),
-            cable_timber_segment_reserve_m=Decimal("0"),
         ),
     )
     line_id, segments, _ = _graph(
@@ -888,3 +884,142 @@ def test_percentage_reserves_then_round_up_once_per_line(database):
     assert Decimal(topology["unrounded_m"]) == Decimal("3.45")
     assert Decimal(topology["rounded_m"]) == Decimal("4")
     assert service.effective_length(project_id, line_id).effective_m == Decimal("4")
+
+
+def test_q08_percentages_apply_only_to_geometry_and_round_once_to_custom_step(database):
+    objects, project_id, room_a, room_b, _building = _project(database)
+    objects.save_settings(
+        project_id,
+        ProjectSettings(
+            cable_reserve_at_board_m=Decimal("0"),
+            cable_reserve_at_distribution_box_m=Decimal("0"),
+            cable_reserve_at_endpoint_m=Decimal("1"),
+            cable_meander_percent=Decimal("5"),
+            cable_obstacle_percent=Decimal("10"),
+            cable_rounding_step_m=Decimal("0.5"),
+        ),
+    )
+    line_id, segments, _ = _graph(
+        database,
+        project_id,
+        (room_a, room_b),
+        routes=[(0, 1, "По полу", "ПНД25")],
+    )
+    service = CableService(database.engine)
+    service.recalculate(project_id=project_id, segment_ids=segments)
+    topology = service.topology(project_id, line_id)
+    # G=4.1; physical device ends=2x1; only G gets route reserves.
+    assert Decimal(_rows(database)[0][0]["calculated_length_m_decimal"]) == Decimal("4.1")
+    assert Decimal(topology["endpoint_reserve_m"]) == Decimal("2")
+    assert Decimal(topology["meander_reserve_m"]) == Decimal("0.205")
+    assert Decimal(topology["obstacle_reserve_m"]) == Decimal("0.41")
+    assert Decimal(topology["unrounded_m"]) == Decimal("6.715")
+    assert service.effective_length(project_id, line_id).effective_m == Decimal("7.0")
+    tube = _rows(database)[2][0]
+    assert Decimal(tube["length_m_decimal"]) == Decimal("5.0")
+    # The protected physical tube is independent of cable termination lengths.
+    assert tube["path_json"]["length_source"] == "SEGMENT_GEOMETRY"
+
+
+def test_q08_rounding_setting_must_be_strictly_positive(database):
+    objects, project_id, _room_a, _room_b, _building = _project(database)
+    with pytest.raises(ObjectValidationError, match="greater than zero"):
+        objects.save_settings(
+            project_id,
+            ProjectSettings(cable_rounding_step_m=Decimal("0")),
+        )
+    assert objects.get_project(project_id).settings.cable_rounding_step_m == Decimal("1")
+
+
+def test_q08_stale_legacy_segment_length_never_auto_confirms_tube(database):
+    _objects, project_id, room_a, room_b, _building = _project(database)
+    line_id, segments, _ = _graph(
+        database,
+        project_id,
+        (room_a, room_b),
+        routes=[(0, 1, "По полу", "ПНД25")],
+    )
+    service = CableService(database.engine)
+    service.recalculate(project_id=project_id, segment_ids=segments)
+    tube_id = _rows(database)[2][0]["id"]
+    # A pre-V2 geometry record must not be silently interpreted as Q08 G.
+    with UnitOfWork(database.engine) as uow:
+        uow.execute(
+            update(cable_segment)
+            .where(cable_segment.c.id == segments[0])
+            .values(calculation_revision=1)
+        )
+        from nl_project_2.cables.recalculation import refresh_conduit_length
+
+        refresh_conduit_length(uow, project_id, tube_id)
+        uow.commit()
+    tube = next(x for x in _rows(database)[2] if x["id"] == tube_id)
+    assert tube["length_m_decimal"] is None
+    assert tube["path_json"]["length_source"] == "STALE_OR_INCOMPLETE_GEOMETRY"
+
+    service.update_conduit_length(project_id=project_id, conduit_id=tube_id, length_m="12.5")
+    with UnitOfWork(database.engine) as uow:
+        refresh_conduit_length(uow, project_id, tube_id)
+        uow.commit()
+    tube = next(x for x in _rows(database)[2] if x["id"] == tube_id)
+    assert Decimal(tube["length_m_decimal"]) == Decimal("12.5")
+    assert tube["path_json"]["length_source"] == "USER_CONFIRMED"
+
+
+def test_q04_three_physical_board_root_cables_receive_three_board_allowances(database):
+    objects, project_id, room_a, room_b, _building = _project(database)
+    objects.save_settings(
+        project_id,
+        ProjectSettings(
+            cable_reserve_at_board_m=Decimal("3"),
+            cable_reserve_at_distribution_box_m=Decimal("0"),
+            cable_reserve_at_endpoint_m=Decimal("0"),
+            cable_meander_percent=Decimal("0"),
+            cable_obstacle_percent=Decimal("0"),
+        ),
+    )
+    line_id, segments, _ = _graph(
+        database,
+        project_id,
+        (room_a, room_b),
+        coords=[
+            (0, 0, 300),
+            (1000, 0, 300),
+            (0, 1000, 300),
+            (1000, 1000, 300),
+        ],
+        routes=[
+            (0, 1, "В кабель-канале", ""),
+            (0, 2, "В кабель-канале", ""),
+            (0, 3, "В кабель-канале", ""),
+        ],
+    )
+    root_point_id, root_endpoint_id = new_id(), new_id()
+    with UnitOfWork(database.engine) as uow:
+        uow.execute(
+            cable_point.insert().values(
+                id=root_point_id,
+                project_id=project_id,
+                cable_line_id=line_id,
+                point_kind="INTERNAL_SOURCE",
+                ordinal=4,
+                logical_identity=f"root:{line_id}",
+                location_json={"x": 0, "y": 0, "MOUNT_HEIGHT": 300},
+            )
+        )
+        uow.execute(
+            cable_topology_endpoint.insert().values(
+                id=root_endpoint_id,
+                project_id=project_id,
+                cable_line_id=line_id,
+                endpoint_kind="TOPOLOGY_POINT",
+                cable_point_id=root_point_id,
+            )
+        )
+        uow.execute(
+            update(cable_segment)
+            .where(cable_segment.c.id.in_(segments))
+            .values(source_endpoint_id=root_endpoint_id)
+        )
+        assert board_reserve_for_line(uow, project_id, line_id) == Decimal("9")
+        uow.rollback()
