@@ -223,8 +223,11 @@ def test_pre_d10_track_base_point_requires_explicit_legacy_review(database):
         sync.apply_dwg_to_project(proposal, selected_paths=selected, confirmed=True)
     with database.engine.connect() as conn:
         assert _count(conn, cable_segment) == existing
-        assert conn.scalar(
-            select(func.count()).select_from(field_device).where(
-                field_device.c.block_kind == "LIGHT_TRACK_DALI_48V"
+        assert (
+            conn.scalar(
+                select(func.count())
+                .select_from(field_device)
+                .where(field_device.c.block_kind == "LIGHT_TRACK_DALI_48V")
             )
-        ) == 0
+            == 0
+        )
