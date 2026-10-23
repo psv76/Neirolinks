@@ -73,8 +73,12 @@ def test_branched_two_box_two_track_ten_lights(block_contract, node):
     for item in result.observations[4:]:
         assert item.read_payload.bus_link_kind == "TRACK"
         assert item.read_payload.bus_point_id.startswith("905.")
-    # #238 layer selection and ordinary TRACK source support are separate gates.
-    assert "LAYER_FUNCTION_GROUP_MISMATCH" in issue_codes(result.issues)
+    # #238 voltage-group selection is now integrated with the DALI graph:
+    # a 4YY feeder is 48 V despite passive BUS_ID=905 being present.
+    assert result.observations[2].function_group == "LIGHTING_LED"
+    assert result.observations[3].function_group == "LIGHTING_LED"
+    assert "LAYER_FUNCTION_GROUP_MISMATCH" not in issue_codes(result.issues)
+    assert "TRACK_DALI_POWER_GROUP_UNRESOLVED" not in issue_codes(result.issues)
 
 
 def test_box_and_addressable_chain_is_fully_acceptable(block_contract, node):
