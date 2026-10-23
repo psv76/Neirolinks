@@ -300,6 +300,7 @@ class DwgSyncService:
             project_owner_values = _load_project_owner_values(
                 connection,
                 project_id=project_id,
+                binding_id=binding_id,
                 snapshot=snapshot,
                 devices=devices,
                 baselines=baselines,
@@ -3953,6 +3954,7 @@ def _load_project_owner_values(
     connection,
     *,
     project_id: str,
+    binding_id: str | None,
     snapshot: NormalizedCadSnapshot,
     devices: dict[str, dict[str, Any]],
     baselines: dict[str, Any],
@@ -4097,10 +4099,16 @@ def _load_project_owner_values(
 
     # For DALI physical links the Project-owned typed graph, not stale
     # field_device evidence, is canonical on the Project→DWG side.
-    physical_sources = {
-        row.target_handle: row.source_reference
-        for row in read_project_physical_sources(connection, project_id=project_id)
-    }
+    physical_sources = (
+        {
+            row.target_handle: row.source_reference
+            for row in read_project_physical_sources(
+                connection, project_id=project_id, binding_id=binding_id
+            )
+        }
+        if binding_id
+        else {}
+    )
 
     key_values = {
         (row["entity_handle"], row["key_tag"]): row["functional_target_text"] or ""
