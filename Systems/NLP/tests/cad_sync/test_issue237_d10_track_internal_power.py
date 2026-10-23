@@ -168,3 +168,30 @@ def test_accepted_rail_source_cannot_be_silently_reinterpreted_as_external_run(d
                 active_handles={"LIGHT-A"},
                 device_ids={"LIGHT-A": light_id},
             )
+
+
+def test_pre_d10_track_base_point_requires_explicit_legacy_review(database):
+    pid = _project(database)
+    _insert_root(database, pid)
+    sync = DwgSyncService(database.engine)
+    # Old D7 had only base CABLE_ID=401 as ordinary cable point.
+    _accept(sync, pid, _batch(_box(), _track()))
+    with database.engine.connect() as conn:
+        existing = _count(conn, cable_segment)
+        assert existing == 1
+    proposal = sync.preview(project_id=pid, batch=_accepted_track_batch())
+    assert proposal.can_apply, proposal.issues
+    selected = {
+        c.field_path for c in proposal.changes
+        if c.change_class is ChangeClass.NEW_DWG_INSERTION
+    }
+    assert selected
+    with pytest.raises(DwgSyncError, match="TRACK_POWER_LEGACY_POINT_REQUIRES_REVIEW"):
+        sync.apply_dwg_to_project(proposal, selected_paths=selected, confirmed=True)
+    with database.engine.connect() as conn:
+        assert _count(conn, cable_segment) == existing
+        assert conn.scalar(
+            select(func.count()).select_from(field_device).where(
+                field_device.c.block_kind == "LIGHT_TRACK_DALI_48V"
+            )
+        ) == 0
