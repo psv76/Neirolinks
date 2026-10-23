@@ -81,7 +81,6 @@ from .physical_dali_store import (
     persist_selected_physical_graph,
     read_project_physical_sources,
 )
-from .track_power import TrackInternalPowerError, selected_internal_track_power
 from .project_bus_context import load_project_bus_context
 from .reconciliation import (
     ROUTE_FIELDS,
@@ -90,6 +89,7 @@ from .reconciliation import (
     reconcile_snapshot_edge_projections,
 )
 from .selection import atomic_line_import_groups
+from .track_power import TrackInternalPowerError, selected_internal_track_power
 
 PROJECT_TO_DWG_ALLOW_LIST = frozenset(
     {
