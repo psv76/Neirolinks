@@ -55,6 +55,7 @@ def _track(*, handle="TRACK-A", identity="TRACK.023", bus="905", source="BOX.023
         CABLE_ID="401",
         CABLE_TYPE="",
         BOARD="",
+        MOUNT_WAY="По потолку",
         LENGTH="1500",
     )
     return CadObservation.from_mapping(
@@ -121,8 +122,9 @@ def test_selected_passive_fields_survive_reopen_without_fabricated_bus_endpoint(
         fields = {
             row.entity_handle: row.normalized_fields_json
             for row in connection.execute(
-                select(field_device.c.entity_handle, field_device.c.normalized_fields_json)
-                .where(field_device.c.project_id == pid)
+                select(field_device.c.entity_handle, field_device.c.normalized_fields_json).where(
+                    field_device.c.project_id == pid
+                )
             )
         }
         assert set(fields) == {"BOX-A", "TRACK-A"}
