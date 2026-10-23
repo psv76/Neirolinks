@@ -88,9 +88,7 @@ def test_validated_backup_then_apply_creates_physical_graph_once(database, tmp_p
     assert len(receipt.backup.sha256) == 64
     assert receipt.backup.source_revision == HEAD_REVISION
     assert current_revision_read_only(receipt.backup.path) == HEAD_REVISION
-    with sqlite3.connect(
-        f"file:{receipt.backup.path.as_posix()}?mode=ro", uri=True
-    ) as backup:
+    with sqlite3.connect(f"file:{receipt.backup.path.as_posix()}?mode=ro", uri=True) as backup:
         assert backup.execute("PRAGMA integrity_check").fetchone() == ("ok",)
         assert backup.execute("SELECT COUNT(*) FROM bus_physical_node").fetchone() == (0,)
     assert _counts(database) == (2, 3)
@@ -130,8 +128,11 @@ def test_missing_or_wrong_human_approval_refuses_before_backup(
     backup_path = tmp_path / "verified-backups"
     with pytest.raises(LegacyDaliMappingError, match="EXPLICIT_APPROVAL_REQUIRED"):
         _apply(
-            database, plan, tmp_path, confirmation=confirmed,
-            digest="0" * 64 if wrong_digest else None
+            database,
+            plan,
+            tmp_path,
+            confirmation=confirmed,
+            digest="0" * 64 if wrong_digest else None,
         )
     assert not backup_path.exists()
     assert _counts(database) == (0, 0)
@@ -208,3 +209,14 @@ def test_same_address_other_bus_is_rejected_not_rebound(database):
     _set_fields(database, pid, "BOX-A", {"BUS_ID": "906"})
     with pytest.raises(LegacyDaliMappingError, match="REVIEW_BLOCKED"):
         _plan(database, pid, "BOX-A")
+
+
+def test_mixed_box_addressed_track_cycle_is_rejected_at_preview(database):
+    pid = _setup(database, light=True)
+    _forget_typed_graph(database, pid)
+    # Accepted chain becomes BOX.023 -> 905.001 -> TRACK.023 -> BOX.023.
+    # A physical-only cycle check is insufficient; D9 must fail closed.
+    _set_fields(database, pid, "BOX-A", {"BUS_SOURCE": "905.001"})
+    with pytest.raises(LegacyDaliMappingError, match="DALI_MAPPING_TOPOLOGY_CYCLE"):
+        _plan(database, pid, "BOX-A", "TRACK-A", "LIGHT-A")
+    assert _counts(database) == (0, 0)
