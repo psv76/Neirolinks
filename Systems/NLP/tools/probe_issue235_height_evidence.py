@@ -80,6 +80,7 @@ def ceiling_required_fields(path: str, route_type: type) -> list[str]:
 
 def check() -> None:
     results = {}
+    ac033 = {}
     for label, revision in (("main", MAIN), ("stage_c", STAGE_C)):
         module = pure_domain(revision)
         points = [
@@ -94,15 +95,39 @@ def check() -> None:
         ]
         length, _ = module.calculate_segment_length(*points, module.RouteMethod.CEILING)
         results[label] = str(length)
-    # Doc 11: finished floor is the common zero for this explicit fixture;
+        reference_points = [
+            module.CablePointInput.from_values(
+                x_mm=x,
+                y_mm=y,
+                mount_height_mm=300,
+                base_mark_mm=base,
+                room_height_m=height,
+            )
+            for x, y, base, height in ((0, 0, -250, "2.8"), (1000, 2000, -150, "3.0"))
+        ]
+        ac033[label] = {
+            route.name: str(module.calculate_segment_length(*reference_points, route)[0])
+            for route in (
+                module.RouteMethod.FLOOR,
+                module.RouteMethod.CEILING,
+                module.RouteMethod.CABLE_CHANNEL,
+            )
+        }
+    # Doc 11 and user clarification: heights are measured from finished floor;
     # ceiling 3000 mm, two device ends at 1000 mm, horizontal run 2000 mm.
     assert Decimal(results["main"]) == Decimal("6")
     assert Decimal(results["stage_c"]) == Decimal("5.5")
+    for label in ac033:
+        assert Decimal(ac033[label]["FLOOR"]) == Decimal("4.1")
+        assert Decimal(ac033[label]["CABLE_CHANNEL"]) == Decimal("3")
+    assert Decimal(ac033["main"]["CEILING"]) == Decimal("8.4")
+    assert Decimal(ac033["stage_c"]["CEILING"]) == Decimal("8.1")
     requirements = {
         path: ceiling_required_fields(path, module.RouteMethod)
         for path in ("cables/recalculation.py", "buses/recalculation.py")
     }
     for fields in requirements.values():
+        # Absence of base is correct for C=R*1000; fix the formula, not this set.
         assert "height" in fields and "mount" in fields and "base" not in fields
     print(
         json.dumps(
@@ -112,6 +137,8 @@ def check() -> None:
                 "stage_c_sha": STAGE_C,
                 "doc11_expected_m": "6",
                 "actual_m": results,
+                "ac033_actual_m": ac033,
+                "clarification": "base is not a required input to the correct ceiling formula",
                 "stage_c_ceiling_required_fields": requirements,
                 "scope": "pure source arithmetic and required-field selection only",
             },
