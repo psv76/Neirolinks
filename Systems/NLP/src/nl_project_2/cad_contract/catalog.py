@@ -119,9 +119,24 @@ def load_contract(path: Path | None = None) -> BlockContractCatalog:
         profile_name = family.get("attribute_profile")
         profile = _mapping(profiles.get(profile_name), f"attribute_profiles.{profile_name}")
         device_type = family.get("device_type")
-        allowed_groups = frozenset(
-            name for name, group in groups.items() if device_type in group.device_types
-        )
+        explicit_groups = family.get("allowed_groups")
+        if explicit_groups is not None:
+            # A protocol-only BUS outlet is not an ordinary CABLE_OUTLET
+            # belonging to POWER/LIGHTING/etc. Respect the contract's
+            # explicit allowed_groups rather than deriving from device_type.
+            allowed_groups = frozenset(
+                _strings(explicit_groups, f"block_families[{family_index}].allowed_groups")
+            )
+            unknown_groups = allowed_groups - groups.keys()
+            if unknown_groups:
+                raise ContractCatalogError(
+                    f"unknown allowed_groups for block family {family_index}: "
+                    f"{sorted(unknown_groups)}"
+                )
+        else:
+            allowed_groups = frozenset(
+                name for name, group in groups.items() if device_type in group.device_types
+            )
         key_counts = _mapping(family.get("key_counts", {}), "key_counts")
         posts = _mapping(family.get("posts", {}), "posts")
         family_optional = set(
