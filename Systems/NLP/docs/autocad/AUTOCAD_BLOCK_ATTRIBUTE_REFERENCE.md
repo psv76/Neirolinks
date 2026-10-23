@@ -703,8 +703,7 @@ COMMENT_2
 
 **Exact ATTDEF set:**
 
-```
-text
+```text
 DEVICE_NAME
 BUILDING
 ROOM
@@ -734,8 +733,7 @@ COMMENT_2
 
 **Exact ATTDEF set:**
 
-```
-text
+```text
 DEVICE_NAME
 BUILDING
 ROOM
@@ -765,8 +763,7 @@ COMMENT_2
 
 **Exact ATTDEF set:**
 
-```
-text
+```text
 DEVICE_NAME
 BUILDING
 ROOM
@@ -2022,8 +2019,7 @@ COMMENT_2
 
 **Exact ATTDEF set:**
 
-```
-text
+```text
 DEVICE_NAME
 BUILDING
 ROOM
