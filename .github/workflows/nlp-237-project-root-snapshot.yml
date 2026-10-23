@@ -49,4 +49,5 @@ jobs:
         run: |
           python -m pytest -q \
             tests/cad_sync/test_issue237_project_bus_context.py \
-            tests/cad_contract/test_issue237_dali_graph.py
+            tests/cad_contract/test_issue237_dali_graph.py \
+            tests/cad_sync/test_sync_service.py::test_timber_route_is_accepted_and_persisted_as_segment_data
