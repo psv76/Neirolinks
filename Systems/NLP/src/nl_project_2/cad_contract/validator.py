@@ -603,6 +603,43 @@ class CadContractValidator:
         issues: list[ValidationIssue],
     ) -> str | None:
         candidates = self.catalog.groups_for_layer(observation.layer) & rule.allowed_groups
+
+        # #234/#235: TRACK_DALI is a physical product, not a voltage group.
+        # Its power feeder may be 230 V (3YY) or 48 V (4YY) even though
+        # both feeders share the TRACK_DALI drawing layer. Select using the
+        # actual ordinary CABLE_ID, never BUS_ID or the DALI block name.
+        # Keep the unique-layer rule unchanged for every other block.
+        if rule.name == "TRACK_DALI" and len(candidates) > 1:
+            cable_id = next(
+                (
+                    str(item.value).strip()
+                    for item in observation.raw_attributes
+                    if item.tag == "CABLE_ID"
+                ),
+                "",
+            )
+            matching = (
+                [
+                    name
+                    for name in candidates
+                    if self.catalog.functional_groups[name].cable_prefix == cable_id[0]
+                ]
+                if _STANDARD_CABLE_ID.fullmatch(cable_id)
+                else []
+            )
+            if len(matching) == 1:
+                return matching[0]
+            issues.append(
+                self._issue(
+                    "TRACK_DALI_POWER_GROUP_UNRESOLVED",
+                    "TRACK_DALI power feeder must be a valid 3YY (230 V) or "
+                    "4YY (48 V) CABLE_ID on the approved track layer",
+                    observation,
+                    "CABLE_ID",
+                )
+            )
+            return None
+
         if len(candidates) != 1:
             issues.append(
                 self._issue(
