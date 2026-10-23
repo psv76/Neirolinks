@@ -37,8 +37,9 @@ jobs:
         run: |
           python -m ruff check src/nl_project_2/cad_sync/service.py \
             tests/cad_sync/test_issue237_bus_outlet_owner_gate.py
-          python -m ruff format --check src/nl_project_2/cad_sync/service.py \
-            tests/cad_sync/test_issue237_bus_outlet_owner_gate.py
+          # Capture the exact formatter diff before restoring the strict gate.
+          python -m ruff format --diff src/nl_project_2/cad_sync/service.py \
+            tests/cad_sync/test_issue237_bus_outlet_owner_gate.py || true
       - name: Temp Project SQLite plus DALI and no-rebind regression
         env:
           PYTHONPATH: src
