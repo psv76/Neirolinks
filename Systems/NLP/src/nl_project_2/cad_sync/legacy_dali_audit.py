@@ -133,6 +133,16 @@ def audit_accepted_dali_project(connection: Connection, *, project_id: str) -> L
             # An addressless ordinary BUS-capable device is not a physical
             # DALI topology target; don't invent a target identity for it.
             continue
+        if not passive and not source.startswith(("BOX.", "TRACK.")):
+            # An ordinary addressable DALI circuit belongs to the existing
+            # bus_endpoint/bus_segment model, not legacy physical mapping,
+            # unless it already has an explicit typed physical link.
+            existing = any(
+                links_by_target.get(ep["id"])
+                for ep in endpoint_by_device.get(row["id"], [])
+            )
+            if not existing:
+                continue
         candidates.append({
             "row": dict(row),
             "fields": values,
@@ -307,7 +317,9 @@ def audit_accepted_dali_project(connection: Connection, *, project_id: str) -> L
                 reasons=tuple(sorted(reasons)),
             )
         )
-    ordered = tuple(sorted(results, key=lambda x: (x.bus_designation, x.identity, x.field_device_id)))
+    ordered = tuple(
+        sorted(results, key=lambda x: (x.bus_designation, x.identity, x.field_device_id))
+    )
     counts = Counter(x.disposition for x in ordered)
     counts.update({"TOTAL": len(ordered)})
     canonical = json.dumps(
