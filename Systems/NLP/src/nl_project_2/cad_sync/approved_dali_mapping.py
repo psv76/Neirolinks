@@ -78,9 +78,9 @@ class LegacyDaliApplyReceipt:
 
 
 def _digest(data: object) -> str:
-    encoded = json.dumps(
-        data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
+    encoded = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
     return hashlib.sha256(encoded).hexdigest()
 
 
@@ -109,9 +109,7 @@ def _preview_from_audit(
         for row in audit.rows
         if row.identity_kind == "PHYSICAL" and row.disposition == "ALREADY_MAPPED"
     }
-    physical_ready.update(
-        row.identity for row in selected if row.identity_kind == "PHYSICAL"
-    )
+    physical_ready.update(row.identity for row in selected if row.identity_kind == "PHYSICAL")
     if any(
         row.source.startswith(("BOX.", "TRACK.")) and row.source not in physical_ready
         for row in selected
@@ -128,8 +126,12 @@ def _preview_from_audit(
         )
         actions.append(
             LegacyDaliMappingAction(
-                row.field_device_id, row.identity,
-                row.bus_designation, row.source, row.identity_kind, operation
+                row.field_device_id,
+                row.identity,
+                row.bus_designation,
+                row.source,
+                row.identity_kind,
+                operation,
             )
         )
     stable_actions = tuple(sorted(actions, key=lambda a: a.field_device_id))
@@ -162,23 +164,31 @@ def _canonical_source(connection, *, project_id: str, bus_row, source: str):
     if source == f"{bus_row['designation']}.000":
         return "ROOT", None, None
     if source.startswith(("BOX.", "TRACK.")):
-        parents = connection.execute(
-            select(bus_physical_node).where(
-                bus_physical_node.c.project_id == project_id,
-                bus_physical_node.c.bus_id == bus_row["id"],
-                bus_physical_node.c.physical_id == source,
+        parents = (
+            connection.execute(
+                select(bus_physical_node).where(
+                    bus_physical_node.c.project_id == project_id,
+                    bus_physical_node.c.bus_id == bus_row["id"],
+                    bus_physical_node.c.physical_id == source,
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
         if len(parents) != 1:
             raise LegacyDaliMappingError(f"DALI_MAPPING_PARENT_UNRESOLVED:{source}")
         return "PHYSICAL", parents[0]["id"], None
-    endpoints = connection.execute(
-        select(bus_endpoint).where(
-            bus_endpoint.c.project_id == project_id,
-            bus_endpoint.c.bus_id == bus_row["id"],
-            bus_endpoint.c.address == source,
+    endpoints = (
+        connection.execute(
+            select(bus_endpoint).where(
+                bus_endpoint.c.project_id == project_id,
+                bus_endpoint.c.bus_id == bus_row["id"],
+                bus_endpoint.c.address == source,
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     if len(endpoints) != 1:
         raise LegacyDaliMappingError(f"DALI_MAPPING_ADDRESS_SOURCE_UNRESOLVED:{source}")
     return "ADDRESSED", None, endpoints[0]["id"]
@@ -206,13 +216,17 @@ def _apply_exact_mapping(connection, plan: LegacyDaliMappingPlan) -> tuple[int, 
         bus_row = bus_rows.get(action.bus_designation)
         if bus_row is None:
             raise LegacyDaliMappingError("DALI_MAPPING_BUS_NOT_FOUND")
-        fields = connection.execute(
-            select(field_device).where(
-                field_device.c.id == action.field_device_id,
-                field_device.c.project_id == plan.project_id,
-                field_device.c.lifecycle == "ACTIVE",
+        fields = (
+            connection.execute(
+                select(field_device).where(
+                    field_device.c.id == action.field_device_id,
+                    field_device.c.project_id == plan.project_id,
+                    field_device.c.lifecycle == "ACTIVE",
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if fields is None:
             raise LegacyDaliMappingError("DALI_MAPPING_OWNER_LOST")
         values = dict(fields["normalized_fields_json"] or {})
@@ -225,12 +239,16 @@ def _apply_exact_mapping(connection, plan: LegacyDaliMappingPlan) -> tuple[int, 
             owner_tag = "BOX_ID" if fields["block_kind"] == "EL_BOX_OUT_100x100" else "TRACK_ID"
             if str(values.get(owner_tag) or "").strip() != action.identity:
                 raise LegacyDaliMappingError("DALI_MAPPING_PHYSICAL_OWNER_CHANGED")
-            existing = connection.execute(
-                select(bus_physical_node).where(
-                    bus_physical_node.c.project_id == plan.project_id,
-                    bus_physical_node.c.physical_id == action.identity,
+            existing = (
+                connection.execute(
+                    select(bus_physical_node).where(
+                        bus_physical_node.c.project_id == plan.project_id,
+                        bus_physical_node.c.physical_id == action.identity,
+                    )
                 )
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
             if existing is not None:
                 if (
                     existing["bus_id"] != bus_row["id"]
@@ -252,14 +270,18 @@ def _apply_exact_mapping(connection, plan: LegacyDaliMappingPlan) -> tuple[int, 
                 )
                 nodes_inserted += 1
         else:
-            target = connection.execute(
-                select(bus_endpoint).where(
-                    bus_endpoint.c.project_id == plan.project_id,
-                    bus_endpoint.c.bus_id == bus_row["id"],
-                    bus_endpoint.c.field_device_id == action.field_device_id,
-                    bus_endpoint.c.address == action.identity,
+            target = (
+                connection.execute(
+                    select(bus_endpoint).where(
+                        bus_endpoint.c.project_id == plan.project_id,
+                        bus_endpoint.c.bus_id == bus_row["id"],
+                        bus_endpoint.c.field_device_id == action.field_device_id,
+                        bus_endpoint.c.address == action.identity,
+                    )
                 )
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
             if target is None:
                 raise LegacyDaliMappingError("DALI_MAPPING_ADDRESS_OWNER_NOT_FOUND")
             target_id = target["id"]
@@ -314,7 +336,8 @@ def _apply_exact_mapping(connection, plan: LegacyDaliMappingPlan) -> tuple[int, 
                 target_physical_node_id=target_id if action.kind == "PHYSICAL" else None,
                 target_bus_endpoint_id=target_id if action.kind == "ADDRESSED" else None,
                 link_kind=(
-                    "TRACK" if action.kind == "ADDRESSED" and action.source.startswith("TRACK.")
+                    "TRACK"
+                    if action.kind == "ADDRESSED" and action.source.startswith("TRACK.")
                     else "CABLE"
                 ),
             )
@@ -352,9 +375,12 @@ def apply_approved_legacy_dali_mapping(
     # Precheck before producing a backup; after backup, recheck again inside
     # the transaction (including all fields and accepted link owners).
     ids = tuple(row.field_device_id for row in plan.selected)
-    if preview_legacy_dali_mapping(
-        engine, project_id=plan.project_id, selected_field_device_ids=ids
-    ) != plan:
+    if (
+        preview_legacy_dali_mapping(
+            engine, project_id=plan.project_id, selected_field_device_ids=ids
+        )
+        != plan
+    ):
         raise LegacyDaliMappingError("DALI_MAPPING_PLAN_STALE")
     receipt = create_verified_backup(path, backup_directory)
     if receipt.source_revision != HEAD_REVISION or not receipt.path.is_file():
