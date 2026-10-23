@@ -599,6 +599,17 @@ def _point_key(base: str, logical_identity: str) -> str:
 def _point_identity(item: ValidatedObservation) -> str:
     payload = item.read_payload
     assert payload is not None and payload.cable_identity is not None
+    # TRACK is the external feeder termination; its addressable rail-mounted
+    # 48 V light is a distinct *existing* DALI address, not a second feeder
+    # termination with the identical bare CABLE_ID=4YY.
+    if payload.block_name == "TRACK_DALI":
+        physical_id = str(item.normalized_attributes.get("TRACK_ID") or "").strip()
+        if physical_id and payload.cable_identity.base.startswith("4"):
+            return physical_id
+    if payload.block_name == "LIGHT_TRACK_DALI_48V":
+        source = str(payload.cable_source or "").strip()
+        if source.startswith("TRACK.") and payload.bus_point_id:
+            return payload.bus_point_id
     # A base-only CABLE_ID names the line, not a physical box on that line.
     # Keep existing suffixed point identities and their accepted owner baselines.
     if payload.box_id and payload.cable_identity.suffix_kind is CableSuffixKind.BASE:
