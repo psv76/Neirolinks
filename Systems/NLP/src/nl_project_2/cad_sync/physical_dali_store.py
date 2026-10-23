@@ -121,11 +121,13 @@ def persist_selected_physical_graph(
     sources. Other accepted Project physical nodes/links remain untouched.
     """
     physical = [
-        p for p in snapshot.bus_physical_nodes
+        p
+        for p in snapshot.bus_physical_nodes
         if p.handle in active_handles and p.handle in device_ids
     ]
     addressed = [
-        p for p in snapshot.bus_points
+        p
+        for p in snapshot.bus_points
         if p.handle in active_handles
         and p.handle in device_ids
         and p.bus_kind == "DALI"
@@ -172,9 +174,7 @@ def persist_selected_physical_graph(
             or accepted["bus_id"] != bus_row["id"]
             or accepted["physical_kind"] != kind
         ):
-            raise PhysicalDaliTopologyError(
-                f"BUS_PHYSICAL_ID_OWNER_CONFLICT:{plan.physical_id}"
-            )
+            raise PhysicalDaliTopologyError(f"BUS_PHYSICAL_ID_OWNER_CONFLICT:{plan.physical_id}")
 
     targets: list[tuple[str, str, str, str, str]] = []
     for plan in physical:
@@ -288,12 +288,9 @@ def read_project_physical_sources(
                 bus.c.designation,
                 bus_physical_link,
             )
-            .select_from(
-                bus_physical_link.join(bus, bus.c.id == bus_physical_link.c.bus_id)
-            )
+            .select_from(bus_physical_link.join(bus, bus.c.id == bus_physical_link.c.bus_id))
             .where(bus_physical_link.c.project_id == project_id)
-        )
-        .mappings()
+        ).mappings()
     )
     nodes = {
         row["id"]: row
