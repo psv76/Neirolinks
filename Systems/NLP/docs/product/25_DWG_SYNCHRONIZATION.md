@@ -19,11 +19,11 @@ Owners: insertion planning facts; CableLine (`BOARD`, `CABLE_TYPE`); CableSegmen
 
 Downstream `CABLE_SOURCE=<BUS_POINT_ID>/<PORT>` и reciprocal output-port value — две editable projections одного canonical edge. Previous accepted Project baseline resolves one-side changes and consistent two-side changes. Incompatible two-side change emits `DUAL_PROJECTION_REQUIRES_ATTENTION`, blocks only dependent operation and never chooses silently. Materialization updates one CableSegment by target endpoint and synchronizes the opposite projection.
 
-Ordinary topology uses `CABLE_SOURCE=<empty>|BOX.NNN|XYY.ZZ|9YY.ZZZ/PORT`; root derives from canonical source endpoint. DALI uses `.000` root and explicit branching; RS-485 uses numeric `.ZZZ` without `BUS_SOURCE`. Physical BusSegment route and ordinary CableSegment route remain independent. Track links create no external cable/conduit.
+Ordinary topology uses `CABLE_SOURCE=<empty>|BOX.NNN|TRACK.NNN|XYY.ZZ|9YY.ZZZ/PORT`; root derives from canonical source endpoint. For track lights, `TRACK.NNN` is an internal derived TRACK link, not an external CableSegment. DALI uses `.000` root and explicit branching; RS-485 uses numeric `.ZZZ` without `BUS_SOURCE`. Physical BusSegment route and ordinary CableSegment route remain independent. Track links create no external cable/conduit.
 
-Project-to-DWG may write only a Project-originated/resolved value that is both in the closed allow-list and present in the exact ATTDEF set of the observed Repair08 canonical block. It never emits retired tags/names or Project-derived type/post/link/root/bus facts. Binding, revision, Handle, name/layer and exact read-back are mandatory.
+Project-to-DWG may write only a Project-originated/resolved value that is both in the closed allow-list and present in the exact ATTDEF set of the observed canonical block for the explicitly supported contract version. It never emits retired tags/names or Project-derived type/post/link/root/bus facts. In candidate 3.1.0, passive DALI `BUS_ID` is an explicit planning fact only for `EL_BOX_OUT_100x100` / `TRACK_DALI`; this is not permission to emit derived `BUS_ID` on addressable devices or bypass the runtime allow-list. Binding, revision, Handle, name/layer and exact read-back are mandatory.
 
-Exact names/ATTDEF and topology semantics are owned by [AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](../autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md) and [CURRENT_TOPOLOGY_ARCHITECTURE.md](../autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md). Machine contract version is `3.0.0` with 71 definitions.
+Exact names/ATTDEF and topology semantics are owned by [AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md](../autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md) and [CURRENT_TOPOLOGY_ARCHITECTURE.md](../autocad/CURRENT_TOPOLOGY_ARCHITECTURE.md). Machine contract candidate is `3.1.0` with 71 definitions; accepted `main` remains `3.0.0` until the implementation/compatibility gates are satisfied. Section 6 describes the candidate, not current runtime support.
 
 ## 2. Обычный пользовательский workflow «Обновить»
 
@@ -82,3 +82,17 @@ Selective/automatic apply должен разрешать source dependency из
 Канонизация сохраняет исходный текст DWG как evidence и записывает устойчивый `room_id`. Она не создаёт здания/помещения, не угадывает ambiguous/unresolved room и не подменяет three-way classification изменений имён `ROOM` / `BUILDING`. Существующая room relation остаётся источником Project-имён, включая Project rename, DWG rename и `BOTH_CHANGED_CONFLICT`.
 
 После успешной привязки зависимые derived lengths могут быть пересчитаны из уже принятых Project facts. Pending/unselected DWG geometry или route facts не должны импортироваться только ради такого пересчёта.
+
+
+## 6. Изменение контракта для пассивного DALI / TRACK / транзита (#235)
+
+При сканировании и повторном `DWG → Project → DWG`:
+
+- `BUS_ID` у `EL_BOX_OUT_100x100` / `TRACK_DALI` — принадлежность пассивного узла DALI-шине; уникальная physical identity задаётся `BOX_ID` / `TRACK_ID=TRACK.NNN`, не `BUS_POINT_ID`.
+- `BUS_SOURCE` разрешается как root `9YY.000`, физический `BOX.xxx`/`TRACK.xxx` или адресуемая точка той же шины. Правила отсутствующего/двойного parent и циклов остаются обязательными.
+- `CABLE_TRANSIT` на `EL_BOX` проектирует промежуточные physical cable positions без изменения electrical `CABLE_SOURCE` и без `EL_BOX` allowance. Пустой транзит — допустимое значение. Порядок `301-1` вместо старого предложенного `301@1`. **Первый этап:** создавать/пересчитывать участки только при однозначной последовательности транзитных BOX на конкретном физическом пути. Если ветвление линии оставляет неоднозначной принадлежность транзитных BOX к ветвям, вернуть **`Требует внимания`** для затронутых участков; не строить guessed path, не записывать выдуманные длины и не уничтожать прежние достоверные edges/Conduit assignments при повторном sync. Незатронутые однозначные сегменты синхронизировать штатно.
+- `TRACK_ID` нельзя переименовать на основании текущего handle; нумерация новых physical TRACK INSERT не перенумеровывает существующие. Изменение `LENGTH` зависит от фактической геометрии блока и требует доказанного механизма чтения динамического значения.
+- Любой переход старого пассивного `BUS_POINT_ID` в `BUS_ID` **обязан** сохранять `BUS_SOURCE` с новым физическим parent и уже существующие подтверждённые назначения Conduit/связи/ручные длины. Двусмысленное соответствие → `Требует внимания`, без эвристического выбора и destructive write-back.
+- `BUS_ID` и `CABLE_TRANSIT` сохраняются в owner-aware sync без удаления Project-owned свойств; no-op повторное сканирование идемпотентно. Ни Scan, ни Update не должны незаметно закрывать AutoCAD, сохранять DWG, переписывать реальные объекты вне разрешённого scope.
+
+**Граница реализации:** нормативная целевая схема по #235 не равнозначна уже обновлённым реальным блокам/парсеру. Продолжение только через выделенное development Issue, schema/catalog migration (если доказана необходимость) и отдельный live-safe acceptance.

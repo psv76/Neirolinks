@@ -1,0 +1,29 @@
+name: NLP 235 CAD contract parity (candidate)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/nlp-235-contract-parity.yml'
+      - 'Systems/NLP/resources/autocad/block_contract.json'
+      - 'Systems/NLP/resources/autocad/block_contract.schema.json'
+      - 'Systems/NLP/docs/autocad/**'
+      - 'Systems/NLP/docs/product/20_AUTOCAD_BLOCK_CONTRACT.md'
+      - 'Systems/NLP/docs/product/22_CABLE_LENGTHS_AND_CONDUITS.md'
+      - 'Systems/NLP/docs/product/23_DATA_BUS_TOPOLOGY.md'
+      - 'Systems/NLP/docs/product/25_DWG_SYNCHRONIZATION.md'
+      - 'Systems/NLP/tools/check_issue235_target_contract.py'
+  workflow_dispatch:
+
+jobs:
+  target-contract-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install JSON Schema validator
+        run: python -m pip install 'jsonschema>=4.22,<5'
+      - name: Verify candidate CAD human/machine parity and full JSON Schema (not runtime acceptance)
+        run: python Systems/NLP/tools/check_issue235_target_contract.py
