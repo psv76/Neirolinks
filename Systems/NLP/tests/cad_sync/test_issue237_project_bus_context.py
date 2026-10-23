@@ -179,3 +179,59 @@ def test_no_type_inference_from_dwg_source_with_foreign_kind(database):
     validation = DwgSyncService(database.engine)._validator_for_project(pid).validate(_batch())
     assert "BUS_TYPE_CONFLICT" in issue_codes(validation.issues)
     assert "BUS_ROOT_NOT_FOUND" in issue_codes(validation.issues)
+
+
+@pytest.mark.parametrize(
+    ("feeder", "group"),
+    [("301", "LIGHTING_230V"), ("401", "LIGHTING_LED")],
+)
+def test_project_preview_validates_dali_box_track_with_feeder_group(database, feeder, group):
+    from nl_project_2.cad_contract import load_contract
+
+    pid = _project(database)
+    _insert_root(database, pid)
+    rule = load_contract().block("TRACK_DALI")
+    assert rule is not None
+    attrs = {tag: "" for tag in rule.required_definition_attributes}
+    attrs.update(
+        DEVICE_NAME="DALI track",
+        BUILDING="House",
+        ROOM="Hall",
+        MOUNT_HEIGHT="2500",
+        TRACK_ID="TRACK.003",
+        BUS_ID="905",
+        BUS_SOURCE="BOX.023",
+        CABLE_ID=feeder,
+        CABLE_TYPE="TEST CABLE",
+        BOARD="B.01",
+        LENGTH="1500",
+    )
+    track = CadObservation.from_mapping(
+        effective_name="TRACK_DALI",
+        layer="TRACK_DALI",
+        raw_attributes=attrs,
+        x=500,
+        y=300,
+        handle="DALI-TRACK",
+        definition=BlockDefinitionMetadata(tuple(attrs)),
+    )
+    batch = CadObservationBatch("synthetic-root-only.dwg", (_observation(), track))
+    sync = DwgSyncService(database.engine)
+    validated = sync._validator_for_project(pid).validate(batch)
+    assert validated.observations[1].function_group == group
+    assert validated.observations[1].read_payload.bus_point_id is None
+    codes = issue_codes(validated.issues)
+    assert not (
+        codes
+        & {
+            "TRACK_DALI_POWER_GROUP_UNRESOLVED",
+            "LAYER_FUNCTION_GROUP_MISMATCH",
+            "BUS_SOURCE_UNREACHABLE",
+            "BUS_SOURCE_NOT_FOUND",
+            "BUS_ROOT_NOT_FOUND",
+            "BUS_ROOT_UNVERIFIED",
+            "BUS_SOURCE_CROSS_BUS",
+        }
+    ), validated.issues
+    proposal = sync.preview(project_id=pid, batch=batch)
+    assert not (issue_codes(proposal.issues) & {"BUS_ROOT_NOT_FOUND", "BUS_SOURCE_UNREACHABLE"})
