@@ -2628,9 +2628,7 @@ class DwgSyncService:
             ordered = sorted(plans, key=lambda plan: int(plan.point_id.rsplit(".", 1)[1]))
             for plan in ordered:
                 target_endpoint = endpoint_by_address[plan.point_id]
-                if plan.bus_kind == "DALI" and (plan.source or "").startswith(
-                    ("BOX.", "TRACK.")
-                ):
+                if plan.bus_kind == "DALI" and (plan.source or "").startswith(("BOX.", "TRACK.")):
                     # Physical parents live in bus_physical_link, not a fake
                     # root-sourced BusSegment with guessed metres/conduit.
                     old_segment = uow.execute(
