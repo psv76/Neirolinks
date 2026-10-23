@@ -769,8 +769,10 @@ class CadContractValidator:
             if bus_id and _PASSIVE_BUS_ID.fullmatch(bus_id) is None:
                 issues.append(
                     self._issue(
-                        "BUS_ID_FORMAT", "passive DALI BUS_ID must match 9YY",
-                        observation, "BUS_ID",
+                        "BUS_ID_FORMAT",
+                        "passive DALI BUS_ID must match 9YY",
+                        observation,
+                        "BUS_ID",
                     )
                 )
             elif bus_id and not bus_source:
@@ -778,7 +780,8 @@ class CadContractValidator:
                     self._issue(
                         "BUS_SOURCE_REQUIRED",
                         "passive DALI bus membership requires an explicit upstream",
-                        observation, "BUS_SOURCE",
+                        observation,
+                        "BUS_SOURCE",
                     )
                 )
             elif not bus_id and bus_source:
@@ -786,7 +789,8 @@ class CadContractValidator:
                     self._issue(
                         "BUS_ID_REQUIRED",
                         "BUS_SOURCE requires passive DALI BUS_ID membership",
-                        observation, "BUS_ID",
+                        observation,
+                        "BUS_ID",
                     )
                 )
             elif bus_id:
@@ -796,7 +800,8 @@ class CadContractValidator:
                         self._issue(
                             "BUS_SOURCE_CROSS_BUS",
                             f"{bus_source!r} does not belong to BUS_ID {bus_id}",
-                            observation, "BUS_SOURCE",
+                            observation,
+                            "BUS_SOURCE",
                         )
                     )
                 elif not source_point and not (
@@ -806,7 +811,8 @@ class CadContractValidator:
                         self._issue(
                             "BUS_SOURCE_FORMAT",
                             "passive DALI BUS_SOURCE must be 9YY.ZZZ, BOX.NNN or TRACK.NNN",
-                            observation, "BUS_SOURCE",
+                            observation,
+                            "BUS_SOURCE",
                         )
                     )
                 # Resolving physical source existence, membership, loops and
@@ -942,9 +948,7 @@ class CadContractValidator:
         bus_point_id = attributes.get("BUS_POINT_ID", "")
         bus_match = _BUS_POINT_ID.fullmatch(bus_point_id)
         passive_id = (
-            attributes.get("BUS_ID", "").strip()
-            if rule.name in _PASSIVE_DALI_BLOCKS
-            else ""
+            attributes.get("BUS_ID", "").strip() if rule.name in _PASSIVE_DALI_BLOCKS else ""
         )
         passive_valid = bool(_PASSIVE_BUS_ID.fullmatch(passive_id))
         return NormalizedCadReadPayload(
