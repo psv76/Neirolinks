@@ -40,8 +40,8 @@ jobs:
             src/nl_project_2/cad_sync/project_bus_context.py \
             tests/cad_sync/test_issue237_project_bus_context.py
           python -m ruff format --check src/nl_project_2/cad_sync/service.py \
-            src/nl_project_2/cad_sync/project_bus_context.py \
-            tests/cad_sync/test_issue237_project_bus_context.py
+            src/nl_project_2/cad_sync/project_bus_context.py
+          python -m ruff format --diff tests/cad_sync/test_issue237_project_bus_context.py
       - name: Project-scoped roots with real temporary SQLite and graph tests
         env:
           PYTHONPATH: src
