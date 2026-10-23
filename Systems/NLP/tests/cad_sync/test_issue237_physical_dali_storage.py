@@ -9,13 +9,13 @@ from test_issue237_project_bus_context import _insert_root, _project
 
 from nl_project_2.cad_contract import BlockDefinitionMetadata, CadObservation, load_contract
 from nl_project_2.cad_sync import ChangeClass, DwgSyncService
+from nl_project_2.cad_sync.physical_dali_store import read_project_physical_sources
 from nl_project_2.persistence.migration import (
     HEAD_REVISION,
     SHARED_BOX_ENDPOINT_REVISION,
     current_revision_read_only,
     downgrade_database,
 )
-from nl_project_2.cad_sync.physical_dali_store import read_project_physical_sources
 from nl_project_2.persistence.schema import (
     bus_endpoint,
     bus_physical_link,
