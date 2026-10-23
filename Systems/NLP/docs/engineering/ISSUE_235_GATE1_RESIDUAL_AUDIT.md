@@ -1,0 +1,63 @@
+# #235 — остаточные противоречия Gate 1, 2026-10-23
+
+Статус: **draft, Gate 1 открыт; production integration #237 BLOCKED**.
+Это нормативный аудит, не runtime/Windows/AutoCAD acceptance.
+
+## Проверенная исходная точка
+
+- `main`: `8f566f7a1eddb2c7eb4242dd275cdd775ca79a89`.
+- [PR #236](https://github.com/psv76/Neirolinks/pull/236): `dec021e03b3a4a02e45c717ba80374a7f438a7ff`, draft.
+- [TechDocs #4](https://github.com/psv76/NEIROLINKS-TechDocs/pull/4): `8be21957483bfd7645310ef2dc73e325a4e41077`, draft.
+- Перечитаны актуальные #145/#216/#234/#235/#237, комментарии #216 и #236, нормативы 11/20/22/23/25, topology/ATTDEF, machine contract/schema, карта implementation gates.
+- [#238](https://github.com/psv76/Neirolinks/pull/238), head `b2d1027e2fd702337992b1da7da202934ac9d056`: отдельный stacked draft на #236 с выбором группы TRACK_DALI по CABLE_ID. Его diff учтён; это частичный D1, не поддержка passive endpoints и не production main.
+
+## Исправления, не требующие нового предметного решения
+
+1. **22, §§8–9 против §10 и Q03/Q06.** Ранее одинаковый GOFRA_ID безусловно означал назначение/группировку. Теперь это заявленное назначение: принять можно только после проверки канонических неориентированных физических границ и совместимости. Разные/неизвестные границы — `Требует внимания`, исходный факт и подтверждённые assignments сохраняются, автоматического объединения/перенумерации нет. Правило распространяется на ordinary и BUS; manual override не отменяет compatibility.
+2. **25, §1 против §6 и документа 20.** Добавлена пропущенная ссылка TRACK.NNN для внутренних связей светильников; разделены candidate 3.1.0 и действующий main 3.0.0; явно ограничено исключение passive BUS_ID двумя exact profiles. Это не расширяет runtime write allow-list и не разрешает запись derived BUS_ID адресуемым устройствам.
+3. **22, §4.3.** Legacy `C=R*1000` больше не универсальная формула абсолютного потолка. Формула расстояния использует подтверждённые абсолютные C1/C2; если их происхождение не доказано — расчёт неполон. Ни схема данных, ни формула runtime не менялись.
+
+## Точный blocker H1: datum потолка/основания
+
+Источники:
+
+- [11, §4 на main](https://github.com/psv76/Neirolinks/blob/8f566f7a1eddb2c7eb4242dd275cdd775ca79a89/Systems/NLP/docs/product/11_OBJECT_AND_ROOM_MODEL.md): `base_mark_mm` — бетонное основание относительно чистого пола; высота R — от чистого пола до чистового потолка. Основание не изменяет ноль MOUNT_HEIGHT.
+- [22 до этого исправления, §4.3](https://github.com/psv76/Neirolinks/blob/dec021e03b3a4a02e45c717ba80374a7f438a7ff/Systems/NLP/docs/product/22_CABLE_LENGTHS_AND_CONDUITS.md): `C=R*1000`, одновременно §2 требует единый ноль Q05.
+- [#231, domain.py](https://github.com/psv76/Neirolinks/blob/ff9b0ef52f89d5f9445b55b468414adbaf8a331e/Systems/NLP/src/nl_project_2/cables/domain.py): потолок вычисляется как `base_mark_mm + room_height_m*1000`; изменён ожидаемый результат ceiling regression 8.4 → 8.1.
+
+Контрпример без рабочих данных: чистый пол совпадает с общим нулём, бетонное основание -250 мм, R=3 м. По определению документа 11 потолок +3000 мм; формула #231 даёт +2750 мм. На другом этаже ни R, ни относительное -250 мм сами по себе не сообщают абсолютную отметку потолка. Успех synthetic tests #231 этого смыслового конфликта не устраняет.
+
+**Необходимое решение до интеграции высот:** подтвердить нормативную семантику исходных Room-полей и источник абсолютных отметок потолка/основания; согласовать проверяемый mapping старых данных. Если сохраняется определение R от чистого пола, нельзя прибавлять его к бетонному основанию. Если предлагается переопределение Room-поля или новый способ ввода недостающих отметок, это отдельное предметное решение в #235. Q05 не пересогласовывается; новые room/floor offsets здесь не вводятся. Без решения не менять формулу на догадку и не мигрировать высоты. Read-only audit реальных legacy данных в этой работе не выполнялся.
+
+## Остальные границы
+
+- **Транзит:** последовательные однозначные BOX разрешены; ветвь с неизвестной принадлежностью — `Требует внимания`, без guessed геометрии/длины/Conduit. Порядок BOX не сообщает segment-specific MOUNT_WAY/GOFRA. Не копировать ordinary свойства коробки на все транзитные кабели. Сохранить подтверждённые Project facts; новый ATTDEF/branch-синтаксис требует решения, сейчас не нужен.
+- **Legacy passive BUS_POINT_ID:** old point → unique BOX/TRACK mapping должен охватывать downstream BUS_SOURCE, endpoint/segment owners, accepted baselines, assignments и ручные overrides. Дубликат/неизвестный owner/cross-bus — отказ от зависимой записи, без удаления старого графа. Не создавать short address пассивной точке. Это implementation/migration gate, не новый выбор DALI-модели.
+- **Owners:** #228 защищает единственную DWG GOFRA-проекцию вставки от last-writer-wins; #229 блокирует неподдержанный BUS FIELD_DEVICE mirror. Новые passive BOX/TRACK/transit нельзя считать покрытыми этим стеком автоматически. Нужны no-op/rollback/owner roundtrip проверки в #237.
+- **PSU и Stretch:** внешний PSU не подменять фиктивным узлом; PSU_ID не принят. LENGTH ATTDEF не доказывает Stretch readback. Нужны отдельно разрешённые CAD scope/acceptance, не исправление документа догадкой.
+
+## Совместимость с Q01–Q11 и существующими PR
+
+Проверены актуальные PR metadata; для #222/#224/#228/#229/#231/#238 дополнительно прочитаны diff. Это проверка зависимостей/норм, не интеграционный прогон объединённого стека.
+
+| Решение | Сохранённый контракт / зависимость |
+| --- | --- |
+| Q01/Q02 | Физические CableSegment, без RouteSection, транзит не коммутация; никаких новых ATTDEF сверх принятого CABLE_TRANSIT |
+| Q03/Q06 | #222 → #224 → #228 → #229: canonical bounds, atomic batch, mirror, fail-closed audit; исправление §§8–9 согласуется с ними |
+| Q04/Q08 | #218 → #231: Decimal, проценты только на G, реальные окончания, no TIMBER reserve, сохранение overrides; H1 блокирует утверждение высот |
+| Q05 | Единый ноль принят; semantic/data mapping H1 ещё не доказан |
+| Q07 | Самостоятельный renderer scope; этот аудит не меняет UI, topology или подключения |
+| Q09/Q10 | #219/#220/#221: вариант B принят, все три состояния «Без трубы», stable selection; запись/кнопки здесь не включаются |
+| Q11 | Реальные representative examples выбираются перед отдельно разрешённой live-приёмкой; synthetic не заменяет её |
+| Spec | #230 независимо от main: одна физическая Conduit, ordinary/BUS без двойного количества; shared geometry не выбирается случайным сегментом |
+| Bus profiles | #227 (`2c7dceb`) добавляет CABLE_OUTLET_BUS; exact catalogue 71 из #236 нельзя механически наложить поверх этого PR. Нужна отдельная combined-profile/schema/regression сверка; RS485/KNX здесь не переопределены |
+
+#223/#226 относятся к NST и не являются NLP dependencies; #225 — Issue, не PR (pull API 404), связанная реализация #227. Ни один из этих номеров не пропущен как якобы принятый NLP-код.
+
+## Проверка и ограничения
+
+Изменены только документы; machine JSON/schema, runtime, tests, migrations и main не изменены. Существующая статическая проверка #235 выполнена из изолированного окружения Python 3.14.3 / jsonschema 4.26.0: **PASS**, 71 definition, четыре exact profiles, BUS_ID/3YY/4YY/TRANSIT и Draft 2020-12 с пятью отрицательными fixtures. `git diff --check` с учётом исходных CRLF: **PASS**. CI опубликованного SHA фиксируется в #235/PR #236 отдельно; это не закрывает H1 и Gate 1.
+
+Обязательные `format-check.ps1`, `check.ps1`, `test.ps1` вызваны: все три остановлены `Assert-LockedPython` с `Locked environment is absent`, до выполнения Ruff/pytest/compileall. Это **BLOCKED**, не PASS; bootstrap production-окружения и полный suite в этой нормативной задаче не выполнялись.
+
+Рабочие DWG/SQLite, AutoCAD, production runtime и Windows acceptance не запускались. Полный suite и locked-runtime checks не объявлены PASSED. Никаких merge, новых Issues или скачиваемых артефактов.
