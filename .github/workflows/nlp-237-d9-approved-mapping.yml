@@ -1,0 +1,51 @@
+name: NLP 237 D9 approved legacy DALI mapping
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/nlp-237-d9-approved-mapping.yml'
+      - 'Systems/NLP/src/nl_project_2/cad_sync/approved_dali_mapping.py'
+      - 'Systems/NLP/tests/cad_sync/test_issue237_d9_approved_mapping.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  approved-dali-mapping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: Systems/NLP
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Qt runtime libs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0
+      - name: Independent pinned test dependencies
+        run: |
+          python -m pip install 'SQLAlchemy==2.0.51' 'alembic==1.18.5' \
+            'pytest==9.1.1' 'pytest-qt==4.5.0' 'PySide6==6.11.1' \
+            'ruff==0.15.22'
+      - name: Static lint and inspect exact formatter delta
+        run: |
+          python -m ruff check src/nl_project_2/cad_sync/approved_dali_mapping.py \
+            tests/cad_sync/test_issue237_d9_approved_mapping.py
+          python -m ruff format --diff src/nl_project_2/cad_sync/approved_dali_mapping.py \
+            tests/cad_sync/test_issue237_d9_approved_mapping.py || true
+      - name: D9 approval, backup and atomic temporary SQLite regressions
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q \
+            tests/cad_sync/test_issue237_d9_approved_mapping.py \
+            tests/cad_sync/test_issue237_legacy_dali_audit.py \
+            tests/cad_sync/test_issue237_physical_dali_storage.py \
+            tests/cad_sync/test_issue237_passive_physical_ownership.py \
+            tests/persistence/test_issue237_physical_dali_migration.py
