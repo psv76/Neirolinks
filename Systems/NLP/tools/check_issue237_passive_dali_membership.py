@@ -109,7 +109,7 @@ def check() -> None:
     assert not (codes & {"BUS_ID_FORMAT", "BUS_SOURCE_REQUIRED"})
 
     print("PASS 11 focused passive DALI/other bus typed membership and format cases")
-    print("NOT TESTED: BOX/TRACK graph resolution, #238 voltage, Project owner/sync, legacy, Windows/DWG")
+    print("NOT TESTED: BOX/TRACK graph, #238 voltage, owner sync, legacy, Windows/DWG")
 
 
 if __name__ == "__main__":
