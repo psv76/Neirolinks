@@ -6,6 +6,7 @@ on:
       - '.github/workflows/nlp-237-d10-track-internal-power.yml'
       - 'Systems/NLP/src/nl_project_2/cad_sync/track_power.py'
       - 'Systems/NLP/src/nl_project_2/cad_sync/service.py'
+      - 'Systems/NLP/src/nl_project_2/cad_contract/validator.py'
       - 'Systems/NLP/tests/cad_sync/test_issue237_d10_track_internal_power.py'
   workflow_dispatch:
 
@@ -36,9 +37,11 @@ jobs:
       - name: Ruff lint and initial exact format diff
         run: |
           python -m ruff check src/nl_project_2/cad_sync/service.py \
+            src/nl_project_2/cad_contract/validator.py \
             src/nl_project_2/cad_sync/track_power.py \
             tests/cad_sync/test_issue237_d10_track_internal_power.py
           python -m ruff format --diff src/nl_project_2/cad_sync/service.py \
+            src/nl_project_2/cad_contract/validator.py \
             src/nl_project_2/cad_sync/track_power.py \
             tests/cad_sync/test_issue237_d10_track_internal_power.py || true
       - name: D10 power owners plus D9 D8 D7 and ordinary cable topology regression
