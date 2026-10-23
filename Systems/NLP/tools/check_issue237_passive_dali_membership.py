@@ -50,13 +50,20 @@ def check() -> None:
     )
     assert good.box_id == "BOX.023"
     assert (good.bus_id, good.bus_type, good.bus_point_id) == ("905", "DALI", None)
-    assert not (codes & {
-        "BUS_ID_FORMAT", "BUS_ID_REQUIRED", "BUS_SOURCE_REQUIRED",
-        "BUS_SOURCE_FORMAT", "BUS_SOURCE_CROSS_BUS",
-    }), codes
+    assert not (
+        codes
+        & {
+            "BUS_ID_FORMAT",
+            "BUS_ID_REQUIRED",
+            "BUS_SOURCE_REQUIRED",
+            "BUS_SOURCE_FORMAT",
+            "BUS_SOURCE_CROSS_BUS",
+        }
+    ), codes
 
     track, codes = validate(
-        "TRACK_DALI", "TRACK_DALI",
+        "TRACK_DALI",
+        "TRACK_DALI",
         {"TRACK_ID": "TRACK.001", "BUS_ID": "905", "BUS_SOURCE": "BOX.023"},
     )
     assert (track.bus_id, track.bus_type, track.bus_point_id) == ("905", "DALI", None)
@@ -69,9 +76,7 @@ def check() -> None:
     assert "BUS_ID_FORMAT" in codes
     assert (invalid.bus_id, invalid.bus_type) == (None, None)
 
-    _, codes = validate(
-        box, "BUS", {"BOX_ID": "BOX.023", "BUS_ID": "905", "BUS_SOURCE": "906.000"}
-    )
+    _, codes = validate(box, "BUS", {"BOX_ID": "BOX.023", "BUS_ID": "905", "BUS_SOURCE": "906.000"})
     assert "BUS_SOURCE_CROSS_BUS" in codes
 
     _, codes = validate(
@@ -90,14 +95,16 @@ def check() -> None:
     assert not (codes & {"BUS_ID_REQUIRED", "BUS_SOURCE_REQUIRED"})
 
     addressable, codes = validate(
-        "LIGHT_OUT_DALI_230V", "LIGHTING_230V",
+        "LIGHT_OUT_DALI_230V",
+        "LIGHTING_230V",
         {"BUS_POINT_ID": "905.001", "BUS_SOURCE": "905.000"},
     )
     assert (addressable.bus_id, addressable.bus_point_id) == ("905", "905.001")
     assert "BUS_ID_FORMAT" not in codes
 
     bus_outlet, codes = validate(
-        "CABLE_OUTLET_BUS", "BUS",
+        "CABLE_OUTLET_BUS",
+        "BUS",
         {"BUS_POINT_ID": "905.007", "BUS_SOURCE": "905.000"},
     )
     assert bus_outlet.bus_point_id == "905.007"
