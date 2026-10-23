@@ -1773,6 +1773,59 @@ class DwgSyncService:
         # unselected observation geometry/routes or create conduit assignments here.
         recalculate_segments(uow, project_id, device_ids={device["id"]}, reconcile_conduits=False)
 
+    def _protect_physical_bus_node_owners(
+        self, uow, *, project_id, snapshot, device_ids, active_handles
+    ) -> None:
+        """Fail closed on reusing physical BOX/TRACK identity in a Project.
+
+        This stage stores only the validated insertion's field_device evidence.
+        It cannot turn a BOX/TRACK into an addressable bus_endpoint or invent a
+        physical bus_segment. Existing physical owners are never adopted by
+        another DWG handle or by a second INSERT.
+        """
+        selected_nodes = [
+            node
+            for node in snapshot.bus_physical_nodes
+            if node.handle in active_handles and node.handle in device_ids
+        ]
+        if not selected_nodes:
+            return
+        accepted: dict[str, list[tuple[str, dict[str, str]]]] = defaultdict(list)
+        for row in uow.execute(
+            select(field_device.c.id, field_device.c.block_kind, field_device.c.normalized_fields_json).where(
+                field_device.c.project_id == project_id,
+                field_device.c.lifecycle == "ACTIVE",
+            )
+        ).mappings():
+            values = dict(row["normalized_fields_json"] or {})
+            identity_tag = (
+                "TRACK_ID" if str(row["block_kind"]).startswith("TRACK_") else "BOX_ID"
+                if row["block_kind"] == "EL_BOX_OUT_100x100" else ""
+            )
+            if not identity_tag:
+                continue
+            identity = str(values.get(identity_tag) or "").strip()
+            if identity:
+                accepted[identity].append((row["id"], values))
+        for node in selected_nodes:
+            field_id = device_ids[node.handle]
+            owners = accepted.get(node.physical_id, [])
+            if any(owner_id != field_id for owner_id, _ in owners):
+                raise DwgSyncError(
+                    f"BUS_PHYSICAL_ID_OWNER_CONFLICT:{node.physical_id}:"
+                    "physical BOX/TRACK belongs to another accepted insertion"
+                )
+            if len(owners) != 1:
+                raise DwgSyncError(
+                    f"BUS_PHYSICAL_ID_OWNER_CONFLICT:{node.physical_id}:"
+                    "physical identity is not unique in Project"
+                )
+            _, persisted = owners[0]
+            if str(persisted.get("BUS_ID") or "").strip() != node.bus_id:
+                raise DwgSyncError(
+                    f"BUS_PHYSICAL_BUS_REASSIGN_REQUIRES_ATTENTION:{node.physical_id}"
+                )
+
     def _materialize_snapshot(
         self,
         uow,
@@ -1785,6 +1838,13 @@ class DwgSyncService:
     ) -> None:
         """Materialize validated points/edges/keys/ports from one immutable snapshot."""
 
+        self._protect_physical_bus_node_owners(
+            uow,
+            project_id=project_id,
+            snapshot=snapshot,
+            device_ids=device_ids,
+            active_handles=active_handles,
+        )
         affected_bus_ids = self._materialize_bus_snapshot(
             uow,
             project_id=project_id,
