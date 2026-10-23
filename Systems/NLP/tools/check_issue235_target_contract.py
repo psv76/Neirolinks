@@ -58,6 +58,19 @@ def check() -> None:
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
     validator.validate(data)
+    # #227 family metadata is schema-compatible without importing its runtime
+    # or adding its 72nd definition to this 71-definition candidate.
+    metadata = deepcopy(data)
+    metadata["block_families"][0]["bus_kind"] = "DALI"
+    metadata["block_families"][0]["allowed_groups"] = ["BUS"]
+    validator.validate(metadata)
+    for key, value in (
+        ("bus_kind", "GUESS"), ("allowed_groups", ["UNKNOWN"]),
+        ("allowed_groups", []), ("allowed_groups", ["BUS", "BUS"]),
+    ):
+        invalid = deepcopy(metadata)
+        invalid["block_families"][0][key] = value
+        assert not validator.is_valid(invalid), (key, value)
     for mutation in ("missing_version", "unknown_top_level", "invalid_family_class",
                      "invalid_track_mount", "unknown_family_property"):
         invalid = deepcopy(data)
@@ -151,6 +164,7 @@ def check() -> None:
         "4 exact block profiles; BUS_ID/3YY/4YY/TRANSIT invariants"
     )
     print("PASS JSON Schema Draft 2020-12: entire candidate and 5 negative fixtures")
+    print("PASS optional #227 family metadata schema: positive + 4 negative fixtures")
     print("NOT TESTED: runtime parser/DB migration, AutoCAD COM or DWG acceptance")
 
 
