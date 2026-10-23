@@ -4199,10 +4199,7 @@ def _load_project_owner_values(
                 # field_device owner is canonical. There deliberately is
                 # no external cable_segment to read from Project.
                 stored = devices.get(fact.primary_handle, {})
-                if (
-                    stored.get("BLOCK_NAME") == "LIGHT_TRACK_DALI_48V"
-                    and str(stored.get("CABLE_SOURCE") or "").startswith("TRACK.")
-                ):
+                if str(stored.get("CABLE_SOURCE") or "").startswith("TRACK."):
                     result[fact.owner_path] = stored["CABLE_SOURCE"]
                     continue
                 if source_path in canonical_sources:
