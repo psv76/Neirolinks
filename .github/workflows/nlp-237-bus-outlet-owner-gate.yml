@@ -1,4 +1,4 @@
-name: NLP 237 Project BUS outlet and owner gate (D4)
+name: NLP 237 endpoint transactions and RS485 chain (D5)
 
 on:
   pull_request:
@@ -6,6 +6,7 @@ on:
       - '.github/workflows/nlp-237-bus-outlet-owner-gate.yml'
       - 'Systems/NLP/src/nl_project_2/cad_sync/service.py'
       - 'Systems/NLP/tests/cad_sync/test_issue237_bus_outlet_owner_gate.py'
+      - 'Systems/NLP/tests/cad_sync/test_issue237_endpoint_transactions.py'
       - 'Systems/NLP/src/nl_project_2/cad_contract/validator.py'
   workflow_dispatch:
 
@@ -36,7 +37,8 @@ jobs:
       - name: Ruff lint and format
         run: |
           python -m ruff check src/nl_project_2/cad_sync/service.py \
-            tests/cad_sync/test_issue237_bus_outlet_owner_gate.py
+            tests/cad_sync/test_issue237_bus_outlet_owner_gate.py \
+            tests/cad_sync/test_issue237_endpoint_transactions.py
           python -m ruff format --check src/nl_project_2/cad_sync/service.py
           python -m ruff format --diff tests/cad_sync/test_issue237_bus_outlet_owner_gate.py || true
       - name: Temp Project SQLite plus DALI and no-rebind regression
