@@ -16,6 +16,8 @@ from nl_project_2.cad_sync.track_power import (
 from nl_project_2.persistence.schema import (
     bus_physical_link,
     cable_line,
+    cable_point,
+    cable_point_field_device,
     cable_segment,
     field_device,
 )
@@ -174,8 +176,22 @@ def test_pre_d10_track_base_point_requires_explicit_legacy_review(database):
     pid = _project(database)
     _insert_root(database, pid)
     sync = DwgSyncService(database.engine)
-    # Old D7 had only base CABLE_ID=401 as ordinary cable point.
     _accept(sync, pid, _batch(_box(), _track()))
+    # Synthetic legacy evidence: pre-D10 used the bare base 401 as the
+    # physical TRACK point identity. Do not rewrite it without approval.
+    with database.engine.begin() as conn:
+        conn.execute(
+            update(cable_point)
+            .where(
+                cable_point.c.project_id == pid,
+                cable_point.c.id.in_(
+                    select(cable_point_field_device.c.cable_point_id)
+                    .join(field_device, field_device.c.id == cable_point_field_device.c.field_device_id)
+                    .where(field_device.c.block_kind == "TRACK_DALI")
+                ),
+            )
+            .values(logical_identity="401")
+        )
     with database.engine.connect() as conn:
         existing = _count(conn, cable_segment)
         assert existing == 1
