@@ -44,18 +44,22 @@ def _forget_typed_graph(database, project_id):
 
 def _set_fields(database, project_id, handle, updates):
     with database.engine.begin() as connection:
-        row = connection.execute(
-            select(field_device).where(
-                field_device.c.project_id == project_id,
-                field_device.c.entity_handle == handle,
+        row = (
+            connection.execute(
+                select(field_device).where(
+                    field_device.c.project_id == project_id,
+                    field_device.c.entity_handle == handle,
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         values = dict(row["normalized_fields_json"])
         values.update(updates)
         connection.execute(
-            update(field_device).where(field_device.c.id == row["id"]).values(
-                normalized_fields_json=values
-            )
+            update(field_device)
+            .where(field_device.c.id == row["id"])
+            .values(normalized_fields_json=values)
         )
 
 
@@ -91,12 +95,18 @@ def test_unmaterialized_legacy_box_and_track_are_candidates_never_written(databa
     }
     assert database.path.read_bytes() == before
     with database.engine.connect() as connection:
-        assert connection.execute(
-            select(bus_physical_node.c.id).where(bus_physical_node.c.project_id == pid)
-        ).all() == []
-        assert connection.execute(
-            select(bus_physical_link.c.id).where(bus_physical_link.c.project_id == pid)
-        ).all() == []
+        assert (
+            connection.execute(
+                select(bus_physical_node.c.id).where(bus_physical_node.c.project_id == pid)
+            ).all()
+            == []
+        )
+        assert (
+            connection.execute(
+                select(bus_physical_link.c.id).where(bus_physical_link.c.project_id == pid)
+            ).all()
+            == []
+        )
 
 
 def test_missing_physical_parent_is_review_not_inferred_from_root(database):
@@ -112,12 +122,16 @@ def test_accepted_duplicate_physical_id_blocks_both_owners(database):
     pid = _setup(database)
     _forget_typed_graph(database, pid)
     with database.engine.begin() as connection:
-        old = connection.execute(
-            select(field_device).where(
-                field_device.c.project_id == pid,
-                field_device.c.entity_handle == "BOX-A",
+        old = (
+            connection.execute(
+                select(field_device).where(
+                    field_device.c.project_id == pid,
+                    field_device.c.entity_handle == "BOX-A",
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         connection.execute(
             field_device.insert().values(
                 id=new_id(),
@@ -198,12 +212,16 @@ def test_project_scope_never_uses_owners_from_other_project(database):
     other_project = _project(database, code="OTHER-DALI-D8")
     _insert_root(database, other_project)
     with database.engine.begin() as connection:
-        old = connection.execute(
-            select(field_device).where(
-                field_device.c.project_id == owner_project,
-                field_device.c.entity_handle == "TRACK-A",
+        old = (
+            connection.execute(
+                select(field_device).where(
+                    field_device.c.project_id == owner_project,
+                    field_device.c.entity_handle == "TRACK-A",
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         connection.execute(
             field_device.insert().values(
                 id=new_id(),
