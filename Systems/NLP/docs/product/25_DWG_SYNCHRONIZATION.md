@@ -82,3 +82,17 @@ Selective/automatic apply должен разрешать source dependency из
 Канонизация сохраняет исходный текст DWG как evidence и записывает устойчивый `room_id`. Она не создаёт здания/помещения, не угадывает ambiguous/unresolved room и не подменяет three-way classification изменений имён `ROOM` / `BUILDING`. Существующая room relation остаётся источником Project-имён, включая Project rename, DWG rename и `BOTH_CHANGED_CONFLICT`.
 
 После успешной привязки зависимые derived lengths могут быть пересчитаны из уже принятых Project facts. Pending/unselected DWG geometry или route facts не должны импортироваться только ради такого пересчёта.
+
+
+## 6. Изменение контракта для пассивного DALI / TRACK / транзита (#235)
+
+При сканировании и повторном `DWG → Project → DWG`:
+
+- `BUS_ID` у `EL_BOX_OUT_100x100` / `TRACK_DALI` — принадлежность пассивного узла DALI-шине; уникальная physical identity задаётся `BOX_ID` / `TRACK_ID=TRACK.NNN`, не `BUS_POINT_ID`.
+- `BUS_SOURCE` разрешается как root `9YY.000`, физический `BOX.xxx`/`TRACK.xxx` или адресуемая точка той же шины. Правила отсутствующего/двойного parent и циклов остаются обязательными.
+- `CABLE_TRANSIT` на `EL_BOX` проектирует промежуточные physical cable positions без изменения electrical `CABLE_SOURCE` и без `EL_BOX` allowance. Пустой транзит — допустимое значение. Порядок `301-1` вместо старого предложенного `301@1`.
+- `TRACK_ID` нельзя переименовать на основании текущего handle; нумерация новых physical TRACK INSERT не перенумеровывает существующие. Изменение `LENGTH` зависит от фактической геометрии блока и требует доказанного механизма чтения динамического значения.
+- Любой переход старого пассивного `BUS_POINT_ID` в `BUS_ID` **обязан** сохранять `BUS_SOURCE` с новым физическим parent и уже существующие подтверждённые назначения Conduit/связи/ручные длины. Двусмысленное соответствие → `Требует внимания`, без эвристического выбора и destructive write-back.
+- `BUS_ID` и `CABLE_TRANSIT` сохраняются в owner-aware sync без удаления Project-owned свойств; no-op повторное сканирование идемпотентно. Ни Scan, ни Update не должны незаметно закрывать AutoCAD, сохранять DWG, переписывать реальные объекты вне разрешённого scope.
+
+**Граница реализации:** нормативная целевая схема по #235 не равнозначна уже обновлённым реальным блокам/парсеру. Продолжение только через выделенное development Issue, schema/catalog migration (если доказана необходимость) и отдельный live-safe acceptance.
