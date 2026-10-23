@@ -515,7 +515,7 @@ class DwgSyncService:
                     fact.owner_key,
                     fact.owner_path,
                     fact.affected_handles,
-                    fact.structural and not safe_structural_change,
+                    (fact.structural or bus_point_renumber) and not safe_structural_change,
                     detail_status,
                 )
             )
