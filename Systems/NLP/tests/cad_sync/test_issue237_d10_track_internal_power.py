@@ -86,9 +86,18 @@ def test_d10_accepted_48v_track_power_keeps_rail_member_without_cable_segment(da
     again = DwgSyncService(database.engine).preview(project_id=pid, batch=batch)
     assert again.can_apply, again.issues
     assert not [c for c in again.changes if c.change_class is ChangeClass.NEW_DWG_INSERTION]
-    assert not [
-        c for c in again.changes
-        if c.handle == "LIGHT-A" and c.field == "CABLE_SOURCE"
+    unexpected_source = [
+        c for c in again.changes if c.handle == "LIGHT-A" and c.field == "CABLE_SOURCE"
+    ]
+    assert not unexpected_source, [
+        (
+            change.field_path,
+            change.baseline_value,
+            change.project_value,
+            change.dwg_value,
+            change.change_class,
+        )
+        for change in unexpected_source
     ]
 
 
