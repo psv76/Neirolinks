@@ -586,7 +586,17 @@ def upgrade() -> None:
     bind = op.get_bind()
     tables = _tables(bind)
     if "cable_point" not in tables or "cable_line" not in tables:
-        schema.metadata.create_all(bind, checkfirst=True)
+        # Historical recovery must not materialize schemas introduced by
+        # future Alembic revisions (especially physical DALI revision 15).
+        schema.metadata.create_all(
+            bind,
+            tables=[
+                table
+                for table in schema.metadata.sorted_tables
+                if table.name not in schema.PHYSICAL_DALI_TABLE_NAMES
+            ],
+            checkfirst=True,
+        )
         tables = _tables(bind)
     point_rows = []
     device_rows: dict[str, dict] = {}
