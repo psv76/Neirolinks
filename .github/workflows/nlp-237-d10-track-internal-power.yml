@@ -1,0 +1,56 @@
+name: NLP 237 D10 TRACK internal 48V power owner gate
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/nlp-237-d10-track-internal-power.yml'
+      - 'Systems/NLP/src/nl_project_2/cad_sync/track_power.py'
+      - 'Systems/NLP/src/nl_project_2/cad_sync/service.py'
+      - 'Systems/NLP/tests/cad_sync/test_issue237_d10_track_internal_power.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  track-internal-power:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: Systems/NLP
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Qt system libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0
+      - name: Pinned test dependencies
+        run: |
+          python -m pip install 'SQLAlchemy==2.0.51' 'alembic==1.18.5' \
+            'pytest==9.1.1' 'pytest-qt==4.5.0' 'PySide6==6.11.1' \
+            'ruff==0.15.22'
+      - name: Ruff lint and initial exact format diff
+        run: |
+          python -m ruff check src/nl_project_2/cad_sync/service.py \
+            src/nl_project_2/cad_sync/track_power.py \
+            tests/cad_sync/test_issue237_d10_track_internal_power.py
+          python -m ruff format --diff src/nl_project_2/cad_sync/service.py \
+            src/nl_project_2/cad_sync/track_power.py \
+            tests/cad_sync/test_issue237_d10_track_internal_power.py || true
+      - name: D10 power owners plus D9 D8 D7 and ordinary cable topology regression
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q \
+            tests/cad_sync/test_issue237_d10_track_internal_power.py \
+            tests/cad_sync/test_issue237_d9_approved_mapping.py \
+            tests/cad_sync/test_issue237_legacy_dali_audit.py \
+            tests/cad_sync/test_issue237_physical_dali_storage.py \
+            tests/cad_sync/test_issue237_passive_physical_ownership.py \
+            tests/cad_sync/test_issue237_endpoint_transactions.py \
+            tests/persistence/test_issue237_physical_dali_migration.py
