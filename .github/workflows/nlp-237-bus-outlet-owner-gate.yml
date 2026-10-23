@@ -39,14 +39,16 @@ jobs:
           python -m ruff check src/nl_project_2/cad_sync/service.py \
             tests/cad_sync/test_issue237_bus_outlet_owner_gate.py \
             tests/cad_sync/test_issue237_endpoint_transactions.py
-          python -m ruff format --check src/nl_project_2/cad_sync/service.py
-          python -m ruff format --diff tests/cad_sync/test_issue237_bus_outlet_owner_gate.py || true
+          python -m ruff format --check src/nl_project_2/cad_sync/service.py \
+            tests/cad_sync/test_issue237_bus_outlet_owner_gate.py \
+            tests/cad_sync/test_issue237_endpoint_transactions.py
       - name: Temp Project SQLite plus DALI and no-rebind regression
         env:
           PYTHONPATH: src
           QT_QPA_PLATFORM: offscreen
         run: |
           python -m pytest -q \
+            tests/cad_sync/test_issue237_endpoint_transactions.py \
             tests/cad_sync/test_issue237_bus_outlet_owner_gate.py \
             tests/cad_sync/test_issue237_project_bus_context.py \
             tests/cad_contract/test_issue237_track_dali_integration.py \
