@@ -82,6 +82,7 @@ from .reconciliation import (
     normalize_validated_snapshot,
     reconcile_snapshot_edge_projections,
 )
+from .project_bus_context import load_project_bus_context
 from .selection import atomic_line_import_groups
 
 PROJECT_TO_DWG_ALLOW_LIST = frozenset(
@@ -149,7 +150,17 @@ class DwgSyncService:
         self._engine = engine
         self._cad_port = cad_port
         self._contract = load_contract()
-        self._validator = CadContractValidator(self._contract)
+
+    def _validator_for_project(self, project_id: str) -> CadContractValidator:
+        # Validate against the current Project's active, verified bus roots.
+        # No DWG inference or process-wide root cache is permitted.
+        with self._engine.connect() as connection:
+            context = load_project_bus_context(connection, project_id)
+        return CadContractValidator(
+            self._contract,
+            project_bus_kinds=context.kinds,
+            project_bus_roots=context.verified_dali_roots,
+        )
 
     def scan_active(
         self,
@@ -187,7 +198,7 @@ class DwgSyncService:
         batch: CadObservationBatch,
         progress: Callable[[DwgScanProgress], None] | None = None,
     ) -> ScanProposal:
-        validation = self._validator.validate(batch)
+        validation = self._validator_for_project(project_id).validate(batch)
         if progress is not None:
             progress(DwgScanProgress("FORMING_CHANGES"))
         snapshot = normalize_validated_snapshot(validation.observations)
@@ -689,9 +700,14 @@ class DwgSyncService:
         self._check_selected_validation(proposal, selected)
         self._check_project_selection(proposal, selected)
 
+        revalidated = self._validator_for_project(proposal.project_id).validate(proposal.batch)
+        if revalidated.issues != proposal.issues:
+            raise DwgSyncError(
+                "Project bus roots/types or CAD validation changed; rescan before applying"
+            )
         validated = {
             item.observation.handle: item
-            for item in self._validator.validate(proposal.batch).observations
+            for item in revalidated.observations
             if not item.ignored_project_data
         }
         snapshot = normalize_validated_snapshot(tuple(validated.values()))
@@ -1078,7 +1094,7 @@ class DwgSyncService:
                     definition=observation.definition,
                 )
             )
-        validation = self._validator.validate(
+        validation = self._validator_for_project(proposal.project_id).validate(
             CadObservationBatch(
                 proposal.batch.document_identity,
                 tuple(rewritten),
