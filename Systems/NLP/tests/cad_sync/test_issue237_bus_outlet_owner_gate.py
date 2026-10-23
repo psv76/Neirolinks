@@ -177,13 +177,17 @@ def test_preview_detects_real_accepted_bus_identity_change(database):
     assert insertions
     sync.apply_dwg_to_project(first, selected_paths=insertions, confirmed=True)
     with database.engine.connect() as connection:
-        accepted = connection.execute(
-            select(field_device).where(
-                field_device.c.project_id == pid,
-                field_device.c.entity_handle == "OUTLET-1",
-                field_device.c.lifecycle == "ACTIVE",
+        accepted = (
+            connection.execute(
+                select(field_device).where(
+                    field_device.c.project_id == pid,
+                    field_device.c.entity_handle == "OUTLET-1",
+                    field_device.c.lifecycle == "ACTIVE",
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         assert accepted["normalized_fields_json"]["BUS_POINT_ID"] == "902.001"
 
     changed_dwg = _observation(
@@ -209,8 +213,6 @@ def test_preview_detects_real_accepted_bus_identity_change(database):
         )
     with database.engine.connect() as connection:
         accepted_after = connection.execute(
-            select(field_device.c.normalized_fields_json).where(
-                field_device.c.id == accepted["id"]
-            )
+            select(field_device.c.normalized_fields_json).where(field_device.c.id == accepted["id"])
         ).scalar_one()
     assert accepted_after["BUS_POINT_ID"] == "902.001"
