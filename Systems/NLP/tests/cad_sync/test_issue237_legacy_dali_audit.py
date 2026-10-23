@@ -11,9 +11,11 @@ from nl_project_2.cad_sync import DwgSyncService
 from nl_project_2.cad_sync.legacy_dali_audit import audit_accepted_dali_project
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
+    bus,
     bus_physical_link,
     bus_physical_node,
     field_device,
+    instance_resource,
 )
 
 
@@ -237,3 +239,35 @@ def test_project_scope_never_uses_owners_from_other_project(database):
     assert row.disposition == "REVIEW"
     assert "OWNER_DWG_BINDING_OR_HANDLE_MISSING" in row.reasons
     assert "SOURCE_PHYSICAL_MISSING_OR_AMBIGUOUS" in row.reasons
+
+
+def test_unverified_inactive_root_blocks_all_legacy_candidates(database):
+    pid = _setup(database)
+    _forget_typed_graph(database, pid)
+    with database.engine.begin() as connection:
+        root_resource_id = connection.scalar(
+            select(bus.c.root_resource_id).where(
+                bus.c.project_id == pid,
+                bus.c.designation == "905",
+            )
+        )
+        assert root_resource_id
+        connection.execute(
+            update(instance_resource)
+            .where(instance_resource.c.id == root_resource_id)
+            .values(active=False)
+        )
+    review = _audit(database, pid)
+    assert len(review.rows) == 2
+    assert all(row.disposition == "REVIEW" for row in review.rows)
+    assert all("BUS_ROOT_UNVERIFIED" in row.reasons for row in review.rows)
+
+
+def test_blocked_upstream_box_cascades_review_to_dependent_track(database):
+    pid = _setup(database)
+    _forget_typed_graph(database, pid)
+    _set_fields(database, pid, "BOX-A", {"BUS_SOURCE": "BOX.999"})
+    statuses = _statuses(_audit(database, pid))
+    assert "SOURCE_PHYSICAL_MISSING_OR_AMBIGUOUS" in statuses["BOX.023"][1]
+    assert statuses["TRACK.023"][0] == "REVIEW"
+    assert "SOURCE_PHYSICAL_REQUIRES_REVIEW" in statuses["TRACK.023"][1]
