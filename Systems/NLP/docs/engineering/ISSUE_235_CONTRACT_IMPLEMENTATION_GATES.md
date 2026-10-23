@@ -53,6 +53,31 @@ FLOOR, но не для CEILING. [Исправленный аудит H1](ISSUE_
 
 ## Границы
 
+### Полная статическая exact-проверка справочника (23.10.2026)
+
+`tools/check_issue235_target_contract.py` теперь сверяет **все 69 физических
+и 2 логических блока**, а не только четыре изменённых BOX/TRACK профиля.
+Полный набор canonical headings должен совпадать с approved_block_names;
+лишние/пропавшие/повторные разделы и повторные ATTDEF отвергаются.
+
+Для 14 SWITCH/BUTTON definitions учитывается штатное развёртывание `key_counts`
+в `KEY_1…KEY_N` из `cad_contract/catalog.py::load_contract`; это не новые ATTDEF.
+Сравниваются exact множества definition_required/required с этими KEY-полями;
+для четырёх target profiles дополнительно сохранена прежняя проверка порядка.
+`DALI_GROUP` сверяется по DALI_GROUP_ID, `ROOM_NAME` — по явно пустому набору
+NL Project data ATTDEF; поиск тегов ограничен собственным разделом блока.
+
+Фактическая сверка прошла **71/71**. Новых контрактных расхождений в этих exact
+наборах не обнаружено. Шесть отрицательных fixtures отвергнуты: неверный
+key_count, пропавший машинный атрибут, пропавший раздел, лишний раздел,
+повторный тег в справочнике, data ATTDEF у ROOM_NAME. Прежние 5 schema и 4
+metadata negative fixtures сохраняются. Эта проверка включена в существующий
+CI без запуска application, SQLite или AutoCAD.
+
+Это расширение статического покрытия, **не** parser/owner/sync acceptance,
+не объединённый 72-definition контракт #227 и не закрытие Gate 1. Runtime
+код, нормативные файлы и их TechDocs-копии этой итерацией не изменялись.
+
 - Draft branch #236 описывает **целевой** контракт, а **не runtime support**. Его JSON сейчас не должен оказаться в production `main` без обновлённого validator/parser/tests #237.
 - Qt production вариант «Трассы» B, спецификация, math и physical bounds реализуются с учётом существующих зависимых PR #218–#231, а не всё в одном PR.
 - Изменение schema head/catalog release → проверка фактической рабочей БД по принятому gate только после backup и отдельного разрешения. Существующий контроллер/AutoCAD не трогать.

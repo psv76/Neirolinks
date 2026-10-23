@@ -32,10 +32,15 @@ def exact_tags(document: str, name: str) -> list[str]:
     start = document.find(heading)
     if start < 0:
         raise AssertionError(f"Exact-reference block missing: {name}")
-    next_heading = document.find("\n#### ", start + len(heading))
-    if next_heading < 0:
-        next_heading = len(document)
+    following = re.search(r"\n#{1,4} ", document[start + len(heading) :])
+    next_heading = start + len(heading) + following.start() if following else len(document)
     section = document[start:next_heading]
+    if name == "ROOM_NAME" and re.search(
+        r"\*\*Exact ATTDEF set:\*\*\s*`<нет NL Project data ATTDEF>`\s*\n",
+        section,
+    ):
+        assert "```" not in section, "ROOM_NAME has contradictory data ATTDEF"
+        return []
     match = re.search(
         r"\*\*Exact ATTDEF set:\*\*\s*```text\s*(.*?)\s*```",
         section,
@@ -44,6 +49,64 @@ def exact_tags(document: str, name: str) -> list[str]:
     if match is None:
         raise AssertionError(f"Exact-reference ATTDEF block missing: {name}")
     return match.group(1).splitlines()
+
+
+def check_all_exact_profiles(data: dict, reference: str) -> None:
+    """Static human/machine comparison, including loader-defined KEY expansion."""
+    headings = re.findall(r"^#### `([^`]+)`\s*$", reference, flags=re.MULTILINE)
+    assert len(headings) == len(set(headings)), "Duplicate canonical reference heading"
+    assert set(headings) == set(data["approved_block_names"]), "Reference block inventory drift"
+    expected = {}
+    for family in data["block_families"]:
+        profile = data["attribute_profiles"][family["attribute_profile"]]
+        for name in family["names"]:
+            assert name not in expected, name
+            count = family.get("key_counts", {}).get(name, 0)
+            assert isinstance(count, int) and count >= 0, name
+            expected[name] = set(profile["definition_required"]) | set(profile["required"])
+            expected[name].update(f"KEY_{index}" for index in range(1, count + 1))
+    for name, logical in data["logical_blocks"].items():
+        assert name not in expected, name
+        expected[name] = set(logical["required"])
+    assert set(expected) == set(headings)
+    for name, tags in expected.items():
+        actual = exact_tags(reference, name)
+        assert len(actual) == len(set(actual)), f"Duplicate reference ATTDEF: {name}"
+        assert set(actual) == tags, f"Exact ATTDEF drift: {name}"
+        assert not any(
+            fnmatchcase(tag, pattern) for tag in tags for pattern in data["forbidden_attributes"]
+        ), f"Forbidden expanded ATTDEF: {name}"
+
+
+def check_exact_negative_fixtures(data: dict, reference: str) -> None:
+    for case in (
+        "key_count",
+        "profile_tag",
+        "missing_heading",
+        "extra_heading",
+        "duplicate_tag",
+        "room_data",
+    ):
+        invalid = deepcopy(data)
+        document = reference
+        if case == "key_count":
+            family = next(f for f in invalid["block_families"] if "SW_IN_1" in f["names"])
+            family["key_counts"]["SW_IN_1"] = 2
+        elif case == "profile_tag":
+            invalid["attribute_profiles"]["FRAME"]["definition_required"].remove("MOUNT_HEIGHT")
+        elif case == "missing_heading":
+            document = reference.replace("#### `FRAME_1`", "### `FRAME_1`", 1)
+        elif case == "extra_heading":
+            document += "\n#### `UNREVIEWED_BLOCK`\n"
+        elif case == "duplicate_tag":
+            document = reference.replace("\nDEVICE_NAME\n", "\nDEVICE_NAME\nDEVICE_NAME\n", 1)
+        else:
+            document = reference.replace("`<нет NL Project data ATTDEF>`", "```text\nROOM\n```", 1)
+        try:
+            check_all_exact_profiles(invalid, document)
+        except AssertionError:
+            continue
+        raise AssertionError(f"Exact parity accepted negative fixture: {case}")
 
 
 def check() -> None:
@@ -65,14 +128,21 @@ def check() -> None:
     metadata["block_families"][0]["allowed_groups"] = ["BUS"]
     validator.validate(metadata)
     for key, value in (
-        ("bus_kind", "GUESS"), ("allowed_groups", ["UNKNOWN"]),
-        ("allowed_groups", []), ("allowed_groups", ["BUS", "BUS"]),
+        ("bus_kind", "GUESS"),
+        ("allowed_groups", ["UNKNOWN"]),
+        ("allowed_groups", []),
+        ("allowed_groups", ["BUS", "BUS"]),
     ):
         invalid = deepcopy(metadata)
         invalid["block_families"][0][key] = value
         assert not validator.is_valid(invalid), (key, value)
-    for mutation in ("missing_version", "unknown_top_level", "invalid_family_class",
-                     "invalid_track_mount", "unknown_family_property"):
+    for mutation in (
+        "missing_version",
+        "unknown_top_level",
+        "invalid_family_class",
+        "invalid_track_mount",
+        "unknown_family_property",
+    ):
         invalid = deepcopy(data)
         if mutation == "missing_version":
             del invalid["contract_version"]
@@ -111,8 +181,7 @@ def check() -> None:
         assert set(profile["optional"]).issubset(definitions), profile_name
         assert not set(definitions) & set(profile.get("forbidden", [])), profile_name
         assert not [
-            tag for tag in definitions
-            if any(fnmatchcase(tag, pattern) for pattern in forbidden)
+            tag for tag in definitions if any(fnmatchcase(tag, pattern) for pattern in forbidden)
         ], profile_name
     families = {}
     for family in data["block_families"]:
@@ -120,9 +189,13 @@ def check() -> None:
             assert name not in families, name
             families[name] = family
     assert set(families) | set(data["logical_blocks"]) == set(data["approved_block_names"])
-    assert all(family["attribute_profile"] in data["attribute_profiles"]
-               for family in data["block_families"])
+    assert all(
+        family["attribute_profile"] in data["attribute_profiles"]
+        for family in data["block_families"]
+    )
     assert not set(families) & set(data["logical_blocks"])
+    check_all_exact_profiles(data, reference)
+    check_exact_negative_fixtures(data, reference)
     for name, profile_name in TARGETS.items():
         profile = data["attribute_profiles"][profile_name]
         actual = profile["definition_required"]
@@ -148,7 +221,10 @@ def check() -> None:
     for name in TARGETS:
         if name.startswith("TRACK"):
             assert "TRACK_ID" in data["attribute_profiles"][TARGETS[name]]["definition_required"]
-            assert "TRACK_MOUNT_WAY" in data["attribute_profiles"][TARGETS[name]]["definition_required"]
+            assert (
+                "TRACK_MOUNT_WAY"
+                in data["attribute_profiles"][TARGETS[name]]["definition_required"]
+            )
 
     g3 = data["functional_groups"]["LIGHTING_230V"]
     g4 = data["functional_groups"]["LIGHTING_LED"]
@@ -161,10 +237,11 @@ def check() -> None:
 
     print(
         "PASS static CAD candidate 3.1.0 parity: 71 definitions; "
-        "4 exact block profiles; BUS_ID/3YY/4YY/TRANSIT invariants"
+        "69 physical + 2 logical exact profiles; BUS_ID/3YY/4YY/TRANSIT invariants"
     )
     print("PASS JSON Schema Draft 2020-12: entire candidate and 5 negative fixtures")
     print("PASS optional #227 family metadata schema: positive + 4 negative fixtures")
+    print("PASS full reference inventory / expanded KEY tags: 6 negative fixtures rejected")
     print("NOT TESTED: runtime parser/DB migration, AutoCAD COM or DWG acceptance")
 
 
