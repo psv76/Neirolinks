@@ -796,16 +796,22 @@ class CadContractValidator:
                     facts.el_box_outputs.append((observation.handle, cable_id, tag, target))
 
         source = attributes.get("CABLE_SOURCE", "").strip()
-        if source and not _CABLE_SOURCE.fullmatch(source):
+        internal_dali_track_source = (
+            rule.name == "LIGHT_TRACK_DALI_48V" and _TRACK_ID.fullmatch(source) is not None
+        )
+        if source and not _CABLE_SOURCE.fullmatch(source) and not internal_dali_track_source:
             issues.append(
                 self._issue(
                     "CABLE_SOURCE_FORMAT",
-                    "CABLE_SOURCE must be BOX.NNN, XYY.ZZ or 9YY.ZZZ/PORT",
+                    "CABLE_SOURCE must be BOX.NNN, XYY.ZZ or 9YY.ZZZ/PORT "
+                    "(TRACK.NNN only for LIGHT_TRACK_DALI_48V)",
                     observation,
                     "CABLE_SOURCE",
                 )
             )
-        elif source:
+        elif source and not internal_dali_track_source:
+            # Internal 48 V track ownership is not an ordinary cable edge:
+            # it is resolved against an accepted TRACK_DALI in Project.
             target = box_id if rule.device_type == "EL_BOX" and box_id else cable_id
             facts.source_rows.append((observation.handle, target, source))
 
