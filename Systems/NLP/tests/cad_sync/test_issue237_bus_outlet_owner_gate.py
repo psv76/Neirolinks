@@ -6,6 +6,7 @@ Only temporary SQLite and synthetic CAD observations. No production writes.
 from __future__ import annotations
 
 import pytest
+from test_issue237_project_bus_context import _insert_root, _project
 
 from nl_project_2.cad_contract import (
     BlockDefinitionMetadata,
@@ -16,7 +17,6 @@ from nl_project_2.cad_contract import (
 )
 from nl_project_2.cad_sync import ChangeClass, DwgSyncError, DwgSyncService
 from nl_project_2.cad_sync.models import ScanProposal, SyncChange, SyncSummary
-from test_issue237_project_bus_context import _insert_root, _project
 
 
 def _outlet(*, handle="OUTLET-1", point_id="920.001", source=""):
