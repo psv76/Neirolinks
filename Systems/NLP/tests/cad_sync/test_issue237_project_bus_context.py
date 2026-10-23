@@ -150,9 +150,7 @@ def test_only_active_project_root_is_verified(database, disable):
                 .values(lifecycle="RETIRED")
             )
         else:
-            connection.execute(
-                update(bus).where(bus.c.id == bus_id).values(lifecycle="RETIRED")
-            )
+            connection.execute(update(bus).where(bus.c.id == bus_id).values(lifecycle="RETIRED"))
     preview = DwgSyncService(database.engine).preview(project_id=pid, batch=_batch())
     assert "BUS_ROOT_NOT_FOUND" in _codes(preview)
 
@@ -170,9 +168,7 @@ def test_apply_requires_rescan_if_project_root_changes_after_preview(database):
     }
     assert applicable
     with database.engine.begin() as connection:
-        connection.execute(
-            update(bus).where(bus.c.id == bus_id).values(lifecycle="RETIRED")
-        )
+        connection.execute(update(bus).where(bus.c.id == bus_id).values(lifecycle="RETIRED"))
     with pytest.raises(DwgSyncError, match="rescan"):
         sync.apply_dwg_to_project(proposal, selected_paths=applicable, confirmed=True)
 
