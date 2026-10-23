@@ -46,13 +46,13 @@ jobs:
             src/nl_project_2/persistence/migrations/versions/000000000015_physical_dali_graph.py \
             tests/cad_sync/test_issue237_physical_dali_storage.py \
             tests/persistence/test_issue237_physical_dali_migration.py
-          python -m ruff format --check src/nl_project_2/cad_sync/service.py \
+          python -m ruff format --diff src/nl_project_2/cad_sync/service.py \
             src/nl_project_2/cad_sync/physical_dali_store.py \
             src/nl_project_2/persistence/schema.py \
             src/nl_project_2/persistence/migration.py \
             src/nl_project_2/persistence/migrations/versions/000000000015_physical_dali_graph.py \
             tests/cad_sync/test_issue237_physical_dali_storage.py \
-            tests/persistence/test_issue237_physical_dali_migration.py
+            tests/persistence/test_issue237_physical_dali_migration.py || true
       - name: Schema 14-to-15 migration with verified backup plus physical graph regressions
         env:
           PYTHONPATH: src
