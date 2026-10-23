@@ -1686,6 +1686,19 @@ class DwgSyncService:
             )
             dwg_fields = _fields(item)
             values = dict(existing["normalized_fields_json"] or {}) if existing else {}
+            if (
+                existing is not None
+                and item.observation.effective_name in {"EL_BOX_OUT_100x100", "TRACK_DALI"}
+                and str(values.get("BUS_ID") or "").strip()
+                and str(values.get("BUS_ID") or "").strip()
+                != str(dwg_fields.get("BUS_ID") or "").strip()
+            ):
+                # Changing a previously accepted physical Bus owner is a
+                # controlled migration, not ordinary structural DWG import.
+                raise DwgSyncError(
+                    "BUS_PHYSICAL_BUS_REASSIGN_REQUIRES_ATTENTION:"
+                    + str(values.get("BOX_ID") or values.get("TRACK_ID") or handle)
+                )
             previous_cable_id = str(values.get("CABLE_ID") or "").strip()
             if previous_cable_id:
                 previous_bases.add(previous_cable_id.split(".", 1)[0])
