@@ -476,18 +476,31 @@ class DwgSyncService:
             safe_dwg_source_change = (
                 fact.field == "CABLE_SOURCE" and status is ChangeClass.DWG_CHANGED
             )
+            # #227: BUS_POINT_ID is an accepted physical endpoint identity.
+            # A stable DWG handle does not authorize a free-address renumber,
+            # a swap, or a move to another Project Bus.
+            previous_bus_point = str(
+                devices.get(fact.primary_handle, {}).get("BUS_POINT_ID") or ""
+            ).strip()
+            bus_point_renumber = (
+                fact.field == "BUS_POINT_ID"
+                and bool(previous_bus_point)
+                and previous_bus_point != str(fact.value or "").strip()
+            )
             safe_structural_change = safe_dwg_source_change or safe_dwg_cable_id_change
             if (
-                fact.structural
-                and status
-                not in {
-                    ChangeClass.EQUAL,
-                }
+                (fact.structural or bus_point_renumber)
+                and status is not ChangeClass.EQUAL
                 and not safe_structural_change
             ):
                 status = ChangeClass.IDENTITY_COLLISION
                 detail_status = "STRUCTURAL_IDENTITY_REVIEW"
-                reason = "Structural identity/topology change requires explicit structural apply"
+                reason = (
+                    "BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION: "
+                    "existing Project endpoint identity cannot be rebound by DWG import"
+                    if bus_point_renumber
+                    else "Structural identity/topology change requires explicit structural apply"
+                )
             changes.append(
                 SyncChange(
                     f"{fact.primary_handle}:{fact.field}",
@@ -502,7 +515,7 @@ class DwgSyncService:
                     fact.owner_key,
                     fact.owner_path,
                     fact.affected_handles,
-                    fact.structural and not safe_structural_change,
+                    (fact.structural or bus_point_renumber) and not safe_structural_change,
                     detail_status,
                 )
             )
@@ -673,6 +686,17 @@ class DwgSyncService:
         }
         if not selected <= applicable:
             raise DwgSyncError("Selection contains a non-applicable or implicit change")
+        # No allow_structural override for already accepted BUS_POINT_ID.
+        # Owner-aware identity migration is a separate, explicit operation.
+        if any(
+            change.field_path in selected
+            and change.field == "BUS_POINT_ID"
+            and change.detail_status == "STRUCTURAL_IDENTITY_REVIEW"
+            for change in proposal.changes
+        ):
+            raise DwgSyncError(
+                "BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION: use the accepted Project identity"
+            )
         selected_projection_handles = {
             handle
             for change in proposal.changes
