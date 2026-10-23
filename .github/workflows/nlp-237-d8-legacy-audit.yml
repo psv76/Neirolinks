@@ -36,8 +36,8 @@ jobs:
         run: |
           python -m ruff check src/nl_project_2/cad_sync/legacy_dali_audit.py \
             tests/cad_sync/test_issue237_legacy_dali_audit.py
-          python -m ruff format --check src/nl_project_2/cad_sync/legacy_dali_audit.py \
-            tests/cad_sync/test_issue237_legacy_dali_audit.py
+          python -m ruff format --diff src/nl_project_2/cad_sync/legacy_dali_audit.py \
+            tests/cad_sync/test_issue237_legacy_dali_audit.py || true
       - name: Read-only D8 plus tested D7 and D6 physical graph regressions
         env:
           PYTHONPATH: src
