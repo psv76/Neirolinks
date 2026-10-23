@@ -1,0 +1,53 @@
+name: NLP 237 Project-owned DALI root context (D2 preview gate)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/nlp-237-project-root-snapshot.yml'
+      - 'Systems/NLP/src/nl_project_2/cad_sync/project_bus_context.py'
+      - 'Systems/NLP/src/nl_project_2/cad_sync/service.py'
+      - 'Systems/NLP/tests/cad_sync/test_issue237_project_bus_context.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  project-root-snapshot:
+    name: Root/type snapshot and staleness regression on isolated SQLite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: Systems/NLP
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install Qt import dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0
+      - name: Install isolated tests and lint tooling
+        run: |
+          python -m pip install 'SQLAlchemy==2.0.51' 'alembic==1.18.5' \
+            'pytest==9.1.1' 'pytest-qt==4.5.0' 'PySide6==6.11.1' \
+            'ruff==0.15.22'
+      - name: Ruff lint and exact formatting
+        run: |
+          python -m ruff check src/nl_project_2/cad_sync/service.py \
+            src/nl_project_2/cad_sync/project_bus_context.py \
+            tests/cad_sync/test_issue237_project_bus_context.py
+          python -m ruff format --check src/nl_project_2/cad_sync/service.py \
+            src/nl_project_2/cad_sync/project_bus_context.py \
+            tests/cad_sync/test_issue237_project_bus_context.py
+      - name: Project-scoped roots with real temporary SQLite and graph tests
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q \
+            tests/cad_sync/test_issue237_project_bus_context.py \
+            tests/cad_contract/test_issue237_dali_graph.py \
+            tests/cad_sync/test_sync_service.py::test_timber_route_is_accepted_and_persisted_as_segment_data
