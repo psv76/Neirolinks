@@ -86,6 +86,18 @@ class BusPointPlan:
 
 
 @dataclass(frozen=True, slots=True)
+class BusPhysicalPlan:
+    """Non-addressable physical DALI insertion (never a BusEndpoint address)."""
+
+    physical_id: str
+    bus_id: str
+    bus_kind: str
+    source: str
+    handle: str
+    block_name: str
+
+
+@dataclass(frozen=True, slots=True)
 class NormalizedCadSnapshot:
     facts: tuple[OwnerFact, ...]
     points: tuple[PointPlan, ...]
@@ -95,6 +107,7 @@ class NormalizedCadSnapshot:
     bus_points: tuple[BusPointPlan, ...]
     structural_reviews: tuple[str, ...]
     point_key_by_handle: tuple[tuple[str, str], ...]
+    bus_physical_nodes: tuple[BusPhysicalPlan, ...] = ()
 
     def fact_map(self) -> dict[str, OwnerFact]:
         return {fact.owner_path: fact for fact in self.facts}
@@ -148,6 +161,7 @@ def normalize_validated_snapshot(
     keys: list[KeyPlan] = []
     reviews: list[str] = []
     bus_points: list[BusPointPlan] = []
+    bus_physical_nodes: list[BusPhysicalPlan] = []
 
     by_base: dict[str, list[ValidatedObservation]] = {}
     point_rows: dict[tuple[str, str], list[ValidatedObservation]] = {}
@@ -181,6 +195,24 @@ def normalize_validated_snapshot(
             for field, value in item.normalized_attributes.items()
             if field not in excluded and field != "DEVICE_TYPE"
         )
+        physical_identity = ""
+        if payload.bus_type == "DALI" and payload.bus_id and not payload.bus_point_id:
+            physical_identity = str(
+                item.normalized_attributes.get(
+                    "TRACK_ID" if payload.block_name == "TRACK_DALI" else "BOX_ID", ""
+                )
+            ).strip()
+            if payload.block_name in {"TRACK_DALI", "EL_BOX_OUT_100x100"} and physical_identity:
+                bus_physical_nodes.append(
+                    BusPhysicalPlan(
+                        physical_id=physical_identity,
+                        bus_id=payload.bus_id,
+                        bus_kind="DALI",
+                        source=payload.bus_source or "",
+                        handle=handle,
+                        block_name=payload.block_name,
+                    )
+                )
         for field, value in sorted(insertion_values.items()):
             owner_path = f"insertion:{handle}:{field}"
             facts.append(
@@ -192,6 +224,10 @@ def normalize_validated_snapshot(
                     value,
                     handle,
                     (handle,),
+                    # A physical Bus source or identity is a real topology
+                    # decision, not an ordinary label/comment change.
+                    structural=bool(physical_identity)
+                    and field in {"BUS_SOURCE", "BUS_ID", "BOX_ID", "TRACK_ID"},
                 )
             )
 
@@ -462,6 +498,9 @@ def normalize_validated_snapshot(
         bus_points=tuple(sorted(set(bus_points), key=lambda point: point.point_id)),
         structural_reviews=tuple(sorted(set(reviews))),
         point_key_by_handle=tuple(sorted(point_key_by_handle)),
+        bus_physical_nodes=tuple(
+            sorted(bus_physical_nodes, key=lambda node: (node.physical_id, node.handle))
+        ),
     )
 
 
