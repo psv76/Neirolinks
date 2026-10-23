@@ -35,18 +35,18 @@ jobs:
           python -m pip install 'SQLAlchemy==2.0.51' 'alembic==1.18.5' \
             'pytest==9.1.1' 'pytest-qt==4.5.0' 'PySide6==6.11.1' \
             'ruff==0.15.22'
-      - name: Ruff lint and initial exact format diff
+      - name: Strict Ruff lint and format
         run: |
           python -m ruff check src/nl_project_2/cad_sync/service.py \
             src/nl_project_2/cad_sync/reconciliation.py \
             src/nl_project_2/cad_contract/validator.py \
             src/nl_project_2/cad_sync/track_power.py \
             tests/cad_sync/test_issue237_d10_track_internal_power.py
-          python -m ruff format --diff src/nl_project_2/cad_sync/service.py \
+          python -m ruff format --check src/nl_project_2/cad_sync/service.py \
             src/nl_project_2/cad_sync/reconciliation.py \
             src/nl_project_2/cad_contract/validator.py \
             src/nl_project_2/cad_sync/track_power.py \
-            tests/cad_sync/test_issue237_d10_track_internal_power.py || true
+            tests/cad_sync/test_issue237_d10_track_internal_power.py
       - name: D10 power owners plus D9 D8 D7 and ordinary cable topology regression
         env:
           PYTHONPATH: src
