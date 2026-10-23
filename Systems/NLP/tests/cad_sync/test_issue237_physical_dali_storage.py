@@ -17,8 +17,8 @@ from nl_project_2.persistence.schema import (
 )
 
 
-def _links(conn):
-    return read_project_physical_sources(conn, project_id=_links.project_id)
+def _links(conn, pid):
+    return read_project_physical_sources(conn, project_id=pid)
 
 
 def _light():
@@ -71,8 +71,7 @@ def test_box_track_graph_is_persisted_with_stable_owners_and_no_phantom_addresse
     sync = DwgSyncService(database.engine)
     _accept(sync, pid, _batch(_box(), _track()))
     with database.engine.connect() as conn:
-        _links.project_id = pid
-        rows = _links(conn)
+        rows = _links(conn, pid)
         assert [(r.target_identity, r.source_reference, r.link_kind) for r in rows] == [
             ("BOX.023", "905.000", "CABLE"),
             ("TRACK.023", "BOX.023", "CABLE"),
@@ -111,9 +110,8 @@ def test_partial_box_scan_cannot_delete_existing_track_and_link(database):
     assert changed, preview.changes
     sync.apply_dwg_to_project(preview, selected_paths=changed, confirmed=True)
     with database.engine.connect() as conn:
-        _links.project_id = pid
         assert [
-            (x.target_identity, x.source_reference) for x in _links(conn)
+            (x.target_identity, x.source_reference) for x in _links(conn, pid)
         ] == [("BOX.023", "905.000"), ("TRACK.023", "BOX.023")]
         assert conn.scalar(select(func.count()).select_from(bus_physical_node)) == 2
         assert conn.scalar(select(func.count()).select_from(bus_physical_link)) == 2
@@ -128,8 +126,7 @@ def test_physical_dali_source_link_to_addressable_light_has_no_fake_root_segment
     assert preview.can_apply, preview.issues
     _accept(sync, pid, batch)
     with database.engine.connect() as conn:
-        _links.project_id = pid
-        sources = _links(conn)
+        sources = _links(conn, pid)
         assert [(r.target_identity, r.source_reference, r.link_kind) for r in sources] == [
             ("905.001", "TRACK.023", "TRACK"),
             ("BOX.023", "905.000", "CABLE"),
