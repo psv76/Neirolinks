@@ -38,9 +38,9 @@ jobs:
           python -m ruff check src/nl_project_2/cad_sync/service.py \
             src/nl_project_2/cad_sync/reconciliation.py \
             tests/cad_sync/test_issue237_passive_physical_ownership.py
-          python -m ruff format --diff src/nl_project_2/cad_sync/service.py \
+          python -m ruff format --check src/nl_project_2/cad_sync/service.py \
             src/nl_project_2/cad_sync/reconciliation.py \
-            tests/cad_sync/test_issue237_passive_physical_ownership.py || true
+            tests/cad_sync/test_issue237_passive_physical_ownership.py
       - name: Typed passive plans plus isolated Project SQLite and DALI graph
         env:
           PYTHONPATH: src
