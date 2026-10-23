@@ -51,8 +51,9 @@ def test_d10_accepted_48v_track_power_keeps_rail_member_without_cable_segment(da
     with database.engine.connect() as conn:
         rows = list(
             conn.execute(
-                select(field_device.c.block_kind, field_device.c.normalized_fields_json)
-                .where(field_device.c.project_id == pid)
+                select(field_device.c.block_kind, field_device.c.normalized_fields_json).where(
+                    field_device.c.project_id == pid
+                )
             )
         )
         values = {name: data for name, data in rows}
@@ -72,8 +73,9 @@ def test_d10_accepted_48v_track_power_keeps_rail_member_without_cable_segment(da
             device_ids={
                 row.entity_handle: row.id
                 for row in conn.execute(
-                    select(field_device.c.entity_handle, field_device.c.id)
-                    .where(field_device.c.project_id == pid)
+                    select(field_device.c.entity_handle, field_device.c.id).where(
+                        field_device.c.project_id == pid
+                    )
                 )
             },
         )
@@ -123,19 +125,21 @@ def test_invalid_internal_power_source_rejects_atomically(database, attrs, expec
         assert database.path.read_bytes() == before
         return
     selected = {
-        c.field_path for c in preview.changes
-        if c.change_class is ChangeClass.NEW_DWG_INSERTION
+        c.field_path for c in preview.changes if c.change_class is ChangeClass.NEW_DWG_INSERTION
     }
     assert selected
     with pytest.raises(DwgSyncError, match=expected):
         sync.apply_dwg_to_project(preview, selected_paths=selected, confirmed=True)
     with database.engine.connect() as conn:
         assert _count(conn, cable_segment) == 1
-        assert conn.scalar(
-            select(func.count()).select_from(field_device).where(
-                field_device.c.block_kind == "LIGHT_TRACK_DALI_48V"
+        assert (
+            conn.scalar(
+                select(func.count())
+                .select_from(field_device)
+                .where(field_device.c.block_kind == "LIGHT_TRACK_DALI_48V")
             )
-        ) == 0
+            == 0
+        )
         assert conn.exec_driver_sql("PRAGMA foreign_key_check").all() == []
 
 
@@ -156,16 +160,21 @@ def test_accepted_rail_source_cannot_be_silently_reinterpreted_as_external_run(d
     # Direct helper rejects a changed accepted track power owner without
     # editing the imported light or its accepted DALI short address.
     with database.engine.begin() as conn:
-        track = conn.execute(
-            select(field_device).where(
-                field_device.c.project_id == pid,
-                field_device.c.block_kind == "TRACK_DALI",
+        track = (
+            conn.execute(
+                select(field_device).where(
+                    field_device.c.project_id == pid,
+                    field_device.c.block_kind == "TRACK_DALI",
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         fields = dict(track["normalized_fields_json"])
         fields["CABLE_ID"] = "402"
         conn.execute(
-            update(field_device).where(field_device.c.id == track["id"])
+            update(field_device)
+            .where(field_device.c.id == track["id"])
             .values(normalized_fields_json=fields)
         )
     with database.engine.connect() as conn:
@@ -207,8 +216,7 @@ def test_pre_d10_track_base_point_requires_explicit_legacy_review(database):
     proposal = sync.preview(project_id=pid, batch=_accepted_track_batch())
     assert proposal.can_apply, proposal.issues
     selected = {
-        c.field_path for c in proposal.changes
-        if c.change_class is ChangeClass.NEW_DWG_INSERTION
+        c.field_path for c in proposal.changes if c.change_class is ChangeClass.NEW_DWG_INSERTION
     }
     assert selected
     with pytest.raises(DwgSyncError, match="TRACK_POWER_LEGACY_POINT_REQUIRES_REVIEW"):
