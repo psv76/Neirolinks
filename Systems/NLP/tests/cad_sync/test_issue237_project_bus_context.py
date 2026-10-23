@@ -110,7 +110,9 @@ def test_preview_verifies_own_active_project_root(database):
     _insert_root(database, pid)
     service = DwgSyncService(database.engine)
     preview = service.preview(project_id=pid, batch=_batch())
-    assert not ({"BUS_ROOT_NOT_FOUND", "BUS_ROOT_UNVERIFIED", "BUS_TYPE_CONFLICT"} & _codes(preview))
+    assert not (
+        {"BUS_ROOT_NOT_FOUND", "BUS_ROOT_UNVERIFIED", "BUS_TYPE_CONFLICT"} & _codes(preview)
+    )
     assert preview.can_apply
 
 
