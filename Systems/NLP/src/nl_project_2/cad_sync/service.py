@@ -1901,6 +1901,27 @@ class DwgSyncService:
             )
         except TrackInternalPowerError as exc:
             raise DwgSyncError(str(exc)) from exc
+        # A pre-D10 TRACK_DALI may already have a base-only 4YY cable
+        # point shared with its lights. Such accepted physical topology must
+        # not be split by ordinary sync without an approved legacy repair.
+        for link in internal_track_power:
+            accepted_points = set(
+                uow.execute(
+                    select(cable_point.c.logical_identity)
+                    .join(
+                        cable_point_field_device,
+                        cable_point_field_device.c.cable_point_id == cable_point.c.id,
+                    )
+                    .where(
+                        cable_point.c.project_id == project_id,
+                        cable_point_field_device.c.field_device_id == link.track_field_device_id,
+                    )
+                ).scalars()
+            )
+            if accepted_points and accepted_points != {link.track_id}:
+                raise DwgSyncError(
+                    f"TRACK_POWER_LEGACY_POINT_REQUIRES_REVIEW:{link.track_id}"
+                )
         internal_by_handle = {link.light_handle: link for link in internal_track_power}
         point_keys = dict(snapshot.point_key_by_handle)
         internal_point_keys = {
