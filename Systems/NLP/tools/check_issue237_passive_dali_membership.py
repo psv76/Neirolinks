@@ -66,11 +66,12 @@ def check() -> None:
     track, codes = validate(
         "TRACK_DALI",
         "TRACK_DALI",
-        {"TRACK_ID": "TRACK.001", "BUS_ID": "905", "BUS_SOURCE": "BOX.023"},
+        {"TRACK_ID": "TRACK.001", "BUS_ID": "905", "BUS_SOURCE": "BOX.023", "CABLE_ID": "401"},
     )
     assert (track.bus_id, track.bus_type, track.bus_point_id) == ("905", "DALI", None)
-    # The independent 3YY/4YY group fix is in stacked #238, not this PR.
-    assert "LAYER_FUNCTION_GROUP_MISMATCH" in codes
+    # The approved 4YY feeder now resolves through #238, independently of DALI BUS_ID.
+    assert "LAYER_FUNCTION_GROUP_MISMATCH" not in codes
+    assert "TRACK_DALI_POWER_GROUP_UNRESOLVED" not in codes
 
     invalid, codes = validate(
         box, "BUS", {"BOX_ID": "BOX.023", "BUS_ID": "INVALID", "BUS_SOURCE": "905.000"}
