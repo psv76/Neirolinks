@@ -19,6 +19,6 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install minimal runtime import dependency
-        run: python -m pip install 'SQLAlchemy>=2,<3'
+        run: python -m pip install 'SQLAlchemy>=2,<3' 'alembic>=1.13,<2'
       - name: Focused DALI feeder group smoke, no DB/AutoCAD
         run: PYTHONPATH=Systems/NLP/src python Systems/NLP/tools/check_issue237_track_dali_voltage.py
