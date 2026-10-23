@@ -92,7 +92,9 @@ def _selected_rows(
     owners = {row.field_device_id: row for row in audit.rows}
     if any(owner not in owners for owner in owner_ids):
         raise LegacyDaliMappingError("DALI_MAPPING_OWNER_NOT_IN_AUDIT")
-    selected = tuple(sorted((owners[owner] for owner in owner_ids), key=lambda r: r.field_device_id))
+    selected = tuple(
+        sorted((owners[owner] for owner in owner_ids), key=lambda r: r.field_device_id)
+    )
     if any(row.disposition == "REVIEW" for row in selected):
         raise LegacyDaliMappingError("DALI_MAPPING_REVIEW_BLOCKED")
     return selected
