@@ -108,8 +108,10 @@ def test_dali_universal_outlet_can_reference_physical_box(database):
         handle="BOX-A",
         definition=BlockDefinitionMetadata(tuple(attrs)),
     )
-    validated = DwgSyncService(database.engine)._validator_for_project(pid).validate(
-        _batch(box, _outlet(source="BOX.023"))
+    validated = (
+        DwgSyncService(database.engine)
+        ._validator_for_project(pid)
+        .validate(_batch(box, _outlet(source="BOX.023")))
     )
     assert "BUS_SOURCE_NOT_FOUND" not in issue_codes(validated.issues)
     assert "BUS_SOURCE_CROSS_BUS" not in issue_codes(validated.issues)
