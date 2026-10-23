@@ -64,7 +64,6 @@ from nl_project_2.persistence.schema import (
 )
 from nl_project_2.persistence.uow import UnitOfWork
 
-from .project_bus_context import load_project_bus_context
 from .models import (
     ChangeClass,
     DwgScanProgress,
@@ -77,6 +76,7 @@ from .models import (
     WriteExecutionReceipt,
     WriteResult,
 )
+from .project_bus_context import load_project_bus_context
 from .reconciliation import (
     ROUTE_FIELDS,
     NormalizedCadSnapshot,
