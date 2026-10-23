@@ -12,7 +12,7 @@ from test_issue134_box_identity import _rs485_root
 from test_issue237_bus_outlet_owner_gate import _batch, _outlet
 from test_issue237_project_bus_context import _insert_root, _project
 
-from nl_project_2.cad_contract import CadObservation
+from nl_project_2.cad_contract import CadObservation, load_contract
 from nl_project_2.cad_sync import ChangeClass, DwgSyncError, DwgSyncService
 from nl_project_2.persistence.schema import (
     bus_endpoint,
@@ -20,6 +20,15 @@ from nl_project_2.persistence.schema import (
     cable_line,
     field_device,
 )
+
+
+def test_catalog_honors_explicit_bus_only_family_layer():
+    catalog = load_contract()
+    rule = catalog.block("CABLE_OUTLET_BUS")
+    assert rule is not None
+    assert rule.allowed_groups == frozenset({"BUS"})
+    assert catalog.groups_for_layer("BUS") & rule.allowed_groups == frozenset({"BUS"})
+    assert "BUS" not in catalog.block("SOCKET_IN").allowed_groups
 
 
 def _wired_outlet(*, handle: str, point_id: str, source: str = "", note: str = ""):
