@@ -122,8 +122,11 @@ def audit_accepted_dali_project(connection: Connection, *, project_id: str) -> L
             address_match = _ADDRESS.fullmatch(raw_address)
             if not (
                 (raw_bus in buses and buses[raw_bus]["bus_kind"] == "DALI")
-                or (address_match and address_match.group(1) in buses
-                    and buses[address_match.group(1)]["bus_kind"] == "DALI")
+                or (
+                    address_match
+                    and address_match.group(1) in buses
+                    and buses[address_match.group(1)]["bus_kind"] == "DALI"
+                )
                 or source.startswith(("BOX.", "TRACK."))
             ):
                 continue
@@ -138,20 +141,21 @@ def audit_accepted_dali_project(connection: Connection, *, project_id: str) -> L
             # bus_endpoint/bus_segment model, not legacy physical mapping,
             # unless it already has an explicit typed physical link.
             existing = any(
-                links_by_target.get(ep["id"])
-                for ep in endpoint_by_device.get(row["id"], [])
+                links_by_target.get(ep["id"]) for ep in endpoint_by_device.get(row["id"], [])
             )
             if not existing:
                 continue
-        candidates.append({
-            "row": dict(row),
-            "fields": values,
-            "passive": passive,
-            "bus": raw_bus,
-            "address": raw_address,
-            "identity": identity,
-            "source": source,
-        })
+        candidates.append(
+            {
+                "row": dict(row),
+                "fields": values,
+                "passive": passive,
+                "bus": raw_bus,
+                "address": raw_address,
+                "identity": identity,
+                "source": source,
+            }
+        )
 
     physical_identity_counts = Counter(
         c["identity"] for c in candidates if c["passive"] and c["identity"]
@@ -171,7 +175,7 @@ def audit_accepted_dali_project(connection: Connection, *, project_id: str) -> L
         while True:
             identity = cursor["identity"]
             if identity in seen:
-                cyclic.update(seen[seen.index(identity):])
+                cyclic.update(seen[seen.index(identity) :])
                 break
             seen.append(identity)
             parent_identity = cursor["source"]
@@ -251,7 +255,8 @@ def audit_accepted_dali_project(connection: Connection, *, project_id: str) -> L
             stored_target = owned_physical[0]["id"] if len(owned_physical) == 1 else None
         else:
             matching = [
-                ep for ep in owned_endpoints
+                ep
+                for ep in owned_endpoints
                 if bus_row is not None
                 and ep["bus_id"] == bus_row["id"]
                 and ep["address"] == address
@@ -261,8 +266,10 @@ def audit_accepted_dali_project(connection: Connection, *, project_id: str) -> L
             if len(owned_endpoints) > 1:
                 reasons.add("MULTIPLE_ADDRESSABLE_OWNERS")
             stored_target = matching[0]["id"] if len(matching) == 1 else None
-            if stored_target and segments_by_endpoint.get(stored_target) and source.startswith(
-                ("BOX.", "TRACK.")
+            if (
+                stored_target
+                and segments_by_endpoint.get(stored_target)
+                and source.startswith(("BOX.", "TRACK."))
             ):
                 reasons.add("LEGACY_ADDRESSABLE_BUS_SEGMENT_REQUIRES_REVIEW")
 
@@ -278,7 +285,8 @@ def audit_accepted_dali_project(connection: Connection, *, project_id: str) -> L
                 consistent = existing["source_kind"] == "ROOT"
             elif source.startswith(("BOX.", "TRACK.")):
                 parent = [
-                    x for x in physical_rows
+                    x
+                    for x in physical_rows
                     if x["physical_id"] == source and x["bus_id"] == stored_bus
                 ]
                 consistent = (
