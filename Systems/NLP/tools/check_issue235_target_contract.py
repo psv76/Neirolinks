@@ -104,7 +104,7 @@ def check() -> None:
     assert g3["cable_prefix"] == "3"
     assert g4["cable_prefix"] == "4"
     assert "неоднозначн" in topology.lower() and "Требует внимания" in topology
-    assert "301-1" in topology and "301@1" not in data["track_id_pattern"]
+    assert "301-1" in topology and "CABLE_TRANSIT" in topology
 
     print(
         "PASS static CAD candidate 3.1.0 parity: 71 definitions; "
