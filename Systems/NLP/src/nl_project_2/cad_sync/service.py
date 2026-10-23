@@ -695,8 +695,7 @@ class DwgSyncService:
             for change in proposal.changes
         ):
             raise DwgSyncError(
-                "BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION: "
-                "use the accepted Project identity"
+                "BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION: use the accepted Project identity"
             )
         selected_projection_handles = {
             handle
