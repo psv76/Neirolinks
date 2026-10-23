@@ -42,6 +42,9 @@ _CABLE_SOURCE = re.compile(
 )
 _FIELD_PORT_REFERENCE = re.compile(r"^(?:BOX\.[0-9]{3}|[1-8][0-9]{2}(?:\.[0-9]{2})?)$")
 _BUS_POINT_ID = re.compile(r"^(?P<bus>9[0-9]{2})\.(?P<order>[0-9]{3})$")
+_PASSIVE_BUS_ID = re.compile(r"^9[0-9]{2}$")
+_TRACK_ID = re.compile(r"^TRACK\.[0-9]{3}$")
+_PASSIVE_DALI_BLOCKS = frozenset({"EL_BOX_OUT_100x100", "TRACK_DALI"})
 _KEY_SOURCE_REFERENCE = re.compile(r"^(?P<cable>[1-9][0-9]{2}(?:\.[0-9]{2})?)/(?P<tag>KEY_[1-4])$")
 _DALI_GROUP_ID = re.compile(r"^D\.[0-9]{3}$")
 _LIGHTING_DEVICE_TYPES = frozenset({"LIGHT", "LIGHT_LED", "TRACK_230V", "TRACK_48V", "TRACK_DALI"})
@@ -759,6 +762,55 @@ class CadContractValidator:
 
         bus_point_id = attributes.get("BUS_POINT_ID", "").strip()
         bus_source = attributes.get("BUS_SOURCE", "").strip()
+        # Passive DALI endpoints have a physical BOX/TRACK identity. BUS_ID
+        # records only membership; never mint BUS_POINT_ID or a DALI address.
+        if rule.name in _PASSIVE_DALI_BLOCKS:
+            bus_id = attributes.get("BUS_ID", "").strip()
+            if bus_id and _PASSIVE_BUS_ID.fullmatch(bus_id) is None:
+                issues.append(
+                    self._issue(
+                        "BUS_ID_FORMAT", "passive DALI BUS_ID must match 9YY",
+                        observation, "BUS_ID",
+                    )
+                )
+            elif bus_id and not bus_source:
+                issues.append(
+                    self._issue(
+                        "BUS_SOURCE_REQUIRED",
+                        "passive DALI bus membership requires an explicit upstream",
+                        observation, "BUS_SOURCE",
+                    )
+                )
+            elif not bus_id and bus_source:
+                issues.append(
+                    self._issue(
+                        "BUS_ID_REQUIRED",
+                        "BUS_SOURCE requires passive DALI BUS_ID membership",
+                        observation, "BUS_ID",
+                    )
+                )
+            elif bus_id:
+                source_point = _BUS_POINT_ID.fullmatch(bus_source)
+                if source_point and source_point.group("bus") != bus_id:
+                    issues.append(
+                        self._issue(
+                            "BUS_SOURCE_CROSS_BUS",
+                            f"{bus_source!r} does not belong to BUS_ID {bus_id}",
+                            observation, "BUS_SOURCE",
+                        )
+                    )
+                elif not source_point and not (
+                    _BOX_ID.fullmatch(bus_source) or _TRACK_ID.fullmatch(bus_source)
+                ):
+                    issues.append(
+                        self._issue(
+                            "BUS_SOURCE_FORMAT",
+                            "passive DALI BUS_SOURCE must be 9YY.ZZZ, BOX.NNN or TRACK.NNN",
+                            observation, "BUS_SOURCE",
+                        )
+                    )
+                # Resolving physical source existence, membership, loops and
+                # owner-aware sync remains a separate #237 graph/persistence gate.
         if bus_point_id:
             match = _BUS_POINT_ID.fullmatch(bus_point_id)
             if match is None:
@@ -889,6 +941,12 @@ class CadContractValidator:
         )
         bus_point_id = attributes.get("BUS_POINT_ID", "")
         bus_match = _BUS_POINT_ID.fullmatch(bus_point_id)
+        passive_id = (
+            attributes.get("BUS_ID", "").strip()
+            if rule.name in _PASSIVE_DALI_BLOCKS
+            else ""
+        )
+        passive_valid = bool(_PASSIVE_BUS_ID.fullmatch(passive_id))
         return NormalizedCadReadPayload(
             block_name=observation.effective_name,
             device_type=rule.device_type,
@@ -900,11 +958,13 @@ class CadContractValidator:
             box_id=attributes.get("BOX_ID") or None,
             cable_source=attributes.get("CABLE_SOURCE") or None,
             bus_point_id=bus_point_id or None,
-            bus_id=bus_match.group("bus") if bus_match else None,
+            bus_id=bus_match.group("bus") if bus_match else (passive_id if passive_valid else None),
             bus_source=attributes.get("BUS_SOURCE") or None,
-            bus_type=("DALI" if "BUS_SOURCE" in rule.required_definition_attributes else "RS485")
-            if bus_match
-            else None,
+            bus_type=(
+                ("DALI" if "BUS_SOURCE" in rule.required_definition_attributes else "RS485")
+                if bus_match
+                else ("DALI" if passive_valid else None)
+            ),
             cable_link_kind=rule.cable_link_kind,
             bus_link_kind=rule.bus_link_kind,
             derived_phase=rule.derived_phase,
