@@ -22,6 +22,11 @@ def _links(conn, pid):
     return read_project_physical_sources(conn, project_id=pid)
 
 
+def _node_ids(conn):
+    query = select(bus_physical_node.c.physical_id, bus_physical_node.c.id)
+    return dict(conn.execute(query).all())
+
+
 def _light():
     contract = load_contract()
     rule = contract.block("LIGHT_TRACK_DALI_48V")
@@ -78,7 +83,7 @@ def test_box_track_graph_is_persisted_with_stable_owners_and_no_phantom_addresse
             ("BOX.023", "905.000", "CABLE"),
             ("TRACK.023", "BOX.023", "CABLE"),
         ]
-        ids = dict(conn.execute(select(bus_physical_node.c.physical_id, bus_physical_node.c.id)).all())
+        ids = _node_ids(conn)
         edge_ids = sorted(conn.execute(select(bus_physical_link.c.id)).scalars())
         assert set(ids) == {"BOX.023", "TRACK.023"}
         assert conn.scalar(select(func.count()).select_from(bus_endpoint)) == 0
@@ -90,7 +95,7 @@ def test_box_track_graph_is_persisted_with_stable_owners_and_no_phantom_addresse
     assert not [x for x in no_op.changes if x.change_class is ChangeClass.NEW_DWG_INSERTION]
     with database.engine.connect() as conn:
         assert (
-            dict(conn.execute(select(bus_physical_node.c.physical_id, bus_physical_node.c.id)).all())
+            _node_ids(conn)
             == ids
         )
         assert sorted(conn.execute(select(bus_physical_link.c.id)).scalars()) == edge_ids
