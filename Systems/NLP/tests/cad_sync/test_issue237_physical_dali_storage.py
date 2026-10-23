@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from test_issue237_passive_physical_ownership import _accept, _batch, _box, _track
 from test_issue237_project_bus_context import _insert_root, _project
 
@@ -14,6 +14,7 @@ from nl_project_2.persistence.schema import (
     bus_physical_link,
     bus_physical_node,
     bus_segment,
+    project,
 )
 
 
@@ -136,3 +137,51 @@ def test_physical_dali_source_link_to_addressable_light_has_no_fake_root_segment
         assert conn.scalar(select(func.count()).select_from(bus_endpoint)) == 1
         assert conn.scalar(select(func.count()).select_from(bus_segment)) == 0
         assert conn.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+
+
+def test_canonical_project_edge_supplies_preview_and_validated_write_plan(database):
+    """Readback is typed Project graph, not stale field_device BUS_SOURCE."""
+    pid = _project(database)
+    _insert_root(database, pid)
+    sync = DwgSyncService(database.engine)
+    batch = _batch(_box(), _track())
+    _accept(sync, pid, batch)
+    with database.engine.begin() as conn:
+        target = conn.scalar(
+            select(bus_physical_node.c.id).where(
+                bus_physical_node.c.project_id == pid,
+                bus_physical_node.c.physical_id == "TRACK.023",
+            )
+        )
+        assert target is not None
+        conn.execute(
+            update(bus_physical_link)
+            .where(bus_physical_link.c.target_physical_node_id == target)
+            .values(
+                source_kind="ROOT",
+                source_physical_node_id=None,
+                source_bus_endpoint_id=None,
+            )
+        )
+        conn.execute(
+            update(project)
+            .where(project.c.id == pid)
+            .values(project_revision=project.c.project_revision + 1)
+        )
+    proposal = sync.preview(project_id=pid, batch=batch)
+    candidates = [
+        row
+        for row in proposal.changes
+        if row.handle == "TRACK-A" and row.field == "BUS_SOURCE"
+    ]
+    assert len(candidates) == 1, proposal.changes
+    change = candidates[0]
+    assert change.change_class is ChangeClass.PROJECT_CHANGED
+    assert change.project_value == "905.000"
+    assert change.dwg_value == "BOX.023"
+    plan = sync.plan_project_to_dwg(proposal, selected_paths={change.field_path})
+    assert len(plan.targets) == 1
+    assert plan.targets[0].handle == "TRACK-A"
+    assert plan.targets[0].tag == "BUS_SOURCE"
+    assert plan.targets[0].new_value == "905.000"
+    # No call to CAD execute_write_plan; no real DWG modified.
