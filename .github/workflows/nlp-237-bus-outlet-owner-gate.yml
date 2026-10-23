@@ -8,6 +8,7 @@ on:
       - 'Systems/NLP/tests/cad_sync/test_issue237_bus_outlet_owner_gate.py'
       - 'Systems/NLP/tests/cad_sync/test_issue237_endpoint_transactions.py'
       - 'Systems/NLP/src/nl_project_2/cad_contract/validator.py'
+      - 'Systems/NLP/src/nl_project_2/cad_contract/catalog.py'
   workflow_dispatch:
 
 permissions:
@@ -37,11 +38,13 @@ jobs:
       - name: Ruff lint and format
         run: |
           python -m ruff check src/nl_project_2/cad_sync/service.py \
+            src/nl_project_2/cad_contract/catalog.py \
             tests/cad_sync/test_issue237_bus_outlet_owner_gate.py \
             tests/cad_sync/test_issue237_endpoint_transactions.py
-          python -m ruff format --diff src/nl_project_2/cad_sync/service.py \
+          python -m ruff format --check src/nl_project_2/cad_sync/service.py \
+            src/nl_project_2/cad_contract/catalog.py \
             tests/cad_sync/test_issue237_bus_outlet_owner_gate.py \
-            tests/cad_sync/test_issue237_endpoint_transactions.py || true
+            tests/cad_sync/test_issue237_endpoint_transactions.py
       - name: Temp Project SQLite plus DALI and no-rebind regression
         env:
           PYTHONPATH: src
