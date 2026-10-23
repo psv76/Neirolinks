@@ -8,7 +8,11 @@ from __future__ import annotations
 
 import json
 import re
+from copy import deepcopy
+from fnmatch import fnmatchcase
 from pathlib import Path
+
+from jsonschema import Draft202012Validator
 
 ROOT = Path(__file__).resolve().parents[1]
 CAD = ROOT / "resources" / "autocad"
@@ -48,6 +52,27 @@ def check() -> None:
     reference = REFERENCE.read_text(encoding="utf-8")
     topology = TOPOLOGY.read_text(encoding="utf-8")
 
+    # Actually validate the entire candidate against Draft 2020-12, rather
+    # than only checking the shape of top-level keys. Deliberately invalid
+    # inputs prove that the schema rejects destructive structural changes.
+    Draft202012Validator.check_schema(schema)
+    validator = Draft202012Validator(schema)
+    validator.validate(data)
+    for mutation in ("missing_version", "unknown_top_level", "invalid_family_class",
+                     "invalid_track_mount", "unknown_family_property"):
+        invalid = deepcopy(data)
+        if mutation == "missing_version":
+            del invalid["contract_version"]
+        elif mutation == "unknown_top_level":
+            invalid["unreviewed_field"] = True
+        elif mutation == "invalid_family_class":
+            invalid["block_families"][0]["class"] = "UNKNOWN"
+        elif mutation == "invalid_track_mount":
+            invalid["track_mount_way_values"][0] = "на потолке"
+        else:
+            invalid["block_families"][0]["unreviewed_field"] = True
+        assert not validator.is_valid(invalid), f"Schema accepted {mutation}"
+
     assert data["contract_version"] == "3.1.0", data["contract_version"]
     assert len(data["approved_block_names"]) == 71
     assert len(set(data["approved_block_names"])) == 71
@@ -64,12 +89,26 @@ def check() -> None:
         {key for family in data["block_families"] for key in family}
     )
 
+    # Every profile is checked; checking only the four changed profiles would
+    # let unrelated definitions silently reintroduce forbidden attributes.
+    for profile_name, profile in data["attribute_profiles"].items():
+        definitions = profile["definition_required"]
+        assert len(definitions) == len(set(definitions)), profile_name
+        assert set(profile["required"]).issubset(definitions), profile_name
+        assert set(profile["optional"]).issubset(definitions), profile_name
+        assert not set(definitions) & set(profile.get("forbidden", [])), profile_name
+        assert not [
+            tag for tag in definitions
+            if any(fnmatchcase(tag, pattern) for pattern in forbidden)
+        ], profile_name
     families = {}
     for family in data["block_families"]:
         for name in family["names"]:
             assert name not in families, name
             families[name] = family
     assert set(families) | set(data["logical_blocks"]) == set(data["approved_block_names"])
+    assert all(family["attribute_profile"] in data["attribute_profiles"]
+               for family in data["block_families"])
     assert not set(families) & set(data["logical_blocks"])
     for name, profile_name in TARGETS.items():
         profile = data["attribute_profiles"][profile_name]
@@ -111,6 +150,7 @@ def check() -> None:
         "PASS static CAD candidate 3.1.0 parity: 71 definitions; "
         "4 exact block profiles; BUS_ID/3YY/4YY/TRANSIT invariants"
     )
+    print("PASS JSON Schema Draft 2020-12: entire candidate and 5 negative fixtures")
     print("NOT TESTED: runtime parser/DB migration, AutoCAD COM or DWG acceptance")
 
 
