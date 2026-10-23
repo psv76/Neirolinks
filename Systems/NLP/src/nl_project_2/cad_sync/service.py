@@ -77,6 +77,7 @@ from .models import (
     WriteResult,
 )
 from .physical_dali_store import (
+    PhysicalDaliTopologyError,
     persist_selected_physical_graph,
     read_project_physical_sources,
 )
@@ -1877,13 +1878,18 @@ class DwgSyncService:
             device_ids=device_ids,
             active_handles=active_handles,
         )
-        persist_selected_physical_graph(
-            uow,
-            project_id=project_id,
-            snapshot=snapshot,
-            device_ids=device_ids,
-            active_handles=active_handles,
-        )
+        try:
+            persist_selected_physical_graph(
+                uow,
+                project_id=project_id,
+                snapshot=snapshot,
+                device_ids=device_ids,
+                active_handles=active_handles,
+            )
+        except PhysicalDaliTopologyError as exc:
+            # Preserve the service's normal error contract; UnitOfWork rolls
+            # back all new devices and links on any topology rejection.
+            raise DwgSyncError(str(exc)) from exc
         recalculate_bus_segments(uow, project_id, bus_ids=affected_bus_ids)
 
         endpoint_ids: dict[str, str] = {}
