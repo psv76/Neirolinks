@@ -83,15 +83,14 @@ def test_box_track_graph_is_persisted_with_stable_owners_and_no_phantom_addresse
         assert conn.scalar(select(func.count()).select_from(bus_segment)) == 0
         assert conn.exec_driver_sql("PRAGMA foreign_key_check").all() == []
 
-    no_op = DwgSyncService(database.engine).preview(
-        project_id=pid, batch=_batch(_box(), _track())
-    )
+    no_op = DwgSyncService(database.engine).preview(project_id=pid, batch=_batch(_box(), _track()))
     assert no_op.can_apply, no_op.issues
     assert not [x for x in no_op.changes if x.change_class is ChangeClass.NEW_DWG_INSERTION]
     with database.engine.connect() as conn:
-        assert dict(
-            conn.execute(select(bus_physical_node.c.physical_id, bus_physical_node.c.id))
-        ) == ids
+        assert (
+            dict(conn.execute(select(bus_physical_node.c.physical_id, bus_physical_node.c.id)))
+            == ids
+        )
         assert sorted(conn.execute(select(bus_physical_link.c.id)).scalars()) == edge_ids
 
 
@@ -110,9 +109,10 @@ def test_partial_box_scan_cannot_delete_existing_track_and_link(database):
     assert changed, preview.changes
     sync.apply_dwg_to_project(preview, selected_paths=changed, confirmed=True)
     with database.engine.connect() as conn:
-        assert [
-            (x.target_identity, x.source_reference) for x in _links(conn, pid)
-        ] == [("BOX.023", "905.000"), ("TRACK.023", "BOX.023")]
+        assert [(x.target_identity, x.source_reference) for x in _links(conn, pid)] == [
+            ("BOX.023", "905.000"),
+            ("TRACK.023", "BOX.023"),
+        ]
         assert conn.scalar(select(func.count()).select_from(bus_physical_node)) == 2
         assert conn.scalar(select(func.count()).select_from(bus_physical_link)) == 2
 
