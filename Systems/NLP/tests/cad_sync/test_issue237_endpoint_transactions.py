@@ -80,8 +80,9 @@ def test_dali_numeric_bus_outlet_persists_owner_and_explicit_edges(database):
     with database.engine.connect() as conn:
         owners = dict(
             conn.execute(
-                select(bus_endpoint.c.address, field_device.c.entity_handle)
-                .join(field_device, field_device.c.id == bus_endpoint.c.field_device_id)
+                select(bus_endpoint.c.address, field_device.c.entity_handle).join(
+                    field_device, field_device.c.id == bus_endpoint.c.field_device_id
+                )
                 .where(bus_endpoint.c.project_id == pid)
             )
         )
@@ -106,9 +107,7 @@ def test_accepted_dali_address_cannot_be_claimed_by_new_dwg_handle(database):
     proposal = sync.preview(project_id=pid, batch=_batch(substitute))
     assert proposal.can_apply, proposal.issues
     selected = {
-        c.field_path
-        for c in proposal.changes
-        if c.change_class is ChangeClass.NEW_DWG_INSERTION
+        c.field_path for c in proposal.changes if c.change_class is ChangeClass.NEW_DWG_INSERTION
     }
     assert selected
     with pytest.raises(DwgSyncError, match="BUS_POINT_ID_OWNER_CONFLICT"):
