@@ -16,8 +16,6 @@ from typing import Any
 
 from sqlalchemy import Connection, select
 
-from .project_bus_context import load_project_bus_context
-
 from nl_project_2.persistence.schema import (
     bus,
     bus_endpoint,
@@ -26,6 +24,8 @@ from nl_project_2.persistence.schema import (
     bus_segment,
     field_device,
 )
+
+from .project_bus_context import load_project_bus_context
 
 _BUS = re.compile(r"^9[0-9]{2}$")
 _ADDRESS = re.compile(r"^(9[0-9]{2})\.[0-9]{3}$")
