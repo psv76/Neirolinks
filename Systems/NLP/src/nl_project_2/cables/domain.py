@@ -175,8 +175,10 @@ def calculate_segment_length(
         level_change = abs(second.base_mark_mm - first.base_mark_mm)
         vertical_second = abs(second.mount_height_mm - second.base_mark_mm)
     elif route_method is RouteMethod.CEILING:
-        first_ceiling = first.base_mark_mm + first.room_height_m * 1000
-        second_ceiling = second.base_mark_mm + second.room_height_m * 1000
+        # MOUNT_HEIGHT and room height are relative to the finished floor.
+        # base_mark_mm is the (negative) structural base, for FLOOR only.
+        first_ceiling = first.room_height_m * 1000
+        second_ceiling = second.room_height_m * 1000
         vertical_first = abs(first_ceiling - first.mount_height_mm)
         level_change = abs(second_ceiling - first_ceiling)
         vertical_second = abs(second_ceiling - second.mount_height_mm)
