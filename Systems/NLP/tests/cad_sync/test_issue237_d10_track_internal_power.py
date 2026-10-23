@@ -89,16 +89,13 @@ def test_d10_accepted_48v_track_power_keeps_rail_member_without_cable_segment(da
     unexpected_source = [
         c for c in again.changes if c.handle == "LIGHT-A" and c.field == "CABLE_SOURCE"
     ]
-    assert not unexpected_source, [
-        (
-            change.field_path,
-            change.baseline_value,
-            change.project_value,
-            change.dwg_value,
-            change.change_class,
-        )
-        for change in unexpected_source
-    ]
+    assert len(unexpected_source) == 1
+    assert unexpected_source[0].change_class is ChangeClass.EQUAL
+    assert (
+        unexpected_source[0].baseline_value,
+        unexpected_source[0].project_value,
+        unexpected_source[0].dwg_value,
+    ) == ("TRACK.023", "TRACK.023", "TRACK.023")
 
 
 @pytest.mark.parametrize(
