@@ -34,6 +34,41 @@
 
 ## Acceptance (конкретные тесты, без будущих переопределений)
 
+### Воспроизведённый разрыв pure validator → typed payload (23.10.2026)
+
+`python -B Systems/NLP/tools/probe_issue235_passive_validator.py` выполнен на
+кандидате JSON #236. Пять загружаемых исходных модулей предварительно сверены
+с main `8f566f7a1eddb2c7eb4242dd275cdd775ca79a89`; исполняются реальные
+`load_contract`, `CadContractValidator.validate` и DTO/arithmetic, без изменения
+их кода. Пустые namespace packages намеренно обходят package `__init__`, чтобы
+не импортировать service/persistence. Это **не** проверка startup/import graph,
+Project Bus/root lookup, reconciliation, SQLite или Windows/AutoCAD.
+
+| Synthetic input | Фактический результат текущего main-кода + candidate JSON |
+| --- | --- |
+| BOX.023, BUS_ID=905, BUS_SOURCE=905.000 | Нет validation issues; normalized_attributes сохраняет 905, но typed payload.bus_id и bus_type = None |
+| Та же BOX с BUS_ID=INVALID | Нет validation issues; invalid membership также не попадает в typed payload |
+| Та же BOX с BUS_ID=905, BUS_SOURCE=906.000 | Нет cross-bus issue; typed membership отсутствует |
+| TRACK.001, CABLE_ID=301, BUS_ID=905, BUS_SOURCE=BOX.023 | Typed membership отсутствует; LAYER_FUNCTION_GROUP_MISMATCH (известный отдельный #238 scope) |
+| Адресуемый LIGHT_TRACK_DALI_48V, BUS_POINT_ID=905.001, источники TRACK.001 | BUS_SOURCE_FORMAT, BUS_SOURCE_CROSS_BUS и CABLE_SOURCE_FORMAT; typed bus_id=905/type=DALI сохранены |
+| Контроль: тот же адресуемый DALI block, BUS_SOURCE=905.000 | Нет issues; typed bus_id=905/type=DALI сохранены |
+
+**Вывод:** отсутствие issues для passive BOX не доказывает готовность импорта.
+Подмена main-контракта на candidate без изменения нормализации может пропустить
+invalid/cross-bus membership и передать в следующий слой payload без bus identity.
+Это доказательство несовместимости candidate с текущим кодом, не новый дефект
+действующего 3.0.0-контракта. Фактический Project apply/потеря сохранённых данных
+не моделировались и не утверждаются. Успешный exit probe означает
+`GAPS_REPRODUCED_NOT_ACCEPTANCE`, не успешную поддержку нового контракта.
+
+Для #237 обязательны: passive BUS_ID format/same-bus проверки; typed physical
+BOX/TRACK identity с сохранённой membership; root lookup и dependent blockers;
+typed DALI source resolution вместо строкового сравнения префикса TRACK/BOX;
+сохранение адресуемого control case и no-op/rollback/owner tests. Нельзя лечить
+passive пропуск генерацией BUS_POINT_ID или протокольного адреса, отключением
+валидации либо изменением RS485/KNX. Исходный #238 и стек #227 не заменяют
+совместную проверку. Gate 1 остаётся открыт.
+
 **Технический gate высот H1:** пользователь 23.10.2026 подтвердил действующие
 определения документа 11/AC-002/AC-033: MOUNT_HEIGHT от чистого пола, отрицательное
 основание B в настройках помещений NLP, потолок C=R×1000. Нового предметного
