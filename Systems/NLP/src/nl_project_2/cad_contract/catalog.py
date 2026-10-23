@@ -120,6 +120,15 @@ def load_contract(path: Path | None = None) -> BlockContractCatalog:
         profile = _mapping(profiles.get(profile_name), f"attribute_profiles.{profile_name}")
         device_type = family.get("device_type")
         explicit_groups = family.get("allowed_groups")
+        # The approved 48 V DALI track-light family is a LIGHT in the
+        # functional catalogue but physically belongs to the 4YY LED group.
+        # Keep the 3YY/4YY voltage boundary without changing the CAD JSON.
+        if (
+            explicit_groups is None
+            and family.get("attribute_profile") == "TRACK_DALI_LIGHT"
+            and family.get("names") == ["LIGHT_TRACK_DALI_48V"]
+        ):
+            explicit_groups = ["LIGHTING_LED"]
         if explicit_groups is not None:
             # A protocol-only BUS outlet is not an ordinary CABLE_OUTLET
             # belonging to POWER/LIGHTING/etc. Respect the contract's
