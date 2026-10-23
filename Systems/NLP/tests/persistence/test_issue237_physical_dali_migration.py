@@ -25,9 +25,7 @@ def _tables(path):
     with sqlite3.connect(path) as connection:
         return {
             row[0]
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            )
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
 
 
