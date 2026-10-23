@@ -1,4 +1,4 @@
-"""Static parity checks for candidate CAD contract 3.1.0 (#235).
+"""Static parity checks for CAD authoring target 3.2.0 (#235).
 
 This is intentionally *not* a runtime validator/AutoCAD/SQLite acceptance test.
 For production enablement, implement the code gates in Issue #237.
@@ -121,8 +121,8 @@ def check() -> None:
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
     validator.validate(data)
-    # #227 family metadata is schema-compatible without importing its runtime
-    # or adding its 72nd definition to this 71-definition candidate.
+    # #227 family metadata is schema-compatible and its 72nd definition
+    # is included in this future authoring profile, without changing runtime.
     metadata = deepcopy(data)
     metadata["block_families"][0]["bus_kind"] = "DALI"
     metadata["block_families"][0]["allowed_groups"] = ["BUS"]
@@ -156,8 +156,8 @@ def check() -> None:
             invalid["block_families"][0]["unreviewed_field"] = True
         assert not validator.is_valid(invalid), f"Schema accepted {mutation}"
 
-    assert data["contract_version"] == "3.1.0", data["contract_version"]
-    assert len(data["approved_block_names"]) == 71
+    assert data["contract_version"] == "3.2.0", data["contract_version"]
+    assert len(data["approved_block_names"]) == 72
     assert len(set(data["approved_block_names"])) == 71
     assert len(data["functional_groups"]) == 10
 
@@ -205,6 +205,16 @@ def check() -> None:
         assert actual == exact_tags(reference, name), name
         assert families[name]["attribute_profile"] == profile_name
 
+    # The bus-only 72nd physical definition is addressable; it must never
+    # steal passive DALI BUS_ID semantics or introduce an ordinary cable.
+    outlet = set(data["attribute_profiles"]["BUS_OUTLET"]["definition_required"])
+    assert "BUS_POINT_ID" in outlet and "BUS_SOURCE" in outlet
+    assert not outlet & {"BUS_ID", "CABLE_ID", "CABLE_SOURCE", "LOAD_TYPE", "PHASE"}
+    assert families["CABLE_OUTLET_BUS"]["device_type"] == "CABLE_OUTLET"
+    assert families["CABLE_OUTLET_BUS"]["allowed_groups"] == ["BUS"]
+    assert families["CABLE_OUTLET_BUS"]["bus_link_kind"] == "CABLE"
+    assert set(exact_tags(reference, "CABLE_OUTLET_BUS")) == outlet
+
     box = set(data["attribute_profiles"]["EL_BOX"]["definition_required"])
     dali = set(data["attribute_profiles"]["TRACK_DALI"]["definition_required"])
     for tags in (box, dali):
@@ -236,8 +246,8 @@ def check() -> None:
     assert "301-1" in topology and "CABLE_TRANSIT" in topology
 
     print(
-        "PASS static CAD candidate 3.1.0 parity: 71 definitions; "
-        "69 physical + 2 logical exact profiles; BUS_ID/3YY/4YY/TRANSIT invariants"
+        "PASS static CAD authoring target 3.2.0 parity: 72 definitions; "
+        "70 physical + 2 logical exact profiles; BUS_ID/3YY/4YY/TRANSIT invariants"
     )
     print("PASS JSON Schema Draft 2020-12: entire candidate and 5 negative fixtures")
     print("PASS optional #227 family metadata schema: positive + 4 negative fixtures")
