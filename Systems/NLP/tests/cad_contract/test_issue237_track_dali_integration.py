@@ -31,6 +31,9 @@ def _full_graph(make_observation, feeder: str, bus: str = "905"):
         layer="TRACK_DALI",
         cable_id=feeder,
         attributes={
+            # The fixture defaults blank cable_id to 301; force the explicit
+            # empty string too, so this really tests a missing feeder.
+            "CABLE_ID": feeder,
             "TRACK_ID": "TRACK.003",
             "BUS_ID": bus,
             "BUS_SOURCE": "BOX.003",
@@ -108,9 +111,7 @@ def test_other_tracks_keep_unique_layer_policy(block_contract, make_observation)
     assert "TRACK_DALI_POWER_GROUP_UNRESOLVED" not in issue_codes(result.issues)
 
 
-def test_wrong_project_bus_type_blocks_even_valid_power_feeder(
-    block_contract, make_observation
-):
+def test_wrong_project_bus_type_blocks_even_valid_power_feeder(block_contract, make_observation):
     result = CadContractValidator(
         block_contract,
         project_bus_kinds={"905": "KNX"},
