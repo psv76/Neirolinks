@@ -1816,8 +1816,11 @@ class DwgSyncService:
         ).mappings():
             values = dict(row["normalized_fields_json"] or {})
             identity_tag = (
-                "TRACK_ID" if str(row["block_kind"]).startswith("TRACK_") else "BOX_ID"
-                if row["block_kind"] == "EL_BOX_OUT_100x100" else ""
+                "TRACK_ID"
+                if str(row["block_kind"]).startswith("TRACK_")
+                else "BOX_ID"
+                if row["block_kind"] == "EL_BOX_OUT_100x100"
+                else ""
             )
             if not identity_tag:
                 continue
