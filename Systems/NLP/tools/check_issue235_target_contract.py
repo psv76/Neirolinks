@@ -69,7 +69,8 @@ def check() -> None:
         for name in family["names"]:
             assert name not in families, name
             families[name] = family
-    assert set(families) == set(data["approved_block_names"])
+    assert set(families) | set(data["logical_blocks"]) == set(data["approved_block_names"])
+    assert not set(families) & set(data["logical_blocks"])
     for name, profile_name in TARGETS.items():
         profile = data["attribute_profiles"][profile_name]
         actual = profile["definition_required"]
