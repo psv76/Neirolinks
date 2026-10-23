@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import pytest
 from sqlalchemy import func, select, update
 from test_issue237_passive_physical_ownership import _accept, _batch, _box, _track
 from test_issue237_project_bus_context import _insert_root, _project
 
 from nl_project_2.cad_contract import BlockDefinitionMetadata, CadObservation, load_contract
 from nl_project_2.cad_sync import ChangeClass, DwgSyncService
+from nl_project_2.persistence.migration import (
+    HEAD_REVISION,
+    SHARED_BOX_ENDPOINT_REVISION,
+    current_revision_read_only,
+    downgrade_database,
+)
 from nl_project_2.cad_sync.physical_dali_store import read_project_physical_sources
 from nl_project_2.persistence.schema import (
     bus_endpoint,
@@ -187,3 +194,17 @@ def test_canonical_project_edge_supplies_preview_and_validated_write_plan(databa
     assert plan.targets[0].tag == "BUS_SOURCE"
     assert plan.targets[0].new_value == "905.000"
     # No call to CAD execute_write_plan; no real DWG modified.
+
+
+def test_nonempty_dali_graph_cannot_be_silently_downgraded(database, tmp_path):
+    pid = _project(database)
+    _insert_root(database, pid)
+    _accept(DwgSyncService(database.engine), pid, _batch(_box(), _track()))
+    database.close()
+    backup_folder = tmp_path / "safe-downgrade"
+    with pytest.raises(RuntimeError, match="DALI_PHYSICAL_DOWNGRADE_REQUIRES_EXPLICIT_REVIEW"):
+        downgrade_database(database.path, backup_folder, target=SHARED_BOX_ENDPOINT_REVISION)
+    assert current_revision_read_only(database.path) == HEAD_REVISION
+    backups = list(backup_folder.glob("*.backup.sqlite"))
+    assert len(backups) == 1
+    assert current_revision_read_only(backups[0]) == HEAD_REVISION
