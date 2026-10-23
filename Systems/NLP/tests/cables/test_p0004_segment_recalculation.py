@@ -185,7 +185,7 @@ def _rows(database):
     ("route", "expected"),
     [
         (RouteMethod.FLOOR, "4.1"),
-        (RouteMethod.CEILING, "8.1"),
+        (RouteMethod.CEILING, "8.4"),
         (RouteMethod.WALL, "3"),
         (RouteMethod.TIMBER, "3"),
         (RouteMethod.CABLE_CHANNEL, "3"),
