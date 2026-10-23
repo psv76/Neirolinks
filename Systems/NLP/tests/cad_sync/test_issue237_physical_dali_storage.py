@@ -27,19 +27,20 @@ def _light():
     assert rule is not None
     group = contract.functional_groups["LIGHTING_LED"]
     attrs = {tag: "" for tag in rule.required_definition_attributes}
-    attrs.update(
-        DEVICE_NAME="Track 48 V light",
-        BUILDING="House",
-        ROOM="Hall",
-        MOUNT_HEIGHT="2500",
-        BUS_POINT_ID="905.001",
-        BUS_SOURCE="TRACK.023",
-        CABLE_ID="401",
-        CABLE_TYPE="TEST CABLE",
-        BOARD="B.01",
-        MOUNT_WAY="По потолку",
-        BUS_MOUNT_WAY="",
-    )
+    sample = {
+        "DEVICE_NAME": "Track 48 V light",
+        "BUILDING": "House",
+        "ROOM": "Hall",
+        "MOUNT_HEIGHT": "2500",
+        "BUS_POINT_ID": "905.001",
+        "BUS_SOURCE": "TRACK.023",
+        "CABLE_ID": "401",
+        "CABLE_TYPE": "TEST CABLE",
+        "BOARD": "B.01",
+        "MOUNT_WAY": "По потолку",
+        "BUS_MOUNT_WAY": "",
+    }
+    attrs.update({tag: value for tag, value in sample.items() if tag in attrs})
     return CadObservation.from_mapping(
         effective_name="LIGHT_TRACK_DALI_48V",
         layer=sorted(group.layers)[0],
@@ -76,7 +77,7 @@ def test_box_track_graph_is_persisted_with_stable_owners_and_no_phantom_addresse
             ("BOX.023", "905.000", "CABLE"),
             ("TRACK.023", "BOX.023", "CABLE"),
         ]
-        ids = dict(conn.execute(select(bus_physical_node.c.physical_id, bus_physical_node.c.id)))
+        ids = dict(conn.execute(select(bus_physical_node.c.physical_id, bus_physical_node.c.id)).all())
         edge_ids = sorted(conn.execute(select(bus_physical_link.c.id)).scalars())
         assert set(ids) == {"BOX.023", "TRACK.023"}
         assert conn.scalar(select(func.count()).select_from(bus_endpoint)) == 0
@@ -88,7 +89,7 @@ def test_box_track_graph_is_persisted_with_stable_owners_and_no_phantom_addresse
     assert not [x for x in no_op.changes if x.change_class is ChangeClass.NEW_DWG_INSERTION]
     with database.engine.connect() as conn:
         assert (
-            dict(conn.execute(select(bus_physical_node.c.physical_id, bus_physical_node.c.id)))
+            dict(conn.execute(select(bus_physical_node.c.physical_id, bus_physical_node.c.id)).all())
             == ids
         )
         assert sorted(conn.execute(select(bus_physical_link.c.id)).scalars()) == edge_ids
