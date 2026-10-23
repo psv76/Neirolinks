@@ -89,11 +89,10 @@ def test_dali_numeric_bus_outlet_persists_owner_and_explicit_edges(database):
     with database.engine.connect() as conn:
         owners = dict(
             conn.execute(
-                select(bus_endpoint.c.address, field_device.c.entity_handle).join(
-                    field_device, field_device.c.id == bus_endpoint.c.field_device_id
-                )
+                select(bus_endpoint.c.address, field_device.c.entity_handle)
+                .join(field_device, field_device.c.id == bus_endpoint.c.field_device_id)
                 .where(bus_endpoint.c.project_id == pid)
-            )
+            ).all()
         )
         assert owners == {"920.001": "D1", "920.002": "D2"}
         assert _edges(conn) == {("ROOT", "920.001"), ("920.001", "920.002")}
@@ -124,8 +123,9 @@ def test_accepted_dali_address_cannot_be_claimed_by_new_dwg_handle(database):
     with database.engine.connect() as conn:
         owners = list(
             conn.execute(
-                select(bus_endpoint.c.address, field_device.c.entity_handle)
-                .join(field_device, field_device.c.id == bus_endpoint.c.field_device_id)
+                select(bus_endpoint.c.address, field_device.c.entity_handle).join(
+                    field_device, field_device.c.id == bus_endpoint.c.field_device_id
+                )
             )
         )
         assert owners == [("920.001", "D1")]
