@@ -20,12 +20,13 @@ LINE_ROLE
 ROOT_ENDPOINT
 CABLE_LINK
 BUS_LINK
-BUS_ID
 BUS_TYPE
 DALI_SHORT_ADDRESS
 hardware module/port codes (A34/Port1 и т.п.)
 ```
 `DEVICE_TYPE` выводится из canonical block name. `POSTS` у `FRAME_n` также выводится из имени блока.
+
+**Исключение для пассивных DALI-узлов (план #235):** `BUS_ID=9YY` — ATTDEF у `EL_BOX_OUT_100x100` и `TRACK_DALI` вместо прежнего `BUS_POINT_ID`. У адресуемых DALI field devices `BUS_ID` по-прежнему выводится из `BUS_POINT_ID`; у RS-485 контракт не меняется. Схема идентичности и BUS_SOURCE описаны в `CURRENT_TOPOLOGY_ARCHITECTURE.md`.
 ### 2.2. `DEVICE_NAME`
 `DEVICE_NAME` сохраняется везде, где предусмотрен карточкой блока. Это свободное человекочитаемое описание конкретного изделия/исполнения и оно не считается derived только из canonical block name или каталога.
 ### 2.3. Legacy tags, отсутствующие в target definitions
@@ -54,6 +55,7 @@ BUS_LINK
 BOX.010
 331.02
 902.003/K1
+TRACK.001
 ```
 
 `902.003/K1` означает concrete physical endpoint: `<BUS_POINT_ID>/<PORT>`. У `SW_*` и `BTN_*` ATTDEF `CABLE_SOURCE` отсутствует: физический порядок общей линии задаётся `.ZZ`.
@@ -98,6 +100,8 @@ CABLE_OUTLET_FRAME_DALI
 - **Логические блоки:** `DALI_GROUP`, `ROOM_NAME`
 
 ## 4. Exact ATTDEF sets и допустимые `LOAD_TYPE`
+
+**Редакция для #235:** наборы `EL_BOX_OUT_100x100`, `TRACK_230V`, `TRACK_48V`, `TRACK_DALI` на этой ветке — целевые после контролируемого утверждения и реализации. Старые DWG не считать автоматически несовместимыми без миграционного сценария; текущий `main` ещё использует старые определения. `TRACK_ID=T.NNN` отменён, требуется `TRACK.NNN`. Точное правило форматирования/заполнения: `CURRENT_TOPOLOGY_ARCHITECTURE.md`.
 Если тег указан в `Exact ATTDEF set`, он должен существовать в canonical definition, даже если для конкретной вставки значение может быть пустым. Если тег не указан — в target definition этого блока его быть не должно.
 
 ### Рамки
@@ -695,13 +699,17 @@ COMMENT_2
 #### `TRACK_230V`
 Назначение/примечание: Физический трек 230 В; внешний вход — ordinary cable.
 
+Физическая identity участка: `TRACK_ID=TRACK.NNN` (например `TRACK.001`, единая нумерация по объекту). `TRACK_MOUNT_WAY` принимает `накладной` / `встроенный` / `подвесной` и не равен входящему кабельному `MOUNT_WAY`. `LENGTH` — фактическая длина секции в миллиметрах.
+
 **Exact ATTDEF set:**
 
-```text
+```
+text
 DEVICE_NAME
 BUILDING
 ROOM
 MOUNT_HEIGHT
+TRACK_ID
 CABLE_ID
 CABLE_TYPE
 BOARD
@@ -710,6 +718,7 @@ MOUNT_WAY
 GOFRA_TYPE
 GOFRA_COLOR
 GOFRA_ID
+TRACK_MOUNT_WAY
 LOAD_NAME
 LENGTH
 COMMENT_1
@@ -721,13 +730,17 @@ COMMENT_2
 #### `TRACK_48V`
 Назначение/примечание: Физический трек 48 В; внешний вход — ordinary cable.
 
+Физическая identity участка: `TRACK_ID=TRACK.NNN` (например `TRACK.001`, единая нумерация по объекту). `TRACK_MOUNT_WAY` принимает `накладной` / `встроенный` / `подвесной` и не равен входящему кабельному `MOUNT_WAY`. `LENGTH` — фактическая длина секции в миллиметрах.
+
 **Exact ATTDEF set:**
 
-```text
+```
+text
 DEVICE_NAME
 BUILDING
 ROOM
 MOUNT_HEIGHT
+TRACK_ID
 CABLE_ID
 CABLE_TYPE
 BOARD
@@ -736,6 +749,7 @@ MOUNT_WAY
 GOFRA_TYPE
 GOFRA_COLOR
 GOFRA_ID
+TRACK_MOUNT_WAY
 LOAD_NAME
 LENGTH
 COMMENT_1
@@ -747,13 +761,17 @@ COMMENT_2
 #### `TRACK_DALI`
 Назначение/примечание: Физический DALI-трек; отдельные external power CableSegment и DALI BusSegment.
 
+Пассивный физический трек: `TRACK_ID=TRACK.NNN`, `BUS_ID=9YY` вместо `BUS_POINT_ID`; физический upstream DALI — `BUS_SOURCE` (root `905.000`, `BOX.xxx`, `TRACK.xxx` или адресуемая точка той же шины). `TRACK_MOUNT_WAY` = `накладной` / `встроенный` / `подвесной`; `LENGTH` (мм) следует динамической длине прямой секции.
+
 **Exact ATTDEF set:**
 
-```text
+```
+text
 DEVICE_NAME
 BUILDING
 ROOM
 MOUNT_HEIGHT
+TRACK_ID
 CABLE_ID
 CABLE_TYPE
 BOARD
@@ -762,13 +780,14 @@ MOUNT_WAY
 GOFRA_TYPE
 GOFRA_COLOR
 GOFRA_ID
-BUS_POINT_ID
+BUS_ID
 BUS_SOURCE
 BUS_CABLE_TYPE
 BUS_MOUNT_WAY
 BUS_GOFRA_TYPE
 BUS_GOFRA_COLOR
 BUS_GOFRA_ID
+TRACK_MOUNT_WAY
 LOAD_NAME
 LENGTH
 COMMENT_1
@@ -1999,9 +2018,12 @@ COMMENT_2
 #### `EL_BOX_OUT_100x100`
 Назначение/примечание: Может быть physical-only, cable point, DALI point или обе topology memberships одновременно.
 
+Одна ordinary `CABLE_ID` с расключением максимум, плюс независимая пассивная DALI-принадлежность `BUS_ID` вместо `BUS_POINT_ID`. Дополнительный один ATTDEF `CABLE_TRANSIT`: список неразрезанных ordinary кабелей через `;` (`301;303`) и необязательный порядок с дефисом (`301-1;302`). Не добавляет электрическую коммутацию, пустое значение допустимо.
+
 **Exact ATTDEF set:**
 
-```text
+```
+text
 DEVICE_NAME
 BUILDING
 ROOM
@@ -2015,7 +2037,8 @@ MOUNT_WAY
 GOFRA_TYPE
 GOFRA_COLOR
 GOFRA_ID
-BUS_POINT_ID
+CABLE_TRANSIT
+BUS_ID
 BUS_SOURCE
 BUS_CABLE_TYPE
 BUS_MOUNT_WAY
