@@ -6,7 +6,9 @@ Only temporary SQLite and synthetic CAD observations. No production writes.
 from __future__ import annotations
 
 import pytest
+from sqlalchemy import select, update
 from test_issue237_project_bus_context import _insert_root, _project
+from test_sync_service import _socket
 
 from nl_project_2.cad_contract import (
     BlockDefinitionMetadata,
@@ -17,6 +19,7 @@ from nl_project_2.cad_contract import (
 )
 from nl_project_2.cad_sync import ChangeClass, DwgSyncError, DwgSyncService
 from nl_project_2.cad_sync.models import ScanProposal, SyncChange, SyncSummary
+from nl_project_2.persistence.schema import field_device
 
 
 def _outlet(*, handle="OUTLET-1", point_id="920.001", source=""):
@@ -151,3 +154,60 @@ def test_existing_bus_identity_change_cannot_apply_even_structurally(database, t
             confirmed=True,
             allow_structural=True,
         )
+
+
+def test_preview_detects_real_accepted_bus_identity_change(database):
+    """A committed field_device BUS_POINT_ID must not silently migrate by handle."""
+    pid = _project(database)
+    _insert_root(database, pid, designation="920", kind="DALI")
+    sync = DwgSyncService(database.engine)
+    first = sync.preview(project_id=pid, batch=_batch(_socket(handle="OUTLET-1")))
+    assert first.can_apply, first.issues
+    insertions = {
+        item.field_path
+        for item in first.changes
+        if item.change_class is ChangeClass.NEW_DWG_INSERTION
+    }
+    assert insertions
+    sync.apply_dwg_to_project(first, selected_paths=insertions, confirmed=True)
+    with database.engine.begin() as connection:
+        accepted = connection.execute(
+            select(field_device).where(
+                field_device.c.project_id == pid,
+                field_device.c.entity_handle == "OUTLET-1",
+                field_device.c.lifecycle == "ACTIVE",
+            )
+        ).mappings().one()
+        values = dict(accepted["normalized_fields_json"] or {})
+        values["BUS_POINT_ID"] = "920.001"
+        connection.execute(
+            update(field_device)
+            .where(field_device.c.id == accepted["id"])
+            .values(normalized_fields_json=values)
+        )
+    preview = sync.preview(
+        project_id=pid,
+        batch=_batch(_outlet(point_id="920.004", source="920.000")),
+    )
+    changed = [
+        item
+        for item in preview.changes
+        if item.handle == "OUTLET-1" and item.field == "BUS_POINT_ID"
+    ]
+    assert len(changed) == 1, preview.changes
+    assert changed[0].change_class is ChangeClass.IDENTITY_COLLISION
+    assert changed[0].detail_status == "STRUCTURAL_IDENTITY_REVIEW"
+    with pytest.raises(DwgSyncError, match="BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION"):
+        sync.apply_dwg_to_project(
+            preview,
+            selected_paths={changed[0].field_path},
+            confirmed=True,
+            allow_structural=True,
+        )
+    with database.engine.connect() as connection:
+        accepted_after = connection.execute(
+            select(field_device.c.normalized_fields_json).where(
+                field_device.c.id == accepted["id"]
+            )
+        ).scalar_one()
+    assert accepted_after["BUS_POINT_ID"] == "920.001"
