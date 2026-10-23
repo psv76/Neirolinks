@@ -1919,9 +1919,7 @@ class DwgSyncService:
                 ).scalars()
             )
             if accepted_points and accepted_points != {link.track_id}:
-                raise DwgSyncError(
-                    f"TRACK_POWER_LEGACY_POINT_REQUIRES_REVIEW:{link.track_id}"
-                )
+                raise DwgSyncError(f"TRACK_POWER_LEGACY_POINT_REQUIRES_REVIEW:{link.track_id}")
         internal_by_handle = {link.light_handle: link for link in internal_track_power}
         point_keys = dict(snapshot.point_key_by_handle)
         internal_point_keys = {
