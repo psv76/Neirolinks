@@ -180,46 +180,46 @@ def persist_selected_physical_graph(
     for plan in physical:
         # Accepted field_device is the authoritative selected field evidence.
         owner_id = device_ids[plan.handle]
-        fields = connection.scalar(
+        fields = connection.execute(
             select(field_device.c.normalized_fields_json).where(
                 field_device.c.id == owner_id,
                 field_device.c.project_id == project_id,
                 field_device.c.lifecycle == "ACTIVE",
             )
-        )
+        ).scalar_one_or_none()
         if not fields or str(fields.get("BUS_ID") or "").strip() != plan.bus_id:
             raise PhysicalDaliTopologyError(f"BUS_PHYSICAL_OWNER_STALE:{plan.physical_id}")
         if str(fields.get("BUS_SOURCE") or "").strip() != plan.source:
             raise PhysicalDaliTopologyError(f"BUS_PHYSICAL_SOURCE_STALE:{plan.physical_id}")
-        target = connection.scalar(
+        target = connection.execute(
             select(bus_physical_node.c.id).where(
                 bus_physical_node.c.project_id == project_id,
                 bus_physical_node.c.bus_id == buses[plan.bus_id]["id"],
                 bus_physical_node.c.field_device_id == owner_id,
             )
-        )
+        ).scalar_one_or_none()
         if target is None:
             raise PhysicalDaliTopologyError(f"BUS_PHYSICAL_ID_NOT_FOUND:{plan.physical_id}")
         targets.append((plan.bus_id, "PHYSICAL", target, plan.source, "CABLE"))
     for plan in addressed:
         owner_id = device_ids[plan.handle]
-        fields = connection.scalar(
+        fields = connection.execute(
             select(field_device.c.normalized_fields_json).where(
                 field_device.c.id == owner_id,
                 field_device.c.project_id == project_id,
                 field_device.c.lifecycle == "ACTIVE",
             )
-        )
+        ).scalar_one_or_none()
         if not fields or str(fields.get("BUS_SOURCE") or "").strip() != plan.source:
             raise PhysicalDaliTopologyError(f"BUS_SOURCE_STALE:{plan.point_id}")
-        endpoint = connection.scalar(
+        endpoint = connection.execute(
             select(bus_endpoint.c.id).where(
                 bus_endpoint.c.project_id == project_id,
                 bus_endpoint.c.bus_id == buses[plan.bus_id]["id"],
                 bus_endpoint.c.field_device_id == owner_id,
                 bus_endpoint.c.address == plan.point_id,
             )
-        )
+        ).scalar_one_or_none()
         if endpoint is None:
             raise PhysicalDaliTopologyError(f"BUS_POINT_OWNER_NOT_FOUND:{plan.point_id}")
         targets.append((plan.bus_id, "ADDRESSED", endpoint, plan.source, plan.connection_kind))
