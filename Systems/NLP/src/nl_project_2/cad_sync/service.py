@@ -64,6 +64,7 @@ from nl_project_2.persistence.schema import (
 )
 from nl_project_2.persistence.uow import UnitOfWork
 
+from .project_bus_context import load_project_bus_context
 from .models import (
     ChangeClass,
     DwgScanProgress,
@@ -82,7 +83,6 @@ from .reconciliation import (
     normalize_validated_snapshot,
     reconcile_snapshot_edge_projections,
 )
-from .project_bus_context import load_project_bus_context
 from .selection import atomic_line_import_groups
 
 PROJECT_TO_DWG_ALLOW_LIST = frozenset(
