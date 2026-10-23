@@ -1,0 +1,23 @@
+name: NLP 235 CAD contract parity (candidate)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/nlp-235-contract-parity.yml'
+      - 'Systems/NLP/resources/autocad/block_contract.json'
+      - 'Systems/NLP/resources/autocad/block_contract.schema.json'
+      - 'Systems/NLP/docs/autocad/**'
+      - 'Systems/NLP/tools/check_issue235_target_contract.py'
+  workflow_dispatch:
+
+jobs:
+  target-contract-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify candidate CAD human/machine parity (not runtime acceptance)
+        run: python Systems/NLP/tools/check_issue235_target_contract.py
