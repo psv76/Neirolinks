@@ -35,27 +35,17 @@ def check() -> None:
         )
         return group, issue_codes(issues)
 
-    assert evaluate("TRACK_DALI", "TRACK_DALI", "301", bus_id="905") == (
-        "LIGHTING_230V", set()
-    )
-    assert evaluate("TRACK_DALI", "TRACK_DALI", "401", bus_id="905") == (
-        "LIGHTING_LED", set()
-    )
-    assert evaluate("TRACK_DALI", "TRACK_DALI", "301.01", bus_id="905") == (
-        "LIGHTING_230V", set()
-    )
+    assert evaluate("TRACK_DALI", "TRACK_DALI", "301", bus_id="905") == ("LIGHTING_230V", set())
+    assert evaluate("TRACK_DALI", "TRACK_DALI", "401", bus_id="905") == ("LIGHTING_LED", set())
+    assert evaluate("TRACK_DALI", "TRACK_DALI", "301.01", bus_id="905") == ("LIGHTING_230V", set())
     for bad in ("", "501", "foo", "301-1"):
         group, errors = evaluate("TRACK_DALI", "TRACK_DALI", bad, bus_id="905")
         assert group is None
         assert "TRACK_DALI_POWER_GROUP_UNRESOLVED" in errors
 
     # No change to the unambiguous layer policy of other physical blocks.
-    assert evaluate("TRACK_230V", "TRACK_230V", "301") == (
-        "LIGHTING_230V", set()
-    )
-    assert evaluate("TRACK_48V", "TRACK_48V", "401") == (
-        "LIGHTING_LED", set()
-    )
+    assert evaluate("TRACK_230V", "TRACK_230V", "301") == ("LIGHTING_230V", set())
+    assert evaluate("TRACK_48V", "TRACK_48V", "401") == ("LIGHTING_LED", set())
     group, issues = evaluate("TRACK_DALI", "TRACK_230V", "301", bus_id="905")
     # TRACK_230V layer still maps only to the 3YY context; this must not
     # cause a cross-family inference from DALI membership.
