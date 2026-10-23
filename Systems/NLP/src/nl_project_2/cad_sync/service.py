@@ -2490,9 +2490,7 @@ class DwgSyncService:
                     plan.point_id in endpoint_by_address
                     and owner_by_address[plan.point_id] != device_id
                 ):
-                    raise DwgSyncError(
-                        f"BUS_POINT_ID_OWNER_CONFLICT:{designation}:{plan.point_id}"
-                    )
+                    raise DwgSyncError(f"BUS_POINT_ID_OWNER_CONFLICT:{designation}:{plan.point_id}")
 
             inserted_endpoint = False
             for plan in plans:
