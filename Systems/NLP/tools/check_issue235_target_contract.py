@@ -158,7 +158,7 @@ def check() -> None:
 
     assert data["contract_version"] == "3.2.0", data["contract_version"]
     assert len(data["approved_block_names"]) == 72
-    assert len(set(data["approved_block_names"])) == 71
+    assert len(set(data["approved_block_names"])) == 72
     assert len(data["functional_groups"]) == 10
 
     # Catch forbidden-vs-declared contradictions before runtime work begins.
