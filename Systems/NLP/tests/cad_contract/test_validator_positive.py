@@ -17,9 +17,10 @@ def test_every_approved_name_has_a_valid_metadata_observation(
     observations = (observation,)
     if block_contract.block(name).key_count:
         observations += (make_observation("DALI_GROUP", handle="D1"),)
-    result = CadContractValidator(block_contract).validate(
-        CadObservationBatch("doc-all-names", observations)
-    )
+    result = CadContractValidator(
+        block_contract,
+        project_bus_kinds={"901": "DALI"} if name == "CABLE_OUTLET_BUS" else None,
+    ).validate(CadObservationBatch("doc-all-names", observations))
     assert result.is_acceptable, (name, result.issues)
 
 

@@ -19,7 +19,9 @@ from nl_project_2.cad_contract import (
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = load_contract(ROOT / "resources/autocad/block_contract.json")
-VALIDATOR = CadContractValidator(CATALOG)
+VALIDATOR = CadContractValidator(
+    CATALOG, project_bus_kinds={"905": "DALI"}, project_bus_roots={"905.000"}
+)
 
 
 def validate(name: str, layer: str, values: dict[str, str]):
