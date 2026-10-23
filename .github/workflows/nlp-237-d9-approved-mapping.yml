@@ -6,6 +6,7 @@ on:
       - '.github/workflows/nlp-237-d9-approved-mapping.yml'
       - 'Systems/NLP/src/nl_project_2/cad_sync/approved_dali_mapping.py'
       - 'Systems/NLP/tests/cad_sync/test_issue237_d9_approved_mapping.py'
+      - 'Systems/NLP/docs/engineering/ISSUE_237_D9_APPROVED_LEGACY_DALI_MAPPING.md'
   workflow_dispatch:
 
 permissions:
