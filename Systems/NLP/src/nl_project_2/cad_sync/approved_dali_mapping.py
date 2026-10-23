@@ -115,6 +115,28 @@ def _preview_from_audit(
         for row in selected
     ):
         raise LegacyDaliMappingError("DALI_MAPPING_PARENT_NOT_SELECTED_OR_ACCEPTED")
+    # Traverse the *typed* dependency chain, not just BOX/TRACK ancestry.
+    # A physical BOX fed from 9YY.ZZZ whose addressed BUS_SOURCE loops through
+    # another TRACK could otherwise create an accepted mixed DALI cycle.
+    by_identity = {
+        (row.bus_designation, row.identity): row
+        for row in audit.rows
+        if row.identity and row.disposition != "REVIEW"
+    }
+    for row in selected:
+        cursor = row
+        seen: set[tuple[str, str]] = set()
+        while True:
+            key = (cursor.bus_designation, cursor.identity)
+            if key in seen:
+                raise LegacyDaliMappingError("DALI_MAPPING_TOPOLOGY_CYCLE")
+            seen.add(key)
+            parent = by_identity.get((cursor.bus_designation, cursor.source))
+            if parent is None:
+                break
+            if parent.disposition == "CANDIDATE" and parent not in selected:
+                raise LegacyDaliMappingError("DALI_MAPPING_PARENT_NOT_SELECTED_OR_ACCEPTED")
+            cursor = parent
     actions: list[LegacyDaliMappingAction] = []
     for row in selected:
         operation = (
