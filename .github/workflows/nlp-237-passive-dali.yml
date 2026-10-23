@@ -28,5 +28,6 @@ jobs:
         run: |
           python -m compileall -q Systems/NLP/src/nl_project_2/cad_contract/validator.py Systems/NLP/tools/check_issue237_passive_dali_membership.py
           python -m ruff check Systems/NLP/src/nl_project_2/cad_contract/validator.py Systems/NLP/tools/check_issue237_passive_dali_membership.py
+          python -m ruff format --check Systems/NLP/src/nl_project_2/cad_contract/validator.py Systems/NLP/tools/check_issue237_passive_dali_membership.py
       - name: Run focused synthetic DALI membership smoke (no DB or CAD)
         run: PYTHONPATH=Systems/NLP/src python Systems/NLP/tools/check_issue237_passive_dali_membership.py
