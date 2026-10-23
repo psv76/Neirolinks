@@ -76,6 +76,11 @@ from .models import (
     WriteExecutionReceipt,
     WriteResult,
 )
+from .physical_dali_store import (
+    PhysicalDaliTopologyError,
+    persist_selected_physical_graph,
+    read_project_physical_sources,
+)
 from .project_bus_context import load_project_bus_context
 from .reconciliation import (
     ROUTE_FIELDS,
@@ -296,6 +301,7 @@ class DwgSyncService:
             project_owner_values = _load_project_owner_values(
                 connection,
                 project_id=project_id,
+                binding_id=binding_id,
                 snapshot=snapshot,
                 devices=devices,
                 baselines=baselines,
@@ -1872,6 +1878,18 @@ class DwgSyncService:
             device_ids=device_ids,
             active_handles=active_handles,
         )
+        try:
+            persist_selected_physical_graph(
+                uow,
+                project_id=project_id,
+                snapshot=snapshot,
+                device_ids=device_ids,
+                active_handles=active_handles,
+            )
+        except PhysicalDaliTopologyError as exc:
+            # Preserve the service's normal error contract; UnitOfWork rolls
+            # back all new devices and links on any topology rejection.
+            raise DwgSyncError(str(exc)) from exc
         recalculate_bus_segments(uow, project_id, bus_ids=affected_bus_ids)
 
         endpoint_ids: dict[str, str] = {}
@@ -2617,6 +2635,21 @@ class DwgSyncService:
             ordered = sorted(plans, key=lambda plan: int(plan.point_id.rsplit(".", 1)[1]))
             for plan in ordered:
                 target_endpoint = endpoint_by_address[plan.point_id]
+                if plan.bus_kind == "DALI" and (plan.source or "").startswith(("BOX.", "TRACK.")):
+                    # Physical parents live in bus_physical_link, not a fake
+                    # root-sourced BusSegment with guessed metres/conduit.
+                    old_segment = uow.execute(
+                        select(bus_segment.c.id).where(
+                            bus_segment.c.project_id == project_id,
+                            bus_segment.c.bus_id == bus_row["id"],
+                            bus_segment.c.target_endpoint_id == target_endpoint,
+                        )
+                    ).scalar_one_or_none()
+                    if old_segment is not None:
+                        raise DwgSyncError(
+                            f"BUS_PHYSICAL_LEGACY_SEGMENT_REQUIRES_REVIEW:{plan.point_id}"
+                        )
+                    continue
                 if plan.bus_kind == "RS485":
                     source_endpoint = rs485_upstream[plan.point_id]
                 elif plan.source == f"{designation}.000":
@@ -3927,6 +3960,7 @@ def _load_project_owner_values(
     connection,
     *,
     project_id: str,
+    binding_id: str | None,
     snapshot: NormalizedCadSnapshot,
     devices: dict[str, dict[str, Any]],
     baselines: dict[str, Any],
@@ -4069,6 +4103,19 @@ def _load_project_owner_values(
             source_value = row["source_identity"] or ""
         canonical_sources[f"edge:{target_identity}:CABLE_SOURCE"] = source_value
 
+    # For DALI physical links the Project-owned typed graph, not stale
+    # field_device evidence, is canonical on the Project→DWG side.
+    physical_sources = (
+        {
+            row.target_handle: row.source_reference
+            for row in read_project_physical_sources(
+                connection, project_id=project_id, binding_id=binding_id
+            )
+        }
+        if binding_id
+        else {}
+    )
+
     key_values = {
         (row["entity_handle"], row["key_tag"]): row["functional_target_text"] or ""
         for row in connection.execute(
@@ -4145,6 +4192,8 @@ def _load_project_owner_values(
                     result[fact.owner_path] = (
                         canonical_value if canonical_value is not None else fields.get(fact.field)
                     )
+                elif fact.field == "BUS_SOURCE" and fact.primary_handle in physical_sources:
+                    result[fact.owner_path] = physical_sources[fact.primary_handle]
                 else:
                     result[fact.owner_path] = fields.get(fact.field)
     return result

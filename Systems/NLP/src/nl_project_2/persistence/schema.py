@@ -1544,6 +1544,91 @@ Index(
     sqlite_where=bus_endpoint.c.address.is_not(None),
 )
 
+# Revision 000000000015: typed, non-addressable physical DALI graph.
+# Never reuse bus_endpoint protocol addresses for a passive BOX/TRACK.
+bus_physical_node = Table(
+    "bus_physical_node",
+    metadata,
+    technical_id(),
+    project_id(),
+    Column("bus_id", String(36), nullable=False),
+    Column("field_device_id", String(36), nullable=False),
+    Column("physical_id", String(120), nullable=False),
+    Column("physical_kind", String(16), nullable=False),
+    *timestamps_and_version(),
+    ForeignKeyConstraint(["bus_id", "project_id"], ["bus.id", "bus.project_id"]),
+    ForeignKeyConstraint(
+        ["field_device_id", "project_id"], ["field_device.id", "field_device.project_id"]
+    ),
+    UniqueConstraint("project_id", "physical_id"),
+    UniqueConstraint("bus_id", "field_device_id"),
+    UniqueConstraint("id", "project_id"),
+    uuid_check(),
+    enum_check("physical_kind", ("BOX", "TRACK"), "physical_kind"),
+)
+
+# Exact physical graph edge. ROOT has no source endpoint; PHYSICAL and ADDRESSED
+# have exactly one typed source. The target is either a passive node or an
+# addressable endpoint. Internal TRACK edges carry no fabricated route/length.
+bus_physical_link = Table(
+    "bus_physical_link",
+    metadata,
+    technical_id(),
+    project_id(),
+    Column("bus_id", String(36), nullable=False),
+    Column("source_kind", String(16), nullable=False),
+    Column("source_physical_node_id", String(36)),
+    Column("source_bus_endpoint_id", String(36)),
+    Column("target_kind", String(16), nullable=False),
+    Column("target_physical_node_id", String(36)),
+    Column("target_bus_endpoint_id", String(36)),
+    Column("link_kind", String(16), nullable=False),
+    *timestamps_and_version(),
+    ForeignKeyConstraint(["bus_id", "project_id"], ["bus.id", "bus.project_id"]),
+    ForeignKeyConstraint(
+        ["source_physical_node_id", "project_id"],
+        ["bus_physical_node.id", "bus_physical_node.project_id"],
+    ),
+    ForeignKeyConstraint(
+        ["target_physical_node_id", "project_id"],
+        ["bus_physical_node.id", "bus_physical_node.project_id"],
+    ),
+    ForeignKeyConstraint(
+        ["source_bus_endpoint_id", "project_id"], ["bus_endpoint.id", "bus_endpoint.project_id"]
+    ),
+    ForeignKeyConstraint(
+        ["target_bus_endpoint_id", "project_id"], ["bus_endpoint.id", "bus_endpoint.project_id"]
+    ),
+    UniqueConstraint("bus_id", "target_physical_node_id"),
+    UniqueConstraint("bus_id", "target_bus_endpoint_id"),
+    UniqueConstraint("id", "project_id"),
+    uuid_check(),
+    enum_check("source_kind", ("ROOT", "PHYSICAL", "ADDRESSED"), "source_kind"),
+    enum_check("target_kind", ("PHYSICAL", "ADDRESSED"), "target_kind"),
+    enum_check("link_kind", ("CABLE", "TRACK"), "link_kind"),
+    CheckConstraint(
+        "(source_kind = 'ROOT' AND source_physical_node_id IS NULL "
+        "AND source_bus_endpoint_id IS NULL) OR "
+        "(source_kind = 'PHYSICAL' AND source_physical_node_id IS NOT NULL "
+        "AND source_bus_endpoint_id IS NULL) OR "
+        "(source_kind = 'ADDRESSED' AND source_physical_node_id IS NULL "
+        "AND source_bus_endpoint_id IS NOT NULL)",
+        name="typed_physical_source",
+    ),
+    CheckConstraint(
+        "(target_kind = 'PHYSICAL' AND target_physical_node_id IS NOT NULL "
+        "AND target_bus_endpoint_id IS NULL) OR "
+        "(target_kind = 'ADDRESSED' AND target_physical_node_id IS NULL "
+        "AND target_bus_endpoint_id IS NOT NULL)",
+        name="typed_physical_target",
+    ),
+    CheckConstraint(
+        "target_physical_node_id IS NULL OR source_physical_node_id IS NULL "
+        "OR target_physical_node_id <> source_physical_node_id",
+        name="no_self_physical_link",
+    ),
+)
+
 bus_branch = Table(
     "bus_branch",
     metadata,
@@ -1922,6 +2007,7 @@ TOPOLOGY_TABLE_NAMES = frozenset(
         "conduit_segment_assignment",
     }
 )
+PHYSICAL_DALI_TABLE_NAMES = frozenset({"bus_physical_node", "bus_physical_link"})
 # Revision 000000000002 imports this set, so it must never absorb later tables.
 FEATURE_TABLE_NAMES = (
     frozenset(metadata.tables)
@@ -1929,6 +2015,7 @@ FEATURE_TABLE_NAMES = (
     - DALI_GROUP_TABLE_NAMES
     - BULK_OPERATION_TABLE_NAMES
     - TOPOLOGY_TABLE_NAMES
+    - PHYSICAL_DALI_TABLE_NAMES
 )
 HEAD_TABLE_NAMES = frozenset(metadata.tables)
 
