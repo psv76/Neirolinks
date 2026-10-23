@@ -32,12 +32,12 @@ jobs:
           python -m pip install 'SQLAlchemy==2.0.51' 'alembic==1.18.5' \
             'pytest==9.1.1' 'pytest-qt==4.5.0' 'PySide6==6.11.1' \
             'ruff==0.15.22'
-      - name: Static lint and inspect exact formatter delta
+      - name: Static lint and strict formatter
         run: |
           python -m ruff check src/nl_project_2/cad_sync/approved_dali_mapping.py \
             tests/cad_sync/test_issue237_d9_approved_mapping.py
-          python -m ruff format --diff src/nl_project_2/cad_sync/approved_dali_mapping.py \
-            tests/cad_sync/test_issue237_d9_approved_mapping.py || true
+          python -m ruff format --check src/nl_project_2/cad_sync/approved_dali_mapping.py \
+            tests/cad_sync/test_issue237_d9_approved_mapping.py
       - name: D9 approval, backup and atomic temporary SQLite regressions
         env:
           PYTHONPATH: src
