@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from test_issue237_legacy_dali_audit import _forget_typed_graph, _set_fields, _setup
 from test_issue237_project_bus_context import _insert_root, _project
 
@@ -18,8 +18,6 @@ from nl_project_2.cad_sync.legacy_dali_audit import audit_accepted_dali_project
 from nl_project_2.cad_sync.physical_dali_store import read_project_physical_sources
 from nl_project_2.persistence.migration import HEAD_REVISION, current_revision_read_only
 from nl_project_2.persistence.schema import (
-    bus,
-    bus_endpoint,
     bus_physical_link,
     bus_physical_node,
     field_device,
