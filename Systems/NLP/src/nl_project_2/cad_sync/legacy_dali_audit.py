@@ -150,6 +150,26 @@ def audit_accepted_dali_project(connection: Connection, *, project_id: str) -> L
     for item in candidates:
         if item["passive"] and item["identity"]:
             physical_by_identity[item["identity"]].append(item)
+    # Detect physical-only cycles in *accepted legacy evidence*. Never
+    # repair the cycle by guessing an upstream or allowing a DFS root.
+    cyclic: set[str] = set()
+    for item in candidates:
+        if not item["passive"] or not item["identity"]:
+            continue
+        seen: list[str] = []
+        cursor = item
+        while True:
+            identity = cursor["identity"]
+            if identity in seen:
+                cyclic.update(seen[seen.index(identity):])
+                break
+            seen.append(identity)
+            parent_identity = cursor["source"]
+            parents = physical_by_identity.get(parent_identity, [])
+            if len(parents) != 1 or parents[0]["bus"] != cursor["bus"]:
+                break
+            cursor = parents[0]
+
     results: list[LegacyDaliReviewRow] = []
     for candidate in candidates:
         row = candidate["row"]
@@ -173,6 +193,8 @@ def audit_accepted_dali_project(connection: Connection, *, project_id: str) -> L
                 reasons.add("PHYSICAL_ID_MISSING_OR_MALFORMED")
             if physical_identity_counts[identity] > 1:
                 reasons.add("PHYSICAL_ID_DUPLICATE_ACROSS_ACCEPTED")
+            if identity in cyclic:
+                reasons.add("BUS_SOURCE_CYCLE")
             if address:
                 reasons.add("PASSIVE_HAS_PROTOCOL_ADDRESS")
         else:
