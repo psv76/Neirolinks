@@ -1,0 +1,32 @@
+name: NLP 237 passive DALI membership (D1 targeted)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/nlp-237-passive-dali.yml'
+      - 'Systems/NLP/src/nl_project_2/cad_contract/validator.py'
+      - 'Systems/NLP/tools/check_issue237_passive_dali_membership.py'
+      - 'Systems/NLP/resources/autocad/block_contract.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  passive-dali-membership:
+    name: Passive BUS_ID typed payload and format smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install minimal import and lint dependencies
+        run: python -m pip install 'SQLAlchemy>=2,<3' 'alembic>=1.13,<2' 'ruff>=0.15,<1'
+      - name: Check Python syntax and lint
+        run: |
+          python -m compileall -q Systems/NLP/src/nl_project_2/cad_contract/validator.py Systems/NLP/tools/check_issue237_passive_dali_membership.py
+          python -m ruff check Systems/NLP/src/nl_project_2/cad_contract/validator.py Systems/NLP/tools/check_issue237_passive_dali_membership.py
+      - name: Run focused synthetic DALI membership smoke (no DB or CAD)
+        run: PYTHONPATH=Systems/NLP/src python Systems/NLP/tools/check_issue237_passive_dali_membership.py
