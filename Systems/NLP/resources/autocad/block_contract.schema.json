@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "nl-project-3/autocad/block-contract.schema.json",
-  "title": "NL Project 3.0 AutoCAD plan-block contract (candidate 3.1.0)",
+  "title": "NL Project 3.0 AutoCAD plan-block contract (authoring target 3.2.0)",
   "type": "object",
   "additionalProperties": false,
   "required": [
