@@ -40,10 +40,12 @@ def _light():
         "MOUNT_HEIGHT": "2500",
         "BUS_POINT_ID": "905.001",
         "BUS_SOURCE": "TRACK.023",
-        "CABLE_ID": "401",
-        "CABLE_TYPE": "TEST CABLE",
-        "BOARD": "B.01",
-        "MOUNT_WAY": "По потолку",
+        # D7 isolates physical DALI membership. The 48 V track feeder is
+        # a separate power graph and must not be inferred from this light.
+        "CABLE_ID": "",
+        "CABLE_TYPE": "",
+        "BOARD": "",
+        "MOUNT_WAY": "",
         "BUS_MOUNT_WAY": "",
     }
     attrs.update({tag: value for tag, value in sample.items() if tag in attrs})
@@ -94,10 +96,7 @@ def test_box_track_graph_is_persisted_with_stable_owners_and_no_phantom_addresse
     assert no_op.can_apply, no_op.issues
     assert not [x for x in no_op.changes if x.change_class is ChangeClass.NEW_DWG_INSERTION]
     with database.engine.connect() as conn:
-        assert (
-            _node_ids(conn)
-            == ids
-        )
+        assert _node_ids(conn) == ids
         assert sorted(conn.execute(select(bus_physical_link.c.id)).scalars()) == edge_ids
 
 
@@ -175,13 +174,11 @@ def test_canonical_project_edge_supplies_preview_and_validated_write_plan(databa
         )
     proposal = sync.preview(project_id=pid, batch=batch)
     candidates = [
-        row
-        for row in proposal.changes
-        if row.handle == "TRACK-A" and row.field == "BUS_SOURCE"
+        row for row in proposal.changes if row.handle == "TRACK-A" and row.field == "BUS_SOURCE"
     ]
     assert len(candidates) == 1, proposal.changes
     change = candidates[0]
-    assert change.change_class is ChangeClass.PROJECT_CHANGED
+    assert change.change_class is ChangeClass.IDENTITY_COLLISION
     assert change.project_value == "905.000"
     assert change.dwg_value == "BOX.023"
     plan = sync.plan_project_to_dwg(proposal, selected_paths={change.field_path})
