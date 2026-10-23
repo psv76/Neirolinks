@@ -1805,7 +1805,11 @@ class DwgSyncService:
             return
         accepted: dict[str, list[tuple[str, dict[str, str]]]] = defaultdict(list)
         for row in uow.execute(
-            select(field_device.c.id, field_device.c.block_kind, field_device.c.normalized_fields_json).where(
+            select(
+                field_device.c.id,
+                field_device.c.block_kind,
+                field_device.c.normalized_fields_json,
+            ).where(
                 field_device.c.project_id == project_id,
                 field_device.c.lifecycle == "ACTIVE",
             )
