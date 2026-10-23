@@ -1,4 +1,4 @@
-name: NLP 237 Project-owned DALI root context (D2 preview gate)
+name: NLP 237 DALI roots and TRACK voltage integration
 
 on:
   pull_request:
@@ -7,6 +7,10 @@ on:
       - 'Systems/NLP/src/nl_project_2/cad_sync/project_bus_context.py'
       - 'Systems/NLP/src/nl_project_2/cad_sync/service.py'
       - 'Systems/NLP/tests/cad_sync/test_issue237_project_bus_context.py'
+      - 'Systems/NLP/tests/cad_contract/test_issue237_track_dali_integration.py'
+      - 'Systems/NLP/tests/cad_contract/test_issue237_dali_graph.py'
+      - 'Systems/NLP/src/nl_project_2/cad_contract/validator.py'
+      - 'Systems/NLP/tools/check_issue237_track_dali_voltage.py'
   workflow_dispatch:
 
 permissions:
@@ -14,7 +18,7 @@ permissions:
 
 jobs:
   project-root-snapshot:
-    name: Root/type snapshot and staleness regression on isolated SQLite
+    name: Graph, root/type and feeder selection (SQLite/synthetic)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -38,10 +42,16 @@ jobs:
         run: |
           python -m ruff check src/nl_project_2/cad_sync/service.py \
             src/nl_project_2/cad_sync/project_bus_context.py \
-            tests/cad_sync/test_issue237_project_bus_context.py
+            src/nl_project_2/cad_contract/validator.py \
+            tests/cad_sync/test_issue237_project_bus_context.py \
+            tests/cad_contract/test_issue237_track_dali_integration.py \
+            tools/check_issue237_track_dali_voltage.py
           python -m ruff format --check src/nl_project_2/cad_sync/service.py \
             src/nl_project_2/cad_sync/project_bus_context.py \
-            tests/cad_sync/test_issue237_project_bus_context.py
+            src/nl_project_2/cad_contract/validator.py \
+            tests/cad_sync/test_issue237_project_bus_context.py \
+            tests/cad_contract/test_issue237_track_dali_integration.py \
+            tools/check_issue237_track_dali_voltage.py
       - name: Project-scoped roots with real temporary SQLite and graph tests
         env:
           PYTHONPATH: src
@@ -50,4 +60,9 @@ jobs:
           python -m pytest -q \
             tests/cad_sync/test_issue237_project_bus_context.py \
             tests/cad_contract/test_issue237_dali_graph.py \
+            tests/cad_contract/test_issue237_track_dali_integration.py \
             tests/cad_sync/test_sync_service.py::test_timber_route_is_accepted_and_persisted_as_segment_data
+      - name: TRACK_DALI original #238 unit smoke
+        env:
+          PYTHONPATH: src
+        run: python tools/check_issue237_track_dali_voltage.py
