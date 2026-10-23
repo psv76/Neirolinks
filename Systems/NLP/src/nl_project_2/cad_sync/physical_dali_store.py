@@ -276,7 +276,7 @@ def persist_selected_physical_graph(
 
 
 def read_project_physical_sources(
-    connection: Connection, *, project_id: str
+    connection: Connection, *, project_id: str, binding_id: str | None = None
 ) -> tuple[PhysicalDaliSource, ...]:
     """Read canonical typed physical source references for Project→DWG preview.
 
@@ -307,7 +307,11 @@ def read_project_physical_sources(
     devices = {
         row["id"]: row
         for row in connection.execute(
-            select(field_device.c.id, field_device.c.entity_handle).where(
+            select(
+                field_device.c.id,
+                field_device.c.entity_handle,
+                field_device.c.dwg_document_binding_id,
+            ).where(
                 field_device.c.project_id == project_id,
                 field_device.c.lifecycle == "ACTIVE",
             )
@@ -342,6 +346,8 @@ def read_project_physical_sources(
         owner = devices.get(owner_id)
         if owner is None or not owner["entity_handle"]:
             raise PhysicalDaliTopologyError(f"DALI_PHYSICAL_TARGET_OWNER_MISSING:{target_identity}")
+        if binding_id is not None and owner["dwg_document_binding_id"] != binding_id:
+            continue
         result.append(
             PhysicalDaliSource(
                 target_identity,
