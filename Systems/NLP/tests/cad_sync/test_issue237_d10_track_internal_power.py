@@ -186,7 +186,10 @@ def test_pre_d10_track_base_point_requires_explicit_legacy_review(database):
                 cable_point.c.project_id == pid,
                 cable_point.c.id.in_(
                     select(cable_point_field_device.c.cable_point_id)
-                    .join(field_device, field_device.c.id == cable_point_field_device.c.field_device_id)
+                    .join(
+                        field_device,
+                        field_device.c.id == cable_point_field_device.c.field_device_id,
+                    )
                     .where(field_device.c.block_kind == "TRACK_DALI")
                 ),
             )
