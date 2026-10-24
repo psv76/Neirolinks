@@ -126,8 +126,10 @@ def test_timbers_have_no_legacy_half_metre_added_per_span():
     }
     decisions = {
         span.physical_key: ApprovedSpanRoute(
-            mount_way="В брусе", gofra_type="ППЛ20",
-            gofra_id=f"{idx:03d}.PP20", confirmed=True,
+            mount_way="В брусе",
+            gofra_type="ППЛ20",
+            gofra_id=f"{idx:03d}.PP20",
+            confirmed=True,
         )
         for idx, span in enumerate(route.spans, start=1)
     }
@@ -156,7 +158,9 @@ def test_no_guessed_route_or_conduit_when_evidence_missing(problem):
         locations["BOX.010"] = _where(999, 999)
     elif problem == "conduit":
         decisions[route.spans[0].physical_key] = ApprovedSpanRoute(
-            mount_way="По полу", gofra_type="ПНД25", confirmed=True,
+            mount_way="По полу",
+            gofra_type="ПНД25",
+            confirmed=True,
         )
     result = measure_physical_transit(
         (route,), locations=locations, decisions=decisions, policy=_policy()
@@ -170,8 +174,11 @@ def test_repeated_conduit_id_across_different_boundaries_refuses_entire_line():
     route = _route(_transit_box("A", "301", "BOX.010"))
     decisions = _decisions(route)
     decisions[route.spans[1].physical_key] = ApprovedSpanRoute(
-        mount_way="В стене", gofra_type="ПНД25",
-        gofra_color="чёрная", gofra_id="001.PND25", confirmed=True,
+        mount_way="В стене",
+        gofra_type="ПНД25",
+        gofra_color="чёрная",
+        gofra_id="001.PND25",
+        confirmed=True,
     )
     result = measure_physical_transit(
         (route,),
@@ -236,7 +243,8 @@ def test_identical_physical_shared_conduit_is_reported_once_for_two_cables():
     assert all(route.status == "CANDIDATE" for route in routes)
     decisions = {
         span.physical_key: ApprovedSpanRoute("В стене", confirmed=True)
-        for route in routes for span in route.spans
+        for route in routes
+        for span in route.spans
     }
     for route in routes:
         middle = route.spans[1]
@@ -257,7 +265,8 @@ def test_shared_conduit_with_different_boundaries_rejects_every_owner():
     routes = _two_line_shared_waypoints()
     decisions = {
         span.physical_key: ApprovedSpanRoute("В стене", confirmed=True)
-        for route in routes for span in route.spans
+        for route in routes
+        for span in route.spans
     }
     decisions[routes[0].spans[1].physical_key] = ApprovedSpanRoute(
         "В стене", gofra_type="ПНД25", gofra_id="011.PND25", confirmed=True
@@ -269,7 +278,5 @@ def test_shared_conduit_with_different_boundaries_rejects_every_owner():
         routes, locations=_two_line_geometry(), decisions=decisions, policy=_policy()
     )
     assert [item.status for item in result] == ["REVIEW", "REVIEW"]
-    assert all(
-        "TRANSIT_CONDUIT_BOUNDARY_CONFLICT" in item.issue_codes for item in result
-    )
+    assert all("TRANSIT_CONDUIT_BOUNDARY_CONFLICT" in item.issue_codes for item in result)
     assert all(item.cable_length_m is None for item in result)
