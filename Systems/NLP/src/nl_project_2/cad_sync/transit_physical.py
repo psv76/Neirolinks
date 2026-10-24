@@ -250,9 +250,7 @@ def measure_physical_transit(
         if route.status != "CANDIDATE":
             problems.add("TRANSIT_PHYSICAL_PATH_REQUIRES_REVIEW")
         else:
-            evidence_box = {
-                name: (x, y, z) for name, x, y, z in route.box_positions
-            }
+            evidence_box = {name: (x, y, z) for name, x, y, z in route.box_positions}
             for span in route.spans:
                 decision = decisions.get(span.physical_key)
                 if decision is None or not decision.confirmed:
@@ -316,7 +314,11 @@ def measure_physical_transit(
         if len(measured) != len(route.spans) or problems:
             all_results.append(
                 PhysicalTransitResult(
-                    route.cable_base, "REVIEW", tuple(measured), None, (),
+                    route.cable_base,
+                    "REVIEW",
+                    tuple(measured),
+                    None,
+                    (),
                     tuple(sorted(problems)),
                 )
             )
