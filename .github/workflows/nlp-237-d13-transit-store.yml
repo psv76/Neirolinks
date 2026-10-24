@@ -48,6 +48,7 @@ jobs:
             tests/cad_sync/test_issue237_d13_transit_store.py \
             tests/persistence/test_issue237_d13_transit_migration.py || true
           python -m ruff format --diff \
+            src/nl_project_2/persistence/migration.py \
             src/nl_project_2/cad_sync/transit_physical_store.py \
             tests/cad_sync/test_issue237_d13_transit_store.py \
             tests/persistence/test_issue237_d13_transit_migration.py || true
