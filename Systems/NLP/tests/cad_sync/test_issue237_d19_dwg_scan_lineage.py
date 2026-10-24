@@ -9,11 +9,11 @@ from sqlalchemy import select, update
 from test_issue237_d13_transit_store import _where
 from test_issue237_d14_transit_quantity_reconciliation import _canonical_rows
 from test_issue237_d16_quantity_prepare import _intent, _prepare
-from nl_project_2.cables.transit_activation_readiness import TransitActivationRequest
 from test_issue237_passive_physical_ownership import _batch, _box, _track
 from test_issue237_physical_dali_storage import _change_observation
 
 from nl_project_2.cables.service import CableService
+from nl_project_2.cables.transit_activation_readiness import TransitActivationRequest
 from nl_project_2.persistence.schema import (
     cable_length_fact,
     cable_line,
