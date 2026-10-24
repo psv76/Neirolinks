@@ -49,7 +49,6 @@ def staged_transit_reconciliation(connection: Connection, project_id: str) -> di
             .order_by(cable_transit_route.c.cable_base, cable_transit_route.c.id)
         ).mappings()
     )
-    segment_ids = {route["electrical_segment_id"] for route in routes}
     lines = {
         row["id"]: row
         for row in connection.execute(
@@ -202,6 +201,7 @@ def staged_transit_reconciliation(connection: Connection, project_id: str) -> di
             }
         )
 
+    draft_issues = {draft["route_id"]: set(draft["issues"]) for draft in drafts}
     conduit_issues: dict[str, set[str]] = defaultdict(set)
     conduit_results: list[dict] = []
     for designation, members in sorted(physical_conduits.items()):
@@ -213,6 +213,8 @@ def staged_transit_reconciliation(connection: Connection, project_id: str) -> di
             reason = "TRANSIT_CANONICAL_CONDUIT_BOUNDARY_UNPROVEN"
         elif designation in bus_designations:
             reason = "TRANSIT_BUS_CONDUIT_BOUNDARY_UNPROVEN"
+        elif any(draft_issues[route["id"]] for route, _spec, _corrected in members):
+            reason = "TRANSIT_CONDUIT_MEMBER_REQUIRES_REVIEW"
         else:
             reason = ""
         if reason:
