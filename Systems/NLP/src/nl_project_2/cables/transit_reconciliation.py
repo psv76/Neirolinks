@@ -68,8 +68,7 @@ def staged_transit_reconciliation(connection: Connection, project_id: str) -> di
     # Do not mistake matching route labels for physical identity.
     box_owners: dict[str, list[dict]] = defaultdict(list)
     for row in connection.execute(
-        select(field_device.c.normalized_fields_json)
-        .where(
+        select(field_device.c.normalized_fields_json).where(
             field_device.c.project_id == project_id,
             field_device.c.block_kind == "EL_BOX_OUT_100x100",
             field_device.c.lifecycle == "ACTIVE",
@@ -139,14 +138,19 @@ def staged_transit_reconciliation(connection: Connection, project_id: str) -> di
             issues.add("TRANSIT_APPROVAL_MISSING")
         if len(spans) < 2 or [s["ordinal"] for s in spans] != list(range(1, len(spans) + 1)):
             issues.add("TRANSIT_SPAN_SEQUENCE_INVALID")
-        if any(a["end_boundary"] != b["start_boundary"] for a, b in zip(spans, spans[1:], strict=False)):
+        if any(
+            a["end_boundary"] != b["start_boundary"] for a, b in zip(spans, spans[1:], strict=False)
+        ):
             issues.add("TRANSIT_SPAN_CHAIN_BROKEN")
-        if spans and len({spans[0]["start_boundary"], *(s["end_boundary"] for s in spans)}) != len(spans) + 1:
+        if (
+            spans
+            and len({spans[0]["start_boundary"], *(s["end_boundary"] for s in spans)})
+            != len(spans) + 1
+        ):
             issues.add("TRANSIT_SPAN_BOUNDARY_REPEATED")
         if any(
-            s["physical_key"] != (
-                f"{route['cable_base']}:{s['start_boundary']}->{s['end_boundary']}"
-            )
+            s["physical_key"]
+            != (f"{route['cable_base']}:{s['start_boundary']}->{s['end_boundary']}")
             for s in spans
         ):
             issues.add("TRANSIT_PHYSICAL_KEY_CHANGED")
@@ -156,7 +160,8 @@ def staged_transit_reconciliation(connection: Connection, project_id: str) -> di
         if spans:
             for middle in [part["end_boundary"] for part in spans[:-1]]:
                 owners = [
-                    fields for fields in box_owners.get(middle, [])
+                    fields
+                    for fields in box_owners.get(middle, [])
                     if any(
                         token.strip().split("-", 1)[0] == route["cable_base"]
                         for token in str(fields.get("CABLE_TRANSIT") or "").split(";")
@@ -229,7 +234,9 @@ def staged_transit_reconciliation(connection: Connection, project_id: str) -> di
                 "physical_boundary": next(iter(signatures))[0] if len(signatures) == 1 else None,
                 # Geometry is shown once per distinct proposed pipe, not once
                 # per cable sharing it. It is NOT a rounded/specification length.
-                "unique_geometry_m": str(next(iter(signatures))[4]) if len(signatures) == 1 else None,
+                "unique_geometry_m": str(next(iter(signatures))[4])
+                if len(signatures) == 1
+                else None,
             }
         )
 
