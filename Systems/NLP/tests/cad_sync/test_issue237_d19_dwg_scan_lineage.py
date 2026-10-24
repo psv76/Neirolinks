@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import select, update
@@ -271,7 +272,7 @@ def test_matched_scan_never_overrides_existing_canonical_manual_length(database)
     )
     after = CableService(database.engine).effective_length(ev.project_id, ev.cable_line_id)
     assert before == after
-    assert before.effective_m == 8.3
+    assert before.effective_m == Decimal("8.3")
     assert "TRANSIT_D16_LENGTH_FACT_CHANGED" in plan.issues
     assert plan.activation_readiness.lines[0].authoritative_cable_m is None
     assert not plan.can_publish
