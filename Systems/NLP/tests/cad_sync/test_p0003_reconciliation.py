@@ -603,7 +603,10 @@ def test_three_way_owner_matrix_includes_same_conflict_key_port_source_and_led(d
     project_id = _project(database)
     objects = ObjectService(database.engine)
     building_id = objects.add_building(project_id, "B1")
-    objects.add_room(project_id=project_id, building_id=building_id, name="R1")
+    objects.add_room(
+        project_id=project_id, building_id=building_id, name="R1",
+        base_mark_mm=0, height_m="3", marking_color="#FFFFFF",
+    )
     service = DwgSyncService(database.engine)
     socket = _observation("SOCKET_IN", handle="A1", cable_id="101.01")
     box = _observation(
