@@ -39,7 +39,9 @@ def _input(database, *, match_approved_terminal=False):
         ev = intent.approval.transit
         loc = dict(ev.locations)
         loc[ev.route.spans[-1].finish] = _where(100, 0)
-        intent = replace(intent, approval=replace(intent.approval, transit=replace(ev, locations=loc)))
+        intent = replace(
+            intent, approval=replace(intent.approval, transit=replace(ev, locations=loc))
+        )
     return intent.approval
 
 
@@ -125,9 +127,7 @@ def test_d13_reviewed_endpoint_geometry_conflicts_with_accepted_dwg_fixture(data
         ("duplicate_handle", "D19_DUPLICATE_DWG_HANDLE"),
     ],
 )
-def test_mismatching_supplied_dwg_observations_never_authorize_source(
-    database, changed, expected
-):
+def test_mismatching_supplied_dwg_observations_never_authorize_source(database, changed, expected):
     approval = _input(database, match_approved_terminal=True)
     box = _change_observation(_box(), "CABLE_TRANSIT", "401")
     track = _track()
@@ -156,12 +156,16 @@ def test_mismatching_supplied_dwg_observations_never_authorize_source(
 def test_missing_latest_accepted_scan_observation_blocks_even_when_input_matches(database):
     approval = _input(database, match_approved_terminal=True)
     with database.engine.begin() as conn:
-        existing = conn.execute(
-            select(dwg_observation).where(
-                dwg_observation.c.project_id == approval.transit.project_id,
-                dwg_observation.c.entity_handle == "TRACK-A",
+        existing = (
+            conn.execute(
+                select(dwg_observation).where(
+                    dwg_observation.c.project_id == approval.transit.project_id,
+                    dwg_observation.c.entity_handle == "TRACK-A",
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         conn.execute(
             update(dwg_observation)
             .where(dwg_observation.c.id == existing["id"])
