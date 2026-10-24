@@ -1,0 +1,86 @@
+name: NLP 216 Q04-Q05-Q08 lengths
+
+on:
+  pull_request:
+    paths:
+      - 'Systems/NLP/src/nl_project_2/cables/**'
+      - 'Systems/NLP/src/nl_project_2/buses/**'
+      - 'Systems/NLP/src/nl_project_2/objects/**'
+      - 'Systems/NLP/src/nl_project_2/presentation/**'
+      - 'Systems/NLP/tests/cables/**'
+      - 'Systems/NLP/tests/buses/**'
+      - 'Systems/NLP/tests/objects/**'
+      - 'Systems/NLP/tests/cad_sync/**'
+      - '.github/workflows/nlp-216-length-stage-c.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  length-safety:
+    name: Decimal route length and dependent regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: Systems/NLP
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install Linux Qt dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0
+      - name: Install isolated test dependencies
+        run: |
+          python -m pip install \
+            'SQLAlchemy==2.0.51' 'alembic==1.18.5' \
+            'pytest==9.1.1' 'pytest-qt==4.5.0' \
+            'PySide6==6.11.1' 'ruff==0.15.22'
+      - name: Check Ruff
+        run: |
+          python -m ruff check \
+            src/nl_project_2/cables \
+            src/nl_project_2/buses/recalculation.py \
+            src/nl_project_2/buses/service.py \
+            src/nl_project_2/objects/models.py \
+            src/nl_project_2/objects/service.py \
+            src/nl_project_2/presentation/lines_workspace.py \
+            src/nl_project_2/presentation/object_workspace.py \
+            tests/cables tests/buses/test_recalculation.py \
+            tests/cad_sync/test_issue142_working_journal.py
+          python -m ruff format --check \
+            src/nl_project_2/cables \
+            src/nl_project_2/buses/recalculation.py \
+            src/nl_project_2/buses/service.py \
+            src/nl_project_2/objects/models.py \
+            src/nl_project_2/objects/service.py \
+            src/nl_project_2/presentation/lines_workspace.py \
+            src/nl_project_2/presentation/object_workspace.py \
+            tests/cables tests/buses/test_recalculation.py \
+            tests/cad_sync/test_issue142_working_journal.py
+      - name: Q04-Q05-Q08 focused arithmetic tests
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q \
+            tests/unit/test_length_policy.py \
+            tests/cables/test_length_domain.py \
+            tests/cables/test_p0004_segment_recalculation.py \
+            tests/cables/test_q06_shared_tube_length_safety.py \
+            tests/buses/test_recalculation.py
+      - name: Existing cables BUS objects CAD sync specification regression
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          # Win32 AutoCAD STA and AF_PIPE bridge IPC cannot execute on Linux.
+          # Both files were executed in the separately recorded Windows run.
+          python -m pytest -q \
+            --ignore=tests/cad_sync/test_sta_bridge.py \
+            --ignore=tests/cad_sync/test_bridge_client.py \
+            tests/cables tests/buses tests/objects tests/cad_sync tests/specification

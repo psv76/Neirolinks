@@ -1570,7 +1570,7 @@ class ObjectWorkspace(QWidget):
             "cable_reserve_at_endpoint_m": QLineEdit(tab),
             "cable_meander_percent": QLineEdit(tab),
             "cable_obstacle_percent": QLineEdit(tab),
-            "cable_timber_segment_reserve_m": QLineEdit(tab),
+            "cable_rounding_step_m": QLineEdit(tab),
         }
         self.initial_page = QSpinBox(tab)
         self.initial_page.setRange(0, 999999)
@@ -1592,12 +1592,12 @@ class ObjectWorkspace(QWidget):
             self.setting_fields["cable_reserve_at_endpoint_m"],
         )
         form.addRow(
-            "Нелинейность кабеля («змейка»), %", self.setting_fields["cable_meander_percent"]
+            "Нелинейность трассы («змейка»), %", self.setting_fields["cable_meander_percent"]
         )
         form.addRow("Обходы стен и балок, %", self.setting_fields["cable_obstacle_percent"])
         form.addRow(
-            "Запас «В брусе», м / сегмент",
-            self.setting_fields["cable_timber_segment_reserve_m"],
+            "Шаг округления длины кабеля и трубы, м",
+            self.setting_fields["cable_rounding_step_m"],
         )
         save = QPushButton("Сохранить настройки", tab)
         save.clicked.connect(self._save_settings)
@@ -1751,7 +1751,7 @@ class ObjectWorkspace(QWidget):
             "cable_reserve_at_endpoint_m",
             "cable_meander_percent",
             "cable_obstacle_percent",
-            "cable_timber_segment_reserve_m",
+            "cable_rounding_step_m",
         ):
             value = getattr(settings, key)
             self.setting_fields[key].setText("" if value is None else str(value))
@@ -1888,8 +1888,8 @@ class ObjectWorkspace(QWidget):
                 cable_obstacle_percent=_optional_decimal(
                     self.setting_fields["cable_obstacle_percent"].text()
                 ),
-                cable_timber_segment_reserve_m=_optional_decimal(
-                    self.setting_fields["cable_timber_segment_reserve_m"].text()
+                cable_rounding_step_m=_optional_decimal(
+                    self.setting_fields["cable_rounding_step_m"].text()
                 ),
             )
             self.runtime.objects.save_settings(self._detail.id, settings)
