@@ -47,8 +47,11 @@ from nl_project_2.persistence.schema import (
 def _where(x, y, height=2500):
     return VerifiedLocation(
         CablePointInput.from_values(
-            x_mm=x, y_mm=y, mount_height_mm=height,
-            base_mark_mm=-250, room_height_m=3,
+            x_mm=x,
+            y_mm=y,
+            mount_height_mm=height,
+            base_mark_mm=-250,
+            room_height_m=3,
         ),
         evidence="synthetic-approved-Project-room-geometry",
         confirmed=True,
@@ -75,9 +78,11 @@ def _accepted(database):
                 cable_line.c.designation == "401",
             )
         )
-        seg = conn.execute(
-            select(cable_segment).where(cable_segment.c.cable_line_id == line_id)
-        ).mappings().one()
+        seg = (
+            conn.execute(select(cable_segment).where(cable_segment.c.cable_line_id == line_id))
+            .mappings()
+            .one()
+        )
     locations = {
         route.spans[0].start: _where(0, 0),
         "BOX.023": _where(0, 0),
@@ -104,8 +109,12 @@ def _accepted(database):
         locations=locations,
         decisions=decisions,
         policy=TransitCalculationPolicy(
-            Decimal("0.05"), Decimal("0.10"), Decimal("1"),
-            Decimal("3"), Decimal("0.3"), Decimal("0"),
+            Decimal("0.05"),
+            Decimal("0.10"),
+            Decimal("1"),
+            Decimal("3"),
+            Decimal("0.3"),
+            Decimal("0"),
         ),
         approval_evidence="explicit-reviewed-synthetic-geometry-v1",
     )
@@ -128,8 +137,12 @@ def _count(conn, table):
 def test_explicit_sha_commit_persists_only_physical_spans_and_reopens(database):
     ev = _accepted(database)
     watched = (
-        cable_segment, cable_line, cable_length_fact,
-        conduit, conduit_segment_assignment, field_device,
+        cable_segment,
+        cable_line,
+        cable_length_fact,
+        conduit,
+        conduit_segment_assignment,
+        field_device,
     )
     with database.engine.connect() as conn:
         before = {table.name: _rows(conn, table, ev.project_id) for table in watched}
@@ -142,22 +155,25 @@ def test_explicit_sha_commit_persists_only_physical_spans_and_reopens(database):
         assert _count(conn, cable_transit_span) == 2
         assert conn.exec_driver_sql("PRAGMA foreign_key_check").all() == []
         assert conn.exec_driver_sql("PRAGMA integrity_check").scalar_one() == "ok"
-        rows = conn.execute(
-            select(cable_transit_span)
-            .where(cable_transit_span.c.cable_transit_route_id == receipt.route_id)
-            .order_by(cable_transit_span.c.ordinal)
-        ).mappings().all()
+        rows = (
+            conn.execute(
+                select(cable_transit_span)
+                .where(cable_transit_span.c.cable_transit_route_id == receipt.route_id)
+                .order_by(cable_transit_span.c.ordinal)
+            )
+            .mappings()
+            .all()
+        )
         assert [row["start_boundary"] for row in rows] == [
-            ev.route.spans[0].start, "BOX.023",
+            ev.route.spans[0].start,
+            "BOX.023",
         ]
         assert [row["proposed_gofra_id"] for row in rows] == [
-            "001.PND25", "002.PND25",
+            "001.PND25",
+            "002.PND25",
         ]
         assert all(row["mount_way"] == "В стене" for row in rows)
-        assert all(
-            before[table.name] == _rows(conn, table, ev.project_id)
-            for table in watched
-        )
+        assert all(before[table.name] == _rows(conn, table, ev.project_id) for table in watched)
         found = read_staged_transit(conn, project_id=ev.project_id)
         assert len(found) == 1
         assert found[0]["state"] == "STAGED_APPROVED"
@@ -181,8 +197,10 @@ def test_unconfirmed_wrong_digest_or_stale_edge_never_writes(database):
     with pytest.raises(TransitPersistenceError, match="TRANSIT_CABLE_OWNER_NOT_FOUND"):
         wrong_project = replace(ev, project_id=new_id())
         persist_approved_transit(
-            database.engine, wrong_project,
-            approved_sha256=approved_transit_sha256(wrong_project), confirmed=True,
+            database.engine,
+            wrong_project,
+            approved_sha256=approved_transit_sha256(wrong_project),
+            confirmed=True,
         )
     with database.engine.begin() as conn:
         conn.execute(
@@ -204,8 +222,10 @@ def test_approved_route_cannot_be_silently_replaced(database):
     edited = replace(ev, approval_evidence="different review")
     with pytest.raises(TransitPersistenceError, match="TRANSIT_ACCEPTED_ROUTE_REQUIRES_REVIEW"):
         persist_approved_transit(
-            database.engine, edited,
-            approved_sha256=approved_transit_sha256(edited), confirmed=True,
+            database.engine,
+            edited,
+            approved_sha256=approved_transit_sha256(edited),
+            confirmed=True,
         )
     with database.engine.connect() as conn:
         assert _count(conn, cable_transit_route) == 1
@@ -215,22 +235,29 @@ def test_approved_route_cannot_be_silently_replaced(database):
 def test_accepted_box_transit_owner_must_still_exist(database):
     ev = _accepted(database)
     with database.engine.begin() as conn:
-        box = conn.execute(
-            select(field_device).where(
-                field_device.c.project_id == ev.project_id,
-                field_device.c.block_kind == "EL_BOX_OUT_100x100",
+        box = (
+            conn.execute(
+                select(field_device).where(
+                    field_device.c.project_id == ev.project_id,
+                    field_device.c.block_kind == "EL_BOX_OUT_100x100",
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         fields = dict(box["normalized_fields_json"])
         fields["CABLE_TRANSIT"] = ""
         conn.execute(
-            update(field_device).where(field_device.c.id == box["id"])
+            update(field_device)
+            .where(field_device.c.id == box["id"])
             .values(normalized_fields_json=fields)
         )
     with pytest.raises(TransitPersistenceError, match="TRANSIT_BOX_OWNER_NOT_ACCEPTED"):
         persist_approved_transit(
-            database.engine, ev,
-            approved_sha256=approved_transit_sha256(ev), confirmed=True,
+            database.engine,
+            ev,
+            approved_sha256=approved_transit_sha256(ev),
+            confirmed=True,
         )
 
 
@@ -239,8 +266,10 @@ def test_existing_canonical_conduit_cannot_be_reused_by_staged_id(database):
     with database.engine.begin() as conn:
         conn.execute(
             conduit.insert().values(
-                id=new_id(), project_id=ev.project_id,
-                designation="001.PND25", conduit_type="ПНД25",
+                id=new_id(),
+                project_id=ev.project_id,
+                designation="001.PND25",
+                conduit_type="ПНД25",
                 lifecycle="ACTIVE",
             )
         )
@@ -248,8 +277,10 @@ def test_existing_canonical_conduit_cannot_be_reused_by_staged_id(database):
         TransitPersistenceError, match="TRANSIT_CONDUIT_LEGACY_OWNERSHIP_REQUIRES_REVIEW"
     ):
         persist_approved_transit(
-            database.engine, ev,
-            approved_sha256=approved_transit_sha256(ev), confirmed=True,
+            database.engine,
+            ev,
+            approved_sha256=approved_transit_sha256(ev),
+            confirmed=True,
         )
     with database.engine.connect() as conn:
         assert _count(conn, cable_transit_route) == 0
@@ -268,8 +299,10 @@ def test_sqlite_failure_on_second_span_rolls_back_entire_route(database):
         )
     with pytest.raises(Exception, match="forced D13 failure"):
         persist_approved_transit(
-            database.engine, ev,
-            approved_sha256=approved_transit_sha256(ev), confirmed=True,
+            database.engine,
+            ev,
+            approved_sha256=approved_transit_sha256(ev),
+            confirmed=True,
         )
     with database.engine.connect() as conn:
         assert _count(conn, cable_transit_route) == 0
@@ -280,13 +313,16 @@ def test_sqlite_failure_on_second_span_rolls_back_entire_route(database):
 def test_populated_downgrade_refuses_discarding_accepted_staged_facts(database, tmp_path):
     ev = _accepted(database)
     persist_approved_transit(
-        database.engine, ev,
-        approved_sha256=approved_transit_sha256(ev), confirmed=True,
+        database.engine,
+        ev,
+        approved_sha256=approved_transit_sha256(ev),
+        confirmed=True,
     )
     database.engine.dispose()
     with pytest.raises(RuntimeError, match="TRANSIT_PHYSICAL_DOWNGRADE_REQUIRES_EXPLICIT_REVIEW"):
         downgrade_database(
-            database.path, tmp_path / "verified-backups",
+            database.path,
+            tmp_path / "verified-backups",
             target=PHYSICAL_DALI_GRAPH_REVISION,
         )
     assert current_revision_read_only(database.path) == HEAD_REVISION
