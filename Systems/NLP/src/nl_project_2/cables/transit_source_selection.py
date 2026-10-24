@@ -41,7 +41,9 @@ class ShadowQuantitySelection:
     can_publish: bool = False
 
     def preview_m_for(self, cable_line_id: str) -> Decimal | None:
-        return next(row.preview_effective_m for row in self.lines if row.cable_line_id == cable_line_id)
+        return next(
+            row.preview_effective_m for row in self.lines if row.cable_line_id == cable_line_id
+        )
 
 
 def selection_sha256(
@@ -95,11 +97,15 @@ def make_shadow_selection(
     if mode == "PREPARED_SHADOW" and set(readbacks) != selected_line_ids:
         raise ValueError("D21_D17_SELECTION_INCOMPLETE")
     rows = []
-    blocked = any(
-        getattr(readbacks[line_id], "status", None) != "VERIFIED_READBACK_ONLY"
-        or getattr(readbacks[line_id], "prepared_final_m", None) is None
-        for line_id in selected_line_ids
-    ) if mode == "PREPARED_SHADOW" else False
+    blocked = (
+        any(
+            getattr(readbacks[line_id], "status", None) != "VERIFIED_READBACK_ONLY"
+            or getattr(readbacks[line_id], "prepared_final_m", None) is None
+            for line_id in selected_line_ids
+        )
+        if mode == "PREPARED_SHADOW"
+        else False
+    )
     for request in sorted(requests, key=lambda value: value.approval.transit.cable_line_id):
         line_id = request.approval.transit.cable_line_id
         legacy = legacy_effective_m[line_id]
@@ -129,7 +135,11 @@ def make_shadow_selection(
         )
     return ShadowQuantitySelection(
         mode=mode,
-        status="REVIEW" if blocked else "SHADOW_PREVIEW_ONLY" if mode == "PREPARED_SHADOW" else "LEGACY_ONLY",
+        status="REVIEW"
+        if blocked
+        else "SHADOW_PREVIEW_ONLY"
+        if mode == "PREPARED_SHADOW"
+        else "LEGACY_ONLY",
         line_ids=tuple(sorted(selected_line_ids)),
         selection_sha256=digest,
         lines=tuple(rows),
