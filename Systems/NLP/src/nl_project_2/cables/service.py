@@ -69,6 +69,10 @@ from .recalculation import (
 from .transit_reconciliation import staged_transit_reconciliation
 
 if TYPE_CHECKING:
+    from .transit_activation_readiness import (
+        TransitActivationPlan,
+        TransitActivationRequest,
+    )
     from .transit_canonical_readback import TransitCanonicalReadback
     from .transit_line_preview import TransitLineApproval
 
@@ -144,6 +148,24 @@ class CableService:
                 expected_batch_sha256=expected_batch_sha256,
                 confirmed=confirmed,
             )
+
+    def transit_activation_readiness(
+        self,
+        requests: tuple[TransitActivationRequest, ...],
+        *,
+        selected_line_ids: frozenset[str],
+        confirmed: bool = False,
+    ) -> TransitActivationPlan:
+        """D18 read-only gate; has no method to publish or revoke quantities."""
+        # Local import avoids cad_sync/cad_contract import cycle at startup.
+        from .transit_activation_readiness import plan_transit_activation
+
+        return plan_transit_activation(
+            self._engine,
+            requests,
+            selected_line_ids=selected_line_ids,
+            confirmed=confirmed,
+        )
 
     def topology(self, project_id: str, cable_line_id: str) -> dict:
         """Return user-facing physical topology, segment facts and route breakdown."""
