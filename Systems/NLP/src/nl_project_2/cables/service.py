@@ -9,6 +9,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Engine, delete, func, select, update
 from sqlalchemy.exc import IntegrityError
@@ -67,6 +68,10 @@ from .recalculation import (
 )
 from .transit_reconciliation import staged_transit_reconciliation
 
+if TYPE_CHECKING:
+    from .transit_canonical_readback import TransitCanonicalReadback
+    from .transit_line_preview import TransitLineApproval
+
 AV_LOAD_TYPES = frozenset({"SPEAKER_CABLE", "HDMI"})
 CABLE_CATEGORIES = frozenset({"SPEAKER_CABLE", "HDMI", "OTHER_APPROVED_CABLE"})
 
@@ -119,6 +124,26 @@ class CableService:
         """Read-only comparison: staged physical evidence vs canonical quantities."""
         with self._engine.connect() as connection:
             return staged_transit_reconciliation(connection, project_id)
+
+    def review_prepared_transit_line(
+        self,
+        approval: TransitLineApproval,
+        *,
+        expected_batch_sha256: str,
+        confirmed: bool = False,
+    ) -> TransitCanonicalReadback:
+        """Opt-in D17 readback. Never changes effective length or a specification."""
+        # Import lazily: cad_sync imports cad_contract, which loads cables.
+        # Eager imports at cables package initialization cause a circular import.
+        from .transit_canonical_readback import review_prepared_transit_for_canonical
+
+        with self._engine.connect() as connection:
+            return review_prepared_transit_for_canonical(
+                connection,
+                approval,
+                expected_batch_sha256=expected_batch_sha256,
+                confirmed=confirmed,
+            )
 
     def topology(self, project_id: str, cable_line_id: str) -> dict:
         """Return user-facing physical topology, segment facts and route breakdown."""
