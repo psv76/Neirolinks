@@ -13,8 +13,8 @@ from typing import Any
 from nl_project_2.cad_contract import CableSuffixKind, ValidatedObservation
 
 from .cable_transit import TransitAudit, analyze_cable_transit
-from .transit_physical import PhysicalTransitRoute, build_physical_transit_routes
 from .models import SyncOwnerKind
+from .transit_physical import PhysicalTransitRoute, build_physical_transit_routes
 
 LINE_FIELDS = frozenset({"CABLE_TYPE", "BOARD", "FUNCTION_GROUP", "LED_TYPE", "LOAD_NAME"})
 ROUTE_FIELDS = ("MOUNT_WAY", "GOFRA_TYPE", "GOFRA_COLOR", "GOFRA_ID")
