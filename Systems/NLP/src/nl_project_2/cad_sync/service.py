@@ -659,6 +659,7 @@ class DwgSyncService:
             summary=summary,
             project_revision=int(revision),
             binding_id=binding_id,
+            transit_audit=snapshot.transit_audit,
         )
 
     def apply_dwg_to_project(
