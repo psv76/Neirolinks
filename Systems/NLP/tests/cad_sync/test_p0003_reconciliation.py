@@ -601,6 +601,9 @@ def test_stale_project_revision_rejects_apply_without_partial_state(database):
 
 def test_three_way_owner_matrix_includes_same_conflict_key_port_source_and_led(database):
     project_id = _project(database)
+    objects = ObjectService(database.engine)
+    building_id = objects.add_building(project_id, "B1")
+    objects.add_room(project_id=project_id, building_id=building_id, name="R1")
     service = DwgSyncService(database.engine)
     socket = _observation("SOCKET_IN", handle="A1", cable_id="101.01")
     box = _observation(
