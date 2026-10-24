@@ -51,7 +51,9 @@ class PreparedTransitQuantityReceipt:
     newly_prepared: bool
 
 
-def _validated_ownership(intents: tuple[TransitQuantityIntent, ...], selected: frozenset[str]) -> None:
+def _validated_ownership(
+    intents: tuple[TransitQuantityIntent, ...], selected: frozenset[str]
+) -> None:
     if not selected or not intents:
         raise TransitQuantityPreparationError("TRANSIT_SELECTION_REQUIRED")
     ids = [item.approval.transit.cable_line_id for item in intents]
@@ -123,22 +125,30 @@ def prepare_approved_transit_quantities(
         for intent in sorted(intents, key=lambda x: x.approval.transit.cable_line_id):
             approval = intent.approval
             ev = approval.transit
-            line = connection.execute(
-                select(cable_line).where(
-                    cable_line.c.project_id == ev.project_id,
-                    cable_line.c.id == ev.cable_line_id,
-                    cable_line.c.lifecycle == "ACTIVE",
+            line = (
+                connection.execute(
+                    select(cable_line).where(
+                        cable_line.c.project_id == ev.project_id,
+                        cable_line.c.id == ev.cable_line_id,
+                        cable_line.c.lifecycle == "ACTIVE",
+                    )
                 )
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
             if line is None or line["row_version"] != intent.expected_line_row_version:
                 raise TransitQuantityPreparationError("TRANSIT_LINE_OWNER_CHANGED")
-            segment = connection.execute(
-                select(cable_segment).where(
-                    cable_segment.c.project_id == ev.project_id,
-                    cable_segment.c.id == ev.electrical_segment_id,
-                    cable_segment.c.cable_line_id == ev.cable_line_id,
+            segment = (
+                connection.execute(
+                    select(cable_segment).where(
+                        cable_segment.c.project_id == ev.project_id,
+                        cable_segment.c.id == ev.electrical_segment_id,
+                        cable_segment.c.cable_line_id == ev.cable_line_id,
+                    )
                 )
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
             if (
                 segment is None
                 or segment["row_version"] != ev.electrical_segment_row_version
@@ -147,12 +157,16 @@ def prepare_approved_transit_quantities(
             ):
                 raise TransitQuantityPreparationError("TRANSIT_ELECTRICAL_OWNER_CHANGED")
 
-            fact = connection.execute(
-                select(cable_length_fact).where(
-                    cable_length_fact.c.project_id == ev.project_id,
-                    cable_length_fact.c.cable_line_id == ev.cable_line_id,
+            fact = (
+                connection.execute(
+                    select(cable_length_fact).where(
+                        cable_length_fact.c.project_id == ev.project_id,
+                        cable_length_fact.c.cable_line_id == ev.cable_line_id,
+                    )
                 )
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
             if fact is None:
                 if intent.expected_length_fact_id is not None:
                     raise TransitQuantityPreparationError("TRANSIT_LENGTH_FACT_CHANGED")
@@ -164,9 +178,7 @@ def prepare_approved_transit_quantities(
                 ):
                     raise TransitQuantityPreparationError("TRANSIT_LENGTH_FACT_CHANGED")
                 actual_additional = _decimal(fact["additional_length_m_decimal"] or "0")
-                actual_manual = _decimal(
-                    fact["manual_full_length_m_decimal"], nullable=True
-                )
+                actual_manual = _decimal(fact["manual_full_length_m_decimal"], nullable=True)
             if (
                 _decimal(approval.additional_m) != actual_additional
                 or _decimal(approval.manual_full_m, nullable=True) != actual_manual
@@ -191,12 +203,16 @@ def prepare_approved_transit_quantities(
             ).scalar_one_or_none()
             if route is None:
                 raise TransitQuantityPreparationError("TRANSIT_STAGED_ROUTE_DISAPPEARED")
-            existing = connection.execute(
-                select(cable_transit_line_commit).where(
-                    cable_transit_line_commit.c.project_id == ev.project_id,
-                    cable_transit_line_commit.c.cable_line_id == ev.cable_line_id,
+            existing = (
+                connection.execute(
+                    select(cable_transit_line_commit).where(
+                        cable_transit_line_commit.c.project_id == ev.project_id,
+                        cable_transit_line_commit.c.cable_line_id == ev.cable_line_id,
+                    )
                 )
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
             if existing is not None:
                 if (
                     existing["approval_sha256"] != approved_batch_sha256
@@ -234,7 +250,9 @@ def prepare_approved_transit_quantities(
                 )
             )
             receipts.append(
-                PreparedTransitQuantityReceipt(ev.cable_line_id, identity, approved_batch_sha256, True)
+                PreparedTransitQuantityReceipt(
+                    ev.cable_line_id, identity, approved_batch_sha256, True
+                )
             )
     return tuple(receipts)
 
