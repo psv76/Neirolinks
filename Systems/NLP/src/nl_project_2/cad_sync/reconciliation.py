@@ -493,6 +493,7 @@ def normalize_validated_snapshot(
                 source_reference=port_reference,
             )
 
+    transit_audit = analyze_cable_transit(rows, segments)
     return NormalizedCadSnapshot(
         facts=tuple(sorted(facts, key=lambda fact: fact.owner_path)),
         points=tuple(sorted(points, key=lambda point: point.key)),
@@ -502,10 +503,8 @@ def normalize_validated_snapshot(
         bus_points=tuple(sorted(set(bus_points), key=lambda point: point.point_id)),
         structural_reviews=tuple(sorted(set(reviews))),
         point_key_by_handle=tuple(sorted(point_key_by_handle)),
-        transit_audit=analyze_cable_transit(rows, segments),
-        physical_transit_routes=build_physical_transit_routes(
-            analyze_cable_transit(rows, segments)
-        ),
+        transit_audit=transit_audit,
+        physical_transit_routes=build_physical_transit_routes(transit_audit),
         bus_physical_nodes=tuple(
             sorted(bus_physical_nodes, key=lambda node: (node.physical_id, node.handle))
         ),
