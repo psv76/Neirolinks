@@ -74,8 +74,36 @@ jobs:
             tests/cad_sync/test_issue237_d12_transit_physical.py \
             tests/cad_sync/test_issue237_d11_transit_readonly.py \
             tests/cad_sync/test_issue237_d10_track_internal_power.py \
-            tests/cad_sync/test_bridge_client.py \
+            tests/cad_sync/test_bridge_client.py::test_read_payload_preserves_new_contract_attributes_without_interpretation \
+            tests/cad_sync/test_bridge_client.py::test_frozen_bridge_starts_as_a_separate_executable_mode \
+            tests/cad_sync/test_bridge_client.py::test_repeat_read_uses_fingerprint_cache_without_full_rescan \
+            tests/cad_sync/test_bridge_client.py::test_changed_handle_reads_only_delta_and_verifies_snapshot \
+            tests/cad_sync/test_bridge_client.py::test_full_scan_rejects_snapshot_if_dwg_changes_while_reading \
+            tests/cad_sync/test_bridge_client.py::test_cold_read_builds_observations_from_fingerprint_without_full_scan \
             tests/cables/test_cable_service.py \
             tests/cables/test_p0004_segment_recalculation.py \
             tests/persistence/test_issue237_d16_quantity_migration.py \
             tests/persistence/test_issue237_d13_transit_migration.py
+  windows-native-pipe-regressions:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: Systems/NLP
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Pinned test dependencies
+        run: |
+          python -m pip install 'SQLAlchemy==2.0.51' 'alembic==1.18.5' 'pytest==9.1.1' 'pytest-qt==4.5.0' 'PySide6==6.11.1'
+      - name: Native Windows AF_PIPE bridge process/timeout/progress tests (no AutoCAD)
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q `
+            tests/cad_sync/test_bridge_client.py::test_bridge_process_failure_is_controlled `
+            tests/cad_sync/test_bridge_client.py::test_bridge_timeout_kills_short_lived_process `
+            tests/cad_sync/test_bridge_client.py::test_progress_identifies_timeout_stage_logs_safely_and_next_process_reconnects
