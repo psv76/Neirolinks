@@ -1,3 +1,11 @@
+# NST 2.5 — кандидат первого обследования неизвестного контроллера
+
+Функция read-only onboarding (`nst onboarding collect` / `nst onboarding channels`). Сбор архива не требует объекта и не запускает `nst sync`. Перед утверждением: полный CI, clean-install неизвестного WB, сверка модуля и парсера Web UI, проверка masking/metadata; только затем **отдельная** immutable публикация `nst-approved-package-2.5` из принятого main commit c `nst_2.5_all.deb` и `nst-catalog.json`. Новый Platform нужен лишь после добавления конкретного serial и согласованного controller profile в `Objects/`. Нельзя подменять архивом onboarding регистрацию WB.
+
+Ранее approved: NST 2.4 package и Platform 2.2 опубликованы 25.10.2026; их assets не меняем.
+
+---
+
 # Подготовка NST 2.4 (пакет диагностики Иволги; выпуск требует отдельного утверждения)
 
 Версия собственного ПО только `X.Y`; [нормативный стандарт](../../EIM/Standards/Software_naming_and_versioning_standard.md). Новые package/component catalogs используют `nst-catalog.json`; исторические `nli-catalog.json` читаются только для immutable component approvals и rollback.

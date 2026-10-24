@@ -14,7 +14,7 @@ mode = sys.argv[1]
 legacy_runtime = mode == 'prepare_nli'
 RUNTIME_ROOT = '/usr/lib/neiro-nli' if legacy_runtime else '/usr/lib/nst'
 PRIMARY_CLI = '/usr/bin/nli' if legacy_runtime else '/usr/bin/nst'
-EXPECTED_VERSION = '0.1.9' if legacy_runtime else '2.4'
+EXPECTED_VERSION = '0.1.9' if legacy_runtime else '2.5'
 sys.dont_write_bytecode = True
 sys.path.insert(0, RUNTIME_ROOT)
 import importlib
@@ -48,7 +48,7 @@ class FakeWB:
         pass
 
     def rules_version(self):
-        return '2.46.5'
+        return '2.56.5'
 
     def control(self, path, timeout=None):
         return '0' if path == 'A04/K1' or (path.startswith('pressure_makeup/') and not path.endswith('last_event')) else 'OK'

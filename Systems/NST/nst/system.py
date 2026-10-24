@@ -108,6 +108,23 @@ class System:
         device, control = path.split("/", 1)
         return self.mqtt("/devices/" + device + "/controls/" + control, timeout=timeout)
 
+    def mqtt_metadata(self):
+        """Bounded read-only retained metadata; no MQTT values or publishes."""
+        import subprocess
+        argv = ["/usr/bin/mosquitto_sub", "-h", "127.0.0.1",
+                "--retained-only", "-W", "3", "-F", "%t\t%p",
+                "-t", "/devices/+/meta", "-t", "/devices/+/controls/+/meta"]
+        try:
+            proc = subprocess.run(argv, capture_output=True, timeout=7, check=False)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise Error("MQTT metadata: " + str(exc)) from exc
+        if len(proc.stdout) > 3 * 1024 * 1024:
+            raise Error("MQTT metadata exceeded 3 MiB safety limit")
+        # mosquitto_sub -W may return a timeout status after retained messages.
+        if proc.returncode not in (0, 27):
+            raise Error("MQTT metadata probe failed: " + proc.stderr[:240].decode(errors="replace"))
+        return proc.stdout.decode("utf-8", errors="replace")
+
     def journal_disk_usage(self):
         return {"status": "ok", "summary": self.run(["/usr/bin/journalctl", "--disk-usage"], timeout=15)}
 

@@ -387,6 +387,9 @@ def main(argv=None, engine=None):
     parser.add_argument("--json", action="store_true", help="Emit complete audit record, including read-only operations")
     parser.add_argument("--no-color", action="store_true", help="Отключить ANSI-цвета")
     sub = parser.add_subparsers(dest="command")
+    onboarding = sub.add_parser("onboarding", help="Read-only first-visit WB inventory, no registration required")
+    onboarding.add_argument("action", choices=("collect", "channels"),
+                            help="collect: basic inventory; channels: labels, devices and MQTT metadata")
     sub.add_parser("status")
     sub.add_parser("check").add_argument("component", nargs="?")
     sub.add_parser("sync")
@@ -420,6 +423,19 @@ def main(argv=None, engine=None):
             result = {'command': args.command, 'final_status': 'ok',
                       'migration': migrate(engine.root if engine else '/')}
             print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
+        if args.command == "onboarding":
+            from .onboarding import Onboarding
+            mode = "inventory" if args.action == "collect" else "channels"
+            result = Onboarding(engine).collect(mode)
+            if args.json:
+                print(json.dumps(result, ensure_ascii=False, indent=2))
+            else:
+                print("NST: первичная диагностика WB · " + result["serial"])
+                print("Архив: " + result["bundle"])
+                print("SHA256: " + result["sha256"])
+                if result["warnings"]:
+                    print("Предупреждения: " + "; ".join(result["warnings"]))
             return 0
         production = engine is None
         if production:
