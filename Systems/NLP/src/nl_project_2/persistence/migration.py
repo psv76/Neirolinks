@@ -157,9 +157,7 @@ def upgrade_database(path: Path, backup_directory: Path, *, target: str = "head"
     return receipt
 
 
-def _preflight_physical_graph_downgrade(
-    path: Path, *, source_revision: str, target: str
-) -> None:
+def _preflight_physical_graph_downgrade(path: Path, *, source_revision: str, target: str) -> None:
     """Prevent partial SQLite DDL downgrade across an occupied graph revision.
 
     SQLite/Alembic may commit DDL for rev16 before rev15's nonempty-graph
