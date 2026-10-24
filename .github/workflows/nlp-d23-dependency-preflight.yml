@@ -323,3 +323,16 @@ jobs:
           python -m pytest -q "tests/${{ matrix.scope }}" \
             --ignore=tests/cad_sync/test_sta_bridge.py \
             --ignore=tests/cad_sync/test_bridge_client.py
+
+  cad-layer-release-gate-inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: integration/nlp-237-d23-stagec-d22-candidate
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify #255 remains an explicit release blocker
+        run: python Systems/NLP/tools/d23_layer_gate_inventory.py
