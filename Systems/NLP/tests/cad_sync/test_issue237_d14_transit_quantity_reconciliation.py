@@ -236,7 +236,5 @@ def test_legacy_bus_conduit_same_id_requires_typed_boundary_review(database):
     assert "TRANSIT_BUS_CONDUIT_BOUNDARY_UNPROVEN" in preview["routes"][0]["issues"]
     assert preview["review_count"] == 1
     assert preview["uncommitted_unique_conduit_geometry_m"] != ""
-    candidate = next(
-        item for item in preview["conduits"] if item["designation"] == "001.PND25"
-    )
+    candidate = next(item for item in preview["conduits"] if item["designation"] == "001.PND25")
     assert candidate["status"] == "REVIEW"
