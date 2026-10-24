@@ -351,7 +351,7 @@ def test_elbox_cable_source_chain_materializes_canonical_segments(database):
         "EL_BOX_OUT_100x100",
         handle="E1",
         cable_id="101.01",
-        attributes={"BOX_ID": "BOX.010", "BUS_POINT_ID": "", "BUS_SOURCE": ""},
+        attributes={"BOX_ID": "BOX.010", "BUS_ID": "", "BUS_SOURCE": ""},
     )
     target = _observation(
         "SOCKET_IN", handle="A1", cable_id="101.02", attributes={"CABLE_SOURCE": "BOX.010"}
@@ -473,7 +473,7 @@ def test_owner_aware_write_plan_route_scope_partial_receipt_and_idempotent_retry
         attributes={
             "BOX_ID": "BOX.011",
             "CABLE_SOURCE": "101.01",
-            "BUS_POINT_ID": "",
+            "BUS_ID": "",
             "BUS_SOURCE": "",
             "MOUNT_WAY": "По потолку",
         },
@@ -609,7 +609,7 @@ def test_three_way_owner_matrix_includes_same_conflict_key_port_source_and_led(d
         cable_id="101.02",
         attributes={
             "CABLE_SOURCE": "101.01",
-            "BUS_POINT_ID": "",
+            "BUS_ID": "",
             "BUS_SOURCE": "",
         },
     )
@@ -845,7 +845,7 @@ def test_exact_key_source_and_field_port_tags_are_closed_write_targets(database)
         cable_id="101.02",
         attributes={
             "CABLE_SOURCE": "101.01",
-            "BUS_POINT_ID": "",
+            "BUS_ID": "",
             "BUS_SOURCE": "",
         },
     )
@@ -1075,7 +1075,7 @@ def test_existing_el_boxes_can_move_from_one_active_line_to_another(database):
         "EL_BOX_OUT_100x100",
         handle="B11",
         cable_id="106",
-        attributes={"BOX_ID": "BOX.011", "CABLE_SOURCE": "", "BUS_POINT_ID": "", "BUS_SOURCE": ""},
+        attributes={"BOX_ID": "BOX.011", "CABLE_SOURCE": "", "BUS_ID": "", "BUS_SOURCE": ""},
     )
     box16 = _observation(
         "EL_BOX_OUT_100x100",
@@ -1084,7 +1084,7 @@ def test_existing_el_boxes_can_move_from_one_active_line_to_another(database):
         attributes={
             "BOX_ID": "BOX.016",
             "CABLE_SOURCE": "BOX.011",
-            "BUS_POINT_ID": "",
+            "BUS_ID": "",
             "BUS_SOURCE": "",
         },
     )
