@@ -12,6 +12,7 @@ from typing import Any
 
 from nl_project_2.cad_contract import CableSuffixKind, ValidatedObservation
 
+from .cable_transit import TransitAudit, analyze_cable_transit
 from .models import SyncOwnerKind
 
 LINE_FIELDS = frozenset({"CABLE_TYPE", "BOARD", "FUNCTION_GROUP", "LED_TYPE", "LOAD_NAME"})
@@ -108,6 +109,7 @@ class NormalizedCadSnapshot:
     structural_reviews: tuple[str, ...]
     point_key_by_handle: tuple[tuple[str, str], ...]
     bus_physical_nodes: tuple[BusPhysicalPlan, ...] = ()
+    transit_audit: TransitAudit = TransitAudit()
 
     def fact_map(self) -> dict[str, OwnerFact]:
         return {fact.owner_path: fact for fact in self.facts}
@@ -498,6 +500,7 @@ def normalize_validated_snapshot(
         bus_points=tuple(sorted(set(bus_points), key=lambda point: point.point_id)),
         structural_reviews=tuple(sorted(set(reviews))),
         point_key_by_handle=tuple(sorted(point_key_by_handle)),
+        transit_audit=analyze_cable_transit(rows, segments),
         bus_physical_nodes=tuple(
             sorted(bus_physical_nodes, key=lambda node: (node.physical_id, node.handle))
         ),
