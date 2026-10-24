@@ -136,6 +136,9 @@ jobs:
           git add Systems/NLP/src/nl_project_2/cables/service.py Systems/NLP/tests/unit/test_length_policy.py
           test -z "$(git diff --name-only --diff-filter=U)"
           echo "Disposable merged worktree prepared; no production activation"
+      - name: Apply Stage C service adapter only in disposable candidate
+        working-directory: .
+        run: python Systems/NLP/tools/d23_apply_stagec_service_for_ci.py
       - name: Install synthetic dependencies
         run: |
           sudo apt-get update -qq
