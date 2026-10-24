@@ -40,6 +40,19 @@ class ActiveDocumentInfo:
     dbmod: int
 
 
+@dataclass(frozen=True, slots=True)
+class FreshCadReadWitness:
+    """One stable forced full COM read; never a durable DWG-file attestation."""
+
+    batch: CadObservationBatch
+    document_identity: str
+    fingerprint_sha256: str
+    document_saved: bool
+    dbmod: int
+    scan_mode: str = "FORCED_FULL_SCAN"
+    proves_durable_file_identity: bool = False
+
+
 class AutoCadBridgeClient:
     """Starts one short-lived bridge per command; the bridge never receives a DB path."""
 
@@ -58,6 +71,120 @@ class AutoCadBridgeClient:
             read_only=bool(payload["read_only"]),
             saved=bool(payload["saved"]),
             dbmod=int(payload["dbmod"]),
+        )
+
+    def read_fresh_observations_with_witness(
+        self, request: CadReadRequest
+    ) -> FreshCadReadWitness:
+        """Bypass incremental cache and inspect COM state around an actual full scan.
+
+        The scan and document metadata are read by the separate STA bridge.
+        Fingerprint snapshots must bracket a real 'scan' operation and match
+        its entire unfiltered read; this never authorizes publication by itself.
+        """
+        expected = request.expected_document_identity.strip()
+        if not expected:
+            raise BridgeError("D20_EXPLICIT_DOCUMENT_IDENTITY_REQUIRED")
+        if request.deadline_seconds <= 0:
+            raise BridgeError("D20_VALID_SCAN_DEADLINE_REQUIRED")
+
+        self._clear_cache()
+        before = self.inspect_active_document(deadline_seconds=request.deadline_seconds)
+        if (
+            before.document_identity.casefold() != expected.casefold()
+            or not before.saved
+            or before.dbmod != 0
+        ):
+            raise BridgeError("D20_DOCUMENT_NOT_SAVED_OR_WRONG_OWNER")
+        first = self._fingerprint(request)
+        if first["document_identity"].casefold() != expected.casefold():
+            raise BridgeError("D20_INITIAL_FINGERPRINT_DOCUMENT_CHANGED")
+        first_signatures = {
+            str(key): str(value) for key, value in first["signatures"].items()
+        }
+        first_order = tuple(str(key) for key in first["handles"])
+        if len(first_order) != len(set(first_order)) or set(first_order) != set(first_signatures):
+            raise BridgeError("D20_FINGERPRINT_OWNER_SET_INVALID")
+
+        payload = self._call(
+            {
+                "operation": "scan",
+                "expected_document_identity": expected,
+                "definition_names": list(request.definition_names),
+            },
+            request.deadline_seconds,
+        )
+        batch = _batch_from_payload(payload)
+
+        final = self._fingerprint(request)
+        after = self.inspect_active_document(deadline_seconds=request.deadline_seconds)
+        final_signatures = {
+            str(key): str(value) for key, value in final["signatures"].items()
+        }
+        final_order = tuple(str(key) for key in final["handles"])
+        if (
+            before != after
+            or first_order != final_order
+            or first_signatures != final_signatures
+            or first["document_identity"].casefold() != expected.casefold()
+            or final["document_identity"].casefold() != expected.casefold()
+            or batch.document_identity.casefold() != expected.casefold()
+        ):
+            raise BridgeError("D20_DOCUMENT_OR_FINGERPRINT_CHANGED_DURING_READ")
+        if (
+            len(batch.observations) != len(first_order)
+            or {item.handle for item in batch.observations} != set(first_order)
+        ):
+            raise BridgeError("D20_FULL_SCAN_OWNER_SET_MISMATCH")
+
+        # Parse the COM fingerprint independently and compare its source facts
+        # with the actually returned scan; equal handles alone are not enough.
+        try:
+            fingerprint_batch = _batch_from_fingerprint(
+                final, definition_names=set(request.definition_names)
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise BridgeError("D20_FINGERPRINT_NOT_INDEPENDENTLY_READABLE") from exc
+        by_handle = {item.handle: item for item in fingerprint_batch.observations}
+        for item in batch.observations:
+            counterpart = by_handle[item.handle]
+            if (
+                item.effective_name != counterpart.effective_name
+                or item.layer != counterpart.layer
+                or float(item.x) != float(counterpart.x)
+                or float(item.y) != float(counterpart.y)
+                or {att.tag: att.value for att in item.raw_attributes}
+                != {att.tag: att.value for att in counterpart.raw_attributes}
+            ):
+                raise BridgeError("D20_SCAN_DISAGREES_WITH_INDEPENDENT_FINGERPRINT")
+
+        verified_metadata = dict(batch.source_metadata)
+        verified_metadata["incremental_mode"] = "FORCED_FULL_SCAN"
+        verified_metadata["d20_source_status"] = "BRIDGE_STABLE_IN_MEMORY_ONLY"
+        batch = CadObservationBatch(
+            document_identity=batch.document_identity,
+            observations=batch.observations,
+            source_metadata=verified_metadata,
+        )
+        digest_payload = json.dumps(
+            {
+                "contract": "NLP_D20_COM_BRIDGE_FULL_SCAN_V1",
+                "document_identity": expected.casefold(),
+                "order": first_order,
+                "signatures": first_signatures,
+                "document_saved": before.saved,
+                "dbmod": before.dbmod,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        return FreshCadReadWitness(
+            batch=batch,
+            document_identity=before.document_identity,
+            fingerprint_sha256=hashlib.sha256(digest_payload.encode("utf-8")).hexdigest(),
+            document_saved=before.saved,
+            dbmod=before.dbmod,
         )
 
     def read_observations(self, request: CadReadRequest) -> CadObservationBatch:
