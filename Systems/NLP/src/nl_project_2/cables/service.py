@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
@@ -65,12 +66,11 @@ from .recalculation import (
     refresh_conduit_length,
     segment_geometry_diagnostics,
 )
-from .transit_canonical_readback import (
-    TransitCanonicalReadback,
-    review_prepared_transit_for_canonical,
-)
-from .transit_line_preview import TransitLineApproval
 from .transit_reconciliation import staged_transit_reconciliation
+
+if TYPE_CHECKING:
+    from .transit_canonical_readback import TransitCanonicalReadback
+    from .transit_line_preview import TransitLineApproval
 
 AV_LOAD_TYPES = frozenset({"SPEAKER_CABLE", "HDMI"})
 CABLE_CATEGORIES = frozenset({"SPEAKER_CABLE", "HDMI", "OTHER_APPROVED_CABLE"})
@@ -133,6 +133,10 @@ class CableService:
         confirmed: bool = False,
     ) -> TransitCanonicalReadback:
         """Opt-in D17 readback. Never changes effective length or a specification."""
+        # Import lazily: cad_sync imports cad_contract, which loads cables.
+        # Eager imports at cables package initialization cause a circular import.
+        from .transit_canonical_readback import review_prepared_transit_for_canonical
+
         with self._engine.connect() as connection:
             return review_prepared_transit_for_canonical(
                 connection,
