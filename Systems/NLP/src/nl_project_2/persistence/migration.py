@@ -157,10 +157,50 @@ def upgrade_database(path: Path, backup_directory: Path, *, target: str = "head"
     return receipt
 
 
+def _preflight_physical_graph_downgrade(
+    path: Path, *, source_revision: str, target: str
+) -> None:
+    """Prevent partial SQLite DDL downgrade across an occupied graph revision.
+
+    SQLite/Alembic may commit DDL for rev16 before rev15's nonempty-graph
+    guard fails. Check *every* occupied intermediate graph first.
+    """
+    if not target.isdecimal():
+        raise MigrationError(f"Explicit numeric downgrade target is required: {target}")
+    source = int(source_revision)
+    destination = int(target)
+    guarded = (
+        (
+            int(TRANSIT_PHYSICAL_STAGING_REVISION),
+            ("cable_transit_span", "cable_transit_route"),
+            "TRANSIT_PHYSICAL_DOWNGRADE_REQUIRES_EXPLICIT_REVIEW",
+        ),
+        (
+            int(PHYSICAL_DALI_GRAPH_REVISION),
+            ("bus_physical_link", "bus_physical_node"),
+            "DALI_PHYSICAL_DOWNGRADE_REQUIRES_EXPLICIT_REVIEW",
+        ),
+    )
+    uri = f"file:{path.resolve().as_posix()}?mode=ro"
+    with closing(sqlite3.connect(uri, uri=True)) as connection:
+        for revision, tables, reason in guarded:
+            if not (source >= revision > destination):
+                continue
+            for table in tables:
+                count = connection.execute(
+                    f'SELECT COUNT(*) FROM "{table}"'
+                ).fetchone()[0]
+                if count:
+                    raise RuntimeError(f"{reason}:{table}:physical graph is not empty")
+
+
 def downgrade_database(path: Path, backup_directory: Path, *, target: str) -> BackupReceipt:
     """Downgrade a versioned database after creating a verified backup."""
 
     resolved = path.resolve()
     receipt = create_verified_backup(resolved, backup_directory)
+    _preflight_physical_graph_downgrade(
+        resolved, source_revision=receipt.source_revision, target=target
+    )
     command.downgrade(_config(resolved), target)
     return receipt
