@@ -71,11 +71,11 @@ from .transit_reconciliation import staged_transit_reconciliation
 if TYPE_CHECKING:
     from nl_project_2.cad_contract import CadObservationBatch
 
-    from .transit_dwg_scan_lineage import DwgScanLineageReview, DwgTransitRevalidationPlan
     from .transit_activation_readiness import (
         TransitActivationPlan,
         TransitActivationRequest,
     )
+    from .transit_dwg_scan_lineage import DwgScanLineageReview, DwgTransitRevalidationPlan
     from .transit_canonical_readback import TransitCanonicalReadback
     from .transit_line_preview import TransitLineApproval
 
