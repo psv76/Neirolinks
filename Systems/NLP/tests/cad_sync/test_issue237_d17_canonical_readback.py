@@ -7,8 +7,8 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import select, update
-from test_issue237_d16_quantity_prepare import _intent, _prepare
 from test_issue237_d14_transit_quantity_reconciliation import _canonical_rows
+from test_issue237_d16_quantity_prepare import _intent, _prepare
 
 from nl_project_2.cables.service import CableService
 from nl_project_2.cables.transit_canonical_readback import review_prepared_transit_for_canonical
