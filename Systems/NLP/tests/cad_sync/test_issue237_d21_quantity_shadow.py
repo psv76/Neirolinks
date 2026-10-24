@@ -150,8 +150,11 @@ def test_d21_selection_must_be_exact_confirmed_and_sha_bound(database):
         )
     with pytest.raises(ValueError, match="D21_EXPLICIT_SELECTION_APPROVAL_REQUIRED"):
         service.preview_transit_quantity_sources(
-            (req,), selected_line_ids=ids, mode="PREPARED_SHADOW",
-            expected_selection_sha256=digest, confirmed=False,
+            (req,),
+            selected_line_ids=ids,
+            mode="PREPARED_SHADOW",
+            expected_selection_sha256=digest,
+            confirmed=False,
         )
     with pytest.raises(ValueError, match="D21_SELECTION_NOT_EXACT"):
         selection_sha256((req, req), ids, mode="PREPARED_SHADOW")
@@ -162,10 +165,18 @@ def test_d21_selection_must_be_exact_confirmed_and_sha_bound(database):
 
 
 def test_d21_multi_line_preview_is_all_or_nothing_when_one_owner_stale():
-    req1 = SimpleNamespace(approval=SimpleNamespace(transit=SimpleNamespace(
-        project_id="project-A", cable_line_id="line-1")), d16_batch_sha256="a" * 64)
-    req2 = SimpleNamespace(approval=SimpleNamespace(transit=SimpleNamespace(
-        project_id="project-A", cable_line_id="line-2")), d16_batch_sha256="b" * 64)
+    req1 = SimpleNamespace(
+        approval=SimpleNamespace(
+            transit=SimpleNamespace(project_id="project-A", cable_line_id="line-1")
+        ),
+        d16_batch_sha256="a" * 64,
+    )
+    req2 = SimpleNamespace(
+        approval=SimpleNamespace(
+            transit=SimpleNamespace(project_id="project-A", cable_line_id="line-2")
+        ),
+        d16_batch_sha256="b" * 64,
+    )
     requests = (req1, req2)
     ids = frozenset({"line-1", "line-2"})
     token = selection_sha256(requests, ids, mode="PREPARED_SHADOW")
@@ -177,8 +188,12 @@ def test_d21_multi_line_preview_is_all_or_nothing_when_one_owner_stale():
         confirmed=True,
         legacy_effective_m={"line-1": Decimal("10"), "line-2": Decimal("20")},
         readbacks={
-            "line-1": SimpleNamespace(status="VERIFIED_READBACK_ONLY", prepared_final_m=Decimal("17"), issues=()),
-            "line-2": SimpleNamespace(status="REVIEW", prepared_final_m=Decimal("18"), issues=("STALE",)),
+            "line-1": SimpleNamespace(
+                status="VERIFIED_READBACK_ONLY", prepared_final_m=Decimal("17"), issues=()
+            ),
+            "line-2": SimpleNamespace(
+                status="REVIEW", prepared_final_m=Decimal("18"), issues=("STALE",)
+            ),
         },
     )
     assert plan.status == "REVIEW"
@@ -191,11 +206,19 @@ def test_d21_manual_value_remains_unchanged_after_preview_and_revoke(database):
     intent = _intent(database)
     ev = intent.approval.transit
     with database.engine.begin() as conn:
-        fact = conn.execute(
-            select(cable_length_fact).where(cable_length_fact.c.cable_line_id == ev.cable_line_id)
-        ).mappings().one()
+        fact = (
+            conn.execute(
+                select(cable_length_fact).where(
+                    cable_length_fact.c.cable_line_id == ev.cable_line_id
+                )
+            )
+            .mappings()
+            .one()
+        )
         conn.execute(
-            update(cable_length_fact).where(cable_length_fact.c.id == fact["id"]).values(
+            update(cable_length_fact)
+            .where(cable_length_fact.c.id == fact["id"])
+            .values(
                 manual_full_length_m_decimal="8.3",
                 row_version=cable_length_fact.c.row_version + 1,
             )
@@ -214,7 +237,13 @@ def test_d21_manual_value_remains_unchanged_after_preview_and_revoke(database):
     reverted = _selection(database, request, ids, "LEGACY_ONLY")
     assert reverted.lines[0].preview_effective_m == Decimal("8.3")
     with database.engine.connect() as conn:
-        unchanged = conn.execute(
-            select(cable_length_fact).where(cable_length_fact.c.cable_line_id == ev.cable_line_id)
-        ).mappings().one()
+        unchanged = (
+            conn.execute(
+                select(cable_length_fact).where(
+                    cable_length_fact.c.cable_line_id == ev.cable_line_id
+                )
+            )
+            .mappings()
+            .one()
+        )
         assert unchanged["manual_full_length_m_decimal"] == "8.3"
