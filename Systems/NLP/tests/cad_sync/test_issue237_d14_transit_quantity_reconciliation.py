@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from sqlalchemy import func, select, update
+from sqlalchemy import select, update
 from test_issue237_d13_transit_store import _accepted
 from nl_project_2.cad_sync.transit_physical_store import (
     approved_transit_sha256,
