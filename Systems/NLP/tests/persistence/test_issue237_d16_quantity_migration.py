@@ -24,10 +24,7 @@ from nl_project_2.persistence.schema import (
 
 def _tables(path):
     with sqlite3.connect(path) as conn:
-        return {
-            row[0]
-            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        }
+        return {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
 
 
 def test_rev16_to_17_uses_verified_backup_no_legacy_backfill(tmp_path):
