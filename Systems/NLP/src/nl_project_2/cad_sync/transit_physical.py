@@ -7,19 +7,19 @@ No database or CAD writes occur in this module.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_CEILING
-from typing import Mapping
+from decimal import ROUND_CEILING, Decimal
 
 from nl_project_2.cables.domain import (
     CablePointInput,
     ConduitContractError,
-    RouteMethod,
     ROUTE_METHOD_BY_MOUNT_WAY,
+    RouteMethod,
     validate_line_conduit_fields,
 )
 
-from .cable_transit import TransitAudit, TransitRoutePreview
+from .cable_transit import TransitAudit
 
 _ROOT_SUFFIX = "/$SOURCE"
 
@@ -115,7 +115,10 @@ def build_physical_transit_routes(audit: TransitAudit) -> tuple[PhysicalTransitR
             for point in route.waypoints
         )
         problems = set(route.issue_codes)
-        if any(issue.cable_base == route.cable_base or issue.cable_base is None for issue in audit.issues):
+        if any(
+            issue.cable_base == route.cable_base or issue.cable_base is None
+            for issue in audit.issues
+        ):
             problems.add("TRANSIT_UNPARSED_TOKENS_REQUIRE_REVIEW")
         if route.status != "CANDIDATE" or problems:
             results.append(
@@ -160,7 +163,7 @@ def build_physical_transit_routes(audit: TransitAudit) -> tuple[PhysicalTransitR
                 b,
                 f"{route.cable_base}:{a}->{b}",
             )
-            for a, b in zip(vertices, vertices[1:])
+            for a, b in zip(vertices, vertices[1:], strict=False)
         )
         results.append(
             PhysicalTransitRoute(route.cable_base, "CANDIDATE", spans, (), box_positions)
@@ -326,7 +329,10 @@ def measure_physical_transit(
 
         if len(measured) != len(route.spans) or problems:
             all_results.append(
-                PhysicalTransitResult(route.cable_base, "REVIEW", tuple(measured), None, (), tuple(sorted(problems)))
+                PhysicalTransitResult(
+                    route.cable_base, "REVIEW", tuple(measured), None, (),
+                    tuple(sorted(problems)),
+                )
             )
             continue
         # Check all sharing including across cable bases before declaring PASS.
@@ -342,7 +348,10 @@ def measure_physical_transit(
                     existing[5].add(route.cable_base)
         if problems:
             all_results.append(
-                PhysicalTransitResult(route.cable_base, "REVIEW", tuple(measured), None, (), tuple(sorted(problems)))
+                PhysicalTransitResult(
+                    route.cable_base, "REVIEW", tuple(measured), None, (),
+                    tuple(sorted(problems)),
+                )
             )
             continue
         physical_total = sum((part.corrected_m for part in measured), Decimal(0))
@@ -358,7 +367,9 @@ def measure_physical_transit(
             )
         )
         all_results.append(
-            PhysicalTransitResult(route.cable_base, "MEASURED", tuple(measured), cable_total, (), ())
+            PhysicalTransitResult(
+                route.cable_base, "MEASURED", tuple(measured), cable_total, (), ()
+            )
         )
 
     # A shared pipe is never accepted based on a designation alone. Any
