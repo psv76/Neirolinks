@@ -34,7 +34,9 @@ def _point(x, y, *, height=2300, base_mark=-250, room_height=3):
 
 
 def _where(x, y, *, height=2300):
-    return VerifiedLocation(_point(x, y, height=height), evidence="verified-room-and-CAD", confirmed=True)
+    return VerifiedLocation(
+        _point(x, y, height=height), evidence="verified-room-and-CAD", confirmed=True
+    )
 
 
 def _policy():
