@@ -75,8 +75,8 @@ if TYPE_CHECKING:
         TransitActivationPlan,
         TransitActivationRequest,
     )
-    from .transit_dwg_scan_lineage import DwgScanLineageReview, DwgTransitRevalidationPlan
     from .transit_canonical_readback import TransitCanonicalReadback
+    from .transit_dwg_scan_lineage import DwgScanLineageReview, DwgTransitRevalidationPlan
     from .transit_line_preview import TransitLineApproval
 
 AV_LOAD_TYPES = frozenset({"SPEAKER_CABLE", "HDMI"})
