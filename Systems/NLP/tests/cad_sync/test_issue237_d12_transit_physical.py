@@ -219,6 +219,7 @@ def test_invalid_policy_rejected_before_any_measurement():
     with pytest.raises(ValueError, match="TRANSIT_POLICY_UNVERIFIED"):
         measure_physical_transit((route,), locations={}, decisions={}, policy=policy)
 
+
 def _two_line_shared_waypoints():
     a = _transit_box("A", "301-1;302-1", "BOX.010")
     b = _transit_box("B", "301-2;302-2", "BOX.020")
