@@ -7,6 +7,8 @@ on:
       - 'Systems/NLP/src/nl_project_2/cables/transit_reconciliation.py'
       - 'Systems/NLP/src/nl_project_2/cables/service.py'
       - 'Systems/NLP/tests/cad_sync/test_issue237_d14_transit_quantity_reconciliation.py'
+      - 'Systems/NLP/tests/cables/test_cable_service.py'
+      - 'Systems/NLP/tests/cables/test_lines_spreadsheet_service.py'
       - 'Systems/NLP/docs/engineering/ISSUE_237_D14_QUANTITY_RECONCILIATION.md'
   workflow_dispatch:
 
@@ -62,4 +64,7 @@ jobs:
             tests/cad_sync/test_issue237_d12_transit_physical.py \
             tests/cad_sync/test_issue237_d11_transit_readonly.py \
             tests/cad_sync/test_issue237_d10_track_internal_power.py \
-            tests/persistence/test_issue237_d13_transit_migration.py
+            tests/persistence/test_issue237_d13_transit_migration.py \
+            tests/cables/test_cable_service.py \
+            tests/cables/test_lines_spreadsheet_service.py \
+            tests/cables/test_p0004_segment_recalculation.py
