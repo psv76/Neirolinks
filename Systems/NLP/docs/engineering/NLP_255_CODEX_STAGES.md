@@ -27,7 +27,7 @@
 
 **REPO:** `psv76/Neirolinks`; `Systems/NLP`.
 
-**BASE_REF:** `integration/nlp-237-d23-stagec-d22-candidate` как актуальная подтверждённая D23-база. **BASE_SHA:** установить по GitHub непосредственно перед запуском и записать в checkpoint. При расхождении с подготовленной базой остановиться; не угадывать SHA.
+**BASE_REF:** `integration/nlp-237-d23-stagec-d22-candidate` как актуальная подтверждённая D23-база. **BASE_SHA (подготовлен и проверен):** `9366629eb8710de8985149e8bbc3a3e85a1823ea`. Перед запуском ещё раз сверить `BASE_REF` с этим SHA. При расхождении остановиться, пересогласовать базу и обновить brief; не угадывать SHA.
 
 **WORK_BRANCH:** `feature/nlp-255-c1-layer-parser` (создать только перед работой после проверки BASE_SHA; не менять source branches).
 
