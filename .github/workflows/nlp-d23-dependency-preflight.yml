@@ -30,6 +30,8 @@ jobs:
         run: python -m py_compile Systems/NLP/tools/d23_dependency_preflight.py
       - name: Probe read-only integration conflict
         run: python Systems/NLP/tools/d23_dependency_preflight.py
+      - name: Verify semantic parity of conflicting Stage C and D22 tests
+        run: python Systems/NLP/tools/d23_test_ast_parity.py
 
   d22-synthetic-regression:
     runs-on: ubuntu-latest
