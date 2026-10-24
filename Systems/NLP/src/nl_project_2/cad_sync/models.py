@@ -8,6 +8,8 @@ from typing import Any
 
 from nl_project_2.cad_contract import CadObservationBatch, ValidationIssue
 
+from .cable_transit import TransitAudit
+
 
 class ChangeClass(StrEnum):
     EQUAL = "EQUAL"
@@ -74,6 +76,7 @@ class ScanProposal:
     summary: SyncSummary
     project_revision: int
     binding_id: str | None
+    transit_audit: TransitAudit = TransitAudit()
 
     @property
     def can_apply(self) -> bool:
