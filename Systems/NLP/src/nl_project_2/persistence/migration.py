@@ -29,7 +29,8 @@ SCREED_MOUNT_WAY_REVISION = "000000000013"
 SHARED_BOX_ENDPOINT_REVISION = "000000000014"
 PHYSICAL_DALI_GRAPH_REVISION = "000000000015"
 TRANSIT_PHYSICAL_STAGING_REVISION = "000000000016"
-HEAD_REVISION = TRANSIT_PHYSICAL_STAGING_REVISION
+TRANSIT_LINE_COMMIT_REVISION = "000000000017"
+HEAD_REVISION = TRANSIT_LINE_COMMIT_REVISION
 KNOWN_REVISIONS = frozenset(
     {
         FOUNDATION_REVISION,
@@ -47,6 +48,7 @@ KNOWN_REVISIONS = frozenset(
         SCREED_MOUNT_WAY_REVISION,
         SHARED_BOX_ENDPOINT_REVISION,
         PHYSICAL_DALI_GRAPH_REVISION,
+        TRANSIT_PHYSICAL_STAGING_REVISION,
         HEAD_REVISION,
     }
 )
@@ -168,6 +170,11 @@ def _preflight_physical_graph_downgrade(path: Path, *, source_revision: str, tar
     source = int(source_revision)
     destination = 0 if target == "base" else int(target)
     guarded = (
+        (
+            int(TRANSIT_LINE_COMMIT_REVISION),
+            ("cable_transit_line_commit",),
+            "TRANSIT_LINE_COMMIT_DOWNGRADE_REQUIRES_EXPLICIT_REVIEW",
+        ),
         (
             int(TRANSIT_PHYSICAL_STAGING_REVISION),
             ("cable_transit_span", "cable_transit_route"),
