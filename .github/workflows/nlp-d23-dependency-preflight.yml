@@ -266,6 +266,11 @@ jobs:
           git rev-parse HEAD
           python -m compileall -q src/nl_project_2
           python -m json.tool resources/autocad/block_contract.json >/dev/null
+      - name: Check precise legacy-to-candidate CAD contract inventory delta
+        working-directory: .
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          python Systems/NLP/tools/d23_contract_delta_guard.py
       - name: Expanded synthetic persistence, CAD, cable, BUS and specification
         run: |
           python -m pytest -q \
