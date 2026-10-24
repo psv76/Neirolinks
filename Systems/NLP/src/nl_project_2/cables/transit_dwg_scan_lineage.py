@@ -109,7 +109,8 @@ def compare_current_dwg_observations(
     )
     for box_id, _x, _y, _height in ev.route.box_positions:
         matches = [
-            row for row in boxes
+            row
+            for row in boxes
             if str((row["normalized_fields_json"] or {}).get("BOX_ID") or "") == box_id
         ]
         if len(matches) != 1:
@@ -122,23 +123,31 @@ def compare_current_dwg_observations(
         (ev.source_endpoint_id, ev.route.spans[0].start),
         (ev.target_endpoint_id, ev.route.spans[-1].finish),
     ):
-        endpoint = connection.execute(
-            select(cable_topology_endpoint).where(
-                cable_topology_endpoint.c.id == endpoint_id,
-                cable_topology_endpoint.c.project_id == ev.project_id,
-                cable_topology_endpoint.c.cable_line_id == ev.cable_line_id,
+        endpoint = (
+            connection.execute(
+                select(cable_topology_endpoint).where(
+                    cable_topology_endpoint.c.id == endpoint_id,
+                    cable_topology_endpoint.c.project_id == ev.project_id,
+                    cable_topology_endpoint.c.cable_line_id == ev.cable_line_id,
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if endpoint is None or endpoint["endpoint_kind"] != "TOPOLOGY_POINT":
             issues.add("D19_ENDPOINT_CANONICAL_OWNER_MISSING")
             continue
-        point = connection.execute(
-            select(cable_point).where(
-                cable_point.c.project_id == ev.project_id,
-                cable_point.c.id == endpoint["cable_point_id"],
-                cable_point.c.cable_line_id == ev.cable_line_id,
+        point = (
+            connection.execute(
+                select(cable_point).where(
+                    cable_point.c.project_id == ev.project_id,
+                    cable_point.c.id == endpoint["cable_point_id"],
+                    cable_point.c.cable_line_id == ev.cable_line_id,
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if point is None:
             issues.add("D19_ENDPOINT_CANONICAL_POINT_MISSING")
             continue
@@ -175,27 +184,35 @@ def compare_current_dwg_observations(
     binding = None
     latest = None
     if binding_id is not None:
-        binding = connection.execute(
-            select(dwg_document_binding).where(
-                dwg_document_binding.c.project_id == ev.project_id,
-                dwg_document_binding.c.id == binding_id,
+        binding = (
+            connection.execute(
+                select(dwg_document_binding).where(
+                    dwg_document_binding.c.project_id == ev.project_id,
+                    dwg_document_binding.c.id == binding_id,
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if (
             binding is None
             or binding["status"] != "CONFIRMED"
             or binding["document_signature"] != current_batch.document_identity
         ):
             issues.add("D19_CURRENT_DOCUMENT_BINDING_MISMATCH")
-        latest = connection.execute(
-            select(dwg_scan)
-            .where(
-                dwg_scan.c.project_id == ev.project_id,
-                dwg_scan.c.dwg_document_binding_id == binding_id,
-                dwg_scan.c.status == "ACCEPTED",
+        latest = (
+            connection.execute(
+                select(dwg_scan)
+                .where(
+                    dwg_scan.c.project_id == ev.project_id,
+                    dwg_scan.c.dwg_document_binding_id == binding_id,
+                    dwg_scan.c.status == "ACCEPTED",
+                )
+                .order_by(dwg_scan.c.completed_at_utc.desc(), dwg_scan.c.id.desc())
             )
-            .order_by(dwg_scan.c.completed_at_utc.desc(), dwg_scan.c.id.desc())
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
         if latest is None or not latest["content_sha256"]:
             issues.add("D19_ACCEPTED_SCAN_LINEAGE_MISSING")
 
@@ -215,13 +232,17 @@ def compare_current_dwg_observations(
             issues.add("D19_ACCEPTED_OWNER_BINDING_CHANGED")
         prior = None
         if latest is not None:
-            prior = connection.execute(
-                select(dwg_observation).where(
-                    dwg_observation.c.project_id == ev.project_id,
-                    dwg_observation.c.dwg_scan_id == latest["id"],
-                    dwg_observation.c.entity_handle == handle,
+            prior = (
+                connection.execute(
+                    select(dwg_observation).where(
+                        dwg_observation.c.project_id == ev.project_id,
+                        dwg_observation.c.dwg_scan_id == latest["id"],
+                        dwg_observation.c.entity_handle == handle,
+                    )
                 )
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
         if prior is None:
             issues.add("D19_OWNER_ABSENT_FROM_LAST_ACCEPTED_SCAN")
             continue
@@ -246,7 +267,8 @@ def compare_current_dwg_observations(
         ):
             issues.add("D19_DWG_OWNER_OBSERVATION_CHANGED")
         if prior["diagnostics_json"] and any(
-            item.get("blocks_acceptance") for item in prior["diagnostics_json"]
+            item.get("blocks_acceptance")
+            for item in prior["diagnostics_json"]
             if isinstance(item, dict)
         ):
             issues.add("D19_ACCEPTED_SCAN_HAS_BLOCKING_DIAGNOSTIC")
@@ -255,8 +277,7 @@ def compare_current_dwg_observations(
         if boundary_kind.startswith("BOX:"):
             box_id = boundary_kind.split(":", 1)[1]
             box_coords = [
-                (x, y, height)
-                for name, x, y, height in ev.route.box_positions if name == box_id
+                (x, y, height) for name, x, y, height in ev.route.box_positions if name == box_id
             ]
             if (
                 len(box_coords) != 1
@@ -264,11 +285,9 @@ def compare_current_dwg_observations(
                 or _decimal(current_attrs.get("MOUNT_HEIGHT")) != _decimal(box_coords[0][2])
             ):
                 issues.add("D19_APPROVED_BOX_GEOMETRY_DIFFERS_DWG")
-            if (
-                str(current_attrs.get("BOX_ID") or "") != box_id
-                or str(current_attrs.get("CABLE_TRANSIT") or "")
-                != str(fields.get("CABLE_TRANSIT") or "")
-            ):
+            if str(current_attrs.get("BOX_ID") or "") != box_id or str(
+                current_attrs.get("CABLE_TRANSIT") or ""
+            ) != str(fields.get("CABLE_TRANSIT") or ""):
                 issues.add("D19_APPROVED_BOX_ATTRIBUTES_DIFFER")
         else:
             boundary = endpoint_point_by_device.get(row["id"])
@@ -276,8 +295,7 @@ def compare_current_dwg_observations(
             if (
                 location is None
                 or actual_xy != (location.point.x_mm, location.point.y_mm)
-                or _decimal(current_attrs.get("MOUNT_HEIGHT"))
-                != location.point.mount_height_mm
+                or _decimal(current_attrs.get("MOUNT_HEIGHT")) != location.point.mount_height_mm
             ):
                 issues.add("D19_APPROVED_ENDPOINT_GEOMETRY_DIFFERS_DWG")
         expected[handle] = {
