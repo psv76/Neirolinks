@@ -44,6 +44,9 @@ jobs:
             src/nl_project_2/cad_sync/models.py \
             src/nl_project_2/cad_sync/service.py \
             tests/cad_sync/test_issue237_d11_transit_readonly.py
+          python -m ruff format --diff \
+            src/nl_project_2/cad_sync/cable_transit.py \
+            tests/cad_sync/test_issue237_d11_transit_readonly.py
           python -m ruff format --check \
             src/nl_project_2/cad_sync/cable_transit.py \
             src/nl_project_2/cad_sync/reconciliation.py \
