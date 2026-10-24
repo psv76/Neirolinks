@@ -9,6 +9,7 @@ from sqlalchemy import select, update
 from test_issue237_d13_transit_store import _where
 from test_issue237_d14_transit_quantity_reconciliation import _canonical_rows
 from test_issue237_d16_quantity_prepare import _intent, _prepare
+from nl_project_2.cables.transit_activation_readiness import TransitActivationRequest
 from test_issue237_passive_physical_ownership import _batch, _box, _track
 from test_issue237_physical_dali_storage import _change_observation
 
@@ -162,7 +163,9 @@ def test_missing_latest_accepted_scan_observation_blocks_even_when_input_matches
             )
         ).mappings().one()
         conn.execute(
-            dwg_observation.delete().where(dwg_observation.c.id == existing["id"])
+            update(dwg_observation)
+            .where(dwg_observation.c.id == existing["id"])
+            .values(entity_handle="TRACK-OBSOLETE")
         )
     review = _check(database, approval)
     assert review.status == "REVIEW"
@@ -198,3 +201,57 @@ def test_unrelated_project_field_device_does_not_affect_owner_subset(database):
         )
     after = _check(database, approval)
     assert before == after
+
+
+def test_d19_joins_d18_readiness_without_promoting_matched_cad_input(database):
+    intent = _intent(database)
+    (receipt,) = _prepare(database, intent)
+    ev = intent.approval.transit
+    service = CableService(database.engine)
+    plan = service.plan_current_dwg_transit_revalidation(
+        (TransitActivationRequest(intent.approval, receipt.approved_sha256),),
+        selected_line_ids=frozenset({ev.cable_line_id}),
+        supplied_batches={ev.cable_line_id: _batch_now()},
+        confirmed=True,
+    )
+    assert plan.status == "BLOCKED"
+    assert not plan.can_publish
+    assert plan.activation_readiness.status == "BLOCKED"
+    assert not plan.activation_readiness.can_publish
+    assert len(plan.dwg_comparisons) == 1
+    assert plan.dwg_comparisons[0].status == "REVIEW"
+    assert "D19_APPROVED_ENDPOINT_GEOMETRY_DIFFERS_DWG" in plan.issues
+    assert "D19_LIVE_CAD_BATCH_PROVENANCE_NOT_ATTESTED" in plan.issues
+    assert "D18_CANONICAL_RECALCULATION_SOURCE_SWITCH_NOT_IMPLEMENTED" in plan.issues
+
+
+def test_d19_composition_exactly_selected_batch_scope(database):
+    intent = _intent(database)
+    (receipt,) = _prepare(database, intent)
+    ev = intent.approval.transit
+    request = TransitActivationRequest(intent.approval, receipt.approved_sha256)
+    service = CableService(database.engine)
+    with pytest.raises(ValueError, match="D19_CAD_BATCH_SELECTION_NOT_EXACT"):
+        service.plan_current_dwg_transit_revalidation(
+            (request,),
+            selected_line_ids=frozenset({ev.cable_line_id}),
+            supplied_batches={"some-other-line": _batch_now()},
+            confirmed=True,
+        )
+
+
+def test_matched_scan_never_overrides_existing_canonical_manual_length(database):
+    intent = _intent(database)
+    (receipt,) = _prepare(database, intent)
+    ev = intent.approval.transit
+    before = CableService(database.engine).effective_length(ev.project_id, ev.cable_line_id)
+    plan = CableService(database.engine).plan_current_dwg_transit_revalidation(
+        (TransitActivationRequest(intent.approval, receipt.approved_sha256),),
+        selected_line_ids=frozenset({ev.cable_line_id}),
+        supplied_batches={ev.cable_line_id: _batch_now()},
+        confirmed=True,
+    )
+    after = CableService(database.engine).effective_length(ev.project_id, ev.cable_line_id)
+    assert before == after
+    assert plan.activation_readiness.lines[0].authoritative_cable_m is None
+    assert not plan.can_publish
