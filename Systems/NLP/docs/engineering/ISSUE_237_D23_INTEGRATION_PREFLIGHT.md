@@ -30,3 +30,13 @@ No production quantity activation, new ACTIVE/REVOKED persistent state, schema/c
 ## Evidence to retain
 
 Immutable head SHAs, exact test command and pass/fail summary, merge-tree conflict filenames, which branch each suite used, and unchanged authoritativeness of manual and canonical quantities. Any unresolved conflict remains a blocker in #235/#237 rather than an implicit implementation decision.
+
+## Additional conflict classification (verified in CI)
+
+The conflict in `tests/unit/test_length_policy.py` is a Git add/add conflict, but the
+D22 and Stage C revisions have **identical Python AST** (formatting differs).
+Verified using `tools/d23_test_ast_parity.py` in the D23 GitHub Actions merge-tree job.
+Resolution can retain the D22 formatting without dropping Stage C test assertions.
+The cable-service content conflict **is not proven safe** by this result: it
+requires a purpose-built integrated candidate, separate tests and non-activation
+checks. Do not use an automatic ours/theirs resolution for that module.
