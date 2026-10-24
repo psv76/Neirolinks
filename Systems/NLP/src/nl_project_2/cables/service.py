@@ -80,6 +80,7 @@ if TYPE_CHECKING:
     from .transit_dwg_scan_lineage import DwgScanLineageReview, DwgTransitRevalidationPlan
     from .transit_line_preview import TransitLineApproval
     from .transit_live_bridge_gate import TransitLiveBridgeReview
+    from .transit_source_selection import ShadowMode, ShadowQuantitySelection
 
 AV_LOAD_TYPES = frozenset({"SPEAKER_CABLE", "HDMI"})
 CABLE_CATEGORIES = frozenset({"SPEAKER_CABLE", "HDMI", "OTHER_APPROVED_CABLE"})
@@ -231,6 +232,52 @@ class CableService:
             expected_document_identity=expected_document_identity,
             definition_names=tuple(load_contract().blocks),
             confirmed=confirmed,
+        )
+
+    def preview_transit_quantity_sources(
+        self,
+        requests: tuple[TransitActivationRequest, ...],
+        *,
+        selected_line_ids: frozenset[str],
+        mode: ShadowMode,
+        expected_selection_sha256: str,
+        confirmed: bool = False,
+    ) -> ShadowQuantitySelection:
+        """D21 request-scoped shadow source switch; never persists activation."""
+        from .transit_canonical_readback import review_prepared_transit_for_canonical
+        from .transit_source_selection import make_shadow_selection, selection_sha256
+
+        if selection_sha256(requests, selected_line_ids, mode=mode) != expected_selection_sha256:
+            raise ValueError("D21_EXPLICIT_SELECTION_APPROVAL_REQUIRED")
+        if not confirmed:
+            raise ValueError("D21_EXPLICIT_SELECTION_APPROVAL_REQUIRED")
+        project_id = requests[0].approval.transit.project_id
+        legacies: dict[str, Decimal | None] = {}
+        reviews = {}
+        for request in requests:
+            line_id = request.approval.transit.cable_line_id
+            try:
+                legacies[line_id] = self.effective_length(project_id, line_id).effective_m
+            except CableError:
+                legacies[line_id] = None
+        if mode == "PREPARED_SHADOW":
+            with self._engine.connect() as connection:
+                for request in requests:
+                    line_id = request.approval.transit.cable_line_id
+                    reviews[line_id] = review_prepared_transit_for_canonical(
+                        connection,
+                        request.approval,
+                        expected_batch_sha256=request.d16_batch_sha256,
+                        confirmed=True,
+                    )
+        return make_shadow_selection(
+            requests,
+            selected_line_ids=selected_line_ids,
+            mode=mode,
+            expected_selection_sha256=expected_selection_sha256,
+            confirmed=True,
+            legacy_effective_m=legacies,
+            readbacks=reviews,
         )
 
     def topology(self, project_id: str, cable_line_id: str) -> dict:
