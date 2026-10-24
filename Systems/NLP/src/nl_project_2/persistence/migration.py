@@ -187,9 +187,7 @@ def _preflight_physical_graph_downgrade(
             if not (source >= revision > destination):
                 continue
             for table in tables:
-                count = connection.execute(
-                    f'SELECT COUNT(*) FROM "{table}"'
-                ).fetchone()[0]
+                count = connection.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
                 if count:
                     raise RuntimeError(f"{reason}:{table}:physical graph is not empty")
 
