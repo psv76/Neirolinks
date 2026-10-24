@@ -14,6 +14,9 @@ from nl_project_2.cad_sync.transit_physical_store import (
 )
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
+    bus,
+    bus_endpoint,
+    bus_segment,
     cable_length_fact,
     cable_segment,
     cable_transit_span,
@@ -188,3 +191,52 @@ def test_no_staged_routes_leave_all_normal_canonical_quantities_untouched(databa
     assert all(
         not card["staged_transit_review"] for card in cable_service.line_cards(ev.project_id)
     )
+
+
+def test_legacy_bus_conduit_same_id_requires_typed_boundary_review(database):
+    ev = _stage(database)
+    with database.engine.begin() as conn:
+        bus_id = conn.scalar(
+            select(bus.c.id).where(
+                bus.c.project_id == ev.project_id,
+                bus.c.designation == "905",
+            )
+        )
+        track_owner = conn.scalar(
+            select(field_device.c.id).where(
+                field_device.c.project_id == ev.project_id,
+                field_device.c.block_kind == "TRACK_DALI",
+            )
+        )
+        assert bus_id and track_owner
+        endpoint_id = new_id()
+        conn.execute(
+            bus_endpoint.insert().values(
+                id=endpoint_id,
+                project_id=ev.project_id,
+                bus_id=bus_id,
+                endpoint_kind="FIELD_DEVICE",
+                field_device_id=track_owner,
+                endpoint_role="DEVICE",
+                address="905.999",
+            )
+        )
+        conn.execute(
+            bus_segment.insert().values(
+                id=new_id(),
+                project_id=ev.project_id,
+                bus_id=bus_id,
+                source_endpoint_id=None,
+                target_endpoint_id=endpoint_id,
+                connection_kind="CABLE",
+                gofra_id="001.PND25",
+            )
+        )
+    preview = CableService(database.engine).transit_reconciliation(ev.project_id)
+    assert "TRANSIT_BUS_CONDUIT_BOUNDARY_UNPROVEN" in preview["routes"][0]["issues"]
+    assert preview["review_count"] == 1
+    assert preview["uncommitted_unique_conduit_geometry_m"] != ""
+    candidate = next(
+        item for item in preview["conduits"] if item["designation"] == "001.PND25"
+    )
+    assert candidate["status"] == "REVIEW"
