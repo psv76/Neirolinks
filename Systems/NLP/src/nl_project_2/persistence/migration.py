@@ -165,10 +165,10 @@ def _preflight_physical_graph_downgrade(
     SQLite/Alembic may commit DDL for rev16 before rev15's nonempty-graph
     guard fails. Check *every* occupied intermediate graph first.
     """
-    if not target.isdecimal():
-        raise MigrationError(f"Explicit numeric downgrade target is required: {target}")
+    if target != "base" and not target.isdecimal():
+        raise MigrationError(f"Explicit downgrade target is required: {target}")
     source = int(source_revision)
-    destination = int(target)
+    destination = 0 if target == "base" else int(target)
     guarded = (
         (
             int(TRANSIT_PHYSICAL_STAGING_REVISION),
