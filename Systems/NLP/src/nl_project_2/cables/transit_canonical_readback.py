@@ -70,12 +70,16 @@ def review_prepared_transit_for_canonical(
     """
     ev = approval.transit
     issues: set[str] = set()
-    receipt = connection.execute(
-        select(cable_transit_line_commit).where(
-            cable_transit_line_commit.c.project_id == ev.project_id,
-            cable_transit_line_commit.c.cable_line_id == ev.cable_line_id,
+    receipt = (
+        connection.execute(
+            select(cable_transit_line_commit).where(
+                cable_transit_line_commit.c.project_id == ev.project_id,
+                cable_transit_line_commit.c.cable_line_id == ev.cable_line_id,
+            )
         )
-    ).mappings().one_or_none()
+        .mappings()
+        .one_or_none()
+    )
     if receipt is None:
         return TransitCanonicalReadback(
             ev.cable_line_id, "REVIEW", ("TRANSIT_D16_RECEIPT_MISSING",)
@@ -91,23 +95,31 @@ def review_prepared_transit_for_canonical(
     if receipt["transit_approval_sha256"] != transit_line_approval_sha256(approval):
         issues.add("TRANSIT_D15_APPROVAL_STALE")
 
-    line = connection.execute(
-        select(cable_line).where(
-            cable_line.c.id == ev.cable_line_id,
-            cable_line.c.project_id == ev.project_id,
-            cable_line.c.lifecycle == "ACTIVE",
+    line = (
+        connection.execute(
+            select(cable_line).where(
+                cable_line.c.id == ev.cable_line_id,
+                cable_line.c.project_id == ev.project_id,
+                cable_line.c.lifecycle == "ACTIVE",
+            )
         )
-    ).mappings().one_or_none()
+        .mappings()
+        .one_or_none()
+    )
     if line is None or line["row_version"] != receipt["line_row_version_at_approval"]:
         issues.add("TRANSIT_D16_LINE_CHANGED")
 
-    segment = connection.execute(
-        select(cable_segment).where(
-            cable_segment.c.id == ev.electrical_segment_id,
-            cable_segment.c.project_id == ev.project_id,
-            cable_segment.c.cable_line_id == ev.cable_line_id,
+    segment = (
+        connection.execute(
+            select(cable_segment).where(
+                cable_segment.c.id == ev.electrical_segment_id,
+                cable_segment.c.project_id == ev.project_id,
+                cable_segment.c.cable_line_id == ev.cable_line_id,
+            )
         )
-    ).mappings().one_or_none()
+        .mappings()
+        .one_or_none()
+    )
     if (
         segment is None
         or segment["row_version"] != receipt["segment_row_version_at_approval"]
@@ -117,14 +129,18 @@ def review_prepared_transit_for_canonical(
     ):
         issues.add("TRANSIT_D16_ELECTRICAL_EDGE_CHANGED")
 
-    transit = connection.execute(
-        select(cable_transit_route).where(
-            cable_transit_route.c.id == receipt["cable_transit_route_id"],
-            cable_transit_route.c.project_id == ev.project_id,
-            cable_transit_route.c.cable_line_id == ev.cable_line_id,
-            cable_transit_route.c.electrical_segment_id == ev.electrical_segment_id,
+    transit = (
+        connection.execute(
+            select(cable_transit_route).where(
+                cable_transit_route.c.id == receipt["cable_transit_route_id"],
+                cable_transit_route.c.project_id == ev.project_id,
+                cable_transit_route.c.cable_line_id == ev.cable_line_id,
+                cable_transit_route.c.electrical_segment_id == ev.electrical_segment_id,
+            )
         )
-    ).mappings().one_or_none()
+        .mappings()
+        .one_or_none()
+    )
     if (
         transit is None
         or transit["approved_plan_sha256"] != approved_transit_sha256(ev)
@@ -132,12 +148,16 @@ def review_prepared_transit_for_canonical(
     ):
         issues.add("TRANSIT_D13_ROUTE_CHANGED")
 
-    fact = connection.execute(
-        select(cable_length_fact).where(
-            cable_length_fact.c.project_id == ev.project_id,
-            cable_length_fact.c.cable_line_id == ev.cable_line_id,
+    fact = (
+        connection.execute(
+            select(cable_length_fact).where(
+                cable_length_fact.c.project_id == ev.project_id,
+                cable_length_fact.c.cable_line_id == ev.cable_line_id,
+            )
         )
-    ).mappings().one_or_none()
+        .mappings()
+        .one_or_none()
+    )
     if fact is None:
         if (
             receipt["length_fact_id_at_approval"] is not None
@@ -155,22 +175,16 @@ def review_prepared_transit_for_canonical(
             issues.add("TRANSIT_D16_LENGTH_FACT_CHANGED")
         actual_manual = _number(fact["manual_full_length_m_decimal"], allow_none=True)
         actual_additional = _number(fact["additional_length_m_decimal"] or "0")
-        original_automatic = _number(
-            fact["calculated_length_m_decimal"], allow_none=True
-        )
+        original_automatic = _number(fact["calculated_length_m_decimal"], allow_none=True)
         if (
             actual_additional is None
             or (fact["manual_full_length_m_decimal"] is not None and actual_manual is None)
-            or (
-                fact["calculated_length_m_decimal"] is not None
-                and original_automatic is None
-            )
+            or (fact["calculated_length_m_decimal"] is not None and original_automatic is None)
         ):
             issues.add("TRANSIT_CANONICAL_LENGTH_FACT_INVALID")
 
-    if (
-        actual_additional != _number(approval.additional_m)
-        or actual_manual != _number(approval.manual_full_m, allow_none=True)
+    if actual_additional != _number(approval.additional_m) or actual_manual != _number(
+        approval.manual_full_m, allow_none=True
     ):
         issues.add("TRANSIT_D16_MANUAL_OR_ADDITIONAL_CHANGED")
 
