@@ -7,8 +7,9 @@ Conduits or mutate DWG/SQLite. A CANDIDATE is evidence for review, not consent.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 _TRANSIT_TOKEN = re.compile(r"^(?P<base>[1-8][0-9]{2})(?:-(?P<order>[1-9][0-9]*))?$")
 _BOX_ID = re.compile(r"^BOX\.[0-9]{3}$")
