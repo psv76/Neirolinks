@@ -65,7 +65,7 @@ class FirmwareSelfUpdateNSTTests(fixtures.Fixture):
     def test_self_update_check_is_read_only_even_for_unknown_controller(self):
         self.engine.controller = unknown_controller()
         package = {
-            "version": "2.4",
+            "version": "2.5",
             "approved": True,
             "sha256": "0" * 64,
             "asset": {"id": 1, "digest": "sha256:" + "0" * 64},
@@ -84,7 +84,7 @@ class FirmwareSelfUpdateNSTTests(fixtures.Fixture):
     def test_self_update_mutation_blocks_unknown_controller_before_download_or_state_write(self):
         self.engine.controller = unknown_controller()
         releases = PackageReleases({
-            "version": "2.4",
+            "version": "2.5",
             "approved": True,
             "sha256": "0" * 64,
             "asset": {"id": 1, "digest": "sha256:" + "0" * 64},

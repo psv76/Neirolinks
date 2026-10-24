@@ -21,13 +21,13 @@ class IvolgaPilotTests(unittest.TestCase):
         self.assertEqual(self.profile["name"], "Котельная")
         self.assertEqual((self.profile["node"], self.profile["role"], self.profile["state"]),
                          ("boiler", "boiler", "active"))
-        self.assertEqual(self.profile["diagnostics_profile"], "Systems/NST/diagnostics/ivolga-boiler-hhm-v1.json")
+        self.assertEqual(self.profile["diagnostics_profile"], "Systems/NST/diagnostics/ivolga-boiler-hhm-v2.json")
         resolved = ControllerRegistry(self.registry).resolve(
             {"serial": "ABF62SL", "serial_source": "test", "fingerprint": None})
         self.assertEqual(resolved["state"], "active")
         self.assertEqual(resolved["assignment"]["object"], "05_31_Ivolga_13")
         self.assertEqual(resolved["assignment"]["diagnostics_profile"],
-                         "Systems/NST/diagnostics/ivolga-boiler-hhm-v1.json")
+                         "Systems/NST/diagnostics/ivolga-boiler-hhm-v2.json")
 
     def test_object_payload_has_no_common_component_or_legacy_writer_overlap(self):
         targets = {item["target"] for item in self.profile["object_files"]}

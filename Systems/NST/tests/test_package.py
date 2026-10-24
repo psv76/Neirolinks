@@ -28,7 +28,7 @@ class PackageTests(unittest.TestCase):
         from nst import __version__
         from nst.releases import software_version
         from nst.util import Error
-        self.assertEqual(software_version(__version__), (2, 3, 0))
+        self.assertEqual(software_version(__version__), (2, 4, 0))
         self.assertGreater(software_version('2.10'), software_version('2.9'))
         for invalid in ('2.0.1', '2', '02.0', '2.01', '2.0-rc1', '2.0+build'):
             with self.assertRaises(Error):
@@ -42,7 +42,7 @@ class PackageTests(unittest.TestCase):
                 self.assertNotIn('/mnt/data/etc/neiro/nli', text, str(path))
                 self.assertNotIn('/mnt/data/var/lib/neiro/nli', text, str(path))
                 self.assertNotIn('/mnt/data/var/log/neiro/nli', text, str(path))
-        self.assertIn('nst_2.3_all.deb', (ROOT / 'tools/build_deb.py').read_text())
+        self.assertIn('nst_2.4_all.deb', (ROOT / 'tools/build_deb.py').read_text())
     def test_pressure_baseline_exact_live_evidence_immutable_pin_and_two_components(self):
         raw = (ROOT / 'examples/pressure-makeup-boiler-1.0.json').read_bytes()
         m = validate(json.loads(raw))
@@ -105,7 +105,7 @@ class PackageTests(unittest.TestCase):
                 self.assertEqual(set(tar.getnames()), {"./control"})
                 control = tar.extractfile("./control").read().decode()
                 self.assertIn("Package: nst\n", control)
-                self.assertIn("Version: 2.3\n", control)
+                self.assertIn("Version: 2.4\n", control)
                 self.assertIn("Conflicts: neiro-nli (<= 0.1.9)\n", control)
                 self.assertIn("Replaces: neiro-nli (<= 0.1.9)\n", control)
             with tarfile.open(fileobj=io.BytesIO(members["data.tar.gz"]), mode="r:gz") as tar:
