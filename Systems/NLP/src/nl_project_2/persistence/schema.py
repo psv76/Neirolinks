@@ -1004,6 +1004,72 @@ cable_segment = Table(
     ),
 )
 
+# D13: staged, explicitly reviewed *physical* cable continuity, distinct
+# from accepted electrical cable_segment rows. These tables are not consulted
+# by ordinary cable length or Conduit materialization until a later gate.
+cable_transit_route = Table(
+    "cable_transit_route",
+    metadata,
+    technical_id(),
+    project_id(),
+    Column("cable_line_id", String(36), nullable=False),
+    Column("electrical_segment_id", String(36), nullable=False, unique=True),
+    Column("cable_base", String(3), nullable=False),
+    Column("approved_plan_sha256", String(64), nullable=False),
+    Column("source_endpoint_id_at_approval", String(36), nullable=False),
+    Column("target_endpoint_id_at_approval", String(36), nullable=False),
+    Column("segment_row_version_at_approval", Integer, nullable=False),
+    Column("preview_cable_length_m_decimal", Text, nullable=False),
+    Column("approval_evidence", Text, nullable=False),
+    Column("state", String(24), nullable=False, server_default=text("'STAGED_APPROVED'")),
+    *timestamps_and_version(),
+    ForeignKeyConstraint(
+        ["cable_line_id", "project_id"], ["cable_line.id", "cable_line.project_id"]
+    ),
+    ForeignKeyConstraint(
+        ["electrical_segment_id", "project_id"],
+        ["cable_segment.id", "cable_segment.project_id"],
+    ),
+    UniqueConstraint("id", "project_id"),
+    uuid_check(),
+    enum_check("state", ("STAGED_APPROVED",), "transit_state"),
+    CheckConstraint("length(approved_plan_sha256) = 64", name="approved_digest_length"),
+    CheckConstraint("segment_row_version_at_approval >= 1", name="approved_version_positive"),
+)
+
+cable_transit_span = Table(
+    "cable_transit_span",
+    metadata,
+    technical_id(),
+    project_id(),
+    Column("cable_transit_route_id", String(36), nullable=False),
+    Column("ordinal", Integer, nullable=False),
+    Column("physical_key", Text, nullable=False),
+    Column("start_boundary", Text, nullable=False),
+    Column("end_boundary", Text, nullable=False),
+    Column("mount_way", String(32), nullable=False),
+    Column("gofra_type", String(120)),
+    Column("gofra_color", Text),
+    # Explicit per-span designation is *evidence*, not yet a Conduit FK or
+    # conduit_segment_assignment. No automatic sharing is performed in D13.
+    Column("proposed_gofra_id", String(120)),
+    Column("geometry_m_decimal", Text, nullable=False),
+    Column("corrected_m_decimal", Text, nullable=False),
+    *timestamps_and_version(),
+    ForeignKeyConstraint(
+        ["cable_transit_route_id", "project_id"],
+        ["cable_transit_route.id", "cable_transit_route.project_id"],
+        ondelete="CASCADE",
+    ),
+    UniqueConstraint("cable_transit_route_id", "ordinal"),
+    UniqueConstraint("cable_transit_route_id", "physical_key"),
+    UniqueConstraint("id", "project_id"),
+    uuid_check(),
+    enum_check("mount_way", MOUNT_WAYS, "transit_mount_way"),
+    CheckConstraint("ordinal >= 1", name="positive_span_order"),
+    CheckConstraint("start_boundary <> end_boundary", name="nonzero_physical_boundary"),
+)
+
 topology_migration_review = Table(
     "topology_migration_review",
     metadata,
@@ -2008,6 +2074,7 @@ TOPOLOGY_TABLE_NAMES = frozenset(
     }
 )
 PHYSICAL_DALI_TABLE_NAMES = frozenset({"bus_physical_node", "bus_physical_link"})
+TRANSIT_PHYSICAL_TABLE_NAMES = frozenset({"cable_transit_route", "cable_transit_span"})
 # Revision 000000000002 imports this set, so it must never absorb later tables.
 FEATURE_TABLE_NAMES = (
     frozenset(metadata.tables)
@@ -2016,6 +2083,7 @@ FEATURE_TABLE_NAMES = (
     - BULK_OPERATION_TABLE_NAMES
     - TOPOLOGY_TABLE_NAMES
     - PHYSICAL_DALI_TABLE_NAMES
+    - TRANSIT_PHYSICAL_TABLE_NAMES
 )
 HEAD_TABLE_NAMES = frozenset(metadata.tables)
 

@@ -12,6 +12,7 @@ from nl_project_2.persistence.database import (
 )
 from nl_project_2.persistence.migration import (
     HEAD_REVISION,
+    PHYSICAL_DALI_GRAPH_REVISION,
     SHARED_BOX_ENDPOINT_REVISION,
     current_revision_read_only,
     downgrade_database,
@@ -32,19 +33,22 @@ def _tables(path):
 def test_explicit_14_to_15_requires_verified_backup_and_keeps_existing_schema(tmp_path):
     path = tmp_path / "original.sqlite"
     backup = tmp_path / "verified-backups"
-    assert HEAD_REVISION == "000000000015"
+    assert PHYSICAL_DALI_GRAPH_REVISION == "000000000015"
     assert initialize_database(path, target=SHARED_BOX_ENDPOINT_REVISION) == "000000000014"
     before = _tables(path)
     assert not (before & PHYSICAL_DALI_TABLE_NAMES)
     with pytest.raises(SchemaUpgradeRequiredError):
         DatabaseManager().open_existing(path)
-    receipt = upgrade_database(path, backup, target=HEAD_REVISION)
+    receipt = upgrade_database(path, backup, target=PHYSICAL_DALI_GRAPH_REVISION)
     assert receipt.source_revision == SHARED_BOX_ENDPOINT_REVISION
     assert receipt.path.is_file()
     assert len(receipt.sha256) == 64
     assert current_revision_read_only(receipt.path) == "000000000014"
-    assert current_revision_read_only(path) == HEAD_REVISION
+    assert current_revision_read_only(path) == PHYSICAL_DALI_GRAPH_REVISION
     assert _tables(path) == before | PHYSICAL_DALI_TABLE_NAMES
+    with pytest.raises(SchemaUpgradeRequiredError):
+        DatabaseManager().open_existing(path)
+    upgrade_database(path, backup, target=HEAD_REVISION)
     handle = DatabaseManager().open_existing(path)
     with handle.engine.connect() as conn:
         assert conn.exec_driver_sql("PRAGMA integrity_check").scalar_one() == "ok"
@@ -57,12 +61,10 @@ def test_explicit_14_to_15_requires_verified_backup_and_keeps_existing_schema(tm
 def test_clean_15_and_empty_downgrade_are_reversible_with_backup(tmp_path):
     path = tmp_path / "fresh.sqlite"
     backup = tmp_path / "backups"
-    db = DatabaseManager().initialize_new(path)
-    assert db.revision == "000000000015"
-    db.close()
+    assert initialize_database(path, target=PHYSICAL_DALI_GRAPH_REVISION) == "000000000015"
     assert PHYSICAL_DALI_TABLE_NAMES <= _tables(path)
     receipt = downgrade_database(path, backup, target=SHARED_BOX_ENDPOINT_REVISION)
-    assert receipt.source_revision == HEAD_REVISION
-    assert current_revision_read_only(receipt.path) == HEAD_REVISION
+    assert receipt.source_revision == PHYSICAL_DALI_GRAPH_REVISION
+    assert current_revision_read_only(receipt.path) == PHYSICAL_DALI_GRAPH_REVISION
     assert current_revision_read_only(path) == SHARED_BOX_ENDPOINT_REVISION
     assert not (_tables(path) & PHYSICAL_DALI_TABLE_NAMES)
