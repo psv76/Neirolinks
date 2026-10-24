@@ -211,3 +211,65 @@ def test_invalid_policy_rejected_before_any_measurement():
     )
     with pytest.raises(ValueError, match="TRANSIT_POLICY_UNVERIFIED"):
         measure_physical_transit((route,), locations={}, decisions={}, policy=policy)
+
+def _two_line_shared_waypoints():
+    a = _transit_box("A", "301-1;302-1", "BOX.010")
+    b = _transit_box("B", "301-2;302-2", "BOX.020")
+    b.observation.x = 1100
+    audit = analyze_cable_transit((a, b), (_segment("301"), _segment("302")))
+    return build_physical_transit_routes(audit)
+
+
+def _two_line_geometry():
+    return {
+        "301/$SOURCE": _where(0, 200),
+        "302/$SOURCE": _where(0, 200),
+        "BOX.010": _where(100, 200),
+        "BOX.020": _where(1100, 200),
+        "301/301": _where(2100, 200),
+        "302/302": _where(2100, 200),
+    }
+
+
+def test_identical_physical_shared_conduit_is_reported_once_for_two_cables():
+    routes = _two_line_shared_waypoints()
+    assert all(route.status == "CANDIDATE" for route in routes)
+    decisions = {
+        span.physical_key: ApprovedSpanRoute("В стене", confirmed=True)
+        for route in routes for span in route.spans
+    }
+    for route in routes:
+        middle = route.spans[1]
+        decisions[middle.physical_key] = ApprovedSpanRoute(
+            "В стене", gofra_type="ПНД25", gofra_id="011.PND25", confirmed=True
+        )
+    result = measure_physical_transit(
+        routes, locations=_two_line_geometry(), decisions=decisions, policy=_policy()
+    )
+    assert [item.status for item in result] == ["MEASURED", "MEASURED"]
+    assert sum((len(item.conduits) for item in result)) == 1
+    assert result[0].conduits[0].cable_bases == ("301", "302")
+    assert result[0].conduits[0].boundary == ("BOX.010", "BOX.020")
+    assert result[0].conduits[0].measured_m == Decimal("2")
+
+
+def test_shared_conduit_with_different_boundaries_rejects_every_owner():
+    routes = _two_line_shared_waypoints()
+    decisions = {
+        span.physical_key: ApprovedSpanRoute("В стене", confirmed=True)
+        for route in routes for span in route.spans
+    }
+    decisions[routes[0].spans[1].physical_key] = ApprovedSpanRoute(
+        "В стене", gofra_type="ПНД25", gofra_id="011.PND25", confirmed=True
+    )
+    decisions[routes[1].spans[0].physical_key] = ApprovedSpanRoute(
+        "В стене", gofra_type="ПНД25", gofra_id="011.PND25", confirmed=True
+    )
+    result = measure_physical_transit(
+        routes, locations=_two_line_geometry(), decisions=decisions, policy=_policy()
+    )
+    assert [item.status for item in result] == ["REVIEW", "REVIEW"]
+    assert all(
+        "TRANSIT_CONDUIT_BOUNDARY_CONFLICT" in item.issue_codes for item in result
+    )
+    assert all(item.cable_length_m is None for item in result)
