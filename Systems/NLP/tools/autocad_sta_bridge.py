@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import tempfile
 import time
+from collections.abc import Callable
+from functools import cache
 from multiprocessing.connection import Listener
 from pathlib import Path
 from typing import Any
@@ -142,13 +145,40 @@ def _observation_payload(
     }
 
 
+@cache
+def _working_layer_parser() -> Callable[[object], int | None]:
+    # Import only the pure C1 file: importing cad_contract executes its __init__
+    # and pulls application persistence dependencies into the standalone bridge.
+    path = Path(__file__).resolve().parents[1] / "src/nl_project_2/cad_contract/layer_names.py"
+    spec = importlib.util.spec_from_file_location("_nlp_sta_layer_names", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load working-layer parser from {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.parse_working_layer_name
+
+
+def is_working_layer_for_scan(layer: object) -> bool:
+    """Use C1 without application imports; load lazily only for explicit opt-in."""
+    return _working_layer_parser()(layer) is not None
+
+
 def _scan(
     document,
     identity: str,
     definition_names: set[str] | None = None,
     progress=None,
+    *,
+    include_layer: Callable[[str], bool] | None = None,
 ) -> dict[str, Any]:
+    """Scan once; optional filtering is internal and never deletion-authoritative.
+
+    The protocol does not enable include_layer. Consumers must gain a separate
+    reconciliation safety gate before using filtered results for synchronization.
+    Layer access and predicate errors propagate rather than returning a subset.
+    """
     observations: list[dict[str, Any]] = []
+    skipped_block_references = 0
     definition_cache: dict[str, list[str] | None] = {}
     if progress:
         progress("scan_modelspace_started")
@@ -157,15 +187,25 @@ def _scan(
             progress(f"scan_modelspace_progress_{index}")
         if str(entity.ObjectName) != "AcDbBlockReference":
             continue
+        if include_layer is not None and not include_layer(entity.Layer):
+            skipped_block_references += 1
+            continue
         observations.append(
             _observation_payload(document, entity, definition_names, definition_cache)
         )
     if progress:
         progress("scan_modelspace_completed")
+    metadata = _source_metadata(document)
+    if include_layer is not None:
+        metadata.update(
+            layer_filter_applied=True,
+            skipped_block_references=skipped_block_references,
+            scan_is_complete_for_reconciliation=False,
+        )
     return {
         "document_identity": identity,
         "observations": observations,
-        "source_metadata": _source_metadata(document),
+        "source_metadata": metadata,
     }
 
 
