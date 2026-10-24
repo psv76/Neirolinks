@@ -39,6 +39,7 @@ jobs:
             'ruff==0.15.22'
       - name: Strict Ruff lint and format
         run: |
+          python -m ruff check --select I --diff src/nl_project_2/cad_sync/transit_physical.py || true
           python -m ruff check \
             src/nl_project_2/cad_sync/transit_physical.py \
             src/nl_project_2/cad_sync/reconciliation.py \
