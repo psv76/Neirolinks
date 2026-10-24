@@ -94,20 +94,28 @@ def _same_boundary(first: str, second: str) -> tuple[str, str]:
 def _accepted_endpoint_label(
     conn: Connection, *, project_id: str, endpoint_id: str, base: str
 ) -> str:
-    endpoint = conn.execute(
-        select(cable_topology_endpoint).where(
-            cable_topology_endpoint.c.id == endpoint_id,
-            cable_topology_endpoint.c.project_id == project_id,
+    endpoint = (
+        conn.execute(
+            select(cable_topology_endpoint).where(
+                cable_topology_endpoint.c.id == endpoint_id,
+                cable_topology_endpoint.c.project_id == project_id,
+            )
         )
-    ).mappings().one_or_none()
+        .mappings()
+        .one_or_none()
+    )
     if endpoint is None or endpoint["endpoint_kind"] != "TOPOLOGY_POINT":
         raise TransitPersistenceError("TRANSIT_ENDPOINT_KIND_REQUIRES_REVIEW")
-    point = conn.execute(
-        select(cable_point).where(
-            cable_point.c.id == endpoint["cable_point_id"],
-            cable_point.c.project_id == project_id,
+    point = (
+        conn.execute(
+            select(cable_point).where(
+                cable_point.c.id == endpoint["cable_point_id"],
+                cable_point.c.project_id == project_id,
+            )
         )
-    ).mappings().one_or_none()
+        .mappings()
+        .one_or_none()
+    )
     if point is None or not point["logical_identity"]:
         raise TransitPersistenceError("TRANSIT_ENDPOINT_OWNER_NOT_FOUND")
     if point["point_kind"] == "INTERNAL_SOURCE":
@@ -130,7 +138,8 @@ def _check_accepted_box_owners(
     )
     for box_id, _x, _y, _height in route.box_positions:
         owners = [
-            data for data in boxes
+            data
+            for data in boxes
             if data.get("BOX_ID") == box_id
             and any(
                 token.strip().split("-", 1)[0] == route.cable_base
@@ -138,9 +147,7 @@ def _check_accepted_box_owners(
             )
         ]
         if len(owners) != 1:
-            raise TransitPersistenceError(
-                f"TRANSIT_BOX_OWNER_NOT_ACCEPTED:{box_id}"
-            )
+            raise TransitPersistenceError(f"TRANSIT_BOX_OWNER_NOT_ACCEPTED:{box_id}")
 
 
 def _check_existing_conduit_owners(
@@ -202,9 +209,7 @@ def _check_existing_conduit_owners(
                 row["geometry_m_decimal"],
             )
             if accepted != expected:
-                raise TransitPersistenceError(
-                    f"TRANSIT_CONDUIT_BOUNDARY_CONFLICT:{designation}"
-                )
+                raise TransitPersistenceError(f"TRANSIT_CONDUIT_BOUNDARY_CONFLICT:{designation}")
 
 
 def persist_approved_transit(
@@ -253,22 +258,30 @@ def persist_approved_transit(
         raise TransitPersistenceError("TRANSIT_MEASURED_SPAN_COUNT_MISMATCH")
 
     with engine.begin() as conn:
-        line = conn.execute(
-            select(cable_line).where(
-                cable_line.c.id == evidence.cable_line_id,
-                cable_line.c.project_id == evidence.project_id,
-                cable_line.c.lifecycle == "ACTIVE",
+        line = (
+            conn.execute(
+                select(cable_line).where(
+                    cable_line.c.id == evidence.cable_line_id,
+                    cable_line.c.project_id == evidence.project_id,
+                    cable_line.c.lifecycle == "ACTIVE",
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if line is None or line["designation"] != route.cable_base:
             raise TransitPersistenceError("TRANSIT_CABLE_OWNER_NOT_FOUND")
-        segment = conn.execute(
-            select(cable_segment).where(
-                cable_segment.c.id == evidence.electrical_segment_id,
-                cable_segment.c.project_id == evidence.project_id,
-                cable_segment.c.cable_line_id == evidence.cable_line_id,
+        segment = (
+            conn.execute(
+                select(cable_segment).where(
+                    cable_segment.c.id == evidence.electrical_segment_id,
+                    cable_segment.c.project_id == evidence.project_id,
+                    cable_segment.c.cable_line_id == evidence.cable_line_id,
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if segment is None:
             raise TransitPersistenceError("TRANSIT_ELECTRICAL_SEGMENT_NOT_FOUND")
         if (
@@ -278,33 +291,30 @@ def persist_approved_transit(
         ):
             raise TransitPersistenceError("TRANSIT_STALE_ELECTRICAL_EDGE")
 
-        _check_accepted_box_owners(
-            conn, project_id=evidence.project_id, route=route
-        )
-        if (
-            route.spans[0].start
-            != _accepted_endpoint_label(
-                conn,
-                project_id=evidence.project_id,
-                endpoint_id=evidence.source_endpoint_id,
-                base=route.cable_base,
-            )
-            or route.spans[-1].finish
-            != _accepted_endpoint_label(
-                conn,
-                project_id=evidence.project_id,
-                endpoint_id=evidence.target_endpoint_id,
-                base=route.cable_base,
-            )
+        _check_accepted_box_owners(conn, project_id=evidence.project_id, route=route)
+        if route.spans[0].start != _accepted_endpoint_label(
+            conn,
+            project_id=evidence.project_id,
+            endpoint_id=evidence.source_endpoint_id,
+            base=route.cable_base,
+        ) or route.spans[-1].finish != _accepted_endpoint_label(
+            conn,
+            project_id=evidence.project_id,
+            endpoint_id=evidence.target_endpoint_id,
+            base=route.cable_base,
         ):
             raise TransitPersistenceError("TRANSIT_ENDPOINT_IDENTITY_MISMATCH")
 
-        existing = conn.execute(
-            select(cable_transit_route).where(
-                cable_transit_route.c.project_id == evidence.project_id,
-                cable_transit_route.c.electrical_segment_id == evidence.electrical_segment_id,
+        existing = (
+            conn.execute(
+                select(cable_transit_route).where(
+                    cable_transit_route.c.project_id == evidence.project_id,
+                    cable_transit_route.c.electrical_segment_id == evidence.electrical_segment_id,
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if existing is not None:
             if existing["approved_plan_sha256"] == expected:
                 return StagedTransitReceipt(existing["id"], expected, False)
@@ -355,9 +365,7 @@ def persist_approved_transit(
         return StagedTransitReceipt(route_id, expected, True)
 
 
-def read_staged_transit(
-    conn: Connection, *, project_id: str
-) -> tuple[dict[str, object], ...]:
+def read_staged_transit(conn: Connection, *, project_id: str) -> tuple[dict[str, object], ...]:
     """Read-only staged evidence; not an authoritative cable quantity report."""
     return tuple(
         dict(row)
