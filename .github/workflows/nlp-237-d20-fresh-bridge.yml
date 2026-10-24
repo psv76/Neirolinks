@@ -1,0 +1,81 @@
+name: NLP 237 D20 forced full live bridge witness (synthetic CI)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/nlp-237-d20-fresh-bridge.yml'
+      - 'Systems/NLP/src/nl_project_2/cad_sync/bridge.py'
+      - 'Systems/NLP/src/nl_project_2/cables/transit_live_bridge_gate.py'
+      - 'Systems/NLP/src/nl_project_2/cables/service.py'
+      - 'Systems/NLP/tests/cad_sync/test_issue237_d20_bridge_fresh_scan.py'
+      - 'Systems/NLP/docs/engineering/ISSUE_237_D20_BRIDGE_FRESH_SCAN_WITNESS.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  forced-bridge-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: Systems/NLP
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Qt system libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0
+      - name: Pinned test dependencies
+        run: |
+          python -m pip install 'SQLAlchemy==2.0.51' 'alembic==1.18.5' \
+            'pytest==9.1.1' 'pytest-qt==4.5.0' 'PySide6==6.11.1' \
+            'ruff==0.15.22'
+      - name: Ruff lint and format with diagnostic diffs
+        run: |
+          python -m ruff check --diff \
+            src/nl_project_2/cad_sync/bridge.py \
+            src/nl_project_2/cables/transit_live_bridge_gate.py \
+            src/nl_project_2/cables/service.py \
+            tests/cad_sync/test_issue237_d20_bridge_fresh_scan.py || true
+          python -m ruff format --diff \
+            src/nl_project_2/cad_sync/bridge.py \
+            src/nl_project_2/cables/transit_live_bridge_gate.py \
+            src/nl_project_2/cables/service.py \
+            tests/cad_sync/test_issue237_d20_bridge_fresh_scan.py || true
+          python -m ruff check \
+            src/nl_project_2/cad_sync/bridge.py \
+            src/nl_project_2/cables/transit_live_bridge_gate.py \
+            src/nl_project_2/cables/service.py \
+            tests/cad_sync/test_issue237_d20_bridge_fresh_scan.py
+          python -m ruff format --check \
+            src/nl_project_2/cad_sync/bridge.py \
+            src/nl_project_2/cables/transit_live_bridge_gate.py \
+            src/nl_project_2/cables/service.py \
+            tests/cad_sync/test_issue237_d20_bridge_fresh_scan.py
+      - name: D20-D10 and canonical compatibility regression (synthetic SQLite only)
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q \
+            tests/cad_sync/test_issue237_d20_bridge_fresh_scan.py \
+            tests/cad_sync/test_issue237_d19_dwg_scan_lineage.py \
+            tests/cad_sync/test_issue237_d18_activation_readiness.py \
+            tests/cad_sync/test_issue237_d17_canonical_readback.py \
+            tests/cad_sync/test_issue237_d16_quantity_prepare.py \
+            tests/cad_sync/test_issue237_d15_line_preview.py \
+            tests/cad_sync/test_issue237_d14_transit_quantity_reconciliation.py \
+            tests/cad_sync/test_issue237_d13_transit_store.py \
+            tests/cad_sync/test_issue237_d12_transit_physical.py \
+            tests/cad_sync/test_issue237_d11_transit_readonly.py \
+            tests/cad_sync/test_issue237_d10_track_internal_power.py \
+            tests/cad_sync/test_bridge_client.py \
+            tests/cables/test_cable_service.py \
+            tests/cables/test_p0004_segment_recalculation.py \
+            tests/persistence/test_issue237_d16_quantity_migration.py \
+            tests/persistence/test_issue237_d13_transit_migration.py
