@@ -56,6 +56,7 @@ from .domain import (
     parse_conduit_id,
     validate_line_conduit_fields,
 )
+from .transit_reconciliation import staged_transit_reconciliation
 from .recalculation import (
     RecalculationError,
     _remove_assignment_and_empty_auto,
@@ -113,6 +114,11 @@ class CableService:
                 .order_by(cable_line.c.system_kind, cable_line.c.designation)
             ).mappings()
             return [dict(row) for row in rows]
+
+    def transit_reconciliation(self, project_id: str) -> dict:
+        """Read-only comparison: staged physical evidence vs canonical quantities."""
+        with self._engine.connect() as connection:
+            return staged_transit_reconciliation(connection, project_id)
 
     def topology(self, project_id: str, cable_line_id: str) -> dict:
         """Return user-facing physical topology, segment facts and route breakdown."""
@@ -466,6 +472,11 @@ class CableService:
 
         return {
             "cable_line_id": cable_line_id,
+            "transit_reconciliation": tuple(
+                review
+                for review in self.transit_reconciliation(project_id)["routes"]
+                if review["cable_line_id"] == cable_line_id
+            ),
             "designation": line["designation"],
             "cable_type": facts.get("CABLE_TYPE", ""),
             "root_endpoint": root,
@@ -574,6 +585,7 @@ class CableService:
             ),
             "incomplete_lines": sum(card["effective_m"] is None for card in cards),
             "manual_lines": sum(card.get("manual_full_m") is not None for card in cards),
+            "staged_transit_review": self.transit_reconciliation(project_id),
         }
 
     def line_cards(self, project_id: str) -> list[dict]:
@@ -648,6 +660,9 @@ class CableService:
             names = unresolved_room_names_by_line.setdefault(cable_line_id, [])
             if raw_room not in names:
                 names.append(raw_room)
+        reviews_by_line: dict[str, list[dict]] = {}
+        for review in self.transit_reconciliation(project_id)["routes"]:
+            reviews_by_line.setdefault(review["cable_line_id"], []).append(review)
         cards = []
         for row in self.list_lines(project_id):
             facts = dict(row["cable_facts_json"] or {})
@@ -706,6 +721,7 @@ class CableService:
                 "gofra_color": uniform("gofra_color"),
                 "gofra_id": uniform("designation"),
                 "cable_type": facts.get("CABLE_TYPE", ""),
+                "staged_transit_review": tuple(reviews_by_line.get(row["id"], ())),
                 "board": facts.get("BOARD", ""),
                 "load_name": facts.get("LOAD_NAME", ""),
                 "load_type": facts.get("LOAD_TYPE", ""),
