@@ -50,7 +50,9 @@ def test_d17_readback_agrees_with_d15_and_preserves_every_legacy_row(database):
     )
     service = CableService(database.engine)
     with database.engine.connect() as connection:
-        before = {table.name: _canonical_rows(connection, table, ev.project_id) for table in watched}
+        before = {
+            table.name: _canonical_rows(connection, table, ev.project_id) for table in watched
+        }
     result = service.review_prepared_transit_line(
         intent.approval, expected_batch_sha256=receipt.approved_sha256, confirmed=True
     )
@@ -121,12 +123,16 @@ def test_stale_or_tampered_d16_never_becomes_a_canonical_quantity(database, prob
                     .values(**vals)
                 )
             elif problem == "box":
-                box = connection.execute(
-                    select(field_device).where(
-                        field_device.c.project_id == ev.project_id,
-                        field_device.c.block_kind == "EL_BOX_OUT_100x100",
+                box = (
+                    connection.execute(
+                        select(field_device).where(
+                            field_device.c.project_id == ev.project_id,
+                            field_device.c.block_kind == "EL_BOX_OUT_100x100",
+                        )
                     )
-                ).mappings().one()
+                    .mappings()
+                    .one()
+                )
                 fields = dict(box["normalized_fields_json"])
                 fields["CABLE_TRANSIT"] = ""
                 connection.execute(
@@ -184,13 +190,18 @@ def test_exact_manual_override_is_visible_but_never_adopted_by_readback(database
     intent = _intent(database)
     ev = intent.approval.transit
     with database.engine.begin() as connection:
-        existing = connection.execute(
-            select(cable_length_fact).where(
-                cable_length_fact.c.cable_line_id == ev.cable_line_id
+        existing = (
+            connection.execute(
+                select(cable_length_fact).where(
+                    cable_length_fact.c.cable_line_id == ev.cable_line_id
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         connection.execute(
-            update(cable_length_fact).where(cable_length_fact.c.id == existing["id"])
+            update(cable_length_fact)
+            .where(cable_length_fact.c.id == existing["id"])
             .values(
                 manual_full_length_m_decimal="8.3",
                 row_version=cable_length_fact.c.row_version + 1,
