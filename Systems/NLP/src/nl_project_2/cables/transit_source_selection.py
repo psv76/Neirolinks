@@ -60,7 +60,8 @@ def selection_sha256(
     if len({request.approval.transit.project_id for request in requests}) != 1:
         raise ValueError("D21_SELECTION_MIXED_PROJECTS")
     payload = {
-        "contract": "NLP_D21_REQUEST_SCOPED_SOURCE_V1",
+        "contract": "NLP_D21_REQUEST_SCOPED_SOURCE_V2",
+        "project_id": requests[0].approval.transit.project_id,
         "mode": mode,
         "line_ids": sorted(selected_line_ids),
         "batches": sorted(
@@ -97,15 +98,20 @@ def make_shadow_selection(
     if mode == "PREPARED_SHADOW" and set(readbacks) != selected_line_ids:
         raise ValueError("D21_D17_SELECTION_INCOMPLETE")
     rows = []
-    blocked = (
-        any(
-            getattr(readbacks[line_id], "status", None) != "VERIFIED_READBACK_ONLY"
-            or getattr(readbacks[line_id], "prepared_final_m", None) is None
-            for line_id in selected_line_ids
-        )
-        if mode == "PREPARED_SHADOW"
-        else False
-    )
+    review_issues: dict[str, tuple[str, ...]] = {}
+    if mode == "PREPARED_SHADOW":
+        for line_id in selected_line_ids:
+            review = readbacks[line_id]
+            issues = set(getattr(review, "issues", ()))
+            if getattr(review, "cable_line_id", None) != line_id:
+                issues.add("D22_READBACK_OWNER_MISMATCH")
+            if getattr(review, "status", None) != "VERIFIED_READBACK_ONLY":
+                issues.add("D21_BATCH_MEMBER_REQUIRES_REVIEW")
+            candidate = getattr(review, "prepared_final_m", None)
+            if not isinstance(candidate, Decimal) or not candidate.is_finite() or candidate < 0:
+                issues.add("D22_READBACK_QUANTITY_INVALID")
+            review_issues[line_id] = tuple(sorted(issues))
+    blocked = any(review_issues.values())
     for request in sorted(requests, key=lambda value: value.approval.transit.cable_line_id):
         line_id = request.approval.transit.cable_line_id
         legacy = legacy_effective_m[line_id]
@@ -115,7 +121,7 @@ def make_shadow_selection(
             candidate, effective, source = None, legacy, "LEGACY"
         elif blocked:
             status = "REVIEW"
-            issues = tuple(getattr(review, "issues", ()) or ("D21_BATCH_MEMBER_REQUIRES_REVIEW",))
+            issues = review_issues[line_id] or ("D21_BATCH_MEMBER_REQUIRES_REVIEW",)
             candidate, effective, source = None, legacy, "LEGACY"
         else:
             status, issues = "SHADOW_PREVIEW_ONLY", ()

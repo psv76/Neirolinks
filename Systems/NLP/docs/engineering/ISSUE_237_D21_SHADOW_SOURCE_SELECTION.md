@@ -87,3 +87,10 @@ or purchase may treat its results as authoritative. Remaining gates:
 
 No new Issue, merge to main, release, catalog or schema migration in D21.
 Issues #235/#237 stay OPEN, PR Draft. Actual DB/DWG and installed app untouched.
+
+## D22 follow-up
+
+The [D22 integrity correction](ISSUE_237_D22_SHADOW_INTEGRITY.md) explicitly
+binds Project identity in the V2 selection token and rejects mismatched or
+invalid D17 readbacks. V1 ephemeral tokens must be previewed and confirmed
+again; persisted D16 receipts and production quantities are unchanged.

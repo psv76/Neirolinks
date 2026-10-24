@@ -192,10 +192,16 @@ def test_d21_multi_line_preview_is_all_or_nothing_when_one_owner_stale():
         legacy_effective_m={"line-1": Decimal("10"), "line-2": Decimal("20")},
         readbacks={
             "line-1": SimpleNamespace(
-                status="VERIFIED_READBACK_ONLY", prepared_final_m=Decimal("17"), issues=()
+                cable_line_id="line-1",
+                status="VERIFIED_READBACK_ONLY",
+                prepared_final_m=Decimal("17"),
+                issues=(),
             ),
             "line-2": SimpleNamespace(
-                status="REVIEW", prepared_final_m=Decimal("18"), issues=("STALE",)
+                cable_line_id="line-2",
+                status="REVIEW",
+                prepared_final_m=Decimal("18"),
+                issues=("STALE",),
             ),
         },
     )
@@ -250,3 +256,138 @@ def test_d21_manual_value_remains_unchanged_after_preview_and_revoke(database):
             .one()
         )
         assert unchanged["manual_full_length_m_decimal"] == "8.3"
+
+
+@pytest.mark.parametrize("mode", ["PREPARED_SHADOW", "LEGACY_ONLY"])
+def test_d22_selection_token_cannot_be_replayed_in_another_project(database, mode):
+    req, ids = _context(database)
+    other = replace(
+        req,
+        approval=replace(
+            req.approval,
+            transit=replace(req.approval.transit, project_id="another-project"),
+        ),
+    )
+    digest = selection_sha256((req,), ids, mode=mode)
+    assert selection_sha256((other,), ids, mode=mode) != digest
+    with pytest.raises(ValueError, match="D21_EXPLICIT_SELECTION_APPROVAL_REQUIRED"):
+        CableService(database.engine).preview_transit_quantity_sources(
+            (other,),
+            selected_line_ids=ids,
+            mode=mode,
+            expected_selection_sha256=digest,
+            confirmed=True,
+        )
+
+
+def _d22_requests():
+    return tuple(
+        SimpleNamespace(
+            approval=SimpleNamespace(
+                transit=SimpleNamespace(project_id="project-A", cable_line_id=line_id)
+            ),
+            d16_batch_sha256=batch,
+        )
+        for line_id, batch in (("line-1", "a" * 64), ("line-2", "b" * 64))
+    )
+
+
+def test_d22_selection_is_order_independent_but_binds_mode_batch_and_project():
+    requests = _d22_requests()
+    ids = frozenset({"line-1", "line-2"})
+    digest = selection_sha256(requests, ids, mode="PREPARED_SHADOW")
+    assert selection_sha256(requests[::-1], ids, mode="PREPARED_SHADOW") == digest
+    assert selection_sha256(requests, ids, mode="LEGACY_ONLY") != digest
+    requests[1].d16_batch_sha256 = "c" * 64
+    assert selection_sha256(requests, ids, mode="PREPARED_SHADOW") != digest
+    requests[1].approval.transit.project_id = "project-B"
+    with pytest.raises(ValueError, match="D21_SELECTION_MIXED_PROJECTS"):
+        selection_sha256(requests, ids, mode="PREPARED_SHADOW")
+
+
+@pytest.mark.parametrize(
+    ("change", "issue"),
+    [
+        ({"cable_line_id": "line-2"}, "D22_READBACK_OWNER_MISMATCH"),
+        ({"cable_line_id": None}, "D22_READBACK_OWNER_MISMATCH"),
+        ({"prepared_final_m": None}, "D22_READBACK_QUANTITY_INVALID"),
+        ({"prepared_final_m": Decimal("NaN")}, "D22_READBACK_QUANTITY_INVALID"),
+        ({"prepared_final_m": Decimal("sNaN")}, "D22_READBACK_QUANTITY_INVALID"),
+        ({"prepared_final_m": Decimal("Infinity")}, "D22_READBACK_QUANTITY_INVALID"),
+        ({"prepared_final_m": Decimal("-1")}, "D22_READBACK_QUANTITY_INVALID"),
+        ({"prepared_final_m": "17"}, "D22_READBACK_QUANTITY_INVALID"),
+        ({"issues": ("STALE",)}, "STALE"),
+    ],
+)
+def test_d22_invalid_verified_readback_blocks_the_entire_selection(change, issue):
+    requests = _d22_requests()
+    ids = frozenset({"line-1", "line-2"})
+    fields = {
+        "cable_line_id": "line-1",
+        "status": "VERIFIED_READBACK_ONLY",
+        "prepared_final_m": Decimal("17"),
+        "issues": (),
+    }
+    fields.update(change)
+    readbacks = {
+        "line-1": SimpleNamespace(**fields),
+        "line-2": SimpleNamespace(
+            cable_line_id="line-2",
+            status="VERIFIED_READBACK_ONLY",
+            prepared_final_m=Decimal("18"),
+            issues=(),
+        ),
+    }
+    legacy = {"line-1": None, "line-2": Decimal("20")}
+    result = make_shadow_selection(
+        requests,
+        selected_line_ids=ids,
+        mode="PREPARED_SHADOW",
+        expected_selection_sha256=selection_sha256(requests, ids, mode="PREPARED_SHADOW"),
+        confirmed=True,
+        legacy_effective_m=legacy,
+        readbacks=readbacks,
+    )
+    assert result.status == "REVIEW"
+    assert issue in result.lines[0].issues
+    assert all(row.preview_source == "LEGACY" for row in result.lines)
+    assert all(row.prepared_candidate_m is None for row in result.lines)
+    assert [row.preview_effective_m for row in result.lines] == [None, Decimal("20")]
+    assert not result.can_publish
+    assert all(not row.authorizes_publication for row in result.lines)
+    revoked = make_shadow_selection(
+        requests,
+        selected_line_ids=ids,
+        mode="LEGACY_ONLY",
+        expected_selection_sha256=selection_sha256(requests, ids, mode="LEGACY_ONLY"),
+        confirmed=True,
+        legacy_effective_m=legacy,
+        readbacks=readbacks,
+    )
+    assert revoked.status == "LEGACY_ONLY"
+    assert [row.preview_effective_m for row in revoked.lines] == [None, Decimal("20")]
+
+
+def test_d22_valid_zero_candidate_is_not_rejected():
+    requests = _d22_requests()
+    ids = frozenset({"line-1", "line-2"})
+    result = make_shadow_selection(
+        requests,
+        selected_line_ids=ids,
+        mode="PREPARED_SHADOW",
+        expected_selection_sha256=selection_sha256(requests, ids, mode="PREPARED_SHADOW"),
+        confirmed=True,
+        legacy_effective_m={"line-1": None, "line-2": Decimal("20")},
+        readbacks={
+            line_id: SimpleNamespace(
+                cable_line_id=line_id,
+                status="VERIFIED_READBACK_ONLY",
+                prepared_final_m=Decimal("0"),
+                issues=(),
+            )
+            for line_id in ids
+        },
+    )
+    assert result.status == "SHADOW_PREVIEW_ONLY"
+    assert all(row.preview_effective_m == 0 for row in result.lines)
+    assert not result.can_publish
