@@ -339,6 +339,8 @@ def measure_physical_transit(
             )
         )
 
+    # Shared Conduit appears in only one deterministic owner result. Any
+    # grouped specification must not count it once for each member cable.
     # A shared pipe is never accepted based on a designation alone. Any
     # conflict invalidates *all* participating lines, including the first.
     by_designation: dict[str, set[tuple[tuple[str, str], str, str, str, Decimal]]] = {}
@@ -385,7 +387,7 @@ def measure_physical_transit(
                 cable_bases=tuple(sorted(affected[designation])),
             )
             for designation, keys in sorted(by_designation.items())
-            if result.cable_base in affected[designation]
+            if result.cable_base == min(affected[designation])
         )
         final.append(
             PhysicalTransitResult(
