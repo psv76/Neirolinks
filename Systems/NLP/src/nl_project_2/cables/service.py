@@ -65,6 +65,11 @@ from .recalculation import (
     refresh_conduit_length,
     segment_geometry_diagnostics,
 )
+from .transit_canonical_readback import (
+    TransitCanonicalReadback,
+    review_prepared_transit_for_canonical,
+)
+from .transit_line_preview import TransitLineApproval
 from .transit_reconciliation import staged_transit_reconciliation
 
 AV_LOAD_TYPES = frozenset({"SPEAKER_CABLE", "HDMI"})
@@ -119,6 +124,22 @@ class CableService:
         """Read-only comparison: staged physical evidence vs canonical quantities."""
         with self._engine.connect() as connection:
             return staged_transit_reconciliation(connection, project_id)
+
+    def review_prepared_transit_line(
+        self,
+        approval: TransitLineApproval,
+        *,
+        expected_batch_sha256: str,
+        confirmed: bool = False,
+    ) -> TransitCanonicalReadback:
+        """Opt-in D17 readback. Never changes effective length or a specification."""
+        with self._engine.connect() as connection:
+            return review_prepared_transit_for_canonical(
+                connection,
+                approval,
+                expected_batch_sha256=expected_batch_sha256,
+                confirmed=confirmed,
+            )
 
     def topology(self, project_id: str, cable_line_id: str) -> dict:
         """Return user-facing physical topology, segment facts and route breakdown."""
