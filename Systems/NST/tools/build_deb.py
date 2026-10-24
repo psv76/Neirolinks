@@ -81,7 +81,7 @@ def build(output, epoch=0):
                  (ROOT / "tools/register_pressure_makeup.py").read_bytes().replace(b"\r\n", b"\n"), 0o644))
     data.append(('usr/share/nst/RELEASES.md', (ROOT / 'RELEASES.md').read_bytes().replace(b'\r\n', b'\n'), 0o644))
     data.append(('usr/share/nst/DEPLOYMENT.md', (ROOT / 'DEPLOYMENT.md').read_bytes().replace(b'\r\n', b'\n'), 0o644))
-    for name in ("README.md", "NST_MIGRATION.md", "SECURITY.md", "FIRMWARE.md", "TEST_RESULTS.md"):
+    for name in ("README.md", "NST_MIGRATION.md", "SECURITY.md", "FIRMWARE.md", "TEST_RESULTS.md", "ONBOARDING.md"):
         data.append(("usr/share/doc/nst/" + name, (ROOT / name).read_bytes().replace(b"\r\n", b"\n"), 0o644))
     content = bytearray(b"!<arch>\n")
     for name, value in [("debian-binary", b"2.0\n"), ("control.tar.gz", archive(control, epoch)),
@@ -101,6 +101,6 @@ def build(output, epoch=0):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--output", type=Path, default=ROOT / "dist/nst_2.4_all.deb")
+    p.add_argument("--output", type=Path, default=ROOT / "dist/nst_2.5_all.deb")
     args = p.parse_args()
     build(args.output, int(os.environ.get("SOURCE_DATE_EPOCH", "0")))

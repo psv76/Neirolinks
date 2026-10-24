@@ -1,6 +1,6 @@
 # NST — NEIROLINKS Service Tool
 
-NST 2.4 — сервисный инструмент для установки approved desired state и обслуживания контроллеров Wiren Board.
+NST 2.5 — сервисный инструмент для установки approved desired state и обслуживания контроллеров Wiren Board.
 
 Нормативный источник: [стандарт именования и версий](../../EIM/Standards/Software_naming_and_versioning_standard.md).
 
@@ -14,13 +14,22 @@ NST 2.4 — сервисный инструмент для установки ap
 
 Версия **2.4** добавляет расширенный профиль диагностики HHM для Иволги: 501–505. Это изменение содержимого пакета и реестра без изменения runtime-команд и без автоматической синхронизации работающих правил.
 
-Пакет `nst`, артефакт `nst_2.4_all.deb`, CLI `/usr/bin/nst`, Python package `nst` в `/usr/lib/nst`, данные `/usr/share/nst`, документация `/usr/share/doc/nst`.
+Версия **2.5** (кандидат, ещё не approved Release) добавляет независимый от регистрации read-only onboarding нового WB:
+- `nst onboarding collect` — серийный номер, fingerprint, установленные WB/NST/Sprut-пакеты и настроенные Modbus-устройства;
+- `nst onboarding channels` — дополнительно конфигурации `wb-webui.conf`, `wb-mqtt-serial.conf` (с редактированием секретов), подписи каналов из виджетов, MQTT metadata (если доступны), кандидаты на неподписанные устройства/каналы;
+- архивы `nst-onboarding-*.tar.gz` сохраняются в существующей папке диагностики, не блокируя последующую первую регистрацию;
+- обнаружение не регистрирует контроллер, не вызывает `nst sync`, не изменяет wb-rules/Modbus/MQTT. Карта предварительна и требует инженерного подтверждения.
+
+Подробности и ограничения: [ONBOARDING.md](ONBOARDING.md).
+
+
+Пакет `nst`, артефакт `nst_2.5_all.deb`, CLI `/usr/bin/nst`, Python package `nst` в `/usr/lib/nst`, данные `/usr/share/nst`, документация `/usr/share/doc/nst`.
 
 Persistent config/state/logs: `/mnt/data/etc/neirolinks/nst`, `/mnt/data/var/lib/neirolinks/nst`, `/mnt/data/var/log/neirolinks/nst`.
 
 ## Чистая установка
 
-Установить reviewed пакет `nst_2.4_all.deb` с зависимостями обычным пакетным менеджером. Установка пакета не запускает сервисы инженерной автоматики и не пишет persistent config. Предварительная установка NLI не нужна; `/usr/bin/nli` не поставляется.
+Установить reviewed пакет `nst_2.5_all.deb` с зависимостями обычным пакетным менеджером. Установка пакета не запускает сервисы инженерной автоматики и не пишет persistent config. Предварительная установка NLI не нужна; `/usr/bin/nli` не поставляется.
 
 1. `nst status` — локальные identity и состояние; первоначальный профиль unconfigured.
 2. `nst check` — получить последний approved platform release, проверить hardware serial/fingerprint, registry/profile, deployment и показать план без записи данных.

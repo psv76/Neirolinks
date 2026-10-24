@@ -41,8 +41,8 @@ if [ "$1" = first ]; then
     printf '%s\n' ABF62SL > /var/lib/wirenboard/short_sn
 
     # Package-only migration: no package hooks may touch WB services or persistent data.
-    apt-get install -y /packages/nst_2.4_all.deb
-    test "$(nst_version)" = 2.4
+    apt-get install -y /packages/nst_2.5_all.deb
+    test "$(nst_version)" = 2.5
     test ! -e /usr/bin/nli
     legacy_status="$(awk '
         $0 == "Package: neiro-nli" { found=1; next }
@@ -54,7 +54,7 @@ if [ "$1" = first ]; then
     test ! -e /usr/share/neiro-nli
     python3 -B /tests/wb_installed_smoke.py migrated
 
-    apt-get install --reinstall -y /packages/nst_2.4_all.deb
+    apt-get install --reinstall -y /packages/nst_2.5_all.deb
     python3 -B /tests/wb_installed_smoke.py reinstall
 else
     test "$1" = fit
@@ -62,8 +62,8 @@ else
     test -f /mnt/data/etc/neiro/nli/config.json
     mkdir -p /var/lib/wirenboard
     printf '%s\n' ABF62SL > /var/lib/wirenboard/short_sn
-    apt-get install -y /packages/nst_2.4_all.deb
-    test "$(nst_version)" = 2.4
+    apt-get install -y /packages/nst_2.5_all.deb
+    test "$(nst_version)" = 2.5
     test ! -e /usr/bin/nli
     python3 -B /tests/wb_installed_smoke.py fit
 fi
