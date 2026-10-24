@@ -103,3 +103,67 @@ jobs:
           python -m pytest -q \
             tests/unit/test_length_policy.py \
             tests/cables/test_q06_shared_tube_length_safety.py
+
+  combined-candidate-synthetic:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Systems/NLP
+    env:
+      PYTHONPATH: src
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Prepare isolated non-production merge candidate
+        working-directory: .
+        shell: bash
+        run: |
+          git fetch --no-tags origin +refs/heads/fix/nlp-216-length-q04q05q08:refs/remotes/origin/fix/nlp-216-length-q04q05q08
+          git config user.email "ci@example.invalid"
+          git config user.name "D23 synthetic CI"
+          git merge --no-commit --no-ff origin/fix/nlp-216-length-q04q05q08 || true
+          # Conservative provisional resolution: preserve D22's canonical
+          # service, shadow preview and test semantics. Stage C other files
+          # exist ONLY in this disposable runner, never in a persistent branch.
+          git checkout --ours -- Systems/NLP/src/nl_project_2/cables/service.py
+          git checkout --ours -- Systems/NLP/tests/unit/test_length_policy.py
+          git add Systems/NLP/src/nl_project_2/cables/service.py Systems/NLP/tests/unit/test_length_policy.py
+          test -z "$(git diff --name-only --diff-filter=U)"
+          echo "Disposable merged worktree prepared; no production activation"
+      - name: Install synthetic dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0
+          python -m pip install 'SQLAlchemy==2.0.51' 'alembic==1.18.5' \
+            'pytest==9.1.1' 'pytest-qt==4.5.0' 'PySide6==6.11.1' \
+            'ruff==0.15.22'
+      - name: Check combined candidate compilation
+        run: python -m compileall -q src/nl_project_2
+      - name: Combined synthetic D22 and Stage C regression
+        run: |
+          python -m pytest -q \
+            tests/cad_sync/test_issue237_d21_quantity_shadow.py \
+            tests/cad_sync/test_issue237_d20_bridge_fresh_scan.py \
+            tests/cad_sync/test_issue237_d19_dwg_scan_lineage.py \
+            tests/cad_sync/test_issue237_d18_activation_readiness.py \
+            tests/cad_sync/test_issue237_d17_canonical_readback.py \
+            tests/cad_sync/test_issue237_d16_quantity_prepare.py \
+            tests/cad_sync/test_issue237_d15_line_preview.py \
+            tests/cad_sync/test_issue237_d14_transit_quantity_reconciliation.py \
+            tests/cad_sync/test_issue237_d13_transit_store.py \
+            tests/cad_sync/test_issue237_d12_transit_physical.py \
+            tests/cad_sync/test_issue237_d11_transit_readonly.py \
+            tests/cad_sync/test_issue237_d10_track_internal_power.py \
+            tests/cables/test_cable_service.py \
+            tests/cables/test_p0004_segment_recalculation.py \
+            tests/cables/test_q06_shared_tube_length_safety.py \
+            tests/unit/test_length_policy.py \
+            tests/specification/test_service.py \
+            tests/persistence/test_issue237_d16_quantity_migration.py \
+            tests/persistence/test_issue237_d13_transit_migration.py
