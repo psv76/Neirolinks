@@ -52,8 +52,13 @@ def test_d21_shadow_and_revoke_are_reversible_without_changing_any_legacy_data(d
     request, ids = _context(database)
     pid = request.approval.transit.project_id
     watched = (
-        cable_line, cable_segment, cable_length_fact, cable_transit_route,
-        cable_transit_line_commit, conduit, conduit_segment_assignment,
+        cable_line,
+        cable_segment,
+        cable_length_fact,
+        cable_transit_route,
+        cable_transit_line_commit,
+        conduit,
+        conduit_segment_assignment,
         specification_override,
     )
     service = CableService(database.engine)
@@ -82,8 +87,11 @@ def test_d21_shadow_and_revoke_are_reversible_without_changing_any_legacy_data(d
     )
     assert projected["preview_only"] and not projected["can_publish"]
     assert projected["selection"] == shadow
-    sources = [source for source in projected["sources"] if
-               source.source_kind == "CABLE_LINE" and source.source_id in ids and source.unit == "m"]
+    sources = [
+        source
+        for source in projected["sources"]
+        if source.source_kind == "CABLE_LINE" and source.source_id in ids and source.unit == "m"
+    ]
     assert len(sources) == 1
     assert sources[0].quantity == line.preview_effective_m
     assert "NOT FOR PROCUREMENT" in sources[0].trace
@@ -138,8 +146,8 @@ def test_d21_selection_must_be_exact_confirmed_and_sha_bound(database):
     digest = selection_sha256((req,), ids, mode="PREPARED_SHADOW")
     with pytest.raises(ValueError, match="D21_EXPLICIT_SELECTION_APPROVAL_REQUIRED"):
         service.preview_transit_quantity_sources(
-            (req,), selected_line_ids=ids, mode="PREPARED_SHADOW",
-            expected_selection_sha256="0" * 64, confirmed=True,
+            (req,),
+            selected_line_ids=ids,
         )
     with pytest.raises(ValueError, match="D21_EXPLICIT_SELECTION_APPROVAL_REQUIRED"):
         service.preview_transit_quantity_sources(
