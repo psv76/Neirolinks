@@ -32,8 +32,6 @@ def downgrade() -> None:
     for table in ("cable_transit_span", "cable_transit_route"):
         count = bind.exec_driver_sql(f'SELECT COUNT(*) FROM "{table}"').scalar_one()
         if count:
-            raise RuntimeError(
-                f"TRANSIT_PHYSICAL_DOWNGRADE_REQUIRES_EXPLICIT_REVIEW:{table}"
-            )
+            raise RuntimeError(f"TRANSIT_PHYSICAL_DOWNGRADE_REQUIRES_EXPLICIT_REVIEW:{table}")
     op.drop_table("cable_transit_span")
     op.drop_table("cable_transit_route")
