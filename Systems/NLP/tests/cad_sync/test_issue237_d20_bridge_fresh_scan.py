@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 import pytest
 from sqlalchemy import select, update
 from test_bridge_client import _fingerprint_payload, _scan_payload
@@ -212,12 +210,16 @@ def test_project_mutation_while_bridge_scans_is_reviewed(database, monkeypatch):
 
     def change_project():
         with database.engine.begin() as connection:
-            row = connection.execute(
-                select(field_device).where(
-                    field_device.c.project_id == ev.project_id,
-                    field_device.c.block_kind == "EL_BOX_OUT_100x100",
+            row = (
+                connection.execute(
+                    select(field_device).where(
+                        field_device.c.project_id == ev.project_id,
+                        field_device.c.block_kind == "EL_BOX_OUT_100x100",
+                    )
                 )
-            ).mappings().one()
+                .mappings()
+                .one()
+            )
             fields = dict(row["normalized_fields_json"])
             fields["DEVICE_NAME"] = "changed while scanning"
             connection.execute(
