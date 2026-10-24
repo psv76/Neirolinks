@@ -105,6 +105,9 @@ jobs:
             tests/cables/test_q06_shared_tube_length_safety.py
 
   combined-candidate-synthetic:
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 262
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -116,7 +119,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -124,6 +127,8 @@ jobs:
         working-directory: .
         shell: bash
         run: |
+          git fetch --no-tags origin +refs/heads/integration/nlp-237-d23-stagec-d22-candidate:refs/remotes/origin/integration/nlp-237-d23-stagec-d22-candidate
+          git checkout -B d23-candidate origin/integration/nlp-237-d23-stagec-d22-candidate
           git fetch --no-tags origin +refs/heads/fix/nlp-216-length-q04q05q08:refs/remotes/origin/fix/nlp-216-length-q04q05q08
           git config user.email "ci@example.invalid"
           git config user.name "D23 synthetic CI"
@@ -170,3 +175,12 @@ jobs:
             tests/specification/test_service.py \
             tests/persistence/test_issue237_d16_quantity_migration.py \
             tests/persistence/test_issue237_d13_transit_migration.py
+      - name: Persist only the green integration candidate to a draft branch
+        if: success()
+        working-directory: .
+        shell: bash
+        run: |
+          test "$(git branch --show-current)" = "d23-candidate"
+          git add Systems/NLP/src/nl_project_2/cables/service.py
+          git commit -m "integration(nlp): combine D22 shadow preview with Stage C length policy"
+          git push origin HEAD:refs/heads/integration/nlp-237-d23-stagec-d22-candidate
