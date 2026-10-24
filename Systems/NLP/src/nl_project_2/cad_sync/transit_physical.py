@@ -14,8 +14,8 @@ from decimal import ROUND_CEILING, Decimal
 from nl_project_2.cables.domain import (
     CablePointInput,
     ConduitContractError,
-    ROUTE_METHOD_BY_MOUNT_WAY,
     RouteMethod,
+    ROUTE_METHOD_BY_MOUNT_WAY,
     validate_line_conduit_fields,
 )
 
