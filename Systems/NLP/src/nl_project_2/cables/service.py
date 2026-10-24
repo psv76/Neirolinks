@@ -56,7 +56,6 @@ from .domain import (
     parse_conduit_id,
     validate_line_conduit_fields,
 )
-from .transit_reconciliation import staged_transit_reconciliation
 from .recalculation import (
     RecalculationError,
     _remove_assignment_and_empty_auto,
@@ -66,6 +65,7 @@ from .recalculation import (
     refresh_conduit_length,
     segment_geometry_diagnostics,
 )
+from .transit_reconciliation import staged_transit_reconciliation
 
 AV_LOAD_TYPES = frozenset({"SPEAKER_CABLE", "HDMI"})
 CABLE_CATEGORIES = frozenset({"SPEAKER_CABLE", "HDMI", "OTHER_APPROVED_CABLE"})
