@@ -1,0 +1,33 @@
+name: NLP D23 dependency preflight
+
+on:
+  pull_request:
+    paths:
+      - 'Systems/NLP/tools/d23_dependency_preflight.py'
+      - 'Systems/NLP/docs/engineering/ISSUE_237_D23_INTEGRATION_PREFLIGHT.md'
+      - '.github/workflows/nlp-d23-dependency-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-merge-tree:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Fetch independent D22 and Stage C heads
+        run: |
+          git fetch --no-tags origin \
+            +refs/heads/fix/nlp-237-d22-shadow-integrity:refs/remotes/origin/fix/nlp-237-d22-shadow-integrity \
+            +refs/heads/fix/nlp-216-length-q04q05q08:refs/remotes/origin/fix/nlp-216-length-q04q05q08
+      - name: Compile preflight
+        run: python -m py_compile Systems/NLP/tools/d23_dependency_preflight.py
+      - name: Probe read-only integration conflict
+        run: python Systems/NLP/tools/d23_dependency_preflight.py
