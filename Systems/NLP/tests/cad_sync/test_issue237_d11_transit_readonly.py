@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from test_issue237_d10_track_internal_power import _mounted_light
+from test_issue237_passive_physical_ownership import _batch, _box, _track
+from test_issue237_physical_dali_storage import _change_observation
+from test_issue237_project_bus_context import _insert_root, _project
+
+from nl_project_2.cad_sync import DwgSyncService
 from nl_project_2.cad_sync.cable_transit import analyze_cable_transit
 
 
@@ -154,3 +160,19 @@ def test_unknown_upstream_blocks_candidate_without_guessing():
     assert "TRANSIT_SOURCE_UNRESOLVED" in _codes(audit, "301")
     assert audit.routes[0].status == "REVIEW"
 
+
+
+def test_actual_scan_proposal_exposes_readonly_review_without_sqlite_changes(database):
+    pid = _project(database)
+    _insert_root(database, pid)
+    before = database.path.read_bytes()
+    physical_box = _change_observation(_box(), "CABLE_TRANSIT", "401")
+    proposal = DwgSyncService(database.engine).preview(
+        project_id=pid, batch=_batch(physical_box, _track(), _mounted_light())
+    )
+    assert len(proposal.transit_audit.routes) == 1
+    route = proposal.transit_audit.routes[0]
+    assert route.cable_base == "401"
+    assert route.status == "REVIEW"
+    assert "TRANSIT_PATH_REQUIRES_REVIEW" in route.issue_codes
+    assert database.path.read_bytes() == before
