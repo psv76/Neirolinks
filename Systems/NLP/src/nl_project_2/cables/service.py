@@ -69,6 +69,9 @@ from .recalculation import (
 from .transit_reconciliation import staged_transit_reconciliation
 
 if TYPE_CHECKING:
+    from nl_project_2.cad_contract import CadObservationBatch
+
+    from .transit_dwg_scan_lineage import DwgScanLineageReview
     from .transit_activation_readiness import (
         TransitActivationPlan,
         TransitActivationRequest,
@@ -166,6 +169,24 @@ class CableService:
             selected_line_ids=selected_line_ids,
             confirmed=confirmed,
         )
+
+    def review_current_dwg_transit(
+        self,
+        approval: TransitLineApproval,
+        *,
+        current_batch: CadObservationBatch | None,
+        confirmed: bool = False,
+    ) -> DwgScanLineageReview:
+        """Compare supplied CAD data with accepted scan; never publish lengths."""
+        from .transit_dwg_scan_lineage import compare_current_dwg_observations
+
+        with self._engine.connect() as connection:
+            return compare_current_dwg_observations(
+                connection,
+                approval,
+                current_batch=current_batch,
+                confirmed=confirmed,
+            )
 
     def topology(self, project_id: str, cable_line_id: str) -> dict:
         """Return user-facing physical topology, segment facts and route breakdown."""
