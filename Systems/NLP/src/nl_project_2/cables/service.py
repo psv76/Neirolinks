@@ -6,10 +6,10 @@ import hashlib
 import json
 import re
 from collections.abc import Callable, Iterable
-from typing import TYPE_CHECKING
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Engine, delete, func, select, update
 from sqlalchemy.exc import IntegrityError
