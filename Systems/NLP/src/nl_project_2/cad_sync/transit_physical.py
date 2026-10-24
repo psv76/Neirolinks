@@ -244,11 +244,9 @@ def measure_physical_transit(
     ratio = Decimal(1) + policy.p_nonlinearity + policy.p_bypass
     # A single designated pipe must have one demonstrably identical unordered
     # physical boundary, method, type and color across *all* line candidates.
-    all_conduits: dict[str, tuple[tuple[str, str], str, str, str, Decimal, set[str]]] = {}
     for route in routes:
         problems = set(route.issue_codes)
         measured: list[MeasuredTransitSpan] = []
-        pending: list[tuple[str, tuple[str, str], str, str, str, Decimal]] = []
         if route.status != "CANDIDATE":
             problems.add("TRANSIT_PHYSICAL_PATH_REQUIRES_REVIEW")
         else:
@@ -302,7 +300,6 @@ def measure_physical_transit(
                     continue
                 geometry = _geometry(first.point, last.point, method)
                 corrected = geometry * ratio
-                boundary = tuple(sorted((span.start, span.finish)))
                 measured.append(
                     MeasuredTransitSpan(
                         span=span,
@@ -315,38 +312,8 @@ def measure_physical_transit(
                 )
                 if present and not decision.gofra_id:
                     problems.add("TRANSIT_CONDUIT_ASSIGNMENT_REQUIRED")
-                if present and decision.gofra_id:
-                    pending.append(
-                        (
-                            decision.gofra_id,
-                            boundary,
-                            method.value,
-                            decision.gofra_type,
-                            decision.gofra_color,
-                            geometry,
-                        )
-                    )
 
         if len(measured) != len(route.spans) or problems:
-            all_results.append(
-                PhysicalTransitResult(
-                    route.cable_base, "REVIEW", tuple(measured), None, (),
-                    tuple(sorted(problems)),
-                )
-            )
-            continue
-        # Check all sharing including across cable bases before declaring PASS.
-        for designation, boundary, method, kind, color, geometry in pending:
-            existing = all_conduits.get(designation)
-            key = (boundary, method, kind, color, geometry)
-            if existing is not None and existing[:5] != key:
-                problems.add("TRANSIT_CONDUIT_BOUNDARY_CONFLICT")
-            else:
-                if existing is None:
-                    all_conduits[designation] = (*key, {route.cable_base})
-                else:
-                    existing[5].add(route.cable_base)
-        if problems:
             all_results.append(
                 PhysicalTransitResult(
                     route.cable_base, "REVIEW", tuple(measured), None, (),
@@ -377,8 +344,6 @@ def measure_physical_transit(
     by_designation: dict[str, set[tuple[tuple[str, str], str, str, str, Decimal]]] = {}
     affected: dict[str, set[str]] = {}
     for result in all_results:
-        if result.status != "MEASURED":
-            continue
         for part in result.measured:
             if part.conduit_id:
                 decision = decisions[part.span.physical_key]
