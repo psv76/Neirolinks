@@ -61,7 +61,6 @@ def test_d21_shadow_and_revoke_are_reversible_without_changing_any_legacy_data(d
         conduit_segment_assignment,
         specification_override,
     )
-    service = CableService(database.engine)
     spec = SpecificationService(database.engine)
     with database.engine.connect() as conn:
         original = {t.name: _canonical_rows(conn, t, pid) for t in watched}
