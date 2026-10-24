@@ -120,6 +120,15 @@ class OnboardingTests(unittest.TestCase):
         self.assertEqual(origins[0]["sha256"],digest(raw))
         self.assertTrue(origins[0]["redacted"])
 
+    def test_malformed_config_is_omitted_not_exported(self):
+        self.put("/etc/wb-webui.conf", b"not-json passphrase=should-not-leak")
+        result=Onboarding(self.engine).collect("channels")
+        entries=self.entries(result)
+        self.assertNotIn("config/etc/wb-webui.conf",entries)
+        self.assertNotIn(b"should-not-leak",b"".join(entries.values()))
+        self.assertIn("invalid JSON"," ".join(result["warnings"]))
+        self.assertEqual(json.loads(entries["channel-map.json"])["webui_channels"],[])
+
     def test_missing_webui_does_not_fabricate_labels(self):
         (self.root/"etc/wb-webui.conf").unlink()
         result=Onboarding(self.engine).collect("channels")

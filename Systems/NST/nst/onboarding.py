@@ -34,7 +34,7 @@ def _json(data, label, warnings):
         return value
     except (ValueError, UnicodeError, TypeError) as exc:
         warnings.append(label + ": invalid JSON (" + str(exc) + ")")
-        return {}
+        return None
 
 
 def serial_devices(config):
@@ -229,10 +229,16 @@ class Onboarding:
                 collector._copy_file(root, path, "config", inventory)
                 evidence = root / "config" / path.lstrip("/")
                 if evidence.is_file():
-                    parsed[path] = _json(evidence.read_text(encoding="utf-8", errors="replace"), path, warnings)
+                    value = _json(evidence.read_bytes(), path, warnings)
+                    if value is None:
+                        # Fail closed: heuristics cannot guarantee redaction of malformed configs.
+                        evidence.unlink()
+                        inventory[-1]["status"] = "invalid_json_omitted"
+                    else:
+                        parsed[path] = value
                 else:
                     warnings.append(path + ": unavailable")
-            serial = serial_devices(parsed.get(CONFIGS[0], {}))
+            serial = serial_devices(parsed.get(CONFIGS[0]) or {})
             self._write(root, "hardware.json", {
                 "identity": identity, "hostname": self.system.hostname(),
                 "installed_packages": self._packages(warnings),
@@ -241,7 +247,7 @@ class Onboarding:
             })
             self._write(root, "config-inventory.json", inventory)
             if mode == "channels":
-                widgets = widget_channels(parsed.get(CONFIGS[1], {}))
+                widgets = widget_channels(parsed.get(CONFIGS[1]) or {})
                 md, mc = {}, {}
                 try:
                     md, mc = mqtt_topics(self.system.mqtt_metadata(), warnings)
