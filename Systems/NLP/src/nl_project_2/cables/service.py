@@ -70,6 +70,7 @@ from .transit_reconciliation import staged_transit_reconciliation
 
 if TYPE_CHECKING:
     from nl_project_2.cad_contract import CadObservationBatch
+    from nl_project_2.cad_sync.bridge import AutoCadBridgeClient
 
     from .transit_activation_readiness import (
         TransitActivationPlan,
@@ -78,6 +79,7 @@ if TYPE_CHECKING:
     from .transit_canonical_readback import TransitCanonicalReadback
     from .transit_dwg_scan_lineage import DwgScanLineageReview, DwgTransitRevalidationPlan
     from .transit_line_preview import TransitLineApproval
+    from .transit_live_bridge_gate import TransitLiveBridgeReview
 
 AV_LOAD_TYPES = frozenset({"SPEAKER_CABLE", "HDMI"})
 CABLE_CATEGORIES = frozenset({"SPEAKER_CABLE", "HDMI", "OTHER_APPROVED_CABLE"})
@@ -204,6 +206,30 @@ class CableService:
             requests,
             selected_line_ids=selected_line_ids,
             supplied_batches=supplied_batches,
+            confirmed=confirmed,
+        )
+
+    def review_live_transit_from_bridge(
+        self,
+        bridge: AutoCadBridgeClient,
+        requests: tuple[TransitActivationRequest, ...],
+        *,
+        selected_line_ids: frozenset[str],
+        expected_document_identity: str,
+        confirmed: bool = False,
+    ) -> TransitLiveBridgeReview:
+        """D20 forced full bridge scan; result never authorizes length publication."""
+        from nl_project_2.cad_contract import load_contract
+
+        from .transit_live_bridge_gate import review_transit_from_active_bridge
+
+        return review_transit_from_active_bridge(
+            self._engine,
+            bridge,
+            requests,
+            selected_line_ids=selected_line_ids,
+            expected_document_identity=expected_document_identity,
+            definition_names=tuple(load_contract().blocks),
             confirmed=confirmed,
         )
 
