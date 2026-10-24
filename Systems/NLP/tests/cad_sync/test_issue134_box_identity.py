@@ -40,7 +40,7 @@ def _box(index, *, base="111", source="", **kwargs):
         attributes={
             "BOX_ID": f"BOX.{20 + index:03d}",
             "CABLE_SOURCE": source,
-            "BUS_POINT_ID": "",
+            "BUS_ID": "",
             "BUS_SOURCE": "",
         },
         x=100 * index,
@@ -439,7 +439,7 @@ def test_unrelated_duplicate_boxes_do_not_block_safe_new_insertion(database):
         attributes={
             "BOX_ID": "BOX.035",
             "CABLE_SOURCE": "",
-            "BUS_POINT_ID": "",
+            "BUS_ID": "",
             "BUS_SOURCE": "",
         },
         x=100,
@@ -451,7 +451,7 @@ def test_unrelated_duplicate_boxes_do_not_block_safe_new_insertion(database):
         attributes={
             "BOX_ID": "BOX.035",
             "CABLE_SOURCE": "",
-            "BUS_POINT_ID": "",
+            "BUS_ID": "",
             "BUS_SOURCE": "",
         },
         x=200,
