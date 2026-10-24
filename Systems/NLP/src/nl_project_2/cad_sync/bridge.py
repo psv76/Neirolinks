@@ -73,9 +73,7 @@ class AutoCadBridgeClient:
             dbmod=int(payload["dbmod"]),
         )
 
-    def read_fresh_observations_with_witness(
-        self, request: CadReadRequest
-    ) -> FreshCadReadWitness:
+    def read_fresh_observations_with_witness(self, request: CadReadRequest) -> FreshCadReadWitness:
         """Bypass incremental cache and inspect COM state around an actual full scan.
 
         The scan and document metadata are read by the separate STA bridge.
@@ -99,9 +97,7 @@ class AutoCadBridgeClient:
         first = self._fingerprint(request)
         if first["document_identity"].casefold() != expected.casefold():
             raise BridgeError("D20_INITIAL_FINGERPRINT_DOCUMENT_CHANGED")
-        first_signatures = {
-            str(key): str(value) for key, value in first["signatures"].items()
-        }
+        first_signatures = {str(key): str(value) for key, value in first["signatures"].items()}
         first_order = tuple(str(key) for key in first["handles"])
         if len(first_order) != len(set(first_order)) or set(first_order) != set(first_signatures):
             raise BridgeError("D20_FINGERPRINT_OWNER_SET_INVALID")
@@ -118,9 +114,7 @@ class AutoCadBridgeClient:
 
         final = self._fingerprint(request)
         after = self.inspect_active_document(deadline_seconds=request.deadline_seconds)
-        final_signatures = {
-            str(key): str(value) for key, value in final["signatures"].items()
-        }
+        final_signatures = {str(key): str(value) for key, value in final["signatures"].items()}
         final_order = tuple(str(key) for key in final["handles"])
         if (
             before != after
@@ -131,10 +125,9 @@ class AutoCadBridgeClient:
             or batch.document_identity.casefold() != expected.casefold()
         ):
             raise BridgeError("D20_DOCUMENT_OR_FINGERPRINT_CHANGED_DURING_READ")
-        if (
-            len(batch.observations) != len(first_order)
-            or {item.handle for item in batch.observations} != set(first_order)
-        ):
+        if len(batch.observations) != len(first_order) or {
+            item.handle for item in batch.observations
+        } != set(first_order):
             raise BridgeError("D20_FULL_SCAN_OWNER_SET_MISMATCH")
 
         # Parse the COM fingerprint independently and compare its source facts
