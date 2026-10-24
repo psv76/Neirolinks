@@ -1070,6 +1070,53 @@ cable_transit_span = Table(
     CheckConstraint("start_boundary <> end_boundary", name="nonzero_physical_boundary"),
 )
 
+# D16: immutable, approval-gated *prepared* whole-line quantity snapshots.
+# These records are not canonical cable_length_fact or effective_length totals.
+cable_transit_line_commit = Table(
+    "cable_transit_line_commit",
+    metadata,
+    technical_id(),
+    project_id(),
+    Column("cable_line_id", String(36), nullable=False),
+    Column("cable_transit_route_id", String(36), nullable=False),
+    Column("electrical_segment_id", String(36), nullable=False),
+    Column("line_row_version_at_approval", Integer, nullable=False),
+    Column("segment_row_version_at_approval", Integer, nullable=False),
+    Column("length_fact_id_at_approval", String(36)),
+    Column("length_fact_row_version_at_approval", Integer),
+    Column("approval_sha256", String(64), nullable=False),
+    Column("transit_approval_sha256", String(64), nullable=False),
+    Column("automatic_length_m_decimal", Text, nullable=False),
+    Column("final_length_m_decimal", Text, nullable=False),
+    Column("source", String(16), nullable=False),
+    Column("calculation_snapshot_json", JSON, nullable=False),
+    Column("approval_evidence", Text, nullable=False),
+    Column("state", String(24), nullable=False, server_default=text("'PREPARED_APPROVED'")),
+    *timestamps_and_version(),
+    ForeignKeyConstraint(
+        ["cable_line_id", "project_id"],
+        ["cable_line.id", "cable_line.project_id"],
+    ),
+    ForeignKeyConstraint(
+        ["cable_transit_route_id", "project_id"],
+        ["cable_transit_route.id", "cable_transit_route.project_id"],
+    ),
+    ForeignKeyConstraint(
+        ["electrical_segment_id", "project_id"],
+        ["cable_segment.id", "cable_segment.project_id"],
+    ),
+    UniqueConstraint("project_id", "cable_line_id"),
+    UniqueConstraint("project_id", "cable_transit_route_id"),
+    UniqueConstraint("id", "project_id"),
+    uuid_check(),
+    enum_check("source", ("AUTOMATIC", "MANUAL"), "prepared_length_source"),
+    enum_check("state", ("PREPARED_APPROVED",), "prepared_length_state"),
+    CheckConstraint("length(approval_sha256) = 64", name="prepared_digest_length"),
+    CheckConstraint("length(transit_approval_sha256) = 64", name="prepared_transit_digest_length"),
+    CheckConstraint("line_row_version_at_approval >= 1", name="prepared_line_version"),
+    CheckConstraint("segment_row_version_at_approval >= 1", name="prepared_segment_version"),
+)
+
 topology_migration_review = Table(
     "topology_migration_review",
     metadata,
@@ -2075,6 +2122,7 @@ TOPOLOGY_TABLE_NAMES = frozenset(
 )
 PHYSICAL_DALI_TABLE_NAMES = frozenset({"bus_physical_node", "bus_physical_link"})
 TRANSIT_PHYSICAL_TABLE_NAMES = frozenset({"cable_transit_route", "cable_transit_span"})
+TRANSIT_LINE_COMMIT_TABLE_NAMES = frozenset({"cable_transit_line_commit"})
 # Revision 000000000002 imports this set, so it must never absorb later tables.
 FEATURE_TABLE_NAMES = (
     frozenset(metadata.tables)
@@ -2084,6 +2132,7 @@ FEATURE_TABLE_NAMES = (
     - TOPOLOGY_TABLE_NAMES
     - PHYSICAL_DALI_TABLE_NAMES
     - TRANSIT_PHYSICAL_TABLE_NAMES
+    - TRANSIT_LINE_COMMIT_TABLE_NAMES
 )
 HEAD_TABLE_NAMES = frozenset(metadata.tables)
 

@@ -11,6 +11,7 @@ from nl_project_2.persistence.database import DatabaseManager, SchemaUpgradeRequ
 from nl_project_2.persistence.migration import (
     HEAD_REVISION,
     PHYSICAL_DALI_GRAPH_REVISION,
+    TRANSIT_PHYSICAL_STAGING_REVISION,
     current_revision_read_only,
     downgrade_database,
     initialize_database,
@@ -31,19 +32,22 @@ def _tables(path):
 def test_schema_15_to_16_requires_verified_backup_no_legacy_backfill(tmp_path):
     path = tmp_path / "version15.sqlite"
     backups = tmp_path / "backups"
-    assert HEAD_REVISION == "000000000016"
+    assert TRANSIT_PHYSICAL_STAGING_REVISION == "000000000016"
     assert initialize_database(path, target=PHYSICAL_DALI_GRAPH_REVISION) == "000000000015"
     old = _tables(path)
     assert not old.intersection(TRANSIT_PHYSICAL_TABLE_NAMES)
     with pytest.raises(SchemaUpgradeRequiredError):
         DatabaseManager().open_existing(path)
-    receipt = upgrade_database(path, backups, target=HEAD_REVISION)
+    receipt = upgrade_database(path, backups, target=TRANSIT_PHYSICAL_STAGING_REVISION)
     assert receipt.path.exists()
     assert len(receipt.sha256) == 64
     assert receipt.source_revision == "000000000015"
     assert current_revision_read_only(receipt.path) == "000000000015"
-    assert current_revision_read_only(path) == HEAD_REVISION
+    assert current_revision_read_only(path) == TRANSIT_PHYSICAL_STAGING_REVISION
     assert _tables(path) == old | TRANSIT_PHYSICAL_TABLE_NAMES
+    with pytest.raises(SchemaUpgradeRequiredError):
+        DatabaseManager().open_existing(path)
+    upgrade_database(path, backups, target=HEAD_REVISION)
     handle = DatabaseManager().open_existing(path)
     with handle.engine.connect() as conn:
         assert conn.scalar(select(func.count()).select_from(cable_transit_route)) == 0
@@ -56,11 +60,9 @@ def test_schema_15_to_16_requires_verified_backup_no_legacy_backfill(tmp_path):
 def test_16_to_15_empty_downgrade_preserves_verified_backup(tmp_path):
     path = tmp_path / "fresh.sqlite"
     backup = tmp_path / "backups"
-    db = DatabaseManager().initialize_new(path)
-    assert db.revision == "000000000016"
-    db.close()
+    assert initialize_database(path, target=TRANSIT_PHYSICAL_STAGING_REVISION) == "000000000016"
     receipt = downgrade_database(path, backup, target=PHYSICAL_DALI_GRAPH_REVISION)
-    assert receipt.source_revision == HEAD_REVISION
-    assert current_revision_read_only(receipt.path) == HEAD_REVISION
+    assert receipt.source_revision == TRANSIT_PHYSICAL_STAGING_REVISION
+    assert current_revision_read_only(receipt.path) == TRANSIT_PHYSICAL_STAGING_REVISION
     assert current_revision_read_only(path) == PHYSICAL_DALI_GRAPH_REVISION
     assert not _tables(path).intersection(TRANSIT_PHYSICAL_TABLE_NAMES)
