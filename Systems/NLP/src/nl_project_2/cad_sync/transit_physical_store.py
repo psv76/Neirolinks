@@ -19,10 +19,13 @@ from sqlalchemy import Connection, Engine, select
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
     cable_line,
+    cable_point,
     cable_segment,
+    cable_topology_endpoint,
     cable_transit_route,
     cable_transit_span,
     conduit,
+    field_device,
 )
 
 from .transit_physical import (
@@ -86,6 +89,58 @@ def approved_transit_sha256(evidence: ApprovedTransitEvidence) -> str:
 
 def _same_boundary(first: str, second: str) -> tuple[str, str]:
     return tuple(sorted((first, second)))
+
+
+def _accepted_endpoint_label(
+    conn: Connection, *, project_id: str, endpoint_id: str, base: str
+) -> str:
+    endpoint = conn.execute(
+        select(cable_topology_endpoint).where(
+            cable_topology_endpoint.c.id == endpoint_id,
+            cable_topology_endpoint.c.project_id == project_id,
+        )
+    ).mappings().one_or_none()
+    if endpoint is None or endpoint["endpoint_kind"] != "TOPOLOGY_POINT":
+        raise TransitPersistenceError("TRANSIT_ENDPOINT_KIND_REQUIRES_REVIEW")
+    point = conn.execute(
+        select(cable_point).where(
+            cable_point.c.id == endpoint["cable_point_id"],
+            cable_point.c.project_id == project_id,
+        )
+    ).mappings().one_or_none()
+    if point is None or not point["logical_identity"]:
+        raise TransitPersistenceError("TRANSIT_ENDPOINT_OWNER_NOT_FOUND")
+    if point["point_kind"] == "INTERNAL_SOURCE":
+        return f"{base}/$SOURCE"
+    return f"{base}/{point['logical_identity']}"
+
+
+def _check_accepted_box_owners(
+    conn: Connection, *, project_id: str, route: PhysicalTransitRoute
+) -> None:
+    """Every physical waypoint must exist in accepted active Project DWG facts."""
+    boxes = list(
+        conn.execute(
+            select(field_device.c.normalized_fields_json).where(
+                field_device.c.project_id == project_id,
+                field_device.c.block_kind == "EL_BOX_OUT_100x100",
+                field_device.c.lifecycle == "ACTIVE",
+            )
+        ).scalars()
+    )
+    for box_id, _x, _y, _height in route.box_positions:
+        owners = [
+            data for data in boxes
+            if data.get("BOX_ID") == box_id
+            and any(
+                token.strip().split("-", 1)[0] == route.cable_base
+                for token in str(data.get("CABLE_TRANSIT") or "").split(";")
+            )
+        ]
+        if len(owners) != 1:
+            raise TransitPersistenceError(
+                f"TRANSIT_BOX_OWNER_NOT_ACCEPTED:{box_id}"
+            )
 
 
 def _check_existing_conduit_owners(
@@ -222,6 +277,27 @@ def persist_approved_transit(
             or segment["row_version"] != evidence.electrical_segment_row_version
         ):
             raise TransitPersistenceError("TRANSIT_STALE_ELECTRICAL_EDGE")
+
+        _check_accepted_box_owners(
+            conn, project_id=evidence.project_id, route=route
+        )
+        if (
+            route.spans[0].start
+            != _accepted_endpoint_label(
+                conn,
+                project_id=evidence.project_id,
+                endpoint_id=evidence.source_endpoint_id,
+                base=route.cable_base,
+            )
+            or route.spans[-1].finish
+            != _accepted_endpoint_label(
+                conn,
+                project_id=evidence.project_id,
+                endpoint_id=evidence.target_endpoint_id,
+                base=route.cable_base,
+            )
+        ):
+            raise TransitPersistenceError("TRANSIT_ENDPOINT_IDENTITY_MISMATCH")
 
         existing = conn.execute(
             select(cable_transit_route).where(
