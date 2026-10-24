@@ -44,3 +44,7 @@ checks. Do not use an automatic ours/theirs resolution for that module.
 ## CAD fixture correction checkpoint (2026-10-24)
 
 The expanded CAD-sync shard exposed obsolete passive EL_BOX fixture attributes (`BUS_POINT_ID`), no longer legal under the 3.2.0 passive `BUS_ID` contract. The isolated integration Draft #263 updates blank legacy tags only in `test_issue142_working_journal.py` and `test_issue134_box_identity.py`, without production parser behavior changes. Run the full CAD shard before claiming remediation; `ROOM` resolution and selective import failures remain independently unverified. Persistence diagnostic assumptions were corrected separately.
+
+## Full CAD shard regression — latest fixes
+
+Expanded CI #40092566823 reduced CAD sync failures to 5 (293 passing). Remaining tests were all located in `test_p0003_reconciliation.py` and involve passive EL_BOX fixtures, an unknown ROOM on an intentionally roomless synthetic project, and selective line import. In the isolated Draft integration #263, six obsolete blank `BUS_POINT_ID` assignments on EL_BOX fixtures were changed to blank `BUS_ID` only; other addressed RS-485 devices keep BUS_POINT_ID. Next CI must prove which of five failures remain. Do not silently bypass `Partial line import is forbidden` or auto-create rooms to satisfy outdated fixtures.
