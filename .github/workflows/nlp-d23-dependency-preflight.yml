@@ -239,6 +239,7 @@ jobs:
             tests/persistence/test_issue237_d13_transit_migration.py
 
   expanded-persistent-regression:
+    if: false # Replaced by bounded per-domain shards to isolate long-running tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -280,5 +281,45 @@ jobs:
             tests/objects \
             tests/specification \
             tests/persistence \
+            --ignore=tests/cad_sync/test_sta_bridge.py \
+            --ignore=tests/cad_sync/test_bridge_client.py
+
+  expanded-regression-shards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        scope:
+          - cad_sync
+          - cables
+          - buses
+          - objects
+          - specification
+          - persistence
+    defaults:
+      run:
+        working-directory: Systems/NLP
+    env:
+      PYTHONPATH: src
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: integration/nlp-237-d23-stagec-d22-candidate
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install synthetic environment
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0
+          python -m pip install 'SQLAlchemy==2.0.51' 'alembic==1.18.5' \
+            'pytest==9.1.1' 'pytest-qt==4.5.0' 'PySide6==6.11.1' \
+            'ruff==0.15.22' 'jsonschema==4.26.0'
+      - name: Run isolated synthetic regression shard
+        run: |
+          python -m pytest -q "tests/${{ matrix.scope }}" \
             --ignore=tests/cad_sync/test_sta_bridge.py \
             --ignore=tests/cad_sync/test_bridge_client.py
