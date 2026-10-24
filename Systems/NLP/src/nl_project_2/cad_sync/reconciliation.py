@@ -14,6 +14,7 @@ from nl_project_2.cad_contract import CableSuffixKind, ValidatedObservation
 
 from .cable_transit import TransitAudit, analyze_cable_transit
 from .models import SyncOwnerKind
+from .transit_physical import PhysicalTransitRoute, build_physical_transit_routes
 
 LINE_FIELDS = frozenset({"CABLE_TYPE", "BOARD", "FUNCTION_GROUP", "LED_TYPE", "LOAD_NAME"})
 ROUTE_FIELDS = ("MOUNT_WAY", "GOFRA_TYPE", "GOFRA_COLOR", "GOFRA_ID")
@@ -110,6 +111,7 @@ class NormalizedCadSnapshot:
     point_key_by_handle: tuple[tuple[str, str], ...]
     bus_physical_nodes: tuple[BusPhysicalPlan, ...] = ()
     transit_audit: TransitAudit = TransitAudit()
+    physical_transit_routes: tuple[PhysicalTransitRoute, ...] = ()
 
     def fact_map(self) -> dict[str, OwnerFact]:
         return {fact.owner_path: fact for fact in self.facts}
@@ -491,6 +493,7 @@ def normalize_validated_snapshot(
                 source_reference=port_reference,
             )
 
+    transit_audit = analyze_cable_transit(rows, segments)
     return NormalizedCadSnapshot(
         facts=tuple(sorted(facts, key=lambda fact: fact.owner_path)),
         points=tuple(sorted(points, key=lambda point: point.key)),
@@ -500,7 +503,8 @@ def normalize_validated_snapshot(
         bus_points=tuple(sorted(set(bus_points), key=lambda point: point.point_id)),
         structural_reviews=tuple(sorted(set(reviews))),
         point_key_by_handle=tuple(sorted(point_key_by_handle)),
-        transit_audit=analyze_cable_transit(rows, segments),
+        transit_audit=transit_audit,
+        physical_transit_routes=build_physical_transit_routes(transit_audit),
         bus_physical_nodes=tuple(
             sorted(bus_physical_nodes, key=lambda node: (node.physical_id, node.handle))
         ),
