@@ -8,12 +8,11 @@ from test_bridge_client import _fingerprint_payload, _scan_payload
 from test_issue237_d16_quantity_prepare import _intent, _prepare
 from test_issue237_d19_dwg_scan_lineage import _batch_now
 
-from nl_project_2.cad_contract import CadReadRequest
-from nl_project_2.cad_sync.bridge import AutoCadBridgeClient, BridgeError
 from nl_project_2.cables.service import CableService
 from nl_project_2.cables.transit_activation_readiness import TransitActivationRequest
+from nl_project_2.cad_contract import CadReadRequest
+from nl_project_2.cad_sync.bridge import AutoCadBridgeClient, BridgeError
 from nl_project_2.persistence.schema import field_device
-
 
 _DWG = "C:/fixture/working.dwg"
 _SIG = (
