@@ -248,6 +248,20 @@ def test_matched_scan_never_overrides_existing_canonical_manual_length(database)
     intent = _intent(database)
     (receipt,) = _prepare(database, intent)
     ev = intent.approval.transit
+    # Deliberately change an existing legacy manual override *after* D16
+    # approval: D18 must mark the receipt stale, and D19 may not overwrite it.
+    with database.engine.begin() as connection:
+        connection.execute(
+            update(cable_length_fact)
+            .where(
+                cable_length_fact.c.project_id == ev.project_id,
+                cable_length_fact.c.cable_line_id == ev.cable_line_id,
+            )
+            .values(
+                manual_full_length_m_decimal="8.3",
+                row_version=cable_length_fact.c.row_version + 1,
+            )
+        )
     before = CableService(database.engine).effective_length(ev.project_id, ev.cable_line_id)
     plan = CableService(database.engine).plan_current_dwg_transit_revalidation(
         (TransitActivationRequest(intent.approval, receipt.approved_sha256),),
@@ -257,5 +271,7 @@ def test_matched_scan_never_overrides_existing_canonical_manual_length(database)
     )
     after = CableService(database.engine).effective_length(ev.project_id, ev.cable_line_id)
     assert before == after
+    assert before.effective_m == 8.3
+    assert "TRANSIT_D16_LENGTH_FACT_CHANGED" in plan.issues
     assert plan.activation_readiness.lines[0].authoritative_cable_m is None
     assert not plan.can_publish
