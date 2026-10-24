@@ -147,6 +147,9 @@ def test_d21_selection_must_be_exact_confirmed_and_sha_bound(database):
         service.preview_transit_quantity_sources(
             (req,),
             selected_line_ids=ids,
+            mode="PREPARED_SHADOW",
+            expected_selection_sha256="0" * 64,
+            confirmed=True,
         )
     with pytest.raises(ValueError, match="D21_EXPLICIT_SELECTION_APPROVAL_REQUIRED"):
         service.preview_transit_quantity_sources(
