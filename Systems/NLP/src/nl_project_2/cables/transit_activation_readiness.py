@@ -36,7 +36,10 @@ _CANONICAL_CONSUMERS = (
     "cables.service.line_cards",
     "specification.service._effective_cable_length",
     "specification.service._cable_sources",
-    "AV.product_selection_length",
+    "cables.service.auto_select_hdmi",
+    "cables.service.select_hdmi_manually",
+    "cables.service.select_speaker_product",
+    "cables.service.hdmi_selection_status",
 )
 
 _UNMET_RELEASE_GATES = (
