@@ -12,6 +12,7 @@ import json
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
+from collections.abc import Mapping
 
 from sqlalchemy import Connection, select
 
@@ -28,6 +29,7 @@ from nl_project_2.persistence.schema import (
 if TYPE_CHECKING:
     from nl_project_2.cad_contract import CadObservationBatch
     from .transit_line_preview import TransitLineApproval
+    from .transit_activation_readiness import TransitActivationRequest, TransitActivationPlan
 
 
 @dataclass(frozen=True, slots=True)
@@ -304,4 +306,66 @@ def compare_current_dwg_observations(
         observed_handles=tuple(sorted(actual)),
         compared_input_sha256=_hash(actual),
         accepted_observation_sha256=_hash(expected),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class DwgTransitRevalidationPlan:
+    """Selected-line D18 readiness plus supplied DWG comparisons."""
+
+    status: str
+    selected_line_ids: tuple[str, ...]
+    activation_readiness: TransitActivationPlan
+    dwg_comparisons: tuple[DwgScanLineageReview, ...]
+    issues: tuple[str, ...]
+    can_publish: bool = False
+
+
+def plan_dwg_transit_revalidation(
+    engine,
+    requests: tuple[TransitActivationRequest, ...],
+    *,
+    selected_line_ids: frozenset[str],
+    supplied_batches: Mapping[str, CadObservationBatch | None],
+    confirmed: bool = False,
+) -> DwgTransitRevalidationPlan:
+    """Evaluate input CAD observations together with the D18 canonical gate.
+
+    This does NOT attest where a supplied batch came from. Only the actual
+    Windows AutoCAD bridge can produce independent source provenance later.
+    """
+    from .transit_activation_readiness import plan_transit_activation
+
+    if set(supplied_batches) != selected_line_ids:
+        raise ValueError("D19_CAD_BATCH_SELECTION_NOT_EXACT")
+    readiness = plan_transit_activation(
+        engine,
+        requests,
+        selected_line_ids=selected_line_ids,
+        confirmed=confirmed,
+    )
+    reports: list[DwgScanLineageReview] = []
+    with engine.connect() as connection:
+        for request in sorted(requests, key=lambda item: item.approval.transit.cable_line_id):
+            reports.append(
+                compare_current_dwg_observations(
+                    connection,
+                    request.approval,
+                    current_batch=supplied_batches[request.approval.transit.cable_line_id],
+                    confirmed=confirmed,
+                )
+            )
+    issues: set[str] = set()
+    for entry in readiness.lines:
+        issues.update(entry.issues)
+    for review in reports:
+        issues.update(review.issues)
+    issues.add("D19_LIVE_CAD_BATCH_PROVENANCE_NOT_ATTESTED")
+    issues.add("D19_ALL_QUANTITY_CONSUMERS_NOT_ACTIVATED")
+    return DwgTransitRevalidationPlan(
+        status="BLOCKED",
+        selected_line_ids=readiness.selected_line_ids,
+        activation_readiness=readiness,
+        dwg_comparisons=tuple(reports),
+        issues=tuple(sorted(issues)),
     )
