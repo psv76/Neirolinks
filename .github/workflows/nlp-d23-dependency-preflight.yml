@@ -275,4 +275,5 @@ jobs:
             tests/objects \
             tests/specification \
             tests/persistence \
-            -k 'not test_sta_bridge and not test_bridge_client'
+            --ignore=tests/cad_sync/test_sta_bridge.py \
+            --ignore=tests/cad_sync/test_bridge_client.py
