@@ -15,6 +15,7 @@ from nl_project_2.cables.domain import (
     CablePointInput,
     ConduitContractError,
     RouteMethod,
+    ROUTE_METHOD_BY_MOUNT_WAY,
     validate_line_conduit_fields,
 )
 
@@ -159,7 +160,7 @@ def build_physical_transit_routes(audit: TransitAudit) -> tuple[PhysicalTransitR
                 b,
                 f"{route.cable_base}:{a}->{b}",
             )
-            for a, b in zip(vertices, vertices[1:], strict=True)
+            for a, b in zip(vertices, vertices[1:])
         )
         results.append(
             PhysicalTransitRoute(route.cable_base, "CANDIDATE", spans, (), box_positions)
@@ -257,14 +258,14 @@ def measure_physical_transit(
                     problems.add("TRANSIT_SPAN_ROUTE_NOT_APPROVED")
                     continue
                 try:
-                    method = RouteMethod(decision.mount_way)
+                    method = ROUTE_METHOD_BY_MOUNT_WAY[decision.mount_way]
                     present = validate_line_conduit_fields(
                         mount_way=decision.mount_way,
                         conduit_type=decision.gofra_type,
                         conduit_color=decision.gofra_color,
                         conduit_id=decision.gofra_id,
                     )
-                except (ValueError, ConduitContractError):
+                except (KeyError, ValueError, ConduitContractError):
                     problems.add("TRANSIT_SPAN_ROUTE_INVALID")
                     continue
                 first = locations.get(span.start)
