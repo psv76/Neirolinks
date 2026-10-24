@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
@@ -71,7 +71,7 @@ from .transit_reconciliation import staged_transit_reconciliation
 if TYPE_CHECKING:
     from nl_project_2.cad_contract import CadObservationBatch
 
-    from .transit_dwg_scan_lineage import DwgScanLineageReview
+    from .transit_dwg_scan_lineage import DwgScanLineageReview, DwgTransitRevalidationPlan
     from .transit_activation_readiness import (
         TransitActivationPlan,
         TransitActivationRequest,
@@ -187,6 +187,25 @@ class CableService:
                 current_batch=current_batch,
                 confirmed=confirmed,
             )
+
+    def plan_current_dwg_transit_revalidation(
+        self,
+        requests: tuple[TransitActivationRequest, ...],
+        *,
+        selected_line_ids: frozenset[str],
+        supplied_batches: Mapping[str, CadObservationBatch | None],
+        confirmed: bool = False,
+    ) -> DwgTransitRevalidationPlan:
+        """D19 strict CAD replay comparison + D18 blocked activation plan."""
+        from .transit_dwg_scan_lineage import plan_dwg_transit_revalidation
+
+        return plan_dwg_transit_revalidation(
+            self._engine,
+            requests,
+            selected_line_ids=selected_line_ids,
+            supplied_batches=supplied_batches,
+            confirmed=confirmed,
+        )
 
     def topology(self, project_id: str, cable_line_id: str) -> dict:
         """Return user-facing physical topology, segment facts and route breakdown."""
