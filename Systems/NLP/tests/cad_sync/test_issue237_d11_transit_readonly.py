@@ -5,7 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from test_issue237_d10_track_internal_power import _mounted_light
-from test_issue237_passive_physical_ownership import _batch, _box, _track
+from test_issue237_passive_physical_ownership import _batch, _box as _dali_box, _track
 from test_issue237_physical_dali_storage import _change_observation
 from test_issue237_project_bus_context import _insert_root, _project
 
@@ -166,7 +166,7 @@ def test_actual_scan_proposal_exposes_readonly_review_without_sqlite_changes(dat
     pid = _project(database)
     _insert_root(database, pid)
     before = database.path.read_bytes()
-    physical_box = _change_observation(_box(), "CABLE_TRANSIT", "401")
+    physical_box = _change_observation(_dali_box(), "CABLE_TRANSIT", "401")
     proposal = DwgSyncService(database.engine).preview(
         project_id=pid, batch=_batch(physical_box, _track(), _mounted_light())
     )
