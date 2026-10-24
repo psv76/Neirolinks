@@ -58,7 +58,7 @@ def journal_project(database, *, room_exists=True):
             cable_id="111",
             attributes={
                 "BOX_ID": "BOX.021",
-                "BUS_POINT_ID": "",
+                "BUS_ID": "",
                 "BUS_SOURCE": "",
                 "MOUNT_WAY": "По полу",
                 "GOFRA_TYPE": "ПНД25",
@@ -74,7 +74,7 @@ def journal_project(database, *, room_exists=True):
             attributes={
                 "BOX_ID": "BOX.022",
                 "CABLE_SOURCE": "BOX.021",
-                "BUS_POINT_ID": "",
+                "BUS_ID": "",
                 "BUS_SOURCE": "",
                 "MOUNT_WAY": "В брусе",
                 "GOFRA_TYPE": "ППЛ25",
