@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
-from collections.abc import Mapping
 
 from sqlalchemy import Connection, select
 
@@ -28,8 +28,9 @@ from nl_project_2.persistence.schema import (
 
 if TYPE_CHECKING:
     from nl_project_2.cad_contract import CadObservationBatch
+
+    from .transit_activation_readiness import TransitActivationPlan, TransitActivationRequest
     from .transit_line_preview import TransitLineApproval
-    from .transit_activation_readiness import TransitActivationRequest, TransitActivationPlan
 
 
 @dataclass(frozen=True, slots=True)
