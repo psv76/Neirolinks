@@ -247,7 +247,7 @@ def test_identical_physical_shared_conduit_is_reported_once_for_two_cables():
         routes, locations=_two_line_geometry(), decisions=decisions, policy=_policy()
     )
     assert [item.status for item in result] == ["MEASURED", "MEASURED"]
-    assert sum((len(item.conduits) for item in result)) == 1
+    assert sum(len(item.conduits) for item in result) == 1
     assert result[0].conduits[0].cable_bases == ("301", "302")
     assert result[0].conduits[0].boundary == ("BOX.010", "BOX.020")
     assert result[0].conduits[0].measured_m == Decimal("2")
