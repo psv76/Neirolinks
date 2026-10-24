@@ -80,9 +80,7 @@ def analyze_cable_transit(
             token = entry.strip()
             match = _TRANSIT_TOKEN.fullmatch(token)
             if match is None:
-                issues.append(
-                    TransitIssue("TRANSIT_TOKEN_INVALID", item.observation.handle, token)
-                )
+                issues.append(TransitIssue("TRANSIT_TOKEN_INVALID", item.observation.handle, token))
                 continue
             base = match.group("base")
             order = match.group("order")
@@ -94,9 +92,7 @@ def analyze_cable_transit(
                     ordinal=int(order) if order is not None else None,
                     x=item.observation.x,
                     y=item.observation.y,
-                    mount_height_mm=str(
-                        item.normalized_attributes.get("MOUNT_HEIGHT") or ""
-                    ),
+                    mount_height_mm=str(item.normalized_attributes.get("MOUNT_HEIGHT") or ""),
                 )
             )
 
@@ -125,10 +121,7 @@ def analyze_cable_transit(
             local.add("TRANSIT_CABLE_LINE_NOT_PRESENT")
         elif len(candidates) != 1:
             local.add("TRANSIT_PATH_REQUIRES_REVIEW")
-        elif (
-            candidates[0].source_reference is not None
-            and candidates[0].source_point_key is None
-        ):
+        elif candidates[0].source_reference is not None and candidates[0].source_point_key is None:
             local.add("TRANSIT_SOURCE_UNRESOLVED")
 
         waypoints = tuple(
@@ -166,4 +159,3 @@ def analyze_cable_transit(
             )
         ),
     )
-
