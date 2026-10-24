@@ -6,11 +6,12 @@ from decimal import Decimal
 
 from sqlalchemy import select, update
 from test_issue237_d13_transit_store import _accepted
+
+from nl_project_2.cables.service import CableService
 from nl_project_2.cad_sync.transit_physical_store import (
     approved_transit_sha256,
     persist_approved_transit,
 )
-from nl_project_2.cables.service import CableService
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
     cable_length_fact,
@@ -35,7 +36,8 @@ def _stage(database):
 
 def _canonical_rows(connection, table, project_id):
     return tuple(
-        tuple(row) for row in connection.execute(
+        tuple(row)
+        for row in connection.execute(
             select(table).where(table.c.project_id == project_id).order_by(table.c.id)
         ).all()
     )
@@ -46,9 +48,7 @@ def test_reconciliation_is_readonly_and_never_replaces_authoritative_length(data
     cable_service = CableService(database.engine)
     watched = (cable_segment, cable_length_fact, conduit, conduit_segment_assignment)
     with database.engine.connect() as conn:
-        original = {
-            table.name: _canonical_rows(conn, table, ev.project_id) for table in watched
-        }
+        original = {table.name: _canonical_rows(conn, table, ev.project_id) for table in watched}
     before_cards = cable_service.line_cards(ev.project_id)
     before_canonical = {
         card["id"]: (card["effective_m"], card["automatic_m"], card["conduit_count"])
@@ -71,7 +71,10 @@ def test_reconciliation_is_readonly_and_never_replaces_authoritative_length(data
     assert Decimal(shadow["uncommitted_unique_conduit_geometry_m"]) >= 0
     topology = cable_service.topology(ev.project_id, ev.cable_line_id)
     assert topology["transit_reconciliation"][0]["route_id"] == entry["route_id"]
-    assert len(cable_service.project_route_breakdown(ev.project_id)["staged_transit_review"]["routes"]) == 1
+    assert (
+        len(cable_service.project_route_breakdown(ev.project_id)["staged_transit_review"]["routes"])
+        == 1
+    )
     after_cards = cable_service.line_cards(ev.project_id)
     assert after_cards[0]["staged_transit_review"] or any(
         card["staged_transit_review"] for card in after_cards
@@ -106,12 +109,16 @@ def test_stale_approved_electrical_edge_does_not_produce_candidate_quantity(data
 def test_removed_box_owner_invalidates_its_staged_span(database):
     ev = _stage(database)
     with database.engine.begin() as conn:
-        box = conn.execute(
-            select(field_device).where(
-                field_device.c.project_id == ev.project_id,
-                field_device.c.block_kind == "EL_BOX_OUT_100x100",
+        box = (
+            conn.execute(
+                select(field_device).where(
+                    field_device.c.project_id == ev.project_id,
+                    field_device.c.block_kind == "EL_BOX_OUT_100x100",
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         fields = dict(box["normalized_fields_json"])
         fields["CABLE_TRANSIT"] = ""
         conn.execute(
@@ -127,11 +134,13 @@ def test_removed_box_owner_invalidates_its_staged_span(database):
 def test_mixed_boundaries_same_gofra_are_not_merged_or_counted(database):
     ev = _stage(database)
     with database.engine.begin() as conn:
-        parts = list(conn.execute(
-            select(cable_transit_span)
-            .where(cable_transit_span.c.project_id == ev.project_id)
-            .order_by(cable_transit_span.c.ordinal)
-        ).mappings())
+        parts = list(
+            conn.execute(
+                select(cable_transit_span)
+                .where(cable_transit_span.c.project_id == ev.project_id)
+                .order_by(cable_transit_span.c.ordinal)
+            ).mappings()
+        )
         conn.execute(
             update(cable_transit_span)
             .where(cable_transit_span.c.id == parts[1]["id"])
@@ -176,4 +185,6 @@ def test_no_staged_routes_leave_all_normal_canonical_quantities_untouched(databa
         "mode": "READ_ONLY_NO_CANONICAL_QUANTITY_CHANGE",
     }
     assert cable_service.topology(ev.project_id, ev.cable_line_id)["transit_reconciliation"] == ()
-    assert all(not card["staged_transit_review"] for card in cable_service.line_cards(ev.project_id))
+    assert all(
+        not card["staged_transit_review"] for card in cable_service.line_cards(ev.project_id)
+    )
