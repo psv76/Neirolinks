@@ -105,7 +105,7 @@ jobs:
             tests/cables/test_q06_shared_tube_length_safety.py
 
   combined-candidate-synthetic:
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 262
+    if: false # The disposable integration is now persisted to Draft #263; do not reapply
     permissions:
       contents: write
     runs-on: ubuntu-latest
