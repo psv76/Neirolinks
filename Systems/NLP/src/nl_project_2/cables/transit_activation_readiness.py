@@ -109,13 +109,17 @@ def _accepted_project_source(
     members: dict[str, dict] = {}
     end_points: list[dict] = []
     for endpoint_id in (ev.source_endpoint_id, ev.target_endpoint_id):
-        endpoint = connection.execute(
-            select(cable_topology_endpoint).where(
-                cable_topology_endpoint.c.project_id == ev.project_id,
-                cable_topology_endpoint.c.id == endpoint_id,
-                cable_topology_endpoint.c.cable_line_id == ev.cable_line_id,
+        endpoint = (
+            connection.execute(
+                select(cable_topology_endpoint).where(
+                    cable_topology_endpoint.c.project_id == ev.project_id,
+                    cable_topology_endpoint.c.id == endpoint_id,
+                    cable_topology_endpoint.c.cable_line_id == ev.cable_line_id,
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if endpoint is None:
             issues.add("D18_CANONICAL_ENDPOINT_MISSING")
             continue
@@ -129,13 +133,17 @@ def _accepted_project_source(
         }
         point_id = endpoint["cable_point_id"]
         if point_id is not None:
-            point = connection.execute(
-                select(cable_point).where(
-                    cable_point.c.project_id == ev.project_id,
-                    cable_point.c.id == point_id,
-                    cable_point.c.cable_line_id == ev.cable_line_id,
+            point = (
+                connection.execute(
+                    select(cable_point).where(
+                        cable_point.c.project_id == ev.project_id,
+                        cable_point.c.id == point_id,
+                        cable_point.c.cable_line_id == ev.cable_line_id,
+                    )
                 )
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
             if point is None:
                 issues.add("D18_CANONICAL_POINT_MISSING")
             else:
@@ -181,7 +189,7 @@ def _accepted_project_source(
             )
         ).mappings()
     )
-    for box_id, *unused in ev.route.box_positions:
+    for box_id, *_unused in ev.route.box_positions:
         matches = [
             row
             for row in boxes
@@ -192,9 +200,7 @@ def _accepted_project_source(
         for row in matches:
             members[row["id"]] = _record(row)
 
-    binding_ids = {
-        row["binding_id"] for row in members.values() if row["binding_id"] is not None
-    }
+    binding_ids = {row["binding_id"] for row in members.values() if row["binding_id"] is not None}
     bindings = [
         {
             "id": row["id"],
