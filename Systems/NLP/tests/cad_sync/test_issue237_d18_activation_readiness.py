@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
 from sqlalchemy import select, update
 from test_issue237_d14_transit_quantity_reconciliation import _canonical_rows
 from test_issue237_d16_quantity_prepare import _intent, _prepare
-
-import pytest
 
 from nl_project_2.cables.service import CableService
 from nl_project_2.cables.transit_activation_readiness import (
