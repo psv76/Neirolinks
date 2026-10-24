@@ -8,7 +8,7 @@ import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import ROUND_CEILING, Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Engine, delete, func, select, update
@@ -57,10 +57,12 @@ from .domain import (
     parse_conduit_id,
     validate_line_conduit_fields,
 )
+from .length_policy import round_up_quantity
 from .recalculation import (
     RecalculationError,
     _remove_assignment_and_empty_auto,
     board_reserve_for_line,
+    cable_length_policy,
     cable_line_length_breakdown,
     recalculate_segments,
     refresh_conduit_length,
@@ -664,9 +666,6 @@ class CableService:
             "obstacle_reserve_m": (
                 "0" if length_breakdown is None else str(length_breakdown.obstacle_reserve_m)
             ),
-            "timber_reserve_m": (
-                "0" if length_breakdown is None else str(length_breakdown.timber_reserve_m)
-            ),
             "geometric_m": (
                 None if length_breakdown is None else str(length_breakdown.geometric_m)
             ),
@@ -679,9 +678,6 @@ class CableService:
             ),
             "endpoint_mechanisms": (
                 0 if length_breakdown is None else length_breakdown.endpoint_mechanisms
-            ),
-            "timber_segments": (
-                0 if length_breakdown is None else length_breakdown.timber_segments
             ),
             "additional_m": (
                 "0" if length_row is None else str(length_row["additional_length_m_decimal"] or "0")
@@ -1684,7 +1680,9 @@ class CableService:
             # final whole-metre delivery rule for the automatic value.
             automatic = Decimal(str(row["calculated_length_m_decimal"] or 0))
             unrounded = automatic + additional
-            rounded = unrounded.to_integral_value(rounding=ROUND_CEILING)
+            with UnitOfWork(self._engine) as uow:
+                rounding_step = cable_length_policy(uow, project_id).rounding_step_m
+            rounded = round_up_quantity(unrounded, rounding_step)
             manual_value = None if manual is None else Decimal(str(manual))
             effective = manual_value if manual_value is not None else rounded
             return LengthResult(
@@ -1696,7 +1694,7 @@ class CableService:
                 (
                     {"kind": "direct_known_length", "m": str(automatic)},
                     {"kind": "unrounded", "m": str(unrounded)},
-                    {"kind": "rounded_up_to_1m", "m": str(rounded)},
+                    {"kind": "rounded_up_to_project_step", "m": str(rounded)},
                 ),
             )
 
@@ -1727,13 +1725,8 @@ class CableService:
             },
             {"kind": "meander_reserve", "m": str(breakdown.meander_reserve_m)},
             {"kind": "obstacle_reserve", "m": str(breakdown.obstacle_reserve_m)},
-            {
-                "kind": "timber_reserve",
-                "m": str(breakdown.timber_reserve_m),
-                "segments": str(breakdown.timber_segments),
-            },
             {"kind": "unrounded", "m": str(breakdown.unrounded_m)},
-            {"kind": "rounded_up_to_1m", "m": str(breakdown.rounded_m)},
+            {"kind": "rounded_up_to_project_step", "m": str(breakdown.rounded_m)},
         )
         return LengthResult(
             automatic,

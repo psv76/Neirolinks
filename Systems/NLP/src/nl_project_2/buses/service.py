@@ -720,8 +720,8 @@ class BusService:
                     "effective_m": effective,
                     "length_mode": "Автоматическая" if effective is not None else "Не рассчитана",
                     "length_explanation": (
-                        "Геометрия + объектовые запасы + проценты + запас «В брусе», "
-                        "округление вверх до 1 м"
+                        "Геометрия + объектовые выводы + проценты только на геометрию, "
+                        "округление вверх до шага проекта"
                     ),
                 }
             )
@@ -935,9 +935,6 @@ class BusService:
             "obstacle_reserve_m": (
                 "0" if length_breakdown is None else str(length_breakdown.obstacle_reserve_m)
             ),
-            "timber_reserve_m": (
-                "0" if length_breakdown is None else str(length_breakdown.timber_reserve_m)
-            ),
             "geometric_m": (
                 None if length_breakdown is None else str(length_breakdown.geometric_m)
             ),
@@ -948,9 +945,6 @@ class BusService:
             "distribution_box_lines": 0,
             "endpoint_mechanisms": (
                 0 if length_breakdown is None else length_breakdown.endpoint_mechanisms
-            ),
-            "timber_segments": (
-                0 if length_breakdown is None else length_breakdown.timber_segments
             ),
             "additional_m": "0",
             "manual_full_m": None,

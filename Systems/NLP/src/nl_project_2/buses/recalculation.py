@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from decimal import ROUND_CEILING, Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select, update
 
@@ -14,6 +14,7 @@ from nl_project_2.cables.domain import (
     calculate_segment_length,
     conduit_length_from_segment_length,
 )
+from nl_project_2.cables.length_policy import round_up_quantity
 from nl_project_2.cables.recalculation import (
     CableLengthBreakdown,
     cable_length_policy,
@@ -111,15 +112,12 @@ def bus_length_breakdown(uow, project_id: str, bus_id: str) -> CableLengthBreakd
         raise ValueError("Bus length is incomplete")
 
     route_geometry = Decimal(0)
-    timber_segments = 0
     for segment in segments:
         route = _route_method(segment.get("mount_way"))
         if route is None:
             raise ValueError("Bus mount way is incomplete")
         length = Decimal(str(segment["length_m_decimal"]))
         route_geometry += conduit_length_from_segment_length(length, route)
-        if route is RouteMethod.TIMBER:
-            timber_segments += 1
 
     owner_board_id = uow.execute(
         select(project_instance.c.board_id)
@@ -159,11 +157,10 @@ def bus_length_breakdown(uow, project_id: str, bus_id: str) -> CableLengthBreakd
     )
     endpoint_reserve = policy.endpoint_reserve_m * endpoint_mechanisms
     geometric = route_geometry + board_reserve + endpoint_reserve
-    meander = geometric * policy.meander_percent / Decimal(100)
-    obstacle = geometric * policy.obstacle_percent / Decimal(100)
-    timber = policy.timber_segment_reserve_m * timber_segments
-    unrounded = geometric + meander + obstacle + timber
-    rounded = unrounded.to_integral_value(rounding=ROUND_CEILING)
+    meander = route_geometry * policy.meander_percent / Decimal(100)
+    obstacle = route_geometry * policy.obstacle_percent / Decimal(100)
+    unrounded = geometric + meander + obstacle
+    rounded = round_up_quantity(unrounded, policy.rounding_step_m)
 
     return CableLengthBreakdown(
         route_geometry_m=route_geometry,
@@ -173,13 +170,11 @@ def bus_length_breakdown(uow, project_id: str, bus_id: str) -> CableLengthBreakd
         geometric_m=geometric,
         meander_reserve_m=meander,
         obstacle_reserve_m=obstacle,
-        timber_reserve_m=timber,
         additional_m=Decimal(0),
         unrounded_m=unrounded,
         rounded_m=rounded,
         distribution_box_lines=0,
         endpoint_mechanisms=endpoint_mechanisms,
-        timber_segments=timber_segments,
     )
 
 
