@@ -40,9 +40,7 @@ def _codes(audit, base: str) -> set[str]:
 
 
 def test_unbroken_single_box_is_only_a_readonly_candidate():
-    audit = analyze_cable_transit(
-        (_transit_box("A", "301", "BOX.010"),), (_segment("301"),)
-    )
+    audit = analyze_cable_transit((_transit_box("A", "301", "BOX.010"),), (_segment("301"),))
     assert not audit.requires_review
     assert audit.issues == ()
     assert len(audit.routes) == 1
@@ -50,9 +48,7 @@ def test_unbroken_single_box_is_only_a_readonly_candidate():
     assert route.status == "CANDIDATE"
     assert route.source_point_key is None
     assert route.target_point_key == "301/301"
-    assert [(point.box_id, point.ordinal) for point in route.waypoints] == [
-        ("BOX.010", None)
-    ]
+    assert [(point.box_id, point.ordinal) for point in route.waypoints] == [("BOX.010", None)]
     assert route.waypoints[0].mount_height_mm == "2300"
     assert not hasattr(route, "length_m_decimal")
     assert not hasattr(route, "conduit_id")
@@ -74,9 +70,9 @@ def test_numbered_chain_is_deterministic_independent_of_insert_order():
 
 
 def test_empty_transit_is_allowed_and_does_not_create_geometry():
-    assert analyze_cable_transit(
-        (_transit_box("A", "", "BOX.010"),), (_segment("301"),)
-    ).routes == ()
+    assert (
+        analyze_cable_transit((_transit_box("A", "", "BOX.010"),), (_segment("301"),)).routes == ()
+    )
 
 
 def test_two_power_lines_are_independent_in_one_transit_box():
@@ -127,9 +123,7 @@ def test_ambiguous_branch_does_not_create_a_guessed_path():
 
 
 def test_missing_line_only_blocks_that_line_not_independent_route():
-    audit = analyze_cable_transit(
-        (_transit_box("A", "301;302", "BOX.010"),), (_segment("301"),)
-    )
+    audit = analyze_cable_transit((_transit_box("A", "301;302", "BOX.010"),), (_segment("301"),))
     assert [route.status for route in audit.routes] == ["CANDIDATE", "REVIEW"]
     assert "TRANSIT_CABLE_LINE_NOT_PRESENT" in _codes(audit, "302")
 
@@ -159,7 +153,6 @@ def test_unknown_upstream_blocks_candidate_without_guessing():
     audit = analyze_cable_transit((_transit_box("A", "301", "BOX.010"),), (segment,))
     assert "TRANSIT_SOURCE_UNRESOLVED" in _codes(audit, "301")
     assert audit.routes[0].status == "REVIEW"
-
 
 
 def test_actual_scan_proposal_exposes_readonly_review_without_sqlite_changes(database):
