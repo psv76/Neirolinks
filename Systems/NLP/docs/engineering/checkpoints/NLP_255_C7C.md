@@ -1,67 +1,75 @@
-# NLP-255-C7C-SCAN-INTEGRATION — 2026-10-25
+# NLP-255-C7C-SCAN-INTEGRATION — resumed completion, 2026-10-25
 
-status: PARTIAL
+status: PARTIAL — both scan paths implemented as explicit diagnostic reads; filtered synchronization intentionally disabled.
 branch: feature/nlp-255-c7c-scan-integration
-base_sha: 18babcb8861adecf74854e6dafdf89450856681a (accepted C7b)
-start_sha: ee1d1e2766b7d3b966b6c85b95a373608b7444c5 (verified exact, clean checkout)
-intermediate_sha: e88eb1c63c826549c6de6ad9b1792d7496dfae11
-tested_sha: 3d8f93312d70d67e4293e536e991583a44626ee8
-final_head_sha: reported in Issue #255 after this documentation-only checkpoint commit.
+base_sha: 18babcb8861adecf74854e6dafdf89450856681a
+start_sha: ee1d1e2766b7d3b966b6c85b95a373608b7444c5
+first_partial_final_sha: 089dfc938d6b8f0502b3bda3218f37a791de910a
+intermediate_sha: e48221d9146729ad27748c902373bd58efea1213
+tested_sha: e48221d9146729ad27748c902373bd58efea1213
+final_head_sha: recorded in Issue #255 after this documentation-only commit.
 
-## Implemented versus disabled
+This checkpoint supersedes the first pure-helper-only result. The user explicitly requested continuation; the resumed work implements the scanner producers and client path below.
 
-Implemented: pure, side-effect-free census/observation assessment in `src/nl_project_2/cad_sync/scan_layer_safety.py:79`. Frozen evidence DTOs describe complete unfiltered INSERT handle/layer census before and after a heavy read, document identity, fresh read ID, revision and explicit individual absence proof. These are declared evidence, not independently verified live attestations. No current scanner constructs them.
+## Implemented scan integration
 
-The helper uses the exact C1 parser. Heavy-read plan includes every numeric-layer insertion and every surviving tracked insertion, regardless of its current layer. It does not infer contract ownership from layer or block name. Legacy eligibility is separate; tracked legacy inserts cannot disappear merely because numeric selection excludes them. A tracked handle present on ARCH/legacy/malformed layer is present-excluded and requires heavy observation when absent from the payload; it is never classified as missing from DWG. Missing handles remain unknown without an explicit successful unfiltered absence check bound to the same document/read/revision. Lookup failure is not absence proof.
+`AutoCadBridgeClient.read_layer_filtered_observations(request, tracked_handles=...)` in bridge.py is a separate explicit diagnostic API, not called by normal read_observations or Update. It invokes the new `scan_working_layers` operation in autocad_sta_bridge.py.
 
-Duplicate/noncanonical handles, stale reads, incomplete/filtered census, scan errors, revision drift, handle/layer mismatch and contradictory/duplicate absence proofs produce REQUIRES_ATTENTION. Complete synthetic evidence returns STAGED_ONLY, not permission to synchronize. The helper does not merge cached observations, create a CadObservationBatch, change source metadata, emit MISSING_DWG_INSERTION or bypass C6. Preview and apply continue rejecting the unchanged partial metadata, verified before any DB access.
+`_scan_working_layers` performs:
 
-Implemented scan speedup: **none in C7C**. No time-saving claim. Existing C5 mocked call-count tests still verify excluded entities read only ObjectName/Layer and no heavy properties/definitions, in one ModelSpace traversal; that opt-in remains internal and disabled in the protocol. It is not evidence of normal-path acceleration.
+1. Complete unfiltered lightweight COM census of model-space block references: ObjectName, Handle and Layer only, no names, coordinates, attributes, dynamic state or definitions. Canonical uppercase hex handles are checked and duplicates/errors rejected. Explicit document identity is checked around enumeration.
+2. Selection in Python using the exact accepted C1 parser. Every surviving tracked handle is added regardless of layer, so moved-off-layer and legacy tracked insertions remain present. Numeric DALI_GROUP 300/400 participates without a special suffix whitelist. Unrelated blocks are not assumed to be contract-owned.
+3. AutoLISP fingerprint of ONLY selected handles. Generated LISP resolves the canonical handle list, verifies model INSERT membership and expected document identity before heavy reads, escapes document/path strings and fails on selected definition errors. No independent LISP numeric parser exists. Default fingerprint still uses the full model INSERT ssget.
+4. On LISP failure, discard that entire result and read the SAME selected handles through strict COM fallback. Strict definition/dynamic/attribute errors fail closed; default scan_handles behavior is unchanged.
+5. Repeat the lightweight census and reject handle/layer/document drift. Return observations/signatures plus before/after census and explicit non-authoritative metadata. No full heavy scan is repeated just to enumerate excluded blocks.
 
-Still disabled: new filtered fingerprint/COM mode, runtime census production, authority promotion, filtered Update, new reconciliation wiring. Existing production default and #148 remain unchanged.
+Client checks request read ID, document identity, matching census maps, selected/tracked handle sets, heavy observation ownership/layer and partial flags. Duplicate, missing or stale/foreign transport evidence raises BridgeError. It returns a frozen LayerFilteredRead with present_excluded_handles and absent_unknown_handles. It never reads/writes the #148 cache, never promotes metadata, and has no UI switch to bypass C6.
 
-## Source-backed integration limitation
+## Safety boundary and remaining limitation
 
-- `src/nl_project_2/cad_sync/bridge.py:183` read_observations first uses fingerprint; cold read can deserialize its heavy signatures; cache hit reuses complete observations. Changed handles use scan_handles at line 227 and verify fingerprint again. COM scan remains fallback.
-- `tools/autocad_sta_bridge.py:240` _fingerprint_lisp selects every model INSERT (line 267), then reads EffectiveName (line 275), InsertionPoint, dynamic state, attributes and definition. It has no lightweight complete census/evidence envelope or C1 filter protocol.
-- `_scan` at line 166 retains internal C5 predicate, partial flags and full default. `scan_handles` is unfiltered. Neither path produces the new read/revision/absence witnesses.
-- C6 requires an authoritative full batch. The staged DTO's matching revision strings are not proof of freshness in AutoCAD; DBMOD is explicitly not accepted as a revision guarantee. Merely setting complete=true or clearing partial flags would be unsafe.
+The shared census proves presence at its samples, not an atomic attribute revision or durable deletion. An absent tracked handle stays UNKNOWN, not MISSING_DWG_INSERTION. The result ALWAYS has layer_filter_applied=true and scan_is_complete_for_reconciliation=false, even if the excluded count is zero. Its actionable status is REQUIRES_ATTENTION: obtain a full unfiltered read before preview/apply. Tests verify both preview and apply reject before DB access.
 
-Therefore this bounded increment stops before scanner wiring. No hand-written LISP numeric parser, skipped-count authority heuristic, fabricated completeness flag or user-selectable gate bypass was introduced.
+The pure scan_layer_safety helper remains staged for evidence assessment: it requires fresh document/read/revision context and an explicit successful individual unfiltered absence proof before classifying synthetic true deletion. No scanner fabricates that proof, a revision witness, or a complete snapshot. DBMOD is not treated as a revision guarantee.
 
-## Changed paths
+Production read_observations remains full/unfiltered. Source: bridge.py read_observations still starts with fingerprint, uses _batch_from_fingerprint for cold reads, cached full observations on cache hit, scan_handles for changes and full scan fallback. Existing #148 tests and moved 100_Power -> ARCH delta case pass. No filtered batch is wired to DwgSyncService.
 
-Only these four allowed paths, relative to Systems/NLP:
+Therefore overall C7C remains PARTIAL for full production reconciliation integration, as required by the task's safety stop condition. Enabling filtered preview/apply would require separately approved authority semantics, actual fresh/atomic evidence and potentially service.py/C6 scope expansion; those files are explicitly forbidden in this task. No false completeness flag was used to force completion.
 
-- src/nl_project_2/cad_sync/scan_layer_safety.py (new pure helper).
-- tests/cad_sync/test_scan_layer_safety.py (new, 60 tests).
-- tests/cad_sync/test_bridge_client.py (13 new regressions; existing assertions retained).
-- docs/engineering/checkpoints/NLP_255_C7C.md.
+## Performance evidence and limits
 
-No changes to bridge runtime, STA scanner, validator, catalog, machine contract, C5/C6, service, schema/migrations or deployment. No actual AutoCAD connection, real DWG/SQLite mutation, new issue, main merge or C7d. Regression fixtures use temporary test databases only.
+Implemented: early reduction of heavy reads on BOTH opt-in paths. In mocked selected-LISP and actual mocked COM fallback tests, excluded blocks receive exactly [ObjectName, Handle, Layer] twice (two lightweight census passes), with zero EffectiveName/InsertionPoint/GetAttributes/definition reads. Selected numeric plus tracked-excluded blocks receive one heavy read; definition lookup is cached. Generated LISP source selects handles before its heavy loop and contains no full ssget in selected mode. Default LISP still has full ssget. These are call-count/source/transport tests, NOT live AutoLISP execution or elapsed-time speedup measurements. No claim of faster production Update, locked Python 3.13 or live AutoCAD acceptance.
 
-## Verification
+## Changed allowed paths
 
-Windows; existing .venv Python 3.14.3, pytest 9.1.1, Ruff 0.15.22. PYTHONPATH=src;. and TEMP/TMP=.venv/tmp. No locked Python 3.13 or live acceptance claim.
+Relative to Systems/NLP:
 
-From Systems/NLP:
+- src/nl_project_2/cad_sync/bridge.py
+- src/nl_project_2/cad_sync/scan_layer_safety.py
+- tools/autocad_sta_bridge.py
+- tests/cad_sync/test_bridge_client.py
+- tests/cad_sync/test_sta_layer_prefilter.py
+- tests/cad_sync/test_scan_layer_safety.py
+- docs/engineering/checkpoints/NLP_255_C7C.md
+
+No validator/catalog/machine JSON, C1-C6 implementation, service.py, migrations, deployment, main or actual DWG/SQLite changes. No new Issue, merge or C7d. Test databases are temporary fixtures only.
+
+## Final verification on tested_sha
+
+Windows, .venv Python 3.14.3 / pytest 9.1.1 / Ruff 0.15.22. PYTHONPATH=src;. and TEMP/TMP=.venv/tmp. Named-pipe tests executed outside sandbox, with no AutoCAD connection.
 
 `python -m pytest -q --tb=short tests/cad_sync/test_scan_layer_safety.py tests/cad_sync/test_bridge_client.py tests/cad_sync/test_sta_layer_prefilter.py tests/cad_sync/test_sta_bridge.py tests/cad_sync/test_reconciliation_scan_completeness.py tests/cad_sync/test_sync_service.py tests/cad_sync/test_p0003_reconciliation.py`
 
-Final result on tested_sha: **265 passed, 0 failed, 0 skipped**, exit 0 (43.35 s), with local execution outside sandbox for mocked named pipes. Includes explicit C5/C6 coverage, current sync service and p0003 regression tests. Both normal fingerprint and COM fallback retain unrelated blocks, numeric DALI_GROUP, legacy and malformed layers. A move from 100_Power to ARCH remains an insertion in the #148 DELTA result and uses scan_handles without an extra full scan. Existing cache-hit/change/stability tests remain passing.
+**287 passed, 0 failed, 0 skipped**, exit 0 (41.52 s).
 
-Earlier sandbox run before 8 additional defensive tests: 256 passed / 1 failed; existing named-pipe progress timeout test did not reach pipe connection within its 0.4 s deadline. All 22 bridge-client tests passed unchanged outside sandbox (2.12 s), then the entire final set passed. No production workaround or assertion relaxation. Initial new helper test mistakenly called nonexistent service.apply; corrected to existing apply_dwg_to_project before the intermediate commit. No legacy test failures suppressed; full cad_contract not rerun because C7C does not modify its code or tests.
+Includes new census/transport tests, C5 call counts, C6 preview/apply gate, sync service and p0003 reconciliation. Checks both paths, tracked off-layer retention, true deletion remaining unknown without explicit proof, legitimate numeric DALI, generic foreign blocks, malformed layers, duplicate handles, stale read IDs, census/layer/document drift, COM/LISP error fallback, strict metadata failure, LISP escaping and unchanged cache/delta behavior.
 
 - `python -m compileall -q src/nl_project_2/cad_sync tools/autocad_sta_bridge.py`: PASS, exit 0.
-- `python -m ruff check src/nl_project_2/cad_sync/scan_layer_safety.py tests/cad_sync/test_scan_layer_safety.py tests/cad_sync/test_bridge_client.py`: PASS, exit 0.
-- `python -m ruff format --check` same three files: PASS, 3 already formatted, exit 0.
+- `python -m ruff check` for all six changed Python files: PASS, exit 0.
+- `python -m ruff format --check` same files: PASS, 6 already formatted, exit 0.
 - `git diff ee1d1e2766b7d3b966b6c85b95a373608b7444c5 --check`: PASS, exit 0.
+
+Prior first-increment final set: 265 passed. Its initial sandbox run had 256 passed / 1 existing named-pipe startup timeout; unchanged tests passed outside sandbox. No skip/xfail or relaxed assertions. Full cad_contract is unchanged and not rerun; its known 11 baseline failures are not claimed fixed.
 
 ## Exact next operation
 
-Push checkpoint and implementation commits to origin/feature/nlp-255-c7c-scan-integration; report final_head_sha and PARTIAL in existing Issue #255. Then review this staged increment and explicitly approve a continuation of C7C to define/implement a complete lightweight INSERT census and fresh document/revision/absence evidence producer for BOTH AutoLISP and COM. Before activation, prove C1 parity and LISP escaping/error handling, bind heavy payloads to the same stable read, read every existing tracked handle even on excluded layers, handle unknown absence as requires-attention, and verify full snapshot authority end-to-end without changing C6 semantics or #148 atomicity. Any necessary service.py change requires separately expanded scope. Keep production full/unfiltered until then. Do not begin C7d; Issue #255 stays OPEN.
-
-
-## Resumed C7C after explicit request to finish
-
-The prior PARTIAL describes the first saved increment. Work now adds a separate diagnostic read_layer_filtered_observations API and scan_working_layers transport, shared lightweight COM census, selected-only AutoLISP fingerprints and strict COM fallback. Default read_observations/Update remains unfiltered; no authority promotion. Both paths keep tracked insertions even on excluded layers. New synthetic call-count/error/transport tests pass; final combined checks pending. Final results below will supersede the first increment's no-speedup/no-producer statements.
+Push the resumed implementation and checkpoint commits; update existing Issue #255 with final_head_sha, 287/0 results and PARTIAL limitation. Then independent review of start_sha..final_head_sha, especially the new diagnostic protocol and proof that partial flags cannot be lost. For full activation, separately approve a C7C continuation defining verified stable read/deletion evidence and its integration with reconciliation authority; expand allowed scope only if service.py/C6 changes are necessary. Until acceptance, keep filtered Update disabled and use the existing full unfiltered path. Do not start C7d; #255 remains OPEN.
