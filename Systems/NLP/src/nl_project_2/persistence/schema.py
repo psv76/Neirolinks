@@ -1004,6 +1004,119 @@ cable_segment = Table(
     ),
 )
 
+# D13: staged, explicitly reviewed *physical* cable continuity, distinct
+# from accepted electrical cable_segment rows. These tables are not consulted
+# by ordinary cable length or Conduit materialization until a later gate.
+cable_transit_route = Table(
+    "cable_transit_route",
+    metadata,
+    technical_id(),
+    project_id(),
+    Column("cable_line_id", String(36), nullable=False),
+    Column("electrical_segment_id", String(36), nullable=False, unique=True),
+    Column("cable_base", String(3), nullable=False),
+    Column("approved_plan_sha256", String(64), nullable=False),
+    Column("source_endpoint_id_at_approval", String(36), nullable=False),
+    Column("target_endpoint_id_at_approval", String(36), nullable=False),
+    Column("segment_row_version_at_approval", Integer, nullable=False),
+    Column("preview_cable_length_m_decimal", Text, nullable=False),
+    Column("approval_evidence", Text, nullable=False),
+    Column("state", String(24), nullable=False, server_default=text("'STAGED_APPROVED'")),
+    *timestamps_and_version(),
+    ForeignKeyConstraint(
+        ["cable_line_id", "project_id"], ["cable_line.id", "cable_line.project_id"]
+    ),
+    ForeignKeyConstraint(
+        ["electrical_segment_id", "project_id"],
+        ["cable_segment.id", "cable_segment.project_id"],
+    ),
+    UniqueConstraint("id", "project_id"),
+    uuid_check(),
+    enum_check("state", ("STAGED_APPROVED",), "transit_state"),
+    CheckConstraint("length(approved_plan_sha256) = 64", name="approved_digest_length"),
+    CheckConstraint("segment_row_version_at_approval >= 1", name="approved_version_positive"),
+)
+
+cable_transit_span = Table(
+    "cable_transit_span",
+    metadata,
+    technical_id(),
+    project_id(),
+    Column("cable_transit_route_id", String(36), nullable=False),
+    Column("ordinal", Integer, nullable=False),
+    Column("physical_key", Text, nullable=False),
+    Column("start_boundary", Text, nullable=False),
+    Column("end_boundary", Text, nullable=False),
+    Column("mount_way", String(32), nullable=False),
+    Column("gofra_type", String(120)),
+    Column("gofra_color", Text),
+    # Explicit per-span designation is *evidence*, not yet a Conduit FK or
+    # conduit_segment_assignment. No automatic sharing is performed in D13.
+    Column("proposed_gofra_id", String(120)),
+    Column("geometry_m_decimal", Text, nullable=False),
+    Column("corrected_m_decimal", Text, nullable=False),
+    *timestamps_and_version(),
+    ForeignKeyConstraint(
+        ["cable_transit_route_id", "project_id"],
+        ["cable_transit_route.id", "cable_transit_route.project_id"],
+        ondelete="CASCADE",
+    ),
+    UniqueConstraint("cable_transit_route_id", "ordinal"),
+    UniqueConstraint("cable_transit_route_id", "physical_key"),
+    UniqueConstraint("id", "project_id"),
+    uuid_check(),
+    enum_check("mount_way", MOUNT_WAYS, "transit_mount_way"),
+    CheckConstraint("ordinal >= 1", name="positive_span_order"),
+    CheckConstraint("start_boundary <> end_boundary", name="nonzero_physical_boundary"),
+)
+
+# D16: immutable, approval-gated *prepared* whole-line quantity snapshots.
+# These records are not canonical cable_length_fact or effective_length totals.
+cable_transit_line_commit = Table(
+    "cable_transit_line_commit",
+    metadata,
+    technical_id(),
+    project_id(),
+    Column("cable_line_id", String(36), nullable=False),
+    Column("cable_transit_route_id", String(36), nullable=False),
+    Column("electrical_segment_id", String(36), nullable=False),
+    Column("line_row_version_at_approval", Integer, nullable=False),
+    Column("segment_row_version_at_approval", Integer, nullable=False),
+    Column("length_fact_id_at_approval", String(36)),
+    Column("length_fact_row_version_at_approval", Integer),
+    Column("approval_sha256", String(64), nullable=False),
+    Column("transit_approval_sha256", String(64), nullable=False),
+    Column("automatic_length_m_decimal", Text, nullable=False),
+    Column("final_length_m_decimal", Text, nullable=False),
+    Column("source", String(16), nullable=False),
+    Column("calculation_snapshot_json", JSON, nullable=False),
+    Column("approval_evidence", Text, nullable=False),
+    Column("state", String(24), nullable=False, server_default=text("'PREPARED_APPROVED'")),
+    *timestamps_and_version(),
+    ForeignKeyConstraint(
+        ["cable_line_id", "project_id"],
+        ["cable_line.id", "cable_line.project_id"],
+    ),
+    ForeignKeyConstraint(
+        ["cable_transit_route_id", "project_id"],
+        ["cable_transit_route.id", "cable_transit_route.project_id"],
+    ),
+    ForeignKeyConstraint(
+        ["electrical_segment_id", "project_id"],
+        ["cable_segment.id", "cable_segment.project_id"],
+    ),
+    UniqueConstraint("project_id", "cable_line_id"),
+    UniqueConstraint("project_id", "cable_transit_route_id"),
+    UniqueConstraint("id", "project_id"),
+    uuid_check(),
+    enum_check("source", ("AUTOMATIC", "MANUAL"), "prepared_length_source"),
+    enum_check("state", ("PREPARED_APPROVED",), "prepared_length_state"),
+    CheckConstraint("length(approval_sha256) = 64", name="prepared_digest_length"),
+    CheckConstraint("length(transit_approval_sha256) = 64", name="prepared_transit_digest_length"),
+    CheckConstraint("line_row_version_at_approval >= 1", name="prepared_line_version"),
+    CheckConstraint("segment_row_version_at_approval >= 1", name="prepared_segment_version"),
+)
+
 topology_migration_review = Table(
     "topology_migration_review",
     metadata,
@@ -1544,6 +1657,91 @@ Index(
     sqlite_where=bus_endpoint.c.address.is_not(None),
 )
 
+# Revision 000000000015: typed, non-addressable physical DALI graph.
+# Never reuse bus_endpoint protocol addresses for a passive BOX/TRACK.
+bus_physical_node = Table(
+    "bus_physical_node",
+    metadata,
+    technical_id(),
+    project_id(),
+    Column("bus_id", String(36), nullable=False),
+    Column("field_device_id", String(36), nullable=False),
+    Column("physical_id", String(120), nullable=False),
+    Column("physical_kind", String(16), nullable=False),
+    *timestamps_and_version(),
+    ForeignKeyConstraint(["bus_id", "project_id"], ["bus.id", "bus.project_id"]),
+    ForeignKeyConstraint(
+        ["field_device_id", "project_id"], ["field_device.id", "field_device.project_id"]
+    ),
+    UniqueConstraint("project_id", "physical_id"),
+    UniqueConstraint("bus_id", "field_device_id"),
+    UniqueConstraint("id", "project_id"),
+    uuid_check(),
+    enum_check("physical_kind", ("BOX", "TRACK"), "physical_kind"),
+)
+
+# Exact physical graph edge. ROOT has no source endpoint; PHYSICAL and ADDRESSED
+# have exactly one typed source. The target is either a passive node or an
+# addressable endpoint. Internal TRACK edges carry no fabricated route/length.
+bus_physical_link = Table(
+    "bus_physical_link",
+    metadata,
+    technical_id(),
+    project_id(),
+    Column("bus_id", String(36), nullable=False),
+    Column("source_kind", String(16), nullable=False),
+    Column("source_physical_node_id", String(36)),
+    Column("source_bus_endpoint_id", String(36)),
+    Column("target_kind", String(16), nullable=False),
+    Column("target_physical_node_id", String(36)),
+    Column("target_bus_endpoint_id", String(36)),
+    Column("link_kind", String(16), nullable=False),
+    *timestamps_and_version(),
+    ForeignKeyConstraint(["bus_id", "project_id"], ["bus.id", "bus.project_id"]),
+    ForeignKeyConstraint(
+        ["source_physical_node_id", "project_id"],
+        ["bus_physical_node.id", "bus_physical_node.project_id"],
+    ),
+    ForeignKeyConstraint(
+        ["target_physical_node_id", "project_id"],
+        ["bus_physical_node.id", "bus_physical_node.project_id"],
+    ),
+    ForeignKeyConstraint(
+        ["source_bus_endpoint_id", "project_id"], ["bus_endpoint.id", "bus_endpoint.project_id"]
+    ),
+    ForeignKeyConstraint(
+        ["target_bus_endpoint_id", "project_id"], ["bus_endpoint.id", "bus_endpoint.project_id"]
+    ),
+    UniqueConstraint("bus_id", "target_physical_node_id"),
+    UniqueConstraint("bus_id", "target_bus_endpoint_id"),
+    UniqueConstraint("id", "project_id"),
+    uuid_check(),
+    enum_check("source_kind", ("ROOT", "PHYSICAL", "ADDRESSED"), "source_kind"),
+    enum_check("target_kind", ("PHYSICAL", "ADDRESSED"), "target_kind"),
+    enum_check("link_kind", ("CABLE", "TRACK"), "link_kind"),
+    CheckConstraint(
+        "(source_kind = 'ROOT' AND source_physical_node_id IS NULL "
+        "AND source_bus_endpoint_id IS NULL) OR "
+        "(source_kind = 'PHYSICAL' AND source_physical_node_id IS NOT NULL "
+        "AND source_bus_endpoint_id IS NULL) OR "
+        "(source_kind = 'ADDRESSED' AND source_physical_node_id IS NULL "
+        "AND source_bus_endpoint_id IS NOT NULL)",
+        name="typed_physical_source",
+    ),
+    CheckConstraint(
+        "(target_kind = 'PHYSICAL' AND target_physical_node_id IS NOT NULL "
+        "AND target_bus_endpoint_id IS NULL) OR "
+        "(target_kind = 'ADDRESSED' AND target_physical_node_id IS NULL "
+        "AND target_bus_endpoint_id IS NOT NULL)",
+        name="typed_physical_target",
+    ),
+    CheckConstraint(
+        "target_physical_node_id IS NULL OR source_physical_node_id IS NULL "
+        "OR target_physical_node_id <> source_physical_node_id",
+        name="no_self_physical_link",
+    ),
+)
+
 bus_branch = Table(
     "bus_branch",
     metadata,
@@ -1922,6 +2120,9 @@ TOPOLOGY_TABLE_NAMES = frozenset(
         "conduit_segment_assignment",
     }
 )
+PHYSICAL_DALI_TABLE_NAMES = frozenset({"bus_physical_node", "bus_physical_link"})
+TRANSIT_PHYSICAL_TABLE_NAMES = frozenset({"cable_transit_route", "cable_transit_span"})
+TRANSIT_LINE_COMMIT_TABLE_NAMES = frozenset({"cable_transit_line_commit"})
 # Revision 000000000002 imports this set, so it must never absorb later tables.
 FEATURE_TABLE_NAMES = (
     frozenset(metadata.tables)
@@ -1929,6 +2130,9 @@ FEATURE_TABLE_NAMES = (
     - DALI_GROUP_TABLE_NAMES
     - BULK_OPERATION_TABLE_NAMES
     - TOPOLOGY_TABLE_NAMES
+    - PHYSICAL_DALI_TABLE_NAMES
+    - TRANSIT_PHYSICAL_TABLE_NAMES
+    - TRANSIT_LINE_COMMIT_TABLE_NAMES
 )
 HEAD_TABLE_NAMES = frozenset(metadata.tables)
 

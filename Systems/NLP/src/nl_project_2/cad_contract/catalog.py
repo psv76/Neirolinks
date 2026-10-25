@@ -12,6 +12,8 @@ from typing import Any
 
 from nl_project_2.runtime_resources import bundled_path
 
+from .layer_groups import function_group_for_working_layer
+
 
 class ContractCatalogError(ValueError):
     """Raised when the machine-readable CAD contract is invalid."""
@@ -71,10 +73,41 @@ class BlockContractCatalog:
         }
         return self.blocks.get(aliases.get(name, name))
 
-    def groups_for_layer(self, layer: str) -> frozenset[str]:
+    def groups_for_layer(self, layer: object, *, include_legacy: bool = True) -> frozenset[str]:
+        """Resolve numeric layers; retain exact legacy aliases for existing callers.
+
+        Numeric suffixes are unrestricted. Contract layers contain representative
+        numeric names plus explicit legacy aliases, not numeric suffix allow-lists.
+        New numeric-only consumers can opt out of legacy compatibility.
+        """
+        group = function_group_for_working_layer(layer)
+        if group is not None:
+            return frozenset({group}) if group in self.functional_groups else frozenset()
+        if not include_legacy or not isinstance(layer, str):
+            return frozenset()
         return frozenset(
             name for name, rule in self.functional_groups.items() if layer in rule.layers
         )
+
+    def groups_for_board_layer(
+        self, block_name: str, load_type: str, layer: object
+    ) -> frozenset[str]:
+        """Staged role-aware board placement; runtime validator adoption is C7b.
+
+        Do not add AV to generic BOARD allowed_groups: the exception requires
+        the approved block, role and numeric group together.
+        """
+        rule = self.block(block_name)
+        if rule is None or rule.device_type != "BOARD" or load_type not in rule.allowed_load_types:
+            return frozenset()
+        if load_type == self.board_rules["av_role"]:
+            group = function_group_for_working_layer(layer)
+            if block_name == self.board_rules["av_block_name"] and group == self.board_rules.get(
+                "av_function_group"
+            ):
+                return frozenset({group}) if group in self.functional_groups else frozenset()
+            return frozenset()
+        return self.groups_for_layer(layer) & rule.allowed_groups
 
 
 def default_contract_path() -> Path:
@@ -119,9 +152,33 @@ def load_contract(path: Path | None = None) -> BlockContractCatalog:
         profile_name = family.get("attribute_profile")
         profile = _mapping(profiles.get(profile_name), f"attribute_profiles.{profile_name}")
         device_type = family.get("device_type")
-        allowed_groups = frozenset(
-            name for name, group in groups.items() if device_type in group.device_types
-        )
+        explicit_groups = family.get("allowed_groups")
+        # The approved 48 V DALI track-light family is a LIGHT in the
+        # functional catalogue but physically belongs to the 4YY LED group.
+        # Keep the 3YY/4YY voltage boundary without changing the CAD JSON.
+        if (
+            explicit_groups is None
+            and family.get("attribute_profile") == "TRACK_DALI_LIGHT"
+            and family.get("names") == ["LIGHT_TRACK_DALI_48V"]
+        ):
+            explicit_groups = ["LIGHTING_LED"]
+        if explicit_groups is not None:
+            # A protocol-only BUS outlet is not an ordinary CABLE_OUTLET
+            # belonging to POWER/LIGHTING/etc. Respect the contract's
+            # explicit allowed_groups rather than deriving from device_type.
+            allowed_groups = frozenset(
+                _strings(explicit_groups, f"block_families[{family_index}].allowed_groups")
+            )
+            unknown_groups = allowed_groups - groups.keys()
+            if unknown_groups:
+                raise ContractCatalogError(
+                    f"unknown allowed_groups for block family {family_index}: "
+                    f"{sorted(unknown_groups)}"
+                )
+        else:
+            allowed_groups = frozenset(
+                name for name, group in groups.items() if device_type in group.device_types
+            )
         key_counts = _mapping(family.get("key_counts", {}), "key_counts")
         posts = _mapping(family.get("posts", {}), "posts")
         family_optional = set(

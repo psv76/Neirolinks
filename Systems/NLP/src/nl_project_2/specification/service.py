@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 
@@ -63,6 +64,70 @@ class SpecificationService:
             "unknown_budget_rows": sum(
                 1 for row in rows if row.budget_included and row.cost is None
             ),
+        }
+
+    def preview_transit_source_specification(
+        self,
+        project_id: str,
+        requests,
+        *,
+        selected_line_ids: frozenset[str],
+        mode: str,
+        expected_selection_sha256: str,
+        confirmed: bool = False,
+    ) -> dict:
+        """D21 non-exportable in-request specification simulation.
+
+        Normal build(), source_navigation(), procurement and AV remain on the
+        existing canonical CableService.effective_length source. This method
+        never installs, persists or publishes a prepared transit quantity.
+        """
+        from nl_project_2.cables.service import CableService
+
+        if any(request.approval.transit.project_id != project_id for request in requests):
+            raise ValueError("D21_SPECIFICATION_CROSS_PROJECT_SELECTION")
+        cables = self._cables or CableService(self._engine)
+        selection = cables.preview_transit_quantity_sources(
+            requests,
+            selected_line_ids=selected_line_ids,
+            mode=mode,
+            expected_selection_sha256=expected_selection_sha256,
+            confirmed=confirmed,
+        )
+        context = self._read_context(project_id)
+        baseline = tuple(self._all_sources(project_id, context))
+        by_line = {row.cable_line_id: row for row in selection.lines}
+        projected = []
+        for source in baseline:
+            review = by_line.get(source.source_id) if source.source_kind == "CABLE_LINE" else None
+            if (
+                review is not None
+                and review.preview_source == "PREPARED_SHADOW"
+                and source.unit == "m"
+            ):
+                override = context["overrides"].get(("CABLE_LINE", source.source_id), {})
+                new_quantity = _corrected_quantity(review.preview_effective_m, override)
+                projected.append(
+                    replace(
+                        source,
+                        quantity=new_quantity,
+                        trace=source.trace + " [D21 SHADOW — NOT FOR PROCUREMENT]",
+                    )
+                )
+            else:
+                projected.append(source)
+        sources = tuple(projected)
+        rows, structural = group_sources(sources)
+        return {
+            "status": selection.status,
+            "preview_only": True,
+            "can_publish": False,
+            "selection": selection,
+            "sources": sources,
+            "baseline_sources": baseline,
+            "rows": rows,
+            "issues": structural + tuple(self._data_issues(sources)),
+            "neirolinks_total_preview": self._known_total(rows, "NEIROLINKS"),
         }
 
     def source_navigation(self, project_id: str, row: SpecificationRow) -> list[dict]:
