@@ -18,6 +18,7 @@ from nl_project_2.cables.domain import (
 
 from .catalog import BlockContractCatalog, BlockRule
 from .dali_graph import validate_dali_graph
+from .dali_layer_rules import is_valid_dali_group_layer
 from .models import (
     CableIdentity,
     CableSuffixKind,
@@ -250,13 +251,14 @@ class CadContractValidator:
                 issues,
             )
 
-        function_group = self._function_group(observation, rule, issues)
-        if function_group == "AV" and "CABLE_ID" in normalized:
+        function_group = self._function_group(observation, rule, attributes, issues)
+        is_av_line = function_group == "AV" and rule.device_type != "BOARD"
+        if is_av_line and "CABLE_ID" in normalized:
             normalized["CABLE_ID"] = normalized["CABLE_ID"].strip().upper()
 
         required = set(rule.required_attributes)
         required_definitions = set(rule.required_definition_attributes)
-        if function_group == "AV":
+        if is_av_line:
             required.update(self.catalog.av_rules["required"])
         if rule.device_type == "BOARD":
             role = normalized.get("LOAD_TYPE", "")
@@ -264,7 +266,7 @@ class CadContractValidator:
                 required.update(self.catalog.board_rules["feed_attributes"])
                 required_definitions.update(self.catalog.board_rules["feed_attributes"])
 
-        av_nonblocking = function_group == "AV"
+        av_nonblocking = is_av_line
         av_incomplete_fields = set(self.catalog.av_rules["required"])
         issues.extend(
             self._validate_attributes(
@@ -543,11 +545,17 @@ class CadContractValidator:
         facts: _BatchFacts,
     ) -> list[ValidationIssue]:
         issues: list[ValidationIssue] = []
-        if observation.layer != rule.logical_layer:
+        valid_layer = (
+            is_valid_dali_group_layer(observation.layer)
+            if rule.name == "DALI_GROUP"
+            else observation.layer == rule.logical_layer
+        )
+        expected_layer = "valid 300_* or 400_*" if rule.name == "DALI_GROUP" else rule.logical_layer
+        if not valid_layer:
             issues.append(
                 self._issue(
                     "LOGICAL_LAYER_MISMATCH",
-                    f"{rule.name} must be on layer {rule.logical_layer}",
+                    f"{rule.name} must be on layer {expected_layer}",
                     observation,
                     "LAYER",
                 )
@@ -600,9 +608,16 @@ class CadContractValidator:
         self,
         observation: CadObservation,
         rule: BlockRule,
+        attributes: dict[str, str],
         issues: list[ValidationIssue],
     ) -> str | None:
-        candidates = self.catalog.groups_for_layer(observation.layer) & rule.allowed_groups
+        candidates = (
+            self.catalog.groups_for_board_layer(
+                rule.name, attributes.get("LOAD_TYPE", ""), observation.layer
+            )
+            if rule.device_type == "BOARD"
+            else self.catalog.groups_for_layer(observation.layer) & rule.allowed_groups
+        )
 
         # #234/#235: TRACK_DALI is a physical product, not a voltage group.
         # Its power feeder may be 230 V (3YY) or 48 V (4YY) even though
@@ -689,7 +704,9 @@ class CadContractValidator:
         if not value:
             return []
         allowed = (
-            self.catalog.load_types["AV"] if function_group == "AV" else rule.allowed_load_types
+            self.catalog.load_types["AV"]
+            if function_group == "AV" and rule.device_type != "BOARD"
+            else rule.allowed_load_types
         )
         if value and not allowed:
             return [
@@ -707,7 +724,7 @@ class CadContractValidator:
                     f"LOAD_TYPE={value!r} is not approved for this block context",
                     observation,
                     "LOAD_TYPE",
-                    blocks_acceptance=function_group != "AV",
+                    blocks_acceptance=function_group != "AV" or rule.device_type == "BOARD",
                 )
             ]
         return []
@@ -1019,13 +1036,21 @@ class CadContractValidator:
             return None
         return "DALI" if "BUS_SOURCE" in rule.required_definition_attributes else "RS485"
 
+    def _is_av_board(self, rule: BlockRule, attributes: dict[str, str]) -> bool:
+        return (
+            rule.device_type == "BOARD"
+            and rule.name == self.catalog.board_rules["av_block_name"]
+            and attributes.get("LOAD_TYPE") == self.catalog.board_rules["av_role"]
+        )
+
     def _read_payload(
         self,
         observation: CadObservation,
         rule: BlockRule,
         attributes: dict[str, str],
     ) -> NormalizedCadReadPayload:
-        cable_identity = _parse_cable_identity(attributes.get("CABLE_ID", ""))
+        av_board = self._is_av_board(rule, attributes)
+        cable_identity = None if av_board else _parse_cable_identity(attributes.get("CABLE_ID", ""))
         keys = tuple(
             TaggedFact(tag, attributes[tag])
             for tag in ("KEY_1", "KEY_2", "KEY_3", "KEY_4")
@@ -1064,7 +1089,7 @@ class CadContractValidator:
             y=observation.y,
             cable_identity=cable_identity,
             box_id=attributes.get("BOX_ID") or None,
-            cable_source=attributes.get("CABLE_SOURCE") or None,
+            cable_source=None if av_board else attributes.get("CABLE_SOURCE") or None,
             bus_point_id=bus_point_id or None,
             bus_id=bus_match.group("bus") if bus_match else (passive_id if passive_valid else None),
             bus_source=attributes.get("BUS_SOURCE") or None,
@@ -1073,7 +1098,7 @@ class CadContractValidator:
                 if bus_match
                 else ("DALI" if passive_valid else None)
             ),
-            cable_link_kind=rule.cable_link_kind,
+            cable_link_kind=None if av_board else rule.cable_link_kind,
             bus_link_kind=rule.bus_link_kind,
             derived_phase=rule.derived_phase,
             keys=keys,
@@ -1093,6 +1118,9 @@ class CadContractValidator:
         facts: _BatchFacts,
     ) -> list[ValidationIssue]:
         issues: list[ValidationIssue] = []
+        # An AV destination board never contributes cable identities or line facts.
+        if self._is_av_board(rule, attributes):
+            return issues
         cable_id = attributes.get("CABLE_ID", "")
         if function_group == "AV":
             if rule.name != self.catalog.av_rules["block_name"]:
