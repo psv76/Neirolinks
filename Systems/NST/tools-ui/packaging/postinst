@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+if [ "${1:-}" != "configure" ]; then exit 0; fi
+if ! getent passwd nst-tools >/dev/null; then
+  adduser --system --group --home /nonexistent --no-create-home --disabled-login nst-tools
+fi
+install -d -m 0755 -o root -g root /mnt/data/var/lib/neirolinks
+install -d -m 0700 -o nst-tools -g nst-tools /mnt/data/var/lib/neirolinks-tools
+install -d -m 0730 -o root -g nst-tools /mnt/data/var/lib/neirolinks-tools/exports
+if ! command -v wb-homeui-gates >/dev/null; then
+  echo "WB HomeUI gates mechanism is required; refusing partial setup" >&2
+  exit 1
+fi
+wb-homeui-gates check
+systemctl daemon-reload
+systemctl enable --now neirolinks-tools.service
+systemctl try-restart neirolinks-tools.service
+wb-homeui-gates apply
+exit 0

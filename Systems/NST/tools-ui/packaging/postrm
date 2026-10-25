@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+if [ "${1:-}" = remove ]; then
+  systemctl daemon-reload || true
+  if command -v wb-homeui-gates >/dev/null; then
+    wb-homeui-gates check && wb-homeui-gates apply || true
+  fi
+fi
+# Never delete /mnt/data/var/lib/neirolinks-tools or the service account.
+exit 0

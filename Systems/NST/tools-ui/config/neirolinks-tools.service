@@ -1,0 +1,29 @@
+[Unit]
+Description=NEIROLINKS Tools - read-only NST WebUI companion
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=nst-tools
+Group=nst-tools
+ExecStart=/usr/bin/python3 -I /usr/lib/neirolinks-tools/server.py
+Restart=on-failure
+RestartSec=5
+# Required for a narrowly allowlisted sudo executor; web server itself is unprivileged.
+NoNewPrivileges=no
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+RestrictAddressFamilies=AF_INET AF_UNIX
+ReadWritePaths=/mnt/data/var/lib/neirolinks /mnt/data/var/lib/neirolinks-tools
+MemoryMax=96M
+TasksMax=30
+LimitNOFILE=96
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -14,7 +14,7 @@ NST 2.5 — сервисный инструмент для установки ap
 
 Версия **2.4** добавляет расширенный профиль диагностики HHM для Иволги: 501–505. Это изменение содержимого пакета и реестра без изменения runtime-команд и без автоматической синхронизации работающих правил.
 
-Версия **2.5** (кандидат, ещё не approved Release) добавляет независимый от регистрации read-only onboarding нового WB:
+Версия **2.5** (approved package release) добавляет независимый от регистрации read-only onboarding нового WB:
 - `nst onboarding collect` — серийный номер, fingerprint, установленные WB/NST/Sprut-пакеты и настроенные Modbus-устройства;
 - `nst onboarding channels` — дополнительно конфигурации `wb-webui.conf`, `wb-mqtt-serial.conf` (с редактированием секретов), подписи каналов из виджетов, MQTT metadata (если доступны), кандидаты на неподписанные устройства/каналы;
 - архивы `nst-onboarding-*.tar.gz` сохраняются в существующей папке диагностики, не блокируя последующую первую регистрацию;
@@ -26,6 +26,12 @@ NST 2.5 — сервисный инструмент для установки ap
 Пакет `nst`, артефакт `nst_2.5_all.deb`, CLI `/usr/bin/nst`, Python package `nst` в `/usr/lib/nst`, данные `/usr/share/nst`, документация `/usr/share/doc/nst`.
 
 Persistent config/state/logs: `/mnt/data/etc/neirolinks/nst`, `/mnt/data/var/lib/neirolinks/nst`, `/mnt/data/var/log/neirolinks/nst`.
+
+## NEIROLINKS Tools — WebUI companion
+
+Раздел **NEIROLINKS → Сервис / Спрут / Документация** — отдельный пакет `neirolinks-tools 1.0`, не часть бинарника NST 2.5. Схема позволяет сохранять NST CLI без обязательного фонового daemon. Совместная установка обоих approved пакетов выполняется **одной командой** из проверенного offline kit. WebUI располагается за штатным WB admin service gate; без учётной записи администратора установка блокируется. Никакой автоматической синхронизации контроллера нет.
+
+Источник/разработка: [tools-ui](tools-ui/README.md), [Release process](tools-ui/RELEASES.md), [Issue #215](https://github.com/psv76/Neirolinks/issues/215).
 
 ## Чистая установка
 

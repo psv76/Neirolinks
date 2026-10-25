@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NEIROLINKS Service Tools</title><link rel="stylesheet" href="style.css"></head>
+<body><main class="app"><header><div><small>NEIROLINKS</small><h1>Service Tools</h1></div><span class="chip" id="status">Готов к проверке</span></header>
+<nav aria-label="Разделы"><button type="button" class="tab active" data-tab="service">Сервис</button><button type="button" class="tab" data-tab="sprut">Спрут</button><button type="button" class="tab" data-tab="docs">Документация</button></nav>
+<section id="service" class="page active"><h2>Обслуживание контроллера</h2><p class="muted">Все операции только читают состояние системы. Регистрация нового WB не требуется.</p>
+<div class="actions"><article><div><h3>Состояние NST</h3><p>Серийный номер, регистрация, объект и версия.</p></div><button type="button" data-action="status">Показать</button></article>
+<article><div><h3>Проверка установки</h3><p>Прочитать состояние и расхождения без синхронизации.</p></div><button type="button" data-action="check">Проверить</button></article>
+<article><div><h3>Первичная диагностика</h3><p>Серийный номер, версии ПО и настроенные модули Modbus.</p></div><button type="button" data-action="inventory">Собрать информацию</button></article>
+<article><div><h3>Карта каналов</h3><p>Подписи из виджетов WB, MQTT-метаданные и неподписанные каналы.</p></div><button type="button" data-action="channels">Собрать карту</button></article>
+<article><div><h3>Архив диагностики</h3><p>Архив NST за 6 часов, компонентный для зарегистрированного HHM.</p></div><button type="button" data-action="diagnostics">Собрать архив</button></article></div>
+<div class="result" role="status" aria-live="polite"><strong id="resultTitle">Нет выполненных операций</strong><div id="resultText" class="muted"></div><a id="download" hidden href="#">Скачать архив</a><pre id="details"></pre></div></section>
+<section id="sprut" class="page"><h2>Спрут</h2><p>Интеграция Sprut Configurator не установлена. На этом этапе доступна только диагностика WB и NST; никаких команд Sprut.hub интерфейс не выполняет.</p></section>
+<section id="docs" class="page"><h2>Документация</h2><p>Контроллер ещё не обязательно зарегистрирован. Объектовые документы появятся только после подтверждения объекта и регистрации контроллера. Автоматических ссылок на чужие объекты нет.</p></section>
+<footer>NEIROLINKS Tools 1.0 · доступ администратора WB</footer></main><script src="app.js" defer></script></body></html>

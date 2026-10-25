@@ -1,0 +1,3 @@
+# Only five fixed read-only NST operations; no user-supplied command/arguments.
+Cmnd_Alias NST_TOOLS_READ = /usr/bin/python3 -I /usr/lib/neirolinks-tools/executor.py status, /usr/bin/python3 -I /usr/lib/neirolinks-tools/executor.py check, /usr/bin/python3 -I /usr/lib/neirolinks-tools/executor.py inventory, /usr/bin/python3 -I /usr/lib/neirolinks-tools/executor.py channels, /usr/bin/python3 -I /usr/lib/neirolinks-tools/executor.py diagnostics
+nst-tools ALL=(root) NOPASSWD: NST_TOOLS_READ

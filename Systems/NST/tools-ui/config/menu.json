@@ -1,0 +1,45 @@
+[
+  {
+    "id": "neirolinks-tools",
+    "title": {
+      "ru": "NEIROLINKS",
+      "en": "NEIROLINKS"
+    },
+    "requiredRole": "admin",
+    "children": [
+      {
+        "id": "neirolinks-service",
+        "title": {
+          "ru": "Сервис",
+          "en": "Service"
+        },
+        "url": "/open-neirolinks-tools#service",
+        "isExternal": true,
+        "openInNewTab": true,
+        "requiredRole": "admin"
+      },
+      {
+        "id": "neirolinks-sprut",
+        "title": {
+          "ru": "Спрут",
+          "en": "Sprut"
+        },
+        "url": "/open-neirolinks-tools#sprut",
+        "isExternal": true,
+        "openInNewTab": true,
+        "requiredRole": "admin"
+      },
+      {
+        "id": "neirolinks-docs",
+        "title": {
+          "ru": "Документация",
+          "en": "Docs"
+        },
+        "url": "/open-neirolinks-tools#docs",
+        "isExternal": true,
+        "openInNewTab": true,
+        "requiredRole": "admin"
+      }
+    ]
+  }
+]
