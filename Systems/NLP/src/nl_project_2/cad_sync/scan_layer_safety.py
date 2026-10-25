@@ -186,6 +186,18 @@ class FilteredSyncReview:
     absent_unknown_handles: tuple[str, ...]
     status: str = "REQUIRES_ATTENTION"
     next_action: str = (
-        "Obtain an authoritative unfiltered confirmation; filtered preview/apply is disabled "
-        "until DWG read-transaction evidence can be revalidated at the point of write."
+        "Obtain an authoritative unfiltered preview; excluded insertion ownership "
+        "is not established by a layer-selected subset."
     )
+
+
+@dataclass(frozen=True, slots=True)
+class PragmaticApplyCheck:
+    """Session-local full-preview context, not atomic or cryptographic DWG proof."""
+
+    project_id: str
+    document_identity: str
+    project_revision: int
+    binding_facts: tuple[tuple[str, str], ...]
+    census: tuple[tuple[str, str], ...]
+    batch: CadObservationBatch

@@ -481,3 +481,45 @@ def test_explicit_filtered_read_rejects_bad_transport_evidence(monkeypatch, faul
         client.read_layer_filtered_observations(
             CadReadRequest("C:/fixture/working.dwg", 1), tracked_handles=("A10",)
         )
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "read_id", "document", "incomplete", "filtered", "handle", "layer"]
+)
+def test_lightweight_census_transport_is_fresh_and_strict(monkeypatch, fault):
+    from nl_project_2.cad_sync.bridge import AutoCadBridgeClient
+
+    client = AutoCadBridgeClient()
+    calls = []
+
+    def fake_call(request, deadline):
+        calls.append(request["operation"])
+        payload = {
+            "document_identity": "C:/fixture/working.dwg",
+            "read_id": request["read_id"],
+            "complete": True,
+            "unfiltered": True,
+            "census": {"A1": "ARCH", "B2": "300_DALI"},
+        }
+        if fault == "read_id":
+            payload["read_id"] = "stale"
+        elif fault == "document":
+            payload["document_identity"] = "other.dwg"
+        elif fault == "incomplete":
+            payload["complete"] = False
+        elif fault == "filtered":
+            payload["unfiltered"] = False
+        elif fault == "handle":
+            payload["census"] = {"bad": "ARCH"}
+        elif fault == "layer":
+            payload["census"] = {"A1": None}
+        return payload
+
+    monkeypatch.setattr(client, "_call", fake_call)
+    request = CadReadRequest("C:/fixture/working.dwg", 1)
+    if fault:
+        with pytest.raises(BridgeError, match="CENSUS_INVALID"):
+            client.read_insert_census(request)
+    else:
+        assert client.read_insert_census(request) == (("A1", "ARCH"), ("B2", "300_DALI"))
+    assert calls == ["insert_census"]

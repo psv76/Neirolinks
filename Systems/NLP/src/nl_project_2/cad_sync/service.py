@@ -89,7 +89,7 @@ from .reconciliation import (
     reconcile_snapshot_edge_projections,
 )
 from .reconciliation_safety import is_authoritative_scan_metadata
-from .scan_layer_safety import FilteredSyncContext, FilteredSyncReview
+from .scan_layer_safety import FilteredSyncContext, FilteredSyncReview, PragmaticApplyCheck
 from .selection import atomic_line_import_groups
 from .track_power import TrackInternalPowerError, selected_internal_track_power
 
@@ -153,11 +153,16 @@ class StaleProposalError(DwgSyncError):
     pass
 
 
+class FullScanRequired(DwgSyncError):
+    """Candidate read cannot authorize reconciliation; explicit full retry needed."""
+
+
 class DwgSyncService:
     def __init__(self, engine: Engine, cad_port=None) -> None:
         self._engine = engine
         self._cad_port = cad_port
         self._contract = load_contract()
+        self._pragmatic_checks: dict[str, PragmaticApplyCheck] = {}
 
     def _validator_for_project(self, project_id: str) -> CadContractValidator:
         # Validate against the current Project's active, verified bus roots.
@@ -176,11 +181,32 @@ class DwgSyncService:
         project_id: str,
         expected_identity: str = "",
         progress: Callable[[DwgScanProgress], None] | None = None,
+        prefer_filtered: bool = False,
+        verify_census: bool = False,
     ) -> ScanProposal:
         if self._cad_port is None:
             raise DwgSyncError("CAD adapter is not configured")
         if not expected_identity.strip():
             raise DwgSyncError("Target DWG identity must be confirmed before scanning")
+        if prefer_filtered:
+            try:
+                review = self.review_filtered_sync(
+                    project_id=project_id, expected_identity=expected_identity
+                )
+            except Exception as exc:
+                raise FullScanRequired(
+                    "Быстрое чтение не подтверждено. Выполните полное сканирование."
+                ) from exc
+            reason = (
+                "Не подтверждено отсутствие ранее связанных вставок."
+                if review.absent_unknown_handles
+                else "Отбор по слоям не подтверждает полноту данных для синхронизации."
+            )
+            # C7c remains partial even when zero inserts were skipped. No flags are promoted.
+            raise FullScanRequired(f"{reason} Требуется полное сканирование и новый просмотр.")
+        before = (
+            self._capture_binding_state(project_id, expected_identity) if verify_census else None
+        )
         emit = progress or (lambda _event: None)
         emit(DwgScanProgress("CONNECTING"))
         emit(DwgScanProgress("SCANNING"))
@@ -191,8 +217,88 @@ class DwgSyncService:
                 definition_names=tuple(self._contract.blocks),
             )
         )
+        if verify_census and batch.document_identity.casefold() != expected_identity.casefold():
+            raise StaleProposalError("DWG identity changed; repeat full scan")
         emit(DwgScanProgress("VALIDATING"))
-        return self.preview(project_id=project_id, batch=batch, progress=emit)
+        proposal = self.preview(project_id=project_id, batch=batch, progress=emit)
+        if not verify_census:
+            return proposal
+        census = self._cad_port.read_insert_census(
+            CadReadRequest(expected_identity, CAD_SCAN_DEADLINE_SECONDS)
+        )
+        expected_census = tuple(sorted((o.handle, o.layer) for o in batch.observations))
+        if (
+            census != expected_census
+            or len({h for h, _ in census}) != len(census)
+            or self._capture_binding_state(project_id, expected_identity) != before
+            or proposal.project_revision != before[0]
+        ):
+            raise StaleProposalError(
+                "DWG или проект изменился во время чтения. Повторите полное сканирование."
+            )
+        token = uuid.uuid4().hex
+        batch = replace(batch, source_metadata={**batch.source_metadata, "c7f_check_id": token})
+        check = PragmaticApplyCheck(
+            project_id, expected_identity.casefold(), before[0], before[1], census, batch
+        )
+        # Only the most recent guarded preview from this service instance can apply.
+        self._pragmatic_checks = {token: check}
+        return replace(proposal, batch=batch)
+
+    @staticmethod
+    def _binding_state(connection, project_id, identity):
+        revision = connection.execute(
+            select(project.c.project_revision).where(project.c.id == project_id)
+        ).scalar_one_or_none()
+        if revision is None:
+            raise StaleProposalError("Project not found; rescan")
+        binding = (
+            connection.execute(
+                select(dwg_document_binding).where(
+                    dwg_document_binding.c.project_id == project_id,
+                    dwg_document_binding.c.application_uuid == _application_uuid(identity),
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        return revision, (
+            () if binding is None else tuple(sorted((k, str(v)) for k, v in binding.items()))
+        )
+
+    def _capture_binding_state(self, project_id, identity):
+        with self._engine.connect() as connection:
+            return self._binding_state(connection, project_id, identity)
+
+    def _check_pragmatic_census(self, proposal) -> PragmaticApplyCheck | None:
+        token = proposal.batch.source_metadata.get("c7f_check_id")
+        if token is None:
+            if any(check.batch is proposal.batch for check in self._pragmatic_checks.values()):
+                raise StaleProposalError("Preview check was removed; rescan")
+            return None
+        check = self._pragmatic_checks.get(token) if isinstance(token, str) else None
+        if (
+            check is None
+            or check.project_id != proposal.project_id
+            or check.document_identity != proposal.batch.document_identity.casefold()
+            or check.project_revision != proposal.project_revision
+            or check.batch.observations != proposal.batch.observations
+            or self._cad_port is None
+        ):
+            raise StaleProposalError(
+                "Preview context changed or expired. Повторите полное сканирование."
+            )
+        try:
+            census = self._cad_port.read_insert_census(
+                CadReadRequest(proposal.batch.document_identity, CAD_SCAN_DEADLINE_SECONDS)
+            )
+        except Exception as exc:
+            raise StaleProposalError(
+                "Не удалось проверить DWG. Повторите полное сканирование."
+            ) from exc
+        if census != check.census:
+            raise StaleProposalError("Handle/Layer DWG изменились. Повторите полное сканирование.")
+        return check
 
     def _filtered_sync_context(self, project_id: str, identity: str) -> FilteredSyncContext:
         if not identity.strip():
@@ -262,8 +368,8 @@ class DwgSyncService:
         """DB-bound diagnostic read, not a ScanProposal and never write authority.
 
         The caller cannot supply tracked handles or borrow another project's binding.
-        Current bridge has no DWG transaction lease spanning preview -> SQLite apply;
-        therefore this API cannot safely activate filtered reconciliation yet.
+        A layer-selected subset does not establish excluded insertion ownership.
+        Use the explicit full retry before forming an applicable proposal.
         """
         if self._cad_port is None:
             raise DwgSyncError("CAD adapter is not configured")
@@ -901,8 +1007,13 @@ class DwgSyncService:
             and by_path[path].owner_kind is SyncOwnerKind.BASE_LINE
             for path in selected
         )
+        check = self._check_pragmatic_census(proposal)
         now = datetime.now(UTC)
         with UnitOfWork(self._engine) as uow:
+            if check is not None and self._binding_state(
+                uow, proposal.project_id, proposal.batch.document_identity
+            ) != (check.project_revision, check.binding_facts):
+                raise StaleProposalError("Project/binding changed after preview; rescan")
             current_revision = uow.execute(
                 select(project.c.project_revision).where(project.c.id == proposal.project_id)
             ).scalar_one()
@@ -1098,6 +1209,11 @@ class DwgSyncService:
         confirmed: bool,
         bridge=None,
     ) -> WriteResult:
+        check = self._check_pragmatic_census(proposal)
+        if check is not None and self._capture_binding_state(
+            proposal.project_id, proposal.batch.document_identity
+        ) != (check.project_revision, check.binding_facts):
+            raise StaleProposalError("Project/binding changed after preview; rescan")
         plan = self.plan_project_to_dwg(proposal, selected_paths=selected_paths)
         receipt = self.execute_write_plan(
             plan,
