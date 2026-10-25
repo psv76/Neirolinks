@@ -226,8 +226,8 @@ class DwgSyncService:
                     )
                 )
             )
-            # Logical accepted owners have no field_device row. Retain logical
-            # observations from scans referenced by this binding's accepted baseline.
+            # Also retain logical observations from scans referenced by this
+            # binding's accepted baseline, even without an active device row.
             # Never turn all historical/foreign observations into tracked owners.
             logical_names = tuple(
                 name

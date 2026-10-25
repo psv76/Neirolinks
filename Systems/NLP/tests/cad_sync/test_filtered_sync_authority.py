@@ -313,3 +313,79 @@ def test_changed_dwg_after_diagnostic_read_still_has_no_apply_authority(database
             replace(proposal, batch=review.batch), selected_paths={"A1:$"}, confirmed=True
         )
     assert state(database) == before
+
+
+def test_full_numeric_av_and_dali_preview_apply_still_supported(database):
+    project_id = ObjectService(database.engine).create_project(
+        ProjectCard(name="Numeric", project_code="NUM")
+    )
+
+    def observation(name, layer, handle, values):
+        rule = load_contract().block(name)
+        attrs = dict.fromkeys(rule.required_definition_attributes, "")
+        attrs.update(DEVICE_NAME=name, BUILDING="Building", ROOM="Room", MOUNT_HEIGHT="300")
+        if "MOUNT_WAY" in attrs:
+            attrs["MOUNT_WAY"] = "По потолку"
+        if name == "DALI_GROUP":
+            attrs = {}
+        attrs.update(values)
+        return CadObservation.from_mapping(
+            effective_name=name,
+            layer=layer,
+            handle=handle,
+            raw_attributes=attrs,
+            x=0,
+            y=0,
+            definition=BlockDefinitionMetadata(tuple(attrs), name == "DALI_GROUP"),
+        )
+
+    batch = CadObservationBatch(
+        DOC,
+        (
+            socket(),
+            observation(
+                "BOARD_IN", "700_AV board", "B1", {"BOARD_ID": "AV.01", "LOAD_TYPE": "BOARD_AV"}
+            ),
+            observation(
+                "CABLE_OUTLET",
+                "700_HDMI",
+                "B2",
+                {"BOARD": "AV.01", "LOAD_TYPE": "HDMI", "CABLE_TYPE": "HDMI", "CABLE_ID": "HDMI-1"},
+            ),
+            observation("DALI_GROUP", "300_DALI", "D1", {"DALI_GROUP_ID": "D.001"}),
+            observation("DALI_GROUP", "400_DALI", "D2", {"DALI_GROUP_ID": "D.002"}),
+        ),
+    )
+    service = DwgSyncService(database.engine)
+    proposal = service.preview(project_id=project_id, batch=batch)
+    assert proposal.can_apply, proposal.issues
+    service.apply_dwg_to_project(proposal, selected_paths=applicable(proposal), confirmed=True)
+    with database.engine.connect() as connection:
+        handles = set(
+            connection.scalars(
+                select(field_device.c.entity_handle).where(field_device.c.project_id == project_id)
+            )
+        )
+    assert {"A1", "B1", "B2"} <= handles
+    port = DiagnosticPort(partial(batch), tuple((o.handle, o.layer) for o in batch.observations))
+    review = DwgSyncService(database.engine, port).review_filtered_sync(
+        project_id=project_id, expected_identity=DOC
+    )
+    assert {"D1", "D2"} <= set(review.context.tracked_handles)
+
+
+@pytest.mark.parametrize("fault", ["document", "authority"])
+def test_service_rejects_wrong_document_or_promoted_adapter_result(database, seeded, fault):
+    project_id, _, batch, _ = seeded
+    returned = partial(batch)
+    if fault == "document":
+        returned = replace(returned, document_identity="other.dwg")
+    else:
+        returned = replace(returned, source_metadata={})
+    port = DiagnosticPort(returned, (("A1", "100_Power"), ("A2", "100_Power")))
+    before = state(database)
+    with pytest.raises(DwgSyncError, match="DOCUMENT_MISMATCH|AUTHORITY_PROMOTION_FORBIDDEN"):
+        DwgSyncService(database.engine, port).review_filtered_sync(
+            project_id=project_id, expected_identity=DOC
+        )
+    assert state(database) == before
