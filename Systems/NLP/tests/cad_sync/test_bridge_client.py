@@ -285,3 +285,81 @@ def test_cold_read_builds_observations_from_fingerprint_without_full_scan(monkey
     assert observation.definition.attribute_definition_tags == ("CABLE_ID", "LOAD_NAME")
     assert observation.definition.is_dynamic is False
     assert batch.source_metadata["incremental_mode"] == "FINGERPRINT_COLD"
+
+
+@pytest.mark.parametrize("use_fingerprint", [True, False])
+@pytest.mark.parametrize(
+    "layer,name",
+    [
+        ("300_Light", "DALI_GROUP"),
+        ("400_LED", "DALI_GROUP"),
+        ("ARCH", "UNRELATED_BLOCK"),
+        ("POWER", "SOCKET_IN"),
+        ("350_X", "SOCKET_IN"),
+        ("300_", "SOCKET_IN"),
+    ],
+)
+def test_c7c_default_keeps_all_layers_on_both_read_paths(monkeypatch, use_fingerprint, layer, name):
+    from nl_project_2.cad_sync.reconciliation_safety import is_authoritative_scan_metadata
+
+    client = AutoCadBridgeClient()
+    calls = []
+    signature = f'("{name}" "{layer}" (10.0 20.0 0.0) :vlax-false () ())'
+
+    def fake_call(request, _deadline):
+        calls.append(request["operation"])
+        assert "include_layer" not in request
+        assert "layer_filter_applied" not in request
+        if request["operation"] == "fingerprint":
+            return _fingerprint_payload(signature if use_fingerprint else "unparseable")
+        assert request["operation"] == "scan"
+        payload = _scan_payload()
+        payload["observations"][0].update(layer=layer, effective_name=name)
+        return payload
+
+    monkeypatch.setattr(client, "_call", fake_call)
+    batch = client.read_observations(CadReadRequest("C:/fixture/working.dwg", 10.0))
+    assert [item.layer for item in batch.observations] == [layer]
+    assert batch.observations[0].effective_name == name
+    assert is_authoritative_scan_metadata(batch.source_metadata)
+    assert calls == (
+        ["fingerprint", "fingerprint"]
+        if use_fingerprint
+        else ["fingerprint", "scan", "fingerprint"]
+    )
+
+
+def test_c7c_incremental_move_off_numeric_layer_keeps_insertion(monkeypatch):
+    client = AutoCadBridgeClient()
+    calls = []
+    signatures = iter(["old", "old", "moved", "moved"])
+
+    def fake_call(request, _deadline):
+        operation = request["operation"]
+        calls.append(operation)
+        assert "include_layer" not in request
+        if operation == "fingerprint":
+            return _fingerprint_payload(next(signatures))
+        payload = _scan_payload()
+        if operation == "scan":
+            payload["observations"][0]["layer"] = "100_Power"
+        else:
+            assert operation == "scan_handles"
+            assert request["handles"] == ["A10"]
+            payload["observations"][0]["layer"] = "ARCH"
+        return payload
+
+    monkeypatch.setattr(client, "_call", fake_call)
+    request = CadReadRequest("C:/fixture/working.dwg", 10.0)
+    client.read_observations(request)
+    batch = client.read_observations(request)
+    assert [(item.handle, item.layer) for item in batch.observations] == [("A10", "ARCH")]
+    assert batch.source_metadata["incremental_mode"] == "DELTA"
+    assert calls == [
+        "fingerprint",
+        "scan",
+        "fingerprint",
+        "fingerprint",
+        "scan_handles",
+        "fingerprint",
+    ]
