@@ -124,7 +124,7 @@ def test_schema_accepts_nine_groups_rejects_fewer():
 
 
 @pytest.mark.parametrize("layer", ["700_Аудио", "100_Power"])
-def test_runtime_gap_is_visible_not_claimed_as_acceptance(block_contract, make_observation, layer):
+def test_runtime_applies_conditional_av_board_placement(block_contract, make_observation, layer):
     observation = make_observation(
         "BOARD_IN", layer=layer, attributes={"LOAD_TYPE": "BOARD_AV", "BOARD_ID": "AV.01"}
     )
@@ -132,7 +132,7 @@ def test_runtime_gap_is_visible_not_claimed_as_acceptance(block_contract, make_o
         CadObservationBatch("fixture", (observation,))
     )
     codes = issue_codes(result.issues)
-    # C7b must adopt the role-aware catalog method. Today runtime rejects the
-    # approved 700 placement and does not reject the forbidden 100 placement.
-    assert ("LAYER_FUNCTION_GROUP_MISMATCH" in codes) is layer.startswith("700_")
+    assert ("LAYER_FUNCTION_GROUP_MISMATCH" in codes) is not layer.startswith("700_")
     assert "LOAD_TYPE_NOT_ALLOWED" not in codes
+    assert "AV_BLOCK_NAME" not in codes
+    assert result.is_acceptable is layer.startswith("700_")

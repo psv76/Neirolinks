@@ -103,7 +103,9 @@ def test_read_only_logical_contract_has_not_been_migrated(block_contract) -> Non
 def test_current_validator_preserves_identifier_syntax(
     block_contract, make_observation, identifier: str, valid: bool
 ) -> None:
-    observation = make_observation("DALI_GROUP", attributes={"DALI_GROUP_ID": identifier})
+    observation = make_observation(
+        "DALI_GROUP", layer="300_DALI", attributes={"DALI_GROUP_ID": identifier}
+    )
     result = CadContractValidator(block_contract).validate(
         CadObservationBatch("doc", (observation,))
     )
@@ -116,9 +118,14 @@ def test_current_validator_preserves_identifier_uniqueness(
     block_contract, make_observation, same_id
 ):
     observations = (
-        make_observation("DALI_GROUP", handle="D1", attributes={"DALI_GROUP_ID": "D.001"}),
         make_observation(
-            "DALI_GROUP", handle="D2", attributes={"DALI_GROUP_ID": "D.001" if same_id else "D.002"}
+            "DALI_GROUP", layer="300_DALI", handle="D1", attributes={"DALI_GROUP_ID": "D.001"}
+        ),
+        make_observation(
+            "DALI_GROUP",
+            layer="400_DALI",
+            handle="D2",
+            attributes={"DALI_GROUP_ID": "D.001" if same_id else "D.002"},
         ),
     )
     result = CadContractValidator(block_contract).validate(CadObservationBatch("doc", observations))
@@ -130,7 +137,7 @@ def test_current_validator_preserves_identifier_uniqueness(
 def test_current_validator_preserves_dynamic_metadata_rule(
     block_contract, make_observation, dynamic
 ):
-    observation = make_observation("DALI_GROUP")
+    observation = make_observation("DALI_GROUP", layer="300_DALI")
     observation = replace(
         observation, definition=replace(observation.definition, is_dynamic=dynamic)
     )
@@ -142,19 +149,19 @@ def test_current_validator_preserves_dynamic_metadata_rule(
 
 
 @pytest.mark.parametrize("layer", ["300_Общий свет", "400_Общий свет"])
-def test_staged_eligibility_does_not_change_runtime(block_contract, make_observation, layer):
+def test_numeric_eligibility_is_applied_by_runtime(block_contract, make_observation, layer):
     assert is_valid_dali_group_layer(layer) is True
     observation = make_observation("DALI_GROUP", layer=layer)
     result = CadContractValidator(block_contract).validate(
         CadObservationBatch("doc", (observation,))
     )
-    assert "LOGICAL_LAYER_MISMATCH" in issue_codes(result.issues)
-    assert not result.is_acceptable
+    assert "LOGICAL_LAYER_MISMATCH" not in issue_codes(result.issues)
+    assert result.is_acceptable
 
 
 def test_current_logical_group_has_no_physical_cable_payload(block_contract, make_observation):
     result = CadContractValidator(block_contract).validate(
-        CadObservationBatch("doc", (make_observation("DALI_GROUP"),))
+        CadObservationBatch("doc", (make_observation("DALI_GROUP", layer="300_DALI"),))
     )
     assert result.is_acceptable
     (group,) = result.observations
