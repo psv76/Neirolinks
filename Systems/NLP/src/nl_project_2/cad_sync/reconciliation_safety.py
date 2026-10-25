@@ -12,6 +12,9 @@ def is_authoritative_scan_metadata(source_metadata: object) -> bool:
     """
     if not isinstance(source_metadata, Mapping):
         return False
+    # Diagnostic provenance cannot be promoted by deleting/flipping completeness flags.
+    if source_metadata.get("scan_mode") in ("FILTERED_FINGERPRINT", "FILTERED_COM_FALLBACK"):
+        return False
     if "layer_filter_applied" in source_metadata:
         if source_metadata["layer_filter_applied"] is not False:
             return False

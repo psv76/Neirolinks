@@ -89,6 +89,7 @@ from .reconciliation import (
     reconcile_snapshot_edge_projections,
 )
 from .reconciliation_safety import is_authoritative_scan_metadata
+from .scan_layer_safety import FilteredSyncContext, FilteredSyncReview
 from .selection import atomic_line_import_groups
 from .track_power import TrackInternalPowerError, selected_internal_track_power
 
@@ -192,6 +193,104 @@ class DwgSyncService:
         )
         emit(DwgScanProgress("VALIDATING"))
         return self.preview(project_id=project_id, batch=batch, progress=emit)
+
+    def _filtered_sync_context(self, project_id: str, identity: str) -> FilteredSyncContext:
+        if not identity.strip():
+            raise DwgSyncError("FILTERED_SYNC_EXPLICIT_DOCUMENT_REQUIRED")
+        with self._engine.connect() as connection:
+            revision = connection.scalar(
+                select(project.c.project_revision).where(project.c.id == project_id)
+            )
+            if revision is None:
+                raise DwgSyncError("Project not found")
+            binding = (
+                connection.execute(
+                    select(dwg_document_binding).where(
+                        dwg_document_binding.c.project_id == project_id,
+                        dwg_document_binding.c.application_uuid == _application_uuid(identity),
+                        dwg_document_binding.c.status == "CONFIRMED",
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if binding is None or binding["normalized_last_path"] != identity.casefold():
+                raise DwgSyncError("FILTERED_SYNC_CONFIRMED_PROJECT_BINDING_REQUIRED")
+            handles = set(
+                connection.scalars(
+                    select(field_device.c.entity_handle).where(
+                        field_device.c.project_id == project_id,
+                        field_device.c.dwg_document_binding_id == binding["id"],
+                        field_device.c.lifecycle == "ACTIVE",
+                        field_device.c.entity_handle.is_not(None),
+                    )
+                )
+            )
+            # Also retain logical observations from scans referenced by this
+            # binding's accepted baseline, even without an active device row.
+            # Never turn all historical/foreign observations into tracked owners.
+            logical_names = tuple(
+                name
+                for name, rule in self._contract.blocks.items()
+                if rule.block_class == "LOGICAL" and not rule.ignored_project_data
+            )
+            accepted_scans = select(dwg_baseline.c.dwg_scan_id).where(
+                dwg_baseline.c.project_id == project_id,
+                dwg_baseline.c.dwg_document_binding_id == binding["id"],
+            )
+            handles.update(
+                connection.scalars(
+                    select(dwg_observation.c.entity_handle).where(
+                        dwg_observation.c.project_id == project_id,
+                        dwg_observation.c.dwg_scan_id.in_(accepted_scans),
+                        dwg_observation.c.effective_block_name.in_(logical_names),
+                    )
+                )
+            )
+            return FilteredSyncContext(
+                project_id,
+                revision,
+                binding["id"],
+                identity.casefold(),
+                tuple(sorted((k, str(v)) for k, v in binding.items())),
+                tuple(sorted(handles)),
+            )
+
+    def review_filtered_sync(
+        self, *, project_id: str, expected_identity: str
+    ) -> FilteredSyncReview:
+        """DB-bound diagnostic read, not a ScanProposal and never write authority.
+
+        The caller cannot supply tracked handles or borrow another project's binding.
+        Current bridge has no DWG transaction lease spanning preview -> SQLite apply;
+        therefore this API cannot safely activate filtered reconciliation yet.
+        """
+        if self._cad_port is None:
+            raise DwgSyncError("CAD adapter is not configured")
+        context = self._filtered_sync_context(project_id, expected_identity)
+        read = self._cad_port.read_layer_filtered_observations(
+            CadReadRequest(
+                expected_identity,
+                CAD_SCAN_DEADLINE_SECONDS,
+                definition_names=tuple(self._contract.blocks),
+            ),
+            tracked_handles=context.tracked_handles,
+        )
+        current = self._filtered_sync_context(project_id, expected_identity)
+        if current != context:
+            raise StaleProposalError("Project/binding/tracked owners changed during filtered read")
+        if read.batch.document_identity.casefold() != context.document_identity:
+            raise DwgSyncError("FILTERED_SYNC_DOCUMENT_MISMATCH")
+        metadata = read.batch.source_metadata
+        if (
+            metadata.get("layer_filter_applied") is not True
+            or metadata.get("scan_is_complete_for_reconciliation") is not False
+        ):
+            raise DwgSyncError("FILTERED_SYNC_AUTHORITY_PROMOTION_FORBIDDEN")
+        # These diagnostics cannot reach normalize/materialize or generate missing changes.
+        return FilteredSyncReview(
+            context, read.batch, read.present_excluded_handles, read.absent_unknown_handles
+        )
 
     def inspect_active_document(self):
         if self._cad_port is None:
@@ -1279,7 +1378,36 @@ class DwgSyncService:
 
     def _ensure_binding(self, uow, proposal: ScanProposal, now: datetime) -> str:
         if proposal.binding_id:
+            binding = (
+                uow.execute(
+                    select(dwg_document_binding).where(
+                        dwg_document_binding.c.id == proposal.binding_id,
+                        dwg_document_binding.c.project_id == proposal.project_id,
+                        dwg_document_binding.c.application_uuid
+                        == _application_uuid(proposal.batch.document_identity),
+                        dwg_document_binding.c.status == "CONFIRMED",
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if (
+                binding is None
+                or binding["normalized_last_path"] != proposal.batch.document_identity.casefold()
+            ):
+                raise StaleProposalError(
+                    "DWG binding changed after preview or belongs to another project/document"
+                )
             return proposal.binding_id
+        existing = uow.execute(
+            select(dwg_document_binding.c.id).where(
+                dwg_document_binding.c.project_id == proposal.project_id,
+                dwg_document_binding.c.application_uuid
+                == _application_uuid(proposal.batch.document_identity),
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            raise StaleProposalError("DWG binding was created after preview; rescan")
         binding_id = new_id()
         identity = proposal.batch.document_identity
         uow.execute(

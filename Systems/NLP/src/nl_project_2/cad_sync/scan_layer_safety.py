@@ -164,3 +164,28 @@ def assess_layer_scan(
         absent_unknown_handles=tuple(sorted(absent - proven)),
         proven_absent_handles=tuple(sorted(proven)),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class FilteredSyncContext:
+    """Canonical DB owners captured before diagnostic CAD I/O; not write authority."""
+
+    project_id: str
+    project_revision: int
+    binding_id: str
+    document_identity: str
+    binding_facts: tuple[tuple[str, str], ...]
+    tracked_handles: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class FilteredSyncReview:
+    context: FilteredSyncContext
+    batch: CadObservationBatch
+    present_excluded_handles: tuple[str, ...]
+    absent_unknown_handles: tuple[str, ...]
+    status: str = "REQUIRES_ATTENTION"
+    next_action: str = (
+        "Obtain an authoritative unfiltered confirmation; filtered preview/apply is disabled "
+        "until DWG read-transaction evidence can be revalidated at the point of write."
+    )
