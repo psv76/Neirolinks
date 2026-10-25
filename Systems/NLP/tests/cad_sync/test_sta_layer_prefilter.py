@@ -7,6 +7,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
+pytest.importorskip("pythoncom", reason="Requires Windows AutoCAD COM (pythoncom)")
+
 from tools.autocad_sta_bridge import (
     _scan,
     _scan_handles,

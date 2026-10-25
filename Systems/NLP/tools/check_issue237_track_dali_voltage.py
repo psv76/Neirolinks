@@ -31,6 +31,7 @@ def check() -> None:
         group = validator._function_group(  # focused contract-level check
             observation(block, layer, cable_id, bus_id=bus_id),
             catalog.block(block),
+            {"CABLE_ID": cable_id, "BUS_ID": bus_id},
             issues,
         )
         return group, issue_codes(issues)

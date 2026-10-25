@@ -159,7 +159,21 @@ def check() -> None:
     assert data["contract_version"] == "3.2.0", data["contract_version"]
     assert len(data["approved_block_names"]) == 72
     assert len(set(data["approved_block_names"])) == 72
-    assert len(data["functional_groups"]) == 10
+    assert set(data["functional_groups"]) == {
+        "POWER",
+        "SWITCHES",
+        "LIGHTING_230V",
+        "LIGHTING_LED",
+        "SENSORS",
+        "HVAC",
+        "AV",
+        "NETWORK",
+        "BUS",
+    }
+    assert schema["properties"]["functional_groups"]["minProperties"] == 9
+    assert data["board_rules"]["av_role"] == "BOARD_AV"
+    assert data["board_rules"]["av_block_name"] == "BOARD_IN"
+    assert data["board_rules"]["av_function_group"] == "AV"
 
     # Catch forbidden-vs-declared contradictions before runtime work begins.
     forbidden = set(data["forbidden_attributes"])
