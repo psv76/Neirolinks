@@ -72,3 +72,14 @@ Do NOT edit `validator.py` or COM/reconciliation. Record what validator cannot y
 ### Resume checkpoint
 
 Do not redo C1-C6 or the C7A baseline investigation. Read `docs/engineering/checkpoints/NLP_255_C7A.md` only to understand prior blocker, then this addendum. The prior BLOCKED checkpoint is historical evidence; append a new result section or a new `NLP_255_C7A_RESUME.md` checkpoint and post final SHA/status to existing #255. Do not rewrite history. Next step remains independent coordinator review; **no C7b**.
+
+
+## C7A resumed again — approved schema scope correction (2026-10-25)
+
+**Confirmed blocker:** `resources/autocad/block_contract.schema.json`, `functional_groups.minProperties=10` (line 129 at checkpoint `a465c7d9d1c444b8fd45cf280bbaffceb79d4f68`), contradicts the normative **exactly nine groups** after joining HEATING and VENTILATION into HVAC.
+
+**Expanded allowed file scope, narrowly:** `Systems/NLP/resources/autocad/block_contract.schema.json`. Codex is authorized to change **only** `functional_groups.minProperties` from `10` to `9`, and add/update appropriate focused tests for schema acceptance of exactly nine groups and rejection of fewer than nine. Preserve all other schema validation requirements; do not add dummy/tenth groups to silence schema. Do not modify schema `contract_version` or unrelated validation properties. If another schema conflict appears, report it with evidence before expanding scope.
+
+This approval supplements prior C7A scope and BOARD_AV / `700_*` approval; they remain unchanged. Existing C7A checkpoint files are historical evidence and must be kept, including `NLP_255_C7A_RESUME.md` (BLOCKED at `a465c7d9d1c444b8fd45cf280bbaffceb79d4f68`). Create a new checkpoint `NLP_255_C7A_RESUME2.md` rather than rewriting old evidence.
+
+**Resume from:** HEAD of this brief-update commit (pin SHA in #255), not the preceding checkpoint SHA. Re-use the 376 passing tests and seven **pre-existing** failing tests as baseline evidence; do not repeat broad investigation merely to establish the same blocker. After changes run schema validation and targeted catalog/contract tests. Report baseline failures separately from newly introduced failures, and do not alter existing tests simply to force a PASS. C7b not started.
