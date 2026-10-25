@@ -11,3 +11,8 @@
 7. Gate не доступен через стандартный WB Cloud WebUI tunnel; штатный dedicated port требует LAN/Tailscale или отдельно согласованный сервис WB Cloud.
 
 Никакой Release сам по себе не меняет live-контроллер. Пока не выполнен live acceptance, это approved пакет по CI, но не проверенная установка на двух новых объектах.
+
+
+## Remote bootstrap
+
+`tools/install_latest.sh` + `tools/bootstrap_latest.py` — загрузчик последнего approved Tools Release. Изменения загрузчика публикуются в `main` через PR/CI, **не** заменяют ранее опубликованный immutable Tools 1.0 Release. Сам загрузчик исполняется по HTTPS с GitHub raw, payload берётся **только** из approved GitHub Release и проверяется по SHA-256 GitHub API + каталогу + содержимому ZIP. Отдельный read-only режим `--check`. Завершённость: local+CI tests и одна полевая проверка на новом WB, где создан администратор.
