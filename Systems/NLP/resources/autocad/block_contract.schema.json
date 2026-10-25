@@ -126,7 +126,7 @@
     },
     "functional_groups": {
       "type": "object",
-      "minProperties": 10,
+      "minProperties": 9,
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,

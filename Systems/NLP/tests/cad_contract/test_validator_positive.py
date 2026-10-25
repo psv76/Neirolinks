@@ -13,10 +13,15 @@ APPROVED_NAMES = tuple(sorted(load_contract().blocks))
 def test_every_approved_name_has_a_valid_metadata_observation(
     block_contract, make_observation, name
 ):
-    observation = make_observation(name, handle="A1")
+    observation = make_observation(
+        name,
+        handle="A1",
+        layer="300_DALI" if name == "DALI_GROUP" else None,
+        attributes={"LOAD_TYPE": "BOARD_DISTRIBUTION"} if name == "BOARD_IN" else None,
+    )
     observations = (observation,)
     if block_contract.block(name).key_count:
-        observations += (make_observation("DALI_GROUP", handle="D1"),)
+        observations += (make_observation("DALI_GROUP", layer="300_DALI", handle="D1"),)
     result = CadContractValidator(
         block_contract,
         project_bus_kinds={"901": "DALI"} if name == "CABLE_OUTLET_BUS" else None,
@@ -73,7 +78,7 @@ def test_complete_batch_covers_multidevice_line_keys_dali_frame_room_and_av(
         ),
         make_observation("LIGHT_IN", handle="L1", cable_id="301"),
         make_observation("LIGHT_IN", handle="L2", cable_id="301.01"),
-        make_observation("DALI_GROUP", handle="D1"),
+        make_observation("DALI_GROUP", layer="300_DALI", handle="D1"),
         make_observation("SW_IN_1", handle="S1", cable_id="201"),
         make_observation(
             "BTN_IN_2",
@@ -103,7 +108,7 @@ def test_complete_batch_covers_multidevice_line_keys_dali_frame_room_and_av(
 def test_dali_dynamic_flag_is_optional_when_definition_metadata_does_not_expose_it(
     block_contract, make_observation
 ):
-    observation = make_observation("DALI_GROUP")
+    observation = make_observation("DALI_GROUP", layer="300_DALI")
     observation = replace(
         observation,
         definition=replace(observation.definition, is_dynamic=None),

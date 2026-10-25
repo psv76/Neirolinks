@@ -12,6 +12,8 @@ from typing import Any
 
 from nl_project_2.runtime_resources import bundled_path
 
+from .layer_groups import function_group_for_working_layer
+
 
 class ContractCatalogError(ValueError):
     """Raised when the machine-readable CAD contract is invalid."""
@@ -71,10 +73,41 @@ class BlockContractCatalog:
         }
         return self.blocks.get(aliases.get(name, name))
 
-    def groups_for_layer(self, layer: str) -> frozenset[str]:
+    def groups_for_layer(self, layer: object, *, include_legacy: bool = True) -> frozenset[str]:
+        """Resolve numeric layers; retain exact legacy aliases for existing callers.
+
+        Numeric suffixes are unrestricted. Contract layers contain representative
+        numeric names plus explicit legacy aliases, not numeric suffix allow-lists.
+        New numeric-only consumers can opt out of legacy compatibility.
+        """
+        group = function_group_for_working_layer(layer)
+        if group is not None:
+            return frozenset({group}) if group in self.functional_groups else frozenset()
+        if not include_legacy or not isinstance(layer, str):
+            return frozenset()
         return frozenset(
             name for name, rule in self.functional_groups.items() if layer in rule.layers
         )
+
+    def groups_for_board_layer(
+        self, block_name: str, load_type: str, layer: object
+    ) -> frozenset[str]:
+        """Staged role-aware board placement; runtime validator adoption is C7b.
+
+        Do not add AV to generic BOARD allowed_groups: the exception requires
+        the approved block, role and numeric group together.
+        """
+        rule = self.block(block_name)
+        if rule is None or rule.device_type != "BOARD" or load_type not in rule.allowed_load_types:
+            return frozenset()
+        if load_type == self.board_rules["av_role"]:
+            group = function_group_for_working_layer(layer)
+            if block_name == self.board_rules["av_block_name"] and group == self.board_rules.get(
+                "av_function_group"
+            ):
+                return frozenset({group}) if group in self.functional_groups else frozenset()
+            return frozenset()
+        return self.groups_for_layer(layer) & rule.allowed_groups
 
 
 def default_contract_path() -> Path:

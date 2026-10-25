@@ -5,6 +5,8 @@ No database mutation, synthetic DWG observations and Project-owned root facts.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from nl_project_2.cad_contract import CadContractValidator, CadObservationBatch, issue_codes
@@ -121,3 +123,29 @@ def test_wrong_project_bus_type_blocks_even_valid_power_feeder(block_contract, m
     assert "BUS_TYPE_CONFLICT" in issue_codes(result.issues)
     assert "BUS_ROOT_NOT_FOUND" in issue_codes(result.issues)
     assert not result.is_acceptable
+
+
+@pytest.mark.parametrize(
+    "layer,feeder,acceptable",
+    [
+        ("300_Track", "301", True),
+        ("300_Track", "401", False),
+        ("400_Track", "401", True),
+        ("400_Track", "301", False),
+        ("TRACK_DALI", "301", True),
+        ("TRACK_DALI", "401", True),
+    ],
+)
+def test_numeric_track_power_prefix_preserves_dali_graph(
+    block_contract, make_observation, layer, feeder, acceptable
+):
+    batch = _full_graph(make_observation, feeder)
+    box, track = batch.observations
+    batch = replace(batch, observations=(box, replace(track, layer=layer)))
+    result = CadContractValidator(
+        block_contract, project_bus_kinds={"905": "DALI"}, project_bus_roots={"905.000"}
+    ).validate(batch)
+    assert result.is_acceptable is acceptable, result.issues
+    assert result.observations[1].read_payload.bus_id == "905"
+    assert result.observations[1].read_payload.bus_source == "BOX.003"
+    assert not any(i.code.startswith("BUS_SOURCE_") for i in result.issues)
