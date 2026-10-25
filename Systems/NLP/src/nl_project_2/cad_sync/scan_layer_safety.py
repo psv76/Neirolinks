@@ -6,10 +6,19 @@ DBMOD is not a revision token. These DTOs describe evidence, not an attestation
 that a caller actually obtained it from AutoCAD. No preview/apply wiring exists.
 """
 
+import re
 from dataclasses import dataclass
 
 from nl_project_2.cad_contract import CadObservationBatch
 from nl_project_2.cad_contract.layer_names import parse_working_layer_name
+
+_HANDLE = re.compile(r"[0-9A-F]+")
+
+
+def _valid_handle(handle: str) -> bool:
+    # AutoCAD emits canonical uppercase hex. Reject aliases rather than letting
+    # a lower-case duplicate masquerade as a deleted owner.
+    return isinstance(handle, str) and _HANDLE.fullmatch(handle) is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,14 +113,14 @@ def assess_layer_scan(
         if census.complete is not True or census.unfiltered is not True or census.errors:
             problems.append("CENSUS_NOT_COMPLETE_UNFILTERED")
         handles = [entry.handle for entry in census.entries]
-        if any(not h or h != h.strip() for h in handles) or len(handles) != len(set(handles)):
+        if any(not _valid_handle(h) for h in handles) or len(handles) != len(set(handles)):
             problems.append("CENSUS_HANDLES_INVALID")
         if any(not isinstance(entry.layer, str) for entry in census.entries):
             problems.append("CENSUS_LAYER_INVALID")
     current = {entry.handle: entry.layer for entry in after.entries}
     if {entry.handle: entry.layer for entry in before.entries} != current:
         problems.append("CENSUS_DRIFT")
-    if any(not h or h != h.strip() for h in tracked_handles) or len(tracked_handles) != len(
+    if any(not _valid_handle(h) for h in tracked_handles) or len(tracked_handles) != len(
         set(tracked_handles)
     ):
         problems.append("TRACKED_HANDLES_INVALID")

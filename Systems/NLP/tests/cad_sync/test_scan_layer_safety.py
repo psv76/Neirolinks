@@ -17,7 +17,10 @@ from nl_project_2.cad_sync.scan_layer_safety import (
 DOC = "C:/fixture/synthetic.dwg"
 
 
-def inputs(entries=(CensusEntry("A1", "300_Light"),), observed=True):
+DEFAULT_ENTRIES = (CensusEntry("A1", "300_Light"),)
+
+
+def inputs(entries=DEFAULT_ENTRIES, observed=True):
     census = InsertCensus(DOC, "read-1", "revision-1", entries, complete=True, unfiltered=True)
     observations = (
         tuple(
@@ -207,3 +210,30 @@ def test_complete_synthetic_match_never_upgrades_filtered_batch_or_bypasses_c6()
         service.apply_dwg_to_project(
             SimpleNamespace(batch=batch), selected_paths=(), confirmed=True
         )
+
+
+@pytest.mark.parametrize("handle", ["a1", " A1", "A1 ", "", "NOT-HEX"])
+def test_noncanonical_owner_handles_fail_closed(handle):
+    args = inputs()
+    args["tracked_handles"] = (handle,)
+    result = assess_layer_scan(**args)
+    assert "TRACKED_HANDLES_INVALID" in result.problems
+    assert result.proven_absent_handles == ()
+
+
+def test_duplicate_proofs_and_duplicate_tracked_owners_fail_closed():
+    args = inputs((), observed=False)
+    proof = AbsenceProof(DOC, "read-1", "revision-1", "A1", True)
+    args["absence_proofs"] = (proof, proof)
+    assert "DUPLICATE_ABSENCE_PROOF" in assess_layer_scan(**args).problems
+    args["absence_proofs"] = ()
+    args["tracked_handles"] = ("A1", "A1")
+    assert "TRACKED_HANDLES_INVALID" in assess_layer_scan(**args).problems
+
+
+@pytest.mark.parametrize("key", ["expected_document_identity", "expected_read_id"])
+def test_missing_explicit_read_context_never_proves_deletion(key):
+    args = inputs((), observed=False)
+    args[key] = ""
+    assert assess_layer_scan(**args).status == "REQUIRES_ATTENTION"
+    assert assess_layer_scan(**args).proven_absent_handles == ()
