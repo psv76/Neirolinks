@@ -1,0 +1,40 @@
+name: NST Tools package and security
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Systems/NST/tools-ui/**"
+      - ".github/workflows/nst-tools-check.yml"
+  pull_request:
+    paths:
+      - "Systems/NST/tools-ui/**"
+      - ".github/workflows/nst-tools-check.yml"
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python tests and read-only contracts
+        run: |
+          python3 -m unittest discover -s Systems/NST/tools-ui/tests -p 'test_*.py' -v
+          python3 -m py_compile Systems/NST/tools-ui/service/server.py Systems/NST/tools-ui/service/executor.py
+      - name: Check installation scripts and sudoers
+        run: |
+          set -eux
+          for file in preinst postinst prerm postrm; do sh -n "Systems/NST/tools-ui/packaging/$file"; done
+          sudo visudo -cf Systems/NST/tools-ui/config/sudoers
+          python3 -c 'import json,pathlib; p=pathlib.Path("Systems/NST/tools-ui/config"); json.loads((p/"menu.json").read_text());json.loads((p/"gate.json").read_text())'
+      - name: Build and inspect Debian package
+        run: |
+          set -eux
+          python3 Systems/NST/tools-ui/tools/build_deb.py
+          dpkg-deb --info Systems/NST/tools-ui/dist/neirolinks-tools_1.0_all.deb
+          dpkg-deb --contents Systems/NST/tools-ui/dist/neirolinks-tools_1.0_all.deb
+          sha256sum Systems/NST/tools-ui/dist/neirolinks-tools_1.0_all.deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neirolinks-tools-1.0-deb
+          path: Systems/NST/tools-ui/dist/neirolinks-tools_1.0_all.deb*
+          if-no-files-found: error

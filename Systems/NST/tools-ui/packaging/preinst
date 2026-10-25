@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+if [ "${1:-}" = "install" ]; then
+  # Never overwrite the existing manually deployed Ivolga pilot or its menu.
+  if [ -e /etc/systemd/system/neirolinks-tools.service ] || [ -e /etc/wb-homeui/custom-menu/neirolinks.json ] || [ -e /etc/nginx/includes/default.wb.d/neirolinks-tools.conf ]; then
+    echo "Existing NEIROLINKS Tools pilot/override detected; review migration before installing." >&2
+    exit 1
+  fi
+  if ! command -v wb-homeui-users >/dev/null 2>&1; then
+    echo "WB account management not installed; admin-gated Tools cannot be exposed." >&2
+    exit 1
+  fi
+  # Official WB homeui-users list format: login (type); default WB has no users.
+  if ! wb-homeui-users list | grep -Eq ' \(admin\)$'; then
+    echo "Configure a WB WebUI administrator first: Settings -> Users." >&2
+    exit 1
+  fi
+fi
+exit 0

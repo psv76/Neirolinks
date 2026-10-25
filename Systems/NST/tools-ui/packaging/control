@@ -1,0 +1,10 @@
+Package: neirolinks-tools
+Version: 1.0
+Section: admin
+Priority: optional
+Architecture: all
+Maintainer: NEIROLINKS <engineering@neirolinks.local>
+Depends: nst (>= 2.5), wb-mqtt-homeui (>= 2.248), python3 (>= 3.9), sudo, adduser, systemd
+Description: NEIROLINKS Tools read-only WB HomeUI companion
+ Protected admin service-gate, first-visit inventory, channel maps and NST diagnostics.
+ Separate from the NST command-line package and all engineering runtime services.
