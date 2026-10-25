@@ -18,6 +18,7 @@ from nl_project_2.persistence.schema import (
     building,
     cable_line,
     catalog_release,
+    conduit,
     field_device,
     project,
     project_instance,
@@ -57,7 +58,7 @@ SETTING_KEYS = {
     "cable_reserve_at_endpoint_m": "DECIMAL",
     "cable_meander_percent": "DECIMAL",
     "cable_obstacle_percent": "DECIMAL",
-    "cable_timber_segment_reserve_m": "DECIMAL",
+    "cable_rounding_step_m": "DECIMAL",
 }
 
 CABLE_SETTING_DEFAULTS = {
@@ -66,7 +67,7 @@ CABLE_SETTING_DEFAULTS = {
     "cable_reserve_at_endpoint_m": Decimal("0.3"),
     "cable_meander_percent": Decimal("5"),
     "cable_obstacle_percent": Decimal("10"),
-    "cable_timber_segment_reserve_m": Decimal("0.5"),
+    "cable_rounding_step_m": Decimal("1"),
 }
 
 
@@ -821,7 +822,10 @@ class ObjectService:
         }
         for key in CABLE_SETTING_DEFAULTS:
             raw = getattr(settings, key)
-            values[key] = None if raw is None else str(_decimal(raw, key, non_negative=True))
+            value = None if raw is None else _decimal(raw, key, non_negative=True)
+            if key == "cable_rounding_step_m" and value is not None and value <= 0:
+                raise ObjectValidationError("cable_rounding_step_m must be greater than zero")
+            values[key] = None if value is None else str(value)
         with UnitOfWork(self._engine) as uow:
             prior_values = dict(
                 uow.execute(
@@ -871,6 +875,15 @@ class ObjectService:
                     line_ids=line_ids,
                     recalculate_geometry=False,
                 )
+                from nl_project_2.cables.recalculation import refresh_conduit_length
+
+                for conduit_id in uow.execute(
+                    select(conduit.c.id).where(
+                        conduit.c.project_id == project_id,
+                        conduit.c.lifecycle == "ACTIVE",
+                    )
+                ).scalars():
+                    refresh_conduit_length(uow, project_id, conduit_id)
             uow.execute(
                 update(project)
                 .where(project.c.id == project_id)
@@ -955,12 +968,12 @@ class ObjectService:
                 ),
                 "cable_obstacle_percent",
             ),
-            cable_timber_segment_reserve_m=_decimal(
+            cable_rounding_step_m=_decimal(
                 settings_map.get(
-                    "cable_timber_segment_reserve_m",
-                    str(CABLE_SETTING_DEFAULTS["cable_timber_segment_reserve_m"]),
+                    "cable_rounding_step_m",
+                    str(CABLE_SETTING_DEFAULTS["cable_rounding_step_m"]),
                 ),
-                "cable_timber_segment_reserve_m",
+                "cable_rounding_step_m",
             ),
         )
         room_records = [

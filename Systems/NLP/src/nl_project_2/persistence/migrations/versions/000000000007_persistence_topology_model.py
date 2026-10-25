@@ -586,7 +586,23 @@ def upgrade() -> None:
     bind = op.get_bind()
     tables = _tables(bind)
     if "cable_point" not in tables or "cable_line" not in tables:
-        schema.metadata.create_all(bind, checkfirst=True)
+        # Historical recovery must not create tables belonging to revisions
+        # 15 (physical DALI), 16 (staged transit), or 17 (prepared quantity)
+        # ahead of Alembic.
+        schema.metadata.create_all(
+            bind,
+            tables=[
+                table
+                for table in schema.metadata.sorted_tables
+                if table.name
+                not in (
+                    schema.PHYSICAL_DALI_TABLE_NAMES
+                    | schema.TRANSIT_PHYSICAL_TABLE_NAMES
+                    | schema.TRANSIT_LINE_COMMIT_TABLE_NAMES
+                )
+            ],
+            checkfirst=True,
+        )
         tables = _tables(bind)
     point_rows = []
     device_rows: dict[str, dict] = {}

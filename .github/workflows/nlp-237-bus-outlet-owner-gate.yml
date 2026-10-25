@@ -1,0 +1,59 @@
+name: NLP 237 endpoint transactions and RS485 chain (D5)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/nlp-237-bus-outlet-owner-gate.yml'
+      - 'Systems/NLP/src/nl_project_2/cad_sync/service.py'
+      - 'Systems/NLP/tests/cad_sync/test_issue237_bus_outlet_owner_gate.py'
+      - 'Systems/NLP/tests/cad_sync/test_issue237_endpoint_transactions.py'
+      - 'Systems/NLP/src/nl_project_2/cad_contract/validator.py'
+      - 'Systems/NLP/src/nl_project_2/cad_contract/catalog.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  outlet-owner-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: Systems/NLP
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Qt runtime dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0
+      - name: Install isolated test packages
+        run: |
+          python -m pip install 'SQLAlchemy==2.0.51' 'alembic==1.18.5' \
+            'pytest==9.1.1' 'pytest-qt==4.5.0' 'PySide6==6.11.1' \
+            'ruff==0.15.22'
+      - name: Ruff lint and format
+        run: |
+          python -m ruff check src/nl_project_2/cad_sync/service.py \
+            src/nl_project_2/cad_contract/catalog.py \
+            tests/cad_sync/test_issue237_bus_outlet_owner_gate.py \
+            tests/cad_sync/test_issue237_endpoint_transactions.py
+          python -m ruff format --check src/nl_project_2/cad_sync/service.py \
+            src/nl_project_2/cad_contract/catalog.py \
+            tests/cad_sync/test_issue237_bus_outlet_owner_gate.py \
+            tests/cad_sync/test_issue237_endpoint_transactions.py
+      - name: Temp Project SQLite plus DALI and no-rebind regression
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q \
+            tests/cad_sync/test_issue237_endpoint_transactions.py \
+            tests/cad_sync/test_issue237_bus_outlet_owner_gate.py \
+            tests/cad_sync/test_issue237_project_bus_context.py \
+            tests/cad_contract/test_issue237_track_dali_integration.py \
+            tests/cad_contract/test_issue237_dali_graph.py \
+            tests/cad_sync/test_sync_service.py::test_timber_route_is_accepted_and_persisted_as_segment_data

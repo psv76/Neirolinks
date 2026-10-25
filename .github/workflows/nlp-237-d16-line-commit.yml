@@ -1,0 +1,90 @@
+name: NLP 237 D16 approved quantity preparation gate
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/nlp-237-d16-line-commit.yml'
+      - 'Systems/NLP/src/nl_project_2/cables/transit_quantity_prepare.py'
+      - 'Systems/NLP/src/nl_project_2/persistence/schema.py'
+      - 'Systems/NLP/src/nl_project_2/persistence/migration.py'
+      - 'Systems/NLP/src/nl_project_2/persistence/migrations/versions/000000000007_persistence_topology_model.py'
+      - 'Systems/NLP/src/nl_project_2/persistence/migrations/versions/000000000017_prepared_transit_line_quantity.py'
+      - 'Systems/NLP/tests/cad_sync/test_issue237_d16_quantity_prepare.py'
+      - 'Systems/NLP/tests/persistence/test_issue237_d16_quantity_migration.py'
+      - 'Systems/NLP/tests/persistence/test_issue237_d13_transit_migration.py'
+      - 'Systems/NLP/docs/engineering/ISSUE_237_D16_PREPARED_QUANTITY_GATE.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepared-quantity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: Systems/NLP
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Qt system libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0
+      - name: Pinned test dependencies
+        run: |
+          python -m pip install 'SQLAlchemy==2.0.51' 'alembic==1.18.5' \
+            'pytest==9.1.1' 'pytest-qt==4.5.0' 'PySide6==6.11.1' \
+            'ruff==0.15.22'
+      - name: Ruff lint and format
+        run: |
+          python -m ruff check --diff \
+            src/nl_project_2/cables/transit_quantity_prepare.py \
+            tests/cad_sync/test_issue237_d16_quantity_prepare.py \
+            tests/persistence/test_issue237_d16_quantity_migration.py || true
+          python -m ruff format --diff \
+            src/nl_project_2/cables/transit_quantity_prepare.py \
+            tests/cad_sync/test_issue237_d16_quantity_prepare.py \
+            tests/persistence/test_issue237_d16_quantity_migration.py \
+            src/nl_project_2/persistence/schema.py \
+            src/nl_project_2/persistence/migrations/versions/000000000017_prepared_transit_line_quantity.py || true
+          python -m ruff check \
+            src/nl_project_2/cables/transit_quantity_prepare.py \
+            src/nl_project_2/persistence/schema.py \
+            src/nl_project_2/persistence/migration.py \
+            src/nl_project_2/persistence/migrations/versions/000000000007_persistence_topology_model.py \
+            src/nl_project_2/persistence/migrations/versions/000000000017_prepared_transit_line_quantity.py \
+            tests/cad_sync/test_issue237_d16_quantity_prepare.py \
+            tests/persistence/test_issue237_d16_quantity_migration.py \
+            tests/persistence/test_issue237_d13_transit_migration.py
+          python -m ruff format --check \
+            src/nl_project_2/cables/transit_quantity_prepare.py \
+            src/nl_project_2/persistence/schema.py \
+            src/nl_project_2/persistence/migration.py \
+            src/nl_project_2/persistence/migrations/versions/000000000007_persistence_topology_model.py \
+            src/nl_project_2/persistence/migrations/versions/000000000017_prepared_transit_line_quantity.py \
+            tests/cad_sync/test_issue237_d16_quantity_prepare.py \
+            tests/persistence/test_issue237_d16_quantity_migration.py \
+            tests/persistence/test_issue237_d13_transit_migration.py
+      - name: D16 and stacked D15-D10, migration regressions
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q \
+            tests/cad_sync/test_issue237_d16_quantity_prepare.py \
+            tests/persistence/test_issue237_d16_quantity_migration.py \
+            tests/cad_sync/test_issue237_d15_line_preview.py \
+            tests/cad_sync/test_issue237_d14_transit_quantity_reconciliation.py \
+            tests/cad_sync/test_issue237_d13_transit_store.py \
+            tests/cad_sync/test_issue237_d12_transit_physical.py \
+            tests/cad_sync/test_issue237_d11_transit_readonly.py \
+            tests/cad_sync/test_issue237_d10_track_internal_power.py \
+            tests/persistence/test_issue237_d13_transit_migration.py \
+            tests/persistence/test_issue237_physical_dali_migration.py \
+            tests/persistence/test_migrations.py \
+            tests/cables/test_lines_spreadsheet_service.py \
+            tests/cables/test_p0004_segment_recalculation.py

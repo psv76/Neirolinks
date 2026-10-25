@@ -51,9 +51,11 @@ from nl_project_2.cad_sync import (
     atomic_line_import_groups,
     build_dwg_update_plan,
 )
+from nl_project_2.config import PathConfig
 from nl_project_2.objects.models import ProjectCard, ProjectSettings, TimeSummary
 from nl_project_2.objects.service import ObjectValidationError
 from nl_project_2.operations import OperationSnapshot
+from nl_project_2.operations.diagnostics import StructuredLogger
 
 from .automation_workspace import AutomationWorkspaceDialog
 from .background_operation import BackgroundOperationController
@@ -134,6 +136,7 @@ _VALIDATION_TITLES = {
     "CABLE_ID_FORMAT": "Некорректный CABLE_ID",
     "CABLE_GROUP_PREFIX_MISMATCH": "CABLE_ID не соответствует функциональной группе",
     "DUPLICATE_BOARD_ID": "Идентификатор щита не уникален",
+    "DUPLICATE_BUS_POINT_ID": "Duplicate RS-485/DALI BUS_POINT_ID",
     "DUPLICATE_FULL_CABLE_ID": "Полный CABLE_ID точки не уникален",
     "CONDUIT_TYPE_INCONSISTENT": "Различаются типы общей трубы",
     "CONDUIT_COLOR_INCONSISTENT": "Различаются цвета общей трубы",
@@ -1570,7 +1573,7 @@ class ObjectWorkspace(QWidget):
             "cable_reserve_at_endpoint_m": QLineEdit(tab),
             "cable_meander_percent": QLineEdit(tab),
             "cable_obstacle_percent": QLineEdit(tab),
-            "cable_timber_segment_reserve_m": QLineEdit(tab),
+            "cable_rounding_step_m": QLineEdit(tab),
         }
         self.initial_page = QSpinBox(tab)
         self.initial_page.setRange(0, 999999)
@@ -1592,12 +1595,12 @@ class ObjectWorkspace(QWidget):
             self.setting_fields["cable_reserve_at_endpoint_m"],
         )
         form.addRow(
-            "Нелинейность кабеля («змейка»), %", self.setting_fields["cable_meander_percent"]
+            "Нелинейность трассы («змейка»), %", self.setting_fields["cable_meander_percent"]
         )
         form.addRow("Обходы стен и балок, %", self.setting_fields["cable_obstacle_percent"])
         form.addRow(
-            "Запас «В брусе», м / сегмент",
-            self.setting_fields["cable_timber_segment_reserve_m"],
+            "Шаг округления длины кабеля и трубы, м",
+            self.setting_fields["cable_rounding_step_m"],
         )
         save = QPushButton("Сохранить настройки", tab)
         save.clicked.connect(self._save_settings)
@@ -1751,7 +1754,7 @@ class ObjectWorkspace(QWidget):
             "cable_reserve_at_endpoint_m",
             "cable_meander_percent",
             "cable_obstacle_percent",
-            "cable_timber_segment_reserve_m",
+            "cable_rounding_step_m",
         ):
             value = getattr(settings, key)
             self.setting_fields[key].setText("" if value is None else str(value))
@@ -1888,8 +1891,8 @@ class ObjectWorkspace(QWidget):
                 cable_obstacle_percent=_optional_decimal(
                     self.setting_fields["cable_obstacle_percent"].text()
                 ),
-                cable_timber_segment_reserve_m=_optional_decimal(
-                    self.setting_fields["cable_timber_segment_reserve_m"].text()
+                cable_rounding_step_m=_optional_decimal(
+                    self.setting_fields["cable_rounding_step_m"].text()
                 ),
             )
             self.runtime.objects.save_settings(self._detail.id, settings)
@@ -2025,10 +2028,27 @@ class ObjectWorkspace(QWidget):
                 working = replace(working, project_revision=working.project_revision + 1)
             except Exception as exc:
                 logging.getLogger(__name__).exception("Automatic DWG apply failed")
+                try:
+                    StructuredLogger(
+                        PathConfig.from_environment().log_root / "sync-apply.jsonl"
+                    ).record(
+                        level="ERROR",
+                        component="dwg_sync",
+                        operation="automatic_apply",
+                        result="failed",
+                        duration_ms=0,
+                        error=exc,
+                        summary={
+                            "selected_count": len(plan.import_paths),
+                            "project_revision": working.project_revision,
+                            "reason": str(exc)[:1200],
+                        },
+                    )
+                except OSError:
+                    logging.getLogger(__name__).exception("DWG apply diagnostic logging failed")
                 runtime_errors.append(
-                    _localized_sync_error(str(exc))
-                    if isinstance(exc, (BridgeError, DwgSyncError))
-                    else "Не удалось применить изменения DWG в Project."
+                    f"DWG apply failed ({type(exc).__name__}): {str(exc)[:350]}. "
+                    "See sync-apply.jsonl in local application logs."
                 )
 
         if plan.write_paths:

@@ -5,10 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import ROUND_CEILING, Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Engine, delete, func, select, update
 from sqlalchemy.exc import IntegrityError
@@ -56,15 +57,32 @@ from .domain import (
     parse_conduit_id,
     validate_line_conduit_fields,
 )
+from .length_policy import round_up_quantity
 from .recalculation import (
     RecalculationError,
     _remove_assignment_and_empty_auto,
     board_reserve_for_line,
+    cable_length_policy,
     cable_line_length_breakdown,
     recalculate_segments,
     refresh_conduit_length,
     segment_geometry_diagnostics,
 )
+from .transit_reconciliation import staged_transit_reconciliation
+
+if TYPE_CHECKING:
+    from nl_project_2.cad_contract import CadObservationBatch
+    from nl_project_2.cad_sync.bridge import AutoCadBridgeClient
+
+    from .transit_activation_readiness import (
+        TransitActivationPlan,
+        TransitActivationRequest,
+    )
+    from .transit_canonical_readback import TransitCanonicalReadback
+    from .transit_dwg_scan_lineage import DwgScanLineageReview, DwgTransitRevalidationPlan
+    from .transit_line_preview import TransitLineApproval
+    from .transit_live_bridge_gate import TransitLiveBridgeReview
+    from .transit_source_selection import ShadowMode, ShadowQuantitySelection
 
 AV_LOAD_TYPES = frozenset({"SPEAKER_CABLE", "HDMI"})
 CABLE_CATEGORIES = frozenset({"SPEAKER_CABLE", "HDMI", "OTHER_APPROVED_CABLE"})
@@ -113,6 +131,156 @@ class CableService:
                 .order_by(cable_line.c.system_kind, cable_line.c.designation)
             ).mappings()
             return [dict(row) for row in rows]
+
+    def transit_reconciliation(self, project_id: str) -> dict:
+        """Read-only comparison: staged physical evidence vs canonical quantities."""
+        with self._engine.connect() as connection:
+            return staged_transit_reconciliation(connection, project_id)
+
+    def review_prepared_transit_line(
+        self,
+        approval: TransitLineApproval,
+        *,
+        expected_batch_sha256: str,
+        confirmed: bool = False,
+    ) -> TransitCanonicalReadback:
+        """Opt-in D17 readback. Never changes effective length or a specification."""
+        # Import lazily: cad_sync imports cad_contract, which loads cables.
+        # Eager imports at cables package initialization cause a circular import.
+        from .transit_canonical_readback import review_prepared_transit_for_canonical
+
+        with self._engine.connect() as connection:
+            return review_prepared_transit_for_canonical(
+                connection,
+                approval,
+                expected_batch_sha256=expected_batch_sha256,
+                confirmed=confirmed,
+            )
+
+    def transit_activation_readiness(
+        self,
+        requests: tuple[TransitActivationRequest, ...],
+        *,
+        selected_line_ids: frozenset[str],
+        confirmed: bool = False,
+    ) -> TransitActivationPlan:
+        """D18 read-only gate; has no method to publish or revoke quantities."""
+        # Local import avoids cad_sync/cad_contract import cycle at startup.
+        from .transit_activation_readiness import plan_transit_activation
+
+        return plan_transit_activation(
+            self._engine,
+            requests,
+            selected_line_ids=selected_line_ids,
+            confirmed=confirmed,
+        )
+
+    def review_current_dwg_transit(
+        self,
+        approval: TransitLineApproval,
+        *,
+        current_batch: CadObservationBatch | None,
+        confirmed: bool = False,
+    ) -> DwgScanLineageReview:
+        """Compare supplied CAD data with accepted scan; never publish lengths."""
+        from .transit_dwg_scan_lineage import compare_current_dwg_observations
+
+        with self._engine.connect() as connection:
+            return compare_current_dwg_observations(
+                connection,
+                approval,
+                current_batch=current_batch,
+                confirmed=confirmed,
+            )
+
+    def plan_current_dwg_transit_revalidation(
+        self,
+        requests: tuple[TransitActivationRequest, ...],
+        *,
+        selected_line_ids: frozenset[str],
+        supplied_batches: Mapping[str, CadObservationBatch | None],
+        confirmed: bool = False,
+    ) -> DwgTransitRevalidationPlan:
+        """D19 strict CAD replay comparison + D18 blocked activation plan."""
+        from .transit_dwg_scan_lineage import plan_dwg_transit_revalidation
+
+        return plan_dwg_transit_revalidation(
+            self._engine,
+            requests,
+            selected_line_ids=selected_line_ids,
+            supplied_batches=supplied_batches,
+            confirmed=confirmed,
+        )
+
+    def review_live_transit_from_bridge(
+        self,
+        bridge: AutoCadBridgeClient,
+        requests: tuple[TransitActivationRequest, ...],
+        *,
+        selected_line_ids: frozenset[str],
+        expected_document_identity: str,
+        confirmed: bool = False,
+    ) -> TransitLiveBridgeReview:
+        """D20 forced full bridge scan; result never authorizes length publication."""
+        from nl_project_2.cad_contract import load_contract
+
+        from .transit_live_bridge_gate import review_transit_from_active_bridge
+
+        return review_transit_from_active_bridge(
+            self._engine,
+            bridge,
+            requests,
+            selected_line_ids=selected_line_ids,
+            expected_document_identity=expected_document_identity,
+            definition_names=tuple(load_contract().blocks),
+            confirmed=confirmed,
+        )
+
+    def preview_transit_quantity_sources(
+        self,
+        requests: tuple[TransitActivationRequest, ...],
+        *,
+        selected_line_ids: frozenset[str],
+        mode: ShadowMode,
+        expected_selection_sha256: str,
+        confirmed: bool = False,
+    ) -> ShadowQuantitySelection:
+        """D21 request-scoped shadow source switch; never persists activation."""
+        from .transit_canonical_readback import review_prepared_transit_for_canonical
+        from .transit_source_selection import make_shadow_selection, selection_sha256
+
+        if selection_sha256(requests, selected_line_ids, mode=mode) != expected_selection_sha256:
+            raise ValueError("D21_EXPLICIT_SELECTION_APPROVAL_REQUIRED")
+        if not confirmed:
+            raise ValueError("D21_EXPLICIT_SELECTION_APPROVAL_REQUIRED")
+        project_id = requests[0].approval.transit.project_id
+        legacies: dict[str, Decimal | None] = {}
+        reviews = {}
+        for request in requests:
+            line_id = request.approval.transit.cable_line_id
+            try:
+                legacies[line_id] = self.effective_length(project_id, line_id).effective_m
+            except CableError:
+                legacies[line_id] = None
+        if mode == "PREPARED_SHADOW":
+            with self._engine.connect() as connection:
+                for request in requests:
+                    line_id = request.approval.transit.cable_line_id
+                    reviews[line_id] = review_prepared_transit_for_canonical(
+                        connection,
+                        request.approval,
+                        expected_batch_sha256=request.d16_batch_sha256,
+                        confirmed=True,
+                    )
+        return make_shadow_selection(
+            requests,
+            selected_line_ids=selected_line_ids,
+            mode=mode,
+            expected_selection_sha256=expected_selection_sha256,
+            confirmed=True,
+            legacy_effective_m=legacies,
+            readbacks=reviews,
+        )
 
     def topology(self, project_id: str, cable_line_id: str) -> dict:
         """Return user-facing physical topology, segment facts and route breakdown."""
@@ -466,6 +634,11 @@ class CableService:
 
         return {
             "cable_line_id": cable_line_id,
+            "transit_reconciliation": tuple(
+                review
+                for review in self.transit_reconciliation(project_id)["routes"]
+                if review["cable_line_id"] == cable_line_id
+            ),
             "designation": line["designation"],
             "cable_type": facts.get("CABLE_TYPE", ""),
             "root_endpoint": root,
@@ -493,9 +666,6 @@ class CableService:
             "obstacle_reserve_m": (
                 "0" if length_breakdown is None else str(length_breakdown.obstacle_reserve_m)
             ),
-            "timber_reserve_m": (
-                "0" if length_breakdown is None else str(length_breakdown.timber_reserve_m)
-            ),
             "geometric_m": (
                 None if length_breakdown is None else str(length_breakdown.geometric_m)
             ),
@@ -508,9 +678,6 @@ class CableService:
             ),
             "endpoint_mechanisms": (
                 0 if length_breakdown is None else length_breakdown.endpoint_mechanisms
-            ),
-            "timber_segments": (
-                0 if length_breakdown is None else length_breakdown.timber_segments
             ),
             "additional_m": (
                 "0" if length_row is None else str(length_row["additional_length_m_decimal"] or "0")
@@ -574,6 +741,7 @@ class CableService:
             ),
             "incomplete_lines": sum(card["effective_m"] is None for card in cards),
             "manual_lines": sum(card.get("manual_full_m") is not None for card in cards),
+            "staged_transit_review": self.transit_reconciliation(project_id),
         }
 
     def line_cards(self, project_id: str) -> list[dict]:
@@ -648,6 +816,9 @@ class CableService:
             names = unresolved_room_names_by_line.setdefault(cable_line_id, [])
             if raw_room not in names:
                 names.append(raw_room)
+        reviews_by_line: dict[str, list[dict]] = {}
+        for review in self.transit_reconciliation(project_id)["routes"]:
+            reviews_by_line.setdefault(review["cable_line_id"], []).append(review)
         cards = []
         for row in self.list_lines(project_id):
             facts = dict(row["cable_facts_json"] or {})
@@ -706,6 +877,7 @@ class CableService:
                 "gofra_color": uniform("gofra_color"),
                 "gofra_id": uniform("designation"),
                 "cable_type": facts.get("CABLE_TYPE", ""),
+                "staged_transit_review": tuple(reviews_by_line.get(row["id"], ())),
                 "board": facts.get("BOARD", ""),
                 "load_name": facts.get("LOAD_NAME", ""),
                 "load_type": facts.get("LOAD_TYPE", ""),
@@ -1508,7 +1680,9 @@ class CableService:
             # final whole-metre delivery rule for the automatic value.
             automatic = Decimal(str(row["calculated_length_m_decimal"] or 0))
             unrounded = automatic + additional
-            rounded = unrounded.to_integral_value(rounding=ROUND_CEILING)
+            with UnitOfWork(self._engine) as uow:
+                rounding_step = cable_length_policy(uow, project_id).rounding_step_m
+            rounded = round_up_quantity(unrounded, rounding_step)
             manual_value = None if manual is None else Decimal(str(manual))
             effective = manual_value if manual_value is not None else rounded
             return LengthResult(
@@ -1520,7 +1694,7 @@ class CableService:
                 (
                     {"kind": "direct_known_length", "m": str(automatic)},
                     {"kind": "unrounded", "m": str(unrounded)},
-                    {"kind": "rounded_up_to_1m", "m": str(rounded)},
+                    {"kind": "rounded_up_to_project_step", "m": str(rounded)},
                 ),
             )
 
@@ -1551,13 +1725,8 @@ class CableService:
             },
             {"kind": "meander_reserve", "m": str(breakdown.meander_reserve_m)},
             {"kind": "obstacle_reserve", "m": str(breakdown.obstacle_reserve_m)},
-            {
-                "kind": "timber_reserve",
-                "m": str(breakdown.timber_reserve_m),
-                "segments": str(breakdown.timber_segments),
-            },
             {"kind": "unrounded", "m": str(breakdown.unrounded_m)},
-            {"kind": "rounded_up_to_1m", "m": str(breakdown.rounded_m)},
+            {"kind": "rounded_up_to_project_step", "m": str(breakdown.rounded_m)},
         )
         return LengthResult(
             automatic,

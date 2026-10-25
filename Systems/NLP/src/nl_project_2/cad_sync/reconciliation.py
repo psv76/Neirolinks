@@ -12,7 +12,9 @@ from typing import Any
 
 from nl_project_2.cad_contract import CableSuffixKind, ValidatedObservation
 
+from .cable_transit import TransitAudit, analyze_cable_transit
 from .models import SyncOwnerKind
+from .transit_physical import PhysicalTransitRoute, build_physical_transit_routes
 
 LINE_FIELDS = frozenset({"CABLE_TYPE", "BOARD", "FUNCTION_GROUP", "LED_TYPE", "LOAD_NAME"})
 ROUTE_FIELDS = ("MOUNT_WAY", "GOFRA_TYPE", "GOFRA_COLOR", "GOFRA_ID")
@@ -86,6 +88,18 @@ class BusPointPlan:
 
 
 @dataclass(frozen=True, slots=True)
+class BusPhysicalPlan:
+    """Non-addressable physical DALI insertion (never a BusEndpoint address)."""
+
+    physical_id: str
+    bus_id: str
+    bus_kind: str
+    source: str
+    handle: str
+    block_name: str
+
+
+@dataclass(frozen=True, slots=True)
 class NormalizedCadSnapshot:
     facts: tuple[OwnerFact, ...]
     points: tuple[PointPlan, ...]
@@ -95,6 +109,9 @@ class NormalizedCadSnapshot:
     bus_points: tuple[BusPointPlan, ...]
     structural_reviews: tuple[str, ...]
     point_key_by_handle: tuple[tuple[str, str], ...]
+    bus_physical_nodes: tuple[BusPhysicalPlan, ...] = ()
+    transit_audit: TransitAudit = TransitAudit()
+    physical_transit_routes: tuple[PhysicalTransitRoute, ...] = ()
 
     def fact_map(self) -> dict[str, OwnerFact]:
         return {fact.owner_path: fact for fact in self.facts}
@@ -148,6 +165,7 @@ def normalize_validated_snapshot(
     keys: list[KeyPlan] = []
     reviews: list[str] = []
     bus_points: list[BusPointPlan] = []
+    bus_physical_nodes: list[BusPhysicalPlan] = []
 
     by_base: dict[str, list[ValidatedObservation]] = {}
     point_rows: dict[tuple[str, str], list[ValidatedObservation]] = {}
@@ -181,6 +199,24 @@ def normalize_validated_snapshot(
             for field, value in item.normalized_attributes.items()
             if field not in excluded and field != "DEVICE_TYPE"
         )
+        physical_identity = ""
+        if payload.bus_type == "DALI" and payload.bus_id and not payload.bus_point_id:
+            physical_identity = str(
+                item.normalized_attributes.get(
+                    "TRACK_ID" if payload.block_name == "TRACK_DALI" else "BOX_ID", ""
+                )
+            ).strip()
+            if payload.block_name in {"TRACK_DALI", "EL_BOX_OUT_100x100"} and physical_identity:
+                bus_physical_nodes.append(
+                    BusPhysicalPlan(
+                        physical_id=physical_identity,
+                        bus_id=payload.bus_id,
+                        bus_kind="DALI",
+                        source=payload.bus_source or "",
+                        handle=handle,
+                        block_name=payload.block_name,
+                    )
+                )
         for field, value in sorted(insertion_values.items()):
             owner_path = f"insertion:{handle}:{field}"
             facts.append(
@@ -192,6 +228,10 @@ def normalize_validated_snapshot(
                     value,
                     handle,
                     (handle,),
+                    # A physical Bus source or identity is a real topology
+                    # decision, not an ordinary label/comment change.
+                    structural=bool(physical_identity)
+                    and field in {"BUS_SOURCE", "BUS_ID", "BOX_ID", "TRACK_ID"},
                 )
             )
 
@@ -453,6 +493,7 @@ def normalize_validated_snapshot(
                 source_reference=port_reference,
             )
 
+    transit_audit = analyze_cable_transit(rows, segments)
     return NormalizedCadSnapshot(
         facts=tuple(sorted(facts, key=lambda fact: fact.owner_path)),
         points=tuple(sorted(points, key=lambda point: point.key)),
@@ -462,6 +503,11 @@ def normalize_validated_snapshot(
         bus_points=tuple(sorted(set(bus_points), key=lambda point: point.point_id)),
         structural_reviews=tuple(sorted(set(reviews))),
         point_key_by_handle=tuple(sorted(point_key_by_handle)),
+        transit_audit=transit_audit,
+        physical_transit_routes=build_physical_transit_routes(transit_audit),
+        bus_physical_nodes=tuple(
+            sorted(bus_physical_nodes, key=lambda node: (node.physical_id, node.handle))
+        ),
     )
 
 
@@ -560,6 +606,17 @@ def _point_key(base: str, logical_identity: str) -> str:
 def _point_identity(item: ValidatedObservation) -> str:
     payload = item.read_payload
     assert payload is not None and payload.cable_identity is not None
+    # TRACK is the external feeder termination; its addressable rail-mounted
+    # 48 V light is a distinct *existing* DALI address, not a second feeder
+    # termination with the identical bare CABLE_ID=4YY.
+    if payload.block_name == "TRACK_DALI":
+        physical_id = str(item.normalized_attributes.get("TRACK_ID") or "").strip()
+        if physical_id and payload.cable_identity.base.startswith("4"):
+            return physical_id
+    if payload.block_name == "LIGHT_TRACK_DALI_48V":
+        source = str(payload.cable_source or "").strip()
+        if source.startswith("TRACK.") and payload.bus_point_id:
+            return payload.bus_point_id
     # A base-only CABLE_ID names the line, not a physical box on that line.
     # Keep existing suffixed point identities and their accepted owner baselines.
     if payload.box_id and payload.cable_identity.suffix_kind is CableSuffixKind.BASE:

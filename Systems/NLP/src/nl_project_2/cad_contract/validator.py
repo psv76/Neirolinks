@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 
@@ -17,6 +17,8 @@ from nl_project_2.cables.domain import (
 )
 
 from .catalog import BlockContractCatalog, BlockRule
+from .dali_graph import validate_dali_graph
+from .dali_layer_rules import is_valid_dali_group_layer
 from .models import (
     CableIdentity,
     CableSuffixKind,
@@ -42,6 +44,9 @@ _CABLE_SOURCE = re.compile(
 )
 _FIELD_PORT_REFERENCE = re.compile(r"^(?:BOX\.[0-9]{3}|[1-8][0-9]{2}(?:\.[0-9]{2})?)$")
 _BUS_POINT_ID = re.compile(r"^(?P<bus>9[0-9]{2})\.(?P<order>[0-9]{3})$")
+_PASSIVE_BUS_ID = re.compile(r"^9[0-9]{2}$")
+_TRACK_ID = re.compile(r"^TRACK\.[0-9]{3}$")
+_PASSIVE_DALI_BLOCKS = frozenset({"EL_BOX_OUT_100x100", "TRACK_DALI"})
 _KEY_SOURCE_REFERENCE = re.compile(r"^(?P<cable>[1-9][0-9]{2}(?:\.[0-9]{2})?)/(?P<tag>KEY_[1-4])$")
 _DALI_GROUP_ID = re.compile(r"^D\.[0-9]{3}$")
 _LIGHTING_DEVICE_TYPES = frozenset({"LIGHT", "LIGHT_LED", "TRACK_230V", "TRACK_48V", "TRACK_DALI"})
@@ -97,8 +102,18 @@ class _BatchFacts:
 
 
 class CadContractValidator:
-    def __init__(self, catalog: BlockContractCatalog) -> None:
+    def __init__(
+        self,
+        catalog: BlockContractCatalog,
+        *,
+        project_bus_kinds: Mapping[str, str] | None = None,
+        project_bus_roots: Collection[str] | None = None,
+    ) -> None:
         self.catalog = catalog
+        self._project_bus_kinds = dict(project_bus_kinds or {})
+        self._project_bus_roots = (
+            frozenset(project_bus_roots) if project_bus_roots is not None else None
+        )
         self._owned_attribute_tags = frozenset(
             tag
             for rule in catalog.blocks.values()
@@ -142,6 +157,7 @@ class CadContractValidator:
             issues.extend(item_issues)
 
         issues.extend(self._validate_batch_facts(facts, batch.source_metadata))
+        issues.extend(validate_dali_graph(validated, self._project_bus_roots))
         return ValidationResult(observations=tuple(validated), issues=tuple(issues))
 
     def _validate_observation(
@@ -235,13 +251,14 @@ class CadContractValidator:
                 issues,
             )
 
-        function_group = self._function_group(observation, rule, issues)
-        if function_group == "AV" and "CABLE_ID" in normalized:
+        function_group = self._function_group(observation, rule, attributes, issues)
+        is_av_line = function_group == "AV" and rule.device_type != "BOARD"
+        if is_av_line and "CABLE_ID" in normalized:
             normalized["CABLE_ID"] = normalized["CABLE_ID"].strip().upper()
 
         required = set(rule.required_attributes)
         required_definitions = set(rule.required_definition_attributes)
-        if function_group == "AV":
+        if is_av_line:
             required.update(self.catalog.av_rules["required"])
         if rule.device_type == "BOARD":
             role = normalized.get("LOAD_TYPE", "")
@@ -249,7 +266,7 @@ class CadContractValidator:
                 required.update(self.catalog.board_rules["feed_attributes"])
                 required_definitions.update(self.catalog.board_rules["feed_attributes"])
 
-        av_nonblocking = function_group == "AV"
+        av_nonblocking = is_av_line
         av_incomplete_fields = set(self.catalog.av_rules["required"])
         issues.extend(
             self._validate_attributes(
@@ -528,11 +545,17 @@ class CadContractValidator:
         facts: _BatchFacts,
     ) -> list[ValidationIssue]:
         issues: list[ValidationIssue] = []
-        if observation.layer != rule.logical_layer:
+        valid_layer = (
+            is_valid_dali_group_layer(observation.layer)
+            if rule.name == "DALI_GROUP"
+            else observation.layer == rule.logical_layer
+        )
+        expected_layer = "valid 300_* or 400_*" if rule.name == "DALI_GROUP" else rule.logical_layer
+        if not valid_layer:
             issues.append(
                 self._issue(
                     "LOGICAL_LAYER_MISMATCH",
-                    f"{rule.name} must be on layer {rule.logical_layer}",
+                    f"{rule.name} must be on layer {expected_layer}",
                     observation,
                     "LAYER",
                 )
@@ -585,9 +608,53 @@ class CadContractValidator:
         self,
         observation: CadObservation,
         rule: BlockRule,
+        attributes: dict[str, str],
         issues: list[ValidationIssue],
     ) -> str | None:
-        candidates = self.catalog.groups_for_layer(observation.layer) & rule.allowed_groups
+        candidates = (
+            self.catalog.groups_for_board_layer(
+                rule.name, attributes.get("LOAD_TYPE", ""), observation.layer
+            )
+            if rule.device_type == "BOARD"
+            else self.catalog.groups_for_layer(observation.layer) & rule.allowed_groups
+        )
+
+        # #234/#235: TRACK_DALI is a physical product, not a voltage group.
+        # Its power feeder may be 230 V (3YY) or 48 V (4YY) even though
+        # both feeders share the TRACK_DALI drawing layer. Select using the
+        # actual ordinary CABLE_ID, never BUS_ID or the DALI block name.
+        # Keep the unique-layer rule unchanged for every other block.
+        if rule.name == "TRACK_DALI" and len(candidates) > 1:
+            cable_id = next(
+                (
+                    str(item.value).strip()
+                    for item in observation.raw_attributes
+                    if item.tag == "CABLE_ID"
+                ),
+                "",
+            )
+            matching = (
+                [
+                    name
+                    for name in candidates
+                    if self.catalog.functional_groups[name].cable_prefix == cable_id[0]
+                ]
+                if _STANDARD_CABLE_ID.fullmatch(cable_id)
+                else []
+            )
+            if len(matching) == 1:
+                return matching[0]
+            issues.append(
+                self._issue(
+                    "TRACK_DALI_POWER_GROUP_UNRESOLVED",
+                    "TRACK_DALI power feeder must be a valid 3YY (230 V) or "
+                    "4YY (48 V) CABLE_ID on the approved track layer",
+                    observation,
+                    "CABLE_ID",
+                )
+            )
+            return None
+
         if len(candidates) != 1:
             issues.append(
                 self._issue(
@@ -637,7 +704,9 @@ class CadContractValidator:
         if not value:
             return []
         allowed = (
-            self.catalog.load_types["AV"] if function_group == "AV" else rule.allowed_load_types
+            self.catalog.load_types["AV"]
+            if function_group == "AV" and rule.device_type != "BOARD"
+            else rule.allowed_load_types
         )
         if value and not allowed:
             return [
@@ -655,7 +724,7 @@ class CadContractValidator:
                     f"LOAD_TYPE={value!r} is not approved for this block context",
                     observation,
                     "LOAD_TYPE",
-                    blocks_acceptance=function_group != "AV",
+                    blocks_acceptance=function_group != "AV" or rule.device_type == "BOARD",
                 )
             ]
         return []
@@ -744,21 +813,98 @@ class CadContractValidator:
                     facts.el_box_outputs.append((observation.handle, cable_id, tag, target))
 
         source = attributes.get("CABLE_SOURCE", "").strip()
-        if source and not _CABLE_SOURCE.fullmatch(source):
+        internal_dali_track_source = (
+            rule.name == "LIGHT_TRACK_DALI_48V" and _TRACK_ID.fullmatch(source) is not None
+        )
+        if source and not _CABLE_SOURCE.fullmatch(source) and not internal_dali_track_source:
             issues.append(
                 self._issue(
                     "CABLE_SOURCE_FORMAT",
-                    "CABLE_SOURCE must be BOX.NNN, XYY.ZZ or 9YY.ZZZ/PORT",
+                    "CABLE_SOURCE must be BOX.NNN, XYY.ZZ or 9YY.ZZZ/PORT "
+                    "(TRACK.NNN only for LIGHT_TRACK_DALI_48V)",
                     observation,
                     "CABLE_SOURCE",
                 )
             )
-        elif source:
+        elif source and not internal_dali_track_source:
+            # Internal 48 V track ownership is not an ordinary cable edge:
+            # it is resolved against an accepted TRACK_DALI in Project.
             target = box_id if rule.device_type == "EL_BOX" and box_id else cable_id
             facts.source_rows.append((observation.handle, target, source))
 
         bus_point_id = attributes.get("BUS_POINT_ID", "").strip()
         bus_source = attributes.get("BUS_SOURCE", "").strip()
+        # Passive DALI endpoints have a physical BOX/TRACK identity. BUS_ID
+        # records only membership; never mint BUS_POINT_ID or a DALI address.
+        if rule.name in _PASSIVE_DALI_BLOCKS:
+            bus_id = attributes.get("BUS_ID", "").strip()
+            if bus_id and _PASSIVE_BUS_ID.fullmatch(bus_id) is None:
+                issues.append(
+                    self._issue(
+                        "BUS_ID_FORMAT",
+                        "passive DALI BUS_ID must match 9YY",
+                        observation,
+                        "BUS_ID",
+                    )
+                )
+            elif bus_id and not bus_source:
+                issues.append(
+                    self._issue(
+                        "BUS_SOURCE_REQUIRED",
+                        "passive DALI bus membership requires an explicit upstream",
+                        observation,
+                        "BUS_SOURCE",
+                    )
+                )
+            elif not bus_id and bus_source:
+                issues.append(
+                    self._issue(
+                        "BUS_ID_REQUIRED",
+                        "BUS_SOURCE requires passive DALI BUS_ID membership",
+                        observation,
+                        "BUS_ID",
+                    )
+                )
+            elif bus_id:
+                source_point = _BUS_POINT_ID.fullmatch(bus_source)
+                if source_point and source_point.group("bus") != bus_id:
+                    issues.append(
+                        self._issue(
+                            "BUS_SOURCE_CROSS_BUS",
+                            f"{bus_source!r} does not belong to BUS_ID {bus_id}",
+                            observation,
+                            "BUS_SOURCE",
+                        )
+                    )
+                elif not source_point and not (
+                    _BOX_ID.fullmatch(bus_source) or _TRACK_ID.fullmatch(bus_source)
+                ):
+                    issues.append(
+                        self._issue(
+                            "BUS_SOURCE_FORMAT",
+                            "passive DALI BUS_SOURCE must be 9YY.ZZZ, BOX.NNN or TRACK.NNN",
+                            observation,
+                            "BUS_SOURCE",
+                        )
+                    )
+            if bus_point_id:
+                issues.append(
+                    self._issue(
+                        "PASSIVE_BUS_POINT_ID_FORBIDDEN",
+                        "Legacy passive BUS_POINT_ID requires approved mapping",
+                        observation,
+                        "BUS_POINT_ID",
+                    )
+                )
+            if bus_id in self._project_bus_kinds and self._project_bus_kinds[bus_id] != "DALI":
+                issues.append(
+                    self._issue(
+                        "BUS_TYPE_CONFLICT",
+                        "Passive membership requires a DALI Project bus",
+                        observation,
+                        "BUS_ID",
+                    )
+                )
         if bus_point_id:
             match = _BUS_POINT_ID.fullmatch(bus_point_id)
             if match is None:
@@ -780,9 +926,27 @@ class CadContractValidator:
                     )
                 )
             else:
-                bus_kind = (
+                bus_kind = self._bus_kind(rule, bus_point_id)
+                if bus_kind is None:
+                    issues.append(
+                        self._issue(
+                            "BUS_TYPE_REQUIRED",
+                            "A universal outlet requires an explicit Project bus type",
+                            observation,
+                            "BUS_POINT_ID",
+                        )
+                    )
+                elif rule.name != "CABLE_OUTLET_BUS" and bus_kind != (
                     "DALI" if "BUS_SOURCE" in rule.required_definition_attributes else "RS485"
-                )
+                ):
+                    issues.append(
+                        self._issue(
+                            "BUS_TYPE_CONFLICT",
+                            "Project bus type conflicts with the specialized block",
+                            observation,
+                            "BUS_POINT_ID",
+                        )
+                    )
                 facts.bus_rows.append(
                     (
                         observation.handle,
@@ -793,16 +957,20 @@ class CadContractValidator:
                     )
                 )
                 if bus_kind == "DALI":
-                    if not bus_source or _BUS_POINT_ID.fullmatch(bus_source) is None:
+                    if not (
+                        _BUS_POINT_ID.fullmatch(bus_source)
+                        or _BOX_ID.fullmatch(bus_source)
+                        or _TRACK_ID.fullmatch(bus_source)
+                    ):
                         issues.append(
                             self._issue(
                                 "BUS_SOURCE_FORMAT",
-                                "DALI BUS_SOURCE must match 9YY.ZZZ",
+                                "DALI BUS_SOURCE must match 9YY.ZZZ, BOX.NNN or TRACK.NNN",
                                 observation,
                                 "BUS_SOURCE",
                             )
                         )
-                elif bus_source:
+                elif bus_kind == "RS485" and bus_source:
                     issues.append(
                         self._issue(
                             "RS485_BUS_SOURCE_FORBIDDEN",
@@ -859,13 +1027,30 @@ class CadContractValidator:
                     )
         return issues
 
-    @staticmethod
+    def _bus_kind(self, rule: BlockRule, point_id: str) -> str | None:
+        # Same Project-owned input convention as #227; no universal fallback.
+        if point_id[:3] in self._project_bus_kinds:
+            kind = self._project_bus_kinds[point_id[:3]]
+            return kind if kind in {"RS485", "DALI", "KNX"} else None
+        if rule.name == "CABLE_OUTLET_BUS":
+            return None
+        return "DALI" if "BUS_SOURCE" in rule.required_definition_attributes else "RS485"
+
+    def _is_av_board(self, rule: BlockRule, attributes: dict[str, str]) -> bool:
+        return (
+            rule.device_type == "BOARD"
+            and rule.name == self.catalog.board_rules["av_block_name"]
+            and attributes.get("LOAD_TYPE") == self.catalog.board_rules["av_role"]
+        )
+
     def _read_payload(
+        self,
         observation: CadObservation,
         rule: BlockRule,
         attributes: dict[str, str],
     ) -> NormalizedCadReadPayload:
-        cable_identity = _parse_cable_identity(attributes.get("CABLE_ID", ""))
+        av_board = self._is_av_board(rule, attributes)
+        cable_identity = None if av_board else _parse_cable_identity(attributes.get("CABLE_ID", ""))
         keys = tuple(
             TaggedFact(tag, attributes[tag])
             for tag in ("KEY_1", "KEY_2", "KEY_3", "KEY_4")
@@ -888,7 +1073,13 @@ class CadContractValidator:
             if tag in attributes
         )
         bus_point_id = attributes.get("BUS_POINT_ID", "")
+        if rule.name in _PASSIVE_DALI_BLOCKS:
+            bus_point_id = ""
         bus_match = _BUS_POINT_ID.fullmatch(bus_point_id)
+        passive_id = (
+            attributes.get("BUS_ID", "").strip() if rule.name in _PASSIVE_DALI_BLOCKS else ""
+        )
+        passive_valid = bool(_PASSIVE_BUS_ID.fullmatch(passive_id))
         return NormalizedCadReadPayload(
             block_name=observation.effective_name,
             device_type=rule.device_type,
@@ -898,14 +1089,16 @@ class CadContractValidator:
             y=observation.y,
             cable_identity=cable_identity,
             box_id=attributes.get("BOX_ID") or None,
-            cable_source=attributes.get("CABLE_SOURCE") or None,
+            cable_source=None if av_board else attributes.get("CABLE_SOURCE") or None,
             bus_point_id=bus_point_id or None,
-            bus_id=bus_match.group("bus") if bus_match else None,
+            bus_id=bus_match.group("bus") if bus_match else (passive_id if passive_valid else None),
             bus_source=attributes.get("BUS_SOURCE") or None,
-            bus_type=("DALI" if "BUS_SOURCE" in rule.required_definition_attributes else "RS485")
-            if bus_match
-            else None,
-            cable_link_kind=rule.cable_link_kind,
+            bus_type=(
+                self._bus_kind(rule, bus_point_id)
+                if bus_match
+                else ("DALI" if passive_valid else None)
+            ),
+            cable_link_kind=None if av_board else rule.cable_link_kind,
             bus_link_kind=rule.bus_link_kind,
             derived_phase=rule.derived_phase,
             keys=keys,
@@ -925,6 +1118,9 @@ class CadContractValidator:
         facts: _BatchFacts,
     ) -> list[ValidationIssue]:
         issues: list[ValidationIssue] = []
+        # An AV destination board never contributes cable identities or line facts.
+        if self._is_av_board(rule, attributes):
+            return issues
         cable_id = attributes.get("CABLE_ID", "")
         if function_group == "AV":
             if rule.name != self.catalog.av_rules["block_name"]:
@@ -1267,43 +1463,25 @@ class CadContractValidator:
                 )
             )
 
-        bus_points = {point for _handle, point, _source, _kind, _cable_type in facts.bus_rows}
-        bus_adjacency: dict[str, set[str]] = defaultdict(set)
+        bus_point_handles: dict[str, list[str]] = defaultdict(list)
+        for handle, point, _source, _kind, _cable_type in facts.bus_rows:
+            bus_point_handles[point].append(handle)
+        for point, handles in sorted(bus_point_handles.items()):
+            if len(handles) > 1:
+                for handle in handles:
+                    issues.append(
+                        self._issue(
+                            "DUPLICATE_BUS_POINT_ID",
+                            (f"BUS_POINT_ID {point} duplicates at handles: {tuple(handles)}"),
+                            handle=handle,
+                            field="BUS_POINT_ID",
+                            related_handles=tuple(handles),
+                        )
+                    )
         cable_types: dict[str, set[str]] = defaultdict(set)
-        for handle, point, source, kind, cable_type in facts.bus_rows:
-            bus_id = point[:3]
+        for _handle, point, _source, _kind, cable_type in facts.bus_rows:
             if cable_type:
-                cable_types[bus_id].add(cable_type)
-            if kind == "DALI":
-                if source[:3] != bus_id:
-                    issues.append(
-                        self._issue(
-                            "BUS_SOURCE_CROSS_BUS",
-                            f"{source!r} does not belong to BUS_ID {bus_id}",
-                            handle=handle,
-                            field="BUS_SOURCE",
-                        )
-                    )
-                elif source != f"{bus_id}.000" and source not in bus_points:
-                    issues.append(
-                        self._issue(
-                            "BUS_SOURCE_NOT_FOUND",
-                            f"BUS_SOURCE {source!r} is absent",
-                            handle=handle,
-                            field="BUS_SOURCE",
-                        )
-                    )
-                else:
-                    bus_adjacency[source].add(point)
-        bus_nodes = set(bus_adjacency) | {
-            node for values in bus_adjacency.values() for node in values
-        }
-        if _graph_has_cycle(bus_adjacency, bus_nodes):
-            issues.append(
-                self._issue(
-                    "BUS_SOURCE_CYCLE", "DALI topology contains a cycle/ring", field="BUS_SOURCE"
-                )
-            )
+                cable_types[point[:3]].add(cable_type)
         for bus_id, values in sorted(cable_types.items()):
             if len(values) > 1:
                 issues.append(

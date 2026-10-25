@@ -76,13 +76,21 @@ from .models import (
     WriteExecutionReceipt,
     WriteResult,
 )
+from .physical_dali_store import (
+    PhysicalDaliTopologyError,
+    persist_selected_physical_graph,
+    read_project_physical_sources,
+)
+from .project_bus_context import load_project_bus_context
 from .reconciliation import (
     ROUTE_FIELDS,
     NormalizedCadSnapshot,
     normalize_validated_snapshot,
     reconcile_snapshot_edge_projections,
 )
+from .reconciliation_safety import is_authoritative_scan_metadata
 from .selection import atomic_line_import_groups
+from .track_power import TrackInternalPowerError, selected_internal_track_power
 
 PROJECT_TO_DWG_ALLOW_LIST = frozenset(
     {
@@ -149,7 +157,17 @@ class DwgSyncService:
         self._engine = engine
         self._cad_port = cad_port
         self._contract = load_contract()
-        self._validator = CadContractValidator(self._contract)
+
+    def _validator_for_project(self, project_id: str) -> CadContractValidator:
+        # Validate against the current Project's active, verified bus roots.
+        # No DWG inference or process-wide root cache is permitted.
+        with self._engine.connect() as connection:
+            context = load_project_bus_context(connection, project_id)
+        return CadContractValidator(
+            self._contract,
+            project_bus_kinds=context.kinds,
+            project_bus_roots=context.verified_dali_roots,
+        )
 
     def scan_active(
         self,
@@ -187,7 +205,12 @@ class DwgSyncService:
         batch: CadObservationBatch,
         progress: Callable[[DwgScanProgress], None] | None = None,
     ) -> ScanProposal:
-        validation = self._validator.validate(batch)
+        if not is_authoritative_scan_metadata(batch.source_metadata):
+            raise DwgSyncError(
+                "SCAN_NOT_AUTHORITATIVE: incomplete, filtered or invalid scan metadata; "
+                "a full unfiltered DWG snapshot is required for reconciliation"
+            )
+        validation = self._validator_for_project(project_id).validate(batch)
         if progress is not None:
             progress(DwgScanProgress("FORMING_CHANGES"))
         snapshot = normalize_validated_snapshot(validation.observations)
@@ -285,6 +308,7 @@ class DwgSyncService:
             project_owner_values = _load_project_owner_values(
                 connection,
                 project_id=project_id,
+                binding_id=binding_id,
                 snapshot=snapshot,
                 devices=devices,
                 baselines=baselines,
@@ -465,18 +489,31 @@ class DwgSyncService:
             safe_dwg_source_change = (
                 fact.field == "CABLE_SOURCE" and status is ChangeClass.DWG_CHANGED
             )
+            # #227: BUS_POINT_ID is an accepted physical endpoint identity.
+            # A stable DWG handle does not authorize a free-address renumber,
+            # a swap, or a move to another Project Bus.
+            previous_bus_point = str(
+                devices.get(fact.primary_handle, {}).get("BUS_POINT_ID") or ""
+            ).strip()
+            bus_point_renumber = (
+                fact.field == "BUS_POINT_ID"
+                and bool(previous_bus_point)
+                and previous_bus_point != str(fact.value or "").strip()
+            )
             safe_structural_change = safe_dwg_source_change or safe_dwg_cable_id_change
             if (
-                fact.structural
-                and status
-                not in {
-                    ChangeClass.EQUAL,
-                }
+                (fact.structural or bus_point_renumber)
+                and status is not ChangeClass.EQUAL
                 and not safe_structural_change
             ):
                 status = ChangeClass.IDENTITY_COLLISION
                 detail_status = "STRUCTURAL_IDENTITY_REVIEW"
-                reason = "Structural identity/topology change requires explicit structural apply"
+                reason = (
+                    "BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION: "
+                    "existing Project endpoint identity cannot be rebound by DWG import"
+                    if bus_point_renumber
+                    else "Structural identity/topology change requires explicit structural apply"
+                )
             changes.append(
                 SyncChange(
                     f"{fact.primary_handle}:{fact.field}",
@@ -491,7 +528,7 @@ class DwgSyncService:
                     fact.owner_key,
                     fact.owner_path,
                     fact.affected_handles,
-                    fact.structural and not safe_structural_change,
+                    (fact.structural or bus_point_renumber) and not safe_structural_change,
                     detail_status,
                 )
             )
@@ -628,6 +665,8 @@ class DwgSyncService:
             summary=summary,
             project_revision=int(revision),
             binding_id=binding_id,
+            transit_audit=snapshot.transit_audit,
+            physical_transit_routes=snapshot.physical_transit_routes,
         )
 
     def apply_dwg_to_project(
@@ -639,6 +678,11 @@ class DwgSyncService:
         allow_structural: bool = False,
         failure_hook: Callable[[], None] | None = None,
     ) -> str:
+        if not is_authoritative_scan_metadata(proposal.batch.source_metadata):
+            raise DwgSyncError(
+                "SCAN_NOT_AUTHORITATIVE: incomplete, filtered or invalid scan metadata; "
+                "a full unfiltered DWG snapshot is required for reconciliation"
+            )
         if not confirmed:
             raise DwgSyncError("Explicit user confirmation is required")
         selected = set(selected_paths)
@@ -662,6 +706,17 @@ class DwgSyncService:
         }
         if not selected <= applicable:
             raise DwgSyncError("Selection contains a non-applicable or implicit change")
+        # No allow_structural override for already accepted BUS_POINT_ID.
+        # Owner-aware identity migration is a separate, explicit operation.
+        if any(
+            change.field_path in selected
+            and change.field == "BUS_POINT_ID"
+            and change.detail_status == "STRUCTURAL_IDENTITY_REVIEW"
+            for change in proposal.changes
+        ):
+            raise DwgSyncError(
+                "BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION: use the accepted Project identity"
+            )
         selected_projection_handles = {
             handle
             for change in proposal.changes
@@ -689,9 +744,14 @@ class DwgSyncService:
         self._check_selected_validation(proposal, selected)
         self._check_project_selection(proposal, selected)
 
+        revalidated = self._validator_for_project(proposal.project_id).validate(proposal.batch)
+        if revalidated.issues != proposal.issues:
+            raise DwgSyncError(
+                "Project bus roots/types or CAD validation changed; rescan before applying"
+            )
         validated = {
             item.observation.handle: item
-            for item in self._validator.validate(proposal.batch).observations
+            for item in revalidated.observations
             if not item.ignored_project_data
         }
         snapshot = normalize_validated_snapshot(tuple(validated.values()))
@@ -1078,7 +1138,7 @@ class DwgSyncService:
                     definition=observation.definition,
                 )
             )
-        validation = self._validator.validate(
+        validation = self._validator_for_project(proposal.project_id).validate(
             CadObservationBatch(
                 proposal.batch.document_identity,
                 tuple(rewritten),
@@ -1646,6 +1706,19 @@ class DwgSyncService:
             )
             dwg_fields = _fields(item)
             values = dict(existing["normalized_fields_json"] or {}) if existing else {}
+            if (
+                existing is not None
+                and item.observation.effective_name in {"EL_BOX_OUT_100x100", "TRACK_DALI"}
+                and str(values.get("BUS_ID") or "").strip()
+                and str(values.get("BUS_ID") or "").strip()
+                != str(dwg_fields.get("BUS_ID") or "").strip()
+            ):
+                # Changing a previously accepted physical Bus owner is a
+                # controlled migration, not ordinary structural DWG import.
+                raise DwgSyncError(
+                    "BUS_PHYSICAL_BUS_REASSIGN_REQUIRES_ATTENTION:"
+                    + str(values.get("BOX_ID") or values.get("TRACK_ID") or handle)
+                )
             previous_cable_id = str(values.get("CABLE_ID") or "").strip()
             if previous_cable_id:
                 previous_bases.add(previous_cable_id.split(".", 1)[0])
@@ -1733,6 +1806,66 @@ class DwgSyncService:
         # unselected observation geometry/routes or create conduit assignments here.
         recalculate_segments(uow, project_id, device_ids={device["id"]}, reconcile_conduits=False)
 
+    def _protect_physical_bus_node_owners(
+        self, uow, *, project_id, snapshot, device_ids, active_handles
+    ) -> None:
+        """Fail closed on reusing physical BOX/TRACK identity in a Project.
+
+        This stage stores only the validated insertion's field_device evidence.
+        It cannot turn a BOX/TRACK into an addressable bus_endpoint or invent a
+        physical bus_segment. Existing physical owners are never adopted by
+        another DWG handle or by a second INSERT.
+        """
+        selected_nodes = [
+            node
+            for node in snapshot.bus_physical_nodes
+            if node.handle in active_handles and node.handle in device_ids
+        ]
+        if not selected_nodes:
+            return
+        accepted: dict[str, list[tuple[str, dict[str, str]]]] = defaultdict(list)
+        for row in uow.execute(
+            select(
+                field_device.c.id,
+                field_device.c.block_kind,
+                field_device.c.normalized_fields_json,
+            ).where(
+                field_device.c.project_id == project_id,
+                field_device.c.lifecycle == "ACTIVE",
+            )
+        ).mappings():
+            values = dict(row["normalized_fields_json"] or {})
+            identity_tag = (
+                "TRACK_ID"
+                if str(row["block_kind"]).startswith("TRACK_")
+                else "BOX_ID"
+                if row["block_kind"] == "EL_BOX_OUT_100x100"
+                else ""
+            )
+            if not identity_tag:
+                continue
+            identity = str(values.get(identity_tag) or "").strip()
+            if identity:
+                accepted[identity].append((row["id"], values))
+        for node in selected_nodes:
+            field_id = device_ids[node.handle]
+            owners = accepted.get(node.physical_id, [])
+            if any(owner_id != field_id for owner_id, _ in owners):
+                raise DwgSyncError(
+                    f"BUS_PHYSICAL_ID_OWNER_CONFLICT:{node.physical_id}:"
+                    "physical BOX/TRACK belongs to another accepted insertion"
+                )
+            if len(owners) != 1:
+                raise DwgSyncError(
+                    f"BUS_PHYSICAL_ID_OWNER_CONFLICT:{node.physical_id}:"
+                    "physical identity is not unique in Project"
+                )
+            _, persisted = owners[0]
+            if str(persisted.get("BUS_ID") or "").strip() != node.bus_id:
+                raise DwgSyncError(
+                    f"BUS_PHYSICAL_BUS_REASSIGN_REQUIRES_ATTENTION:{node.physical_id}"
+                )
+
     def _materialize_snapshot(
         self,
         uow,
@@ -1745,6 +1878,13 @@ class DwgSyncService:
     ) -> None:
         """Materialize validated points/edges/keys/ports from one immutable snapshot."""
 
+        self._protect_physical_bus_node_owners(
+            uow,
+            project_id=project_id,
+            snapshot=snapshot,
+            device_ids=device_ids,
+            active_handles=active_handles,
+        )
         affected_bus_ids = self._materialize_bus_snapshot(
             uow,
             project_id=project_id,
@@ -1752,7 +1892,52 @@ class DwgSyncService:
             device_ids=device_ids,
             active_handles=active_handles,
         )
+        try:
+            persist_selected_physical_graph(
+                uow,
+                project_id=project_id,
+                snapshot=snapshot,
+                device_ids=device_ids,
+                active_handles=active_handles,
+            )
+        except PhysicalDaliTopologyError as exc:
+            # Preserve the service's normal error contract; UnitOfWork rolls
+            # back all new devices and links on any topology rejection.
+            raise DwgSyncError(str(exc)) from exc
         recalculate_bus_segments(uow, project_id, bus_ids=affected_bus_ids)
+        try:
+            internal_track_power = selected_internal_track_power(
+                uow,
+                project_id=project_id,
+                active_handles=active_handles,
+                device_ids=device_ids,
+            )
+        except TrackInternalPowerError as exc:
+            raise DwgSyncError(str(exc)) from exc
+        # A pre-D10 TRACK_DALI may already have a base-only 4YY cable
+        # point shared with its lights. Such accepted physical topology must
+        # not be split by ordinary sync without an approved legacy repair.
+        for link in internal_track_power:
+            accepted_points = set(
+                uow.execute(
+                    select(cable_point.c.logical_identity)
+                    .join(
+                        cable_point_field_device,
+                        cable_point_field_device.c.cable_point_id == cable_point.c.id,
+                    )
+                    .where(
+                        cable_point.c.project_id == project_id,
+                        cable_point_field_device.c.field_device_id == link.track_field_device_id,
+                    )
+                ).scalars()
+            )
+            if accepted_points and accepted_points != {link.track_id}:
+                raise DwgSyncError(f"TRACK_POWER_LEGACY_POINT_REQUIRES_REVIEW:{link.track_id}")
+        internal_by_handle = {link.light_handle: link for link in internal_track_power}
+        point_keys = dict(snapshot.point_key_by_handle)
+        internal_point_keys = {
+            point_keys[handle] for handle in internal_by_handle if handle in point_keys
+        }
 
         endpoint_ids: dict[str, str] = {}
         points_by_base: dict[str, list] = defaultdict(list)
@@ -1933,12 +2118,30 @@ class DwgSyncService:
             line_ids=line_ids,
             active_handles=active_handles,
         )
+        # A rail-mounted 48 V light has accepted Project membership but no
+        # separate installed physical cable run, measured length or conduit.
+        # Do not silently discard a previously accepted external segment:
+        # that requires a separately reviewed migration.
+        for key in sorted(internal_point_keys):
+            target = endpoint_ids.get(key)
+            if target is None:
+                continue
+            old = uow.execute(
+                select(cable_segment.c.id).where(
+                    cable_segment.c.project_id == project_id,
+                    cable_segment.c.target_endpoint_id == target,
+                )
+            ).scalar_one_or_none()
+            if old is not None:
+                raise DwgSyncError(f"TRACK_POWER_LEGACY_SEGMENT_REQUIRES_REVIEW:{key}")
         source_endpoints: dict[str, str] = {}
         segment_ids: dict[str, str] = {}
         active_segments = [
             plan
             for plan in snapshot.segments
-            if plan.target_point_key in endpoint_ids and plan.base in line_ids
+            if plan.target_point_key in endpoint_ids
+            and plan.base in line_ids
+            and plan.target_point_key not in internal_point_keys
         ]
         points_by_key = {point.key: point for point in snapshot.points}
         for plan in active_segments:
@@ -2374,6 +2577,13 @@ class DwgSyncService:
                 )
             )
         for designation, plans in sorted(grouped.items()):
+            # Do not rewrite a persisted bus when an unselected DWG insertion
+            # duplicates an accepted BUS_POINT_ID. All independent cable
+            # changes remain applicable; duplicate points are validator issues.
+            point_ids = [plan.point_id for plan in plans]
+            if len(point_ids) != len(set(point_ids)):
+                continue
+
             bus_row = (
                 uow.execute(
                     select(bus).where(
@@ -2412,15 +2622,47 @@ class DwgSyncService:
                 )
 
             affected_bus_ids.add(bus_row["id"])
-            endpoint_by_address = {
-                row["address"]: row["id"]
-                for row in uow.execute(
+            # Endpoint addresses have immutable Project owners. Reusing an
+            # accepted address with a different DWG handle must never adopt,
+            # rewire or overwrite the original endpoint.
+            accepted_rows = list(
+                uow.execute(
                     select(bus_endpoint).where(
                         bus_endpoint.c.project_id == project_id,
                         bus_endpoint.c.bus_id == bus_row["id"],
                     )
                 ).mappings()
-            }
+            )
+            endpoint_by_address = {row["address"]: row["id"] for row in accepted_rows}
+            owner_by_address = {row["address"]: row["field_device_id"] for row in accepted_rows}
+            planned_device_ids = {device_ids[plan.handle] for plan in plans}
+            accepted_by_device: dict[str, set[str]] = defaultdict(set)
+            for owner_id, accepted_address in uow.execute(
+                select(
+                    bus_endpoint.c.field_device_id,
+                    bus_endpoint.c.address,
+                ).where(
+                    bus_endpoint.c.project_id == project_id,
+                    bus_endpoint.c.field_device_id.in_(planned_device_ids),
+                )
+            ):
+                accepted_by_device[owner_id].add(accepted_address)
+            for plan in plans:
+                device_id = device_ids[plan.handle]
+                if any(
+                    accepted_address != plan.point_id
+                    for accepted_address in accepted_by_device.get(device_id, ())
+                ):
+                    raise DwgSyncError(
+                        f"BUS_POINT_ID_RENUMBER_REQUIRES_ATTENTION:{designation}:{plan.point_id}"
+                    )
+                if (
+                    plan.point_id in endpoint_by_address
+                    and owner_by_address[plan.point_id] != device_id
+                ):
+                    raise DwgSyncError(f"BUS_POINT_ID_OWNER_CONFLICT:{designation}:{plan.point_id}")
+
+            inserted_endpoint = False
             for plan in plans:
                 endpoint_id = endpoint_by_address.get(plan.point_id)
                 if endpoint_id is None:
@@ -2438,14 +2680,50 @@ class DwgSyncService:
                         )
                     )
                     endpoint_by_address[plan.point_id] = endpoint_id
+                    inserted_endpoint = True
+
+            # RS-485 physical sequence comes from all accepted Project points,
+            # not only the subset currently visible in DWG. Missing handles
+            # are not authority to delete or bypass accepted chain members.
+            rs485_upstream: dict[str, str | None] = {}
+            if bus_row["bus_kind"] == "RS485":
+                previous_rs485 = None
+                accepted_addresses = sorted(
+                    (
+                        address
+                        for address in endpoint_by_address
+                        if isinstance(address, str)
+                        and address.startswith(f"{designation}.")
+                        and len(address) == 7
+                        and address[4:].isdigit()
+                        and address[4:] != "000"
+                    ),
+                    key=lambda address: int(address[4:]),
+                )
+                for address in accepted_addresses:
+                    rs485_upstream[address] = previous_rs485
+                    previous_rs485 = endpoint_by_address[address]
 
             ordered = sorted(plans, key=lambda plan: int(plan.point_id.rsplit(".", 1)[1]))
-            previous_rs485 = None
             for plan in ordered:
                 target_endpoint = endpoint_by_address[plan.point_id]
+                if plan.bus_kind == "DALI" and (plan.source or "").startswith(("BOX.", "TRACK.")):
+                    # Physical parents live in bus_physical_link, not a fake
+                    # root-sourced BusSegment with guessed metres/conduit.
+                    old_segment = uow.execute(
+                        select(bus_segment.c.id).where(
+                            bus_segment.c.project_id == project_id,
+                            bus_segment.c.bus_id == bus_row["id"],
+                            bus_segment.c.target_endpoint_id == target_endpoint,
+                        )
+                    ).scalar_one_or_none()
+                    if old_segment is not None:
+                        raise DwgSyncError(
+                            f"BUS_PHYSICAL_LEGACY_SEGMENT_REQUIRES_REVIEW:{plan.point_id}"
+                        )
+                    continue
                 if plan.bus_kind == "RS485":
-                    source_endpoint = previous_rs485
-                    previous_rs485 = target_endpoint
+                    source_endpoint = rs485_upstream[plan.point_id]
                 elif plan.source == f"{designation}.000":
                     source_endpoint = None
                 else:
@@ -2495,6 +2773,21 @@ class DwgSyncService:
                     connection_kind=plan.connection_kind,
                     route=route,
                 )
+            if bus_row["bus_kind"] == "RS485" and inserted_endpoint:
+                # New points can change a successor's upstream, including when
+                # that successor was not selected in this DWG scan. Preserve
+                # all accepted segment routes and conduit assignments.
+                for address, source_endpoint in rs485_upstream.items():
+                    uow.execute(
+                        update(bus_segment)
+                        .where(
+                            bus_segment.c.project_id == project_id,
+                            bus_segment.c.bus_id == bus_row["id"],
+                            bus_segment.c.target_endpoint_id == endpoint_by_address[address],
+                            bus_segment.c.source_endpoint_id.is_distinct_from(source_endpoint),
+                        )
+                        .values(source_endpoint_id=source_endpoint)
+                    )
         return affected_bus_ids
 
     def _materialize_bus_segment_conduit(
@@ -3739,6 +4032,7 @@ def _load_project_owner_values(
     connection,
     *,
     project_id: str,
+    binding_id: str | None,
     snapshot: NormalizedCadSnapshot,
     devices: dict[str, dict[str, Any]],
     baselines: dict[str, Any],
@@ -3881,6 +4175,19 @@ def _load_project_owner_values(
             source_value = row["source_identity"] or ""
         canonical_sources[f"edge:{target_identity}:CABLE_SOURCE"] = source_value
 
+    # For DALI physical links the Project-owned typed graph, not stale
+    # field_device evidence, is canonical on the Project→DWG side.
+    physical_sources = (
+        {
+            row.target_handle: row.source_reference
+            for row in read_project_physical_sources(
+                connection, project_id=project_id, binding_id=binding_id
+            )
+        }
+        if binding_id
+        else {}
+    )
+
     key_values = {
         (row["entity_handle"], row["key_tag"]): row["functional_target_text"] or ""
         for row in connection.execute(
@@ -3927,6 +4234,13 @@ def _load_project_owner_values(
             )
             source_path = previous_path or fact.owner_path
             if fact.field == "CABLE_SOURCE":
+                # For an internal TRACK_DALI rail member, the accepted
+                # field_device owner is canonical. There deliberately is
+                # no external cable_segment to read from Project.
+                stored = devices.get(fact.primary_handle, {})
+                if str(stored.get("CABLE_SOURCE") or "").startswith("TRACK."):
+                    result[fact.owner_path] = stored["CABLE_SOURCE"]
+                    continue
                 if source_path in canonical_sources:
                     result[fact.owner_path] = canonical_sources[source_path]
                 elif legacy_path in canonical_sources:
@@ -3957,6 +4271,8 @@ def _load_project_owner_values(
                     result[fact.owner_path] = (
                         canonical_value if canonical_value is not None else fields.get(fact.field)
                     )
+                elif fact.field == "BUS_SOURCE" and fact.primary_handle in physical_sources:
+                    result[fact.owner_path] = physical_sources[fact.primary_handle]
                 else:
                     result[fact.owner_path] = fields.get(fact.field)
     return result

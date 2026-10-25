@@ -1,7 +1,7 @@
-# NL Project 2.0 — справочник атрибутов блоков AutoCAD
+# NL Project 3.0 — справочник атрибутов блоков AutoCAD
 **Дата:** 2026-08-30  
 **Редакция:** после полного аудита и принятых сокращений  
-**Статус:** принятый exact reference для Repair 08, machine contract `3.0.0` / 71 definitions; статус пользовательской приёмки указан в [STATUS.md](../STATUS.md).
+**Статус:** целевая редакция для подготовки CAD-блоков, каталог `3.2.0` / 72 definitions. Текущий runtime NLP `main` использует `3.0.0`; эксплуатационный DWG↔Project переход требует отдельной приёмки #237. Нормы оформления блоков допускается применять на проверочных DWG независимо от runtime.
 ## 1. Назначение
 Документ является рабочим справочником для редактирования canonical block definitions AutoCAD.
 Правило использования:
@@ -20,12 +20,13 @@ LINE_ROLE
 ROOT_ENDPOINT
 CABLE_LINK
 BUS_LINK
-BUS_ID
 BUS_TYPE
 DALI_SHORT_ADDRESS
 hardware module/port codes (A34/Port1 и т.п.)
 ```
 `DEVICE_TYPE` выводится из canonical block name. `POSTS` у `FRAME_n` также выводится из имени блока.
+
+**Исключение для пассивных DALI-узлов (план #235):** `BUS_ID=9YY` — ATTDEF у `EL_BOX_OUT_100x100` и `TRACK_DALI` вместо прежнего `BUS_POINT_ID`. У адресуемых DALI field devices `BUS_ID` по-прежнему выводится из `BUS_POINT_ID`; у RS-485 контракт не меняется. Схема идентичности и BUS_SOURCE описаны в `CURRENT_TOPOLOGY_ARCHITECTURE.md`.
 ### 2.2. `DEVICE_NAME`
 `DEVICE_NAME` сохраняется везде, где предусмотрен карточкой блока. Это свободное человекочитаемое описание конкретного изделия/исполнения и оно не считается derived только из canonical block name или каталога.
 ### 2.3. Legacy tags, отсутствующие в target definitions
@@ -54,6 +55,7 @@ BUS_LINK
 BOX.010
 331.02
 902.003/K1
+TRACK.001
 ```
 
 `902.003/K1` означает concrete physical endpoint: `<BUS_POINT_ID>/<PORT>`. У `SW_*` и `BTN_*` ATTDEF `CABLE_SOURCE` отсутствует: физический порядок общей линии задаётся `.ZZ`.
@@ -65,9 +67,9 @@ Physical port ATTDEF (`COM1`, `COM2`, `K1`, `K2`, `IN_1`, `IN_2`, `W1`, `W2`) п
 
 Типы и suffix защитных труб для обычных и bus-полей определяет [22_CABLE_LENGTHS_AND_CONDUITS.md, раздел 8](../product/22_CABLE_LENGTHS_AND_CONDUITS.md#8-тип-цвет-и-обозначение-трубы). Русское `ППЛ` сохраняет технический код `PP`; поддержка `МПТ16` относится к contract/validation и не означает наличие catalog passport/product.
 ### 2.7. `LOAD_TYPE`
-`LOAD_TYPE` сохраняется только у светильников/LED, розеток, кабельных выводов и щитов. Он удалён у `SW_*`, `BTN_*`, `SENSOR_*`, `WB_M1W2`, `WB_MAI2`, `FAN`, `AIR_VALVE`, `CONTROL_PANEL_*`, `TRACK_*`, `WB_MRM2_MINI`.
+`LOAD_TYPE` сохраняется только у светильников/LED, розеток, ordinary/DALI кабельных выводов и щитов. Универсальный bus-only `CABLE_OUTLET_BUS` не имеет `LOAD_TYPE`. Он удалён у `SW_*`, `BTN_*`, `SENSOR_*`, `WB_M1W2`, `WB_MAI2`, `FAN`, `AIR_VALVE`, `CONTROL_PANEL_*`, `TRACK_*`, `WB_MRM2_MINI`.
 ### 2.8. `PHASE` и `CALC_POWER`
-`PHASE` удалён из обычных однофазных розеточных blocks и из `SOCKET_OUT_380V`: значение 1/3 выводится из canonical block name. `PHASE` сохраняется у `CABLE_OUTLET*`, `FAN`, `AIR_VALVE`.
+`PHASE` удалён из обычных однофазных розеточных blocks и из `SOCKET_OUT_380V`: значение 1/3 выводится из canonical block name. `PHASE` сохраняется у ordinary/DALI `CABLE_OUTLET*` (кроме bus-only `CABLE_OUTLET_BUS`), `FAN`, `AIR_VALVE`.
 
 `CALC_POWER` удалён из `SOCKET_ETHERNET`. Для `CONTROL_PANEL_*` PoE-мощность является Project/catalog-owned свойством выбранной модели панели и ATTDEF `CALC_POWER` не вводится.
 ### 2.9. Canonical rename / new blocks
@@ -80,7 +82,7 @@ CABLE_OUTLET_DALI
 CABLE_OUTLET_FRAME_DALI
 ```
 ## 3. Canonical block catalog
-В target reference включено **71** canonical block definitions.
+В target reference включено **72** canonical block definitions (70 физических + 2 логических).
 - **Рамки:** `FRAME_1`, `FRAME_2`, `FRAME_3`, `FRAME_4`, `FRAME_5`, `FRAME_1_IP44`, `FRAME_2_IP44`, `FRAME_3_IP44`
 - **Светильники:** `LIGHT_OUT_230V`, `LIGHT_IN_230V`, `LIGHT_OUT_DALI_230V`, `LIGHT_IN_DALI_230V`, `LIGHT_TRACK_230V`, `LIGHT_TRACK_48V`, `LIGHT_TRACK_DALI_48V`, `LIGHT_IN_IP44`, `LIGHT_OUT_IP54`, `LIGHT_LUSTRA`, `LIGHT_BRA`, `LIGHT_BRA_IP54`
 - **Светодиодные линии:** `LIGHT_LED`, `LIGHT_LED_IP67`
@@ -88,7 +90,7 @@ CABLE_OUTLET_FRAME_DALI
 - **Выключатели:** `SW_IN_1`, `SW_IN_2`, `SW_IN_3`, `SW_IN_4`, `SW_OUT_1`, `SW_OUT_2`, `SW_IN_1_IP44`, `SW_IN_2_IP44`, `SW_OUT_1_IP44`, `SW_OUT_2_IP44`
 - **Кнопки:** `BTN_IN_1`, `BTN_IN_2`, `BTN_IN_3`, `BTN_IN_4`
 - **Розетки:** `SOCKET_IN`, `SOCKET_IN_IP44`, `SOCKET_OUT`, `SOCKET_OUT_IP54`, `SOCKET_OUT_380V`, `SOCKET_ETHERNET`
-- **Кабельные выводы:** `CABLE_OUTLET`, `CABLE_OUTLET_FRAME`, `CABLE_OUTLET_DALI`, `CABLE_OUTLET_FRAME_DALI`
+- **Кабельные выводы:** `CABLE_OUTLET`, `CABLE_OUTLET_FRAME`, `CABLE_OUTLET_DALI`, `CABLE_OUTLET_FRAME_DALI`, `CABLE_OUTLET_BUS`
 - **Датчики:** `SENSOR_1WIRE`, `SENSOR_MSW`, `SENSOR_WATER`, `SENSOR_MOTION`
 - **Оборудование:** `FAN`, `AIR_VALVE`
 - **Панели управления:** `CONTROL_PANEL_4`, `CONTROL_PANEL_9`, `CONTROL_PANEL_10`, `CONTROL_PANEL_11`
@@ -98,6 +100,8 @@ CABLE_OUTLET_FRAME_DALI
 - **Логические блоки:** `DALI_GROUP`, `ROOM_NAME`
 
 ## 4. Exact ATTDEF sets и допустимые `LOAD_TYPE`
+
+**Редакция для #235 и #227 (единая CAD-подготовка, не production runtime):** наборы `EL_BOX_OUT_100x100`, `TRACK_230V`, `TRACK_48V`, `TRACK_DALI` на этой ветке — целевые после контролируемого утверждения и реализации. Старые DWG не считать автоматически несовместимыми без миграционного сценария; текущий `main` ещё использует старые определения. `TRACK_ID=T.NNN` отменён, требуется `TRACK.NNN`. Точное правило форматирования/заполнения: `CURRENT_TOPOLOGY_ARCHITECTURE.md`.
 Если тег указан в `Exact ATTDEF set`, он должен существовать в canonical definition, даже если для конкретной вставки значение может быть пустым. Если тег не указан — в target definition этого блока его быть не должно.
 
 ### Рамки
@@ -695,6 +699,8 @@ COMMENT_2
 #### `TRACK_230V`
 Назначение/примечание: Физический трек 230 В; внешний вход — ordinary cable.
 
+Физическая identity участка: `TRACK_ID=TRACK.NNN` (например `TRACK.001`, единая нумерация по объекту). `TRACK_MOUNT_WAY` принимает `накладной` / `встроенный` / `подвесной` и не равен входящему кабельному `MOUNT_WAY`. `LENGTH` — фактическая длина секции в миллиметрах.
+
 **Exact ATTDEF set:**
 
 ```text
@@ -702,6 +708,7 @@ DEVICE_NAME
 BUILDING
 ROOM
 MOUNT_HEIGHT
+TRACK_ID
 CABLE_ID
 CABLE_TYPE
 BOARD
@@ -710,6 +717,7 @@ MOUNT_WAY
 GOFRA_TYPE
 GOFRA_COLOR
 GOFRA_ID
+TRACK_MOUNT_WAY
 LOAD_NAME
 LENGTH
 COMMENT_1
@@ -721,6 +729,8 @@ COMMENT_2
 #### `TRACK_48V`
 Назначение/примечание: Физический трек 48 В; внешний вход — ordinary cable.
 
+Физическая identity участка: `TRACK_ID=TRACK.NNN` (например `TRACK.001`, единая нумерация по объекту). `TRACK_MOUNT_WAY` принимает `накладной` / `встроенный` / `подвесной` и не равен входящему кабельному `MOUNT_WAY`. `LENGTH` — фактическая длина секции в миллиметрах.
+
 **Exact ATTDEF set:**
 
 ```text
@@ -728,6 +738,7 @@ DEVICE_NAME
 BUILDING
 ROOM
 MOUNT_HEIGHT
+TRACK_ID
 CABLE_ID
 CABLE_TYPE
 BOARD
@@ -736,6 +747,7 @@ MOUNT_WAY
 GOFRA_TYPE
 GOFRA_COLOR
 GOFRA_ID
+TRACK_MOUNT_WAY
 LOAD_NAME
 LENGTH
 COMMENT_1
@@ -747,6 +759,8 @@ COMMENT_2
 #### `TRACK_DALI`
 Назначение/примечание: Физический DALI-трек; отдельные external power CableSegment и DALI BusSegment.
 
+Пассивный физический трек: `TRACK_ID=TRACK.NNN`, `BUS_ID=9YY` вместо `BUS_POINT_ID`; физический upstream DALI — `BUS_SOURCE` (root `905.000`, `BOX.xxx`, `TRACK.xxx` или адресуемая точка той же шины). `TRACK_MOUNT_WAY` = `накладной` / `встроенный` / `подвесной`; `LENGTH` (мм) следует динамической длине прямой секции.
+
 **Exact ATTDEF set:**
 
 ```text
@@ -754,6 +768,7 @@ DEVICE_NAME
 BUILDING
 ROOM
 MOUNT_HEIGHT
+TRACK_ID
 CABLE_ID
 CABLE_TYPE
 BOARD
@@ -762,13 +777,14 @@ MOUNT_WAY
 GOFRA_TYPE
 GOFRA_COLOR
 GOFRA_ID
-BUS_POINT_ID
+BUS_ID
 BUS_SOURCE
 BUS_CABLE_TYPE
 BUS_MOUNT_WAY
 BUS_GOFRA_TYPE
 BUS_GOFRA_COLOR
 BUS_GOFRA_ID
+TRACK_MOUNT_WAY
 LOAD_NAME
 LENGTH
 COMMENT_1
@@ -1438,6 +1454,30 @@ COMMENT_2
 - `CABLE_LIGHT_NIGHT` — Вывод ночного освещения.
 - `CABLE_LIGHT_STREET` — Вывод уличного освещения.
 
+#### `CABLE_OUTLET_BUS`
+
+Универсальная **адресуемая** физическая точка шины (RS-485 / DALI / KNX), слой `BUS`; `DEVICE_TYPE=CABLE_OUTLET` выводится из имени. Здесь нет ordinary `CABLE_ID`, `CABLE_SOURCE`, питания или `LOAD_TYPE`. Тип конкретной шины является Project-owned; отсутствие типа не означает RS-485. Для RS-485 `BUS_SOURCE` присутствует в definition, но значение INSERT пусто; для DALI/KNX используется явный upstream `BUS_SOURCE` соответствующей шины. Это отдельный адресуемый endpoint с `BUS_POINT_ID`, **не пассивная** коробка/трек с `BUS_ID`.
+
+**Exact ATTDEF set:**
+
+```text
+DEVICE_NAME
+BUILDING
+ROOM
+MOUNT_HEIGHT
+BUS_POINT_ID
+BUS_CABLE_TYPE
+BUS_MOUNT_WAY
+BUS_GOFRA_TYPE
+BUS_GOFRA_COLOR
+BUS_GOFRA_ID
+LOAD_NAME
+COMMENT_1
+COMMENT_2
+BUS_SOURCE
+```
+
+**`LOAD_TYPE`:** не используется в этом canonical block.
 #### `CABLE_OUTLET_DALI`
 Назначение/примечание: Физический кабельный вывод с одновременной ordinary cable topology и DALI bus topology.
 
@@ -1818,6 +1858,9 @@ COMMENT_2
 - `BOARD_DISTRIBUTION` — Распределительный щит или щит освещения.
 - `BOARD_AVR` — Щит АВР.
 - `BOARD_SCS` — Слаботочный щит или СКС.
+- `BOARD_AV` — AV-щит назначения (только `BOARD_IN`).
+
+**Размещение BOARD_AV (#255, C7A):** `BOARD_IN` с `LOAD_TYPE=BOARD_AV` и `BOARD_ID` размещается только на любом валидном `700_*`. Обычные роли щитов не допускаются на `700_*`; `BOARD_AV` не допускается на `100_*` или других группах. Исключение не распространяется на остальные BOARD-блоки. ATTDEF set не меняется. Это правило machine/catalog; подключение проверки runtime выполняется отдельно в C7b.
 
 #### `BOARD_OUT`
 Назначение/примечание: BOARD_ID — собственная identity щита.
@@ -1999,6 +2042,8 @@ COMMENT_2
 #### `EL_BOX_OUT_100x100`
 Назначение/примечание: Может быть physical-only, cable point, DALI point или обе topology memberships одновременно.
 
+Одна ordinary `CABLE_ID` с расключением максимум, плюс независимая пассивная DALI-принадлежность `BUS_ID` вместо `BUS_POINT_ID`. Дополнительный один ATTDEF `CABLE_TRANSIT`: список неразрезанных ordinary кабелей через `;` (`301;303`) и необязательный порядок с дефисом (`301-1;302`). Не добавляет электрическую коммутацию, пустое значение допустимо.
+
 **Exact ATTDEF set:**
 
 ```text
@@ -2015,7 +2060,8 @@ MOUNT_WAY
 GOFRA_TYPE
 GOFRA_COLOR
 GOFRA_ID
-BUS_POINT_ID
+CABLE_TRANSIT
+BUS_ID
 BUS_SOURCE
 BUS_CABLE_TYPE
 BUS_MOUNT_WAY

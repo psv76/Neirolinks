@@ -8,6 +8,9 @@ from typing import Any
 
 from nl_project_2.cad_contract import CadObservationBatch, ValidationIssue
 
+from .cable_transit import TransitAudit
+from .transit_physical import PhysicalTransitRoute
+
 
 class ChangeClass(StrEnum):
     EQUAL = "EQUAL"
@@ -74,6 +77,8 @@ class ScanProposal:
     summary: SyncSummary
     project_revision: int
     binding_id: str | None
+    transit_audit: TransitAudit = TransitAudit()
+    physical_transit_routes: tuple[PhysicalTransitRoute, ...] = ()
 
     @property
     def can_apply(self) -> bool:

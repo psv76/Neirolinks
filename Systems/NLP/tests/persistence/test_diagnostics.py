@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import subprocess
+import sys
 
 from nl_project_2.persistence.diagnostics import inspect_database
 from nl_project_2.persistence.schema import HEAD_TABLE_NAMES
@@ -21,7 +22,7 @@ def test_diagnostic_is_complete_and_read_only(database) -> None:
     assert result.ok
     assert result.missing_tables == ()
     assert result.unexpected_tables == ()
-    assert len(HEAD_TABLE_NAMES) == 67
+    assert len(HEAD_TABLE_NAMES) == 72
     assert before == after
 
 
@@ -31,7 +32,7 @@ def test_diagnostic_command_returns_json(database, project_root) -> None:
     environment["PYTHONPATH"] = str(project_root / "src")
     completed = subprocess.run(
         [
-            str(project_root / ".venv" / "Scripts" / "python.exe"),
+            sys.executable,
             str(project_root / "tools" / "db_check.py"),
             str(database.path),
         ],

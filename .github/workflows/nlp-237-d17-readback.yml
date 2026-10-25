@@ -1,0 +1,72 @@
+name: NLP 237 D17 canonical transit readback gate
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/nlp-237-d17-readback.yml'
+      - 'Systems/NLP/src/nl_project_2/cables/transit_canonical_readback.py'
+      - 'Systems/NLP/src/nl_project_2/cables/service.py'
+      - 'Systems/NLP/tests/cad_sync/test_issue237_d17_canonical_readback.py'
+      - 'Systems/NLP/docs/engineering/ISSUE_237_D17_CANONICAL_READBACK_GATE.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-readback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: Systems/NLP
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Qt system libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0
+      - name: Pinned test dependencies
+        run: |
+          python -m pip install 'SQLAlchemy==2.0.51' 'alembic==1.18.5' \
+            'pytest==9.1.1' 'pytest-qt==4.5.0' 'PySide6==6.11.1' \
+            'ruff==0.15.22'
+      - name: Strict Ruff lint and format with diagnostic diffs
+        run: |
+          python -m ruff check --diff \
+            src/nl_project_2/cables/transit_canonical_readback.py \
+            src/nl_project_2/cables/service.py \
+            tests/cad_sync/test_issue237_d17_canonical_readback.py || true
+          python -m ruff format --diff \
+            src/nl_project_2/cables/transit_canonical_readback.py \
+            src/nl_project_2/cables/service.py \
+            tests/cad_sync/test_issue237_d17_canonical_readback.py || true
+          python -m ruff check \
+            src/nl_project_2/cables/transit_canonical_readback.py \
+            src/nl_project_2/cables/service.py \
+            tests/cad_sync/test_issue237_d17_canonical_readback.py
+          python -m ruff format --check \
+            src/nl_project_2/cables/transit_canonical_readback.py \
+            src/nl_project_2/cables/service.py \
+            tests/cad_sync/test_issue237_d17_canonical_readback.py
+      - name: D17 D16 D15 and canonical calculation regressions
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q \
+            tests/cad_sync/test_issue237_d17_canonical_readback.py \
+            tests/cad_sync/test_issue237_d16_quantity_prepare.py \
+            tests/cad_sync/test_issue237_d15_line_preview.py \
+            tests/cad_sync/test_issue237_d14_transit_quantity_reconciliation.py \
+            tests/cad_sync/test_issue237_d13_transit_store.py \
+            tests/cad_sync/test_issue237_d12_transit_physical.py \
+            tests/cad_sync/test_issue237_d11_transit_readonly.py \
+            tests/cad_sync/test_issue237_d10_track_internal_power.py \
+            tests/cables/test_cable_service.py \
+            tests/cables/test_p0004_segment_recalculation.py \
+            tests/persistence/test_issue237_d16_quantity_migration.py \
+            tests/persistence/test_issue237_d13_transit_migration.py
