@@ -6,6 +6,7 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import tempfile
 import time
 from collections.abc import Callable
@@ -57,10 +58,12 @@ def _require_document(application, expected: str):
     return document, identity
 
 
-def _definition_metadata(document, name: str) -> list[str] | None:
+def _definition_metadata(document, name: str, *, strict: bool = False) -> list[str] | None:
     try:
         definition = document.Blocks.Item(name)
     except Exception:
+        if strict:
+            raise
         return None
     tags: list[str] = []
     for entity in definition:
@@ -68,6 +71,8 @@ def _definition_metadata(document, name: str) -> list[str] | None:
             if str(entity.ObjectName) == "AcDbAttributeDefinition":
                 tags.append(str(entity.TagString))
         except (AttributeError, pythoncom.com_error):
+            if strict:
+                raise
             continue
     return tags
 
@@ -118,19 +123,27 @@ def _observation_payload(
     entity,
     definition_names: set[str] | None,
     definition_cache: dict[str, list[str] | None],
+    *,
+    strict: bool = False,
 ) -> dict[str, Any]:
     if str(entity.ObjectName) != "AcDbBlockReference":
         raise RuntimeError(f"Handle {entity.Handle} is not a block reference")
     name = _effective_name(entity)
     if definition_names is None or name in definition_names:
         if name not in definition_cache:
-            definition_cache[name] = _definition_metadata(document, name)
+            definition_cache[name] = (
+                _definition_metadata(document, name, strict=True)
+                if strict
+                else _definition_metadata(document, name)
+            )
         definition_tags = definition_cache[name]
     else:
         definition_tags = None
     try:
         dynamic = bool(entity.IsDynamicBlock)
     except Exception:
+        if strict:
+            raise
         dynamic = None
     point = entity.InsertionPoint
     return {
@@ -215,6 +228,8 @@ def _scan_handles(
     handles: list[str],
     definition_names: set[str] | None = None,
     progress=None,
+    *,
+    strict: bool = False,
 ) -> dict[str, Any]:
     observations: list[dict[str, Any]] = []
     definition_cache: dict[str, list[str] | None] = {}
@@ -226,7 +241,9 @@ def _scan_handles(
         except Exception as exc:
             raise RuntimeError(f"Handle {handle} is unavailable during incremental scan") from exc
         observations.append(
-            _observation_payload(document, entity, definition_names, definition_cache)
+            _observation_payload(
+                document, entity, definition_names, definition_cache, strict=strict
+            )
         )
     if progress:
         progress("scan_handles_completed")
@@ -237,8 +254,29 @@ def _scan_handles(
     }
 
 
-def _fingerprint_lisp(output_path: Path) -> str:
-    path = output_path.as_posix().replace('"', '"')
+def _fingerprint_lisp(
+    output_path: Path, *, handles: tuple[str, ...] | None = None, expected_identity: str = ""
+) -> str:
+    path = _lisp_string(output_path.as_posix())[1:-1]
+    selection = '(setq ss (ssget "_X" (list (cons 0 "INSERT") (cons 410 "Model"))))'
+    guard = ""
+    definition_check = ""
+    if handles is not None:
+        _checked_handles(handles)
+        definition_check = '(if (vl-catch-all-error-p b) (error "Selected definition read failed"))'
+        quoted = " ".join(_lisp_string(handle) for handle in handles)
+        selection = f"""(setq ss (ssadd))
+(foreach h '({quoted})
+  (setq en (handent h))
+  (if (or (not en) (/= (cdr (assoc 0 (entget en))) "INSERT")
+          (/= (cdr (assoc 410 (entget en))) "Model"))
+    (error "Selected INSERT no longer exists in model space"))
+  (ssadd en ss))"""
+        if not expected_identity:
+            raise RuntimeError("Explicit document identity required for selected fingerprint")
+        guard = f"""(if (/= (strcase (vla-get-FullName d))
+                          (strcase {_lisp_string(expected_identity)}))
+                    (error "Selected fingerprint document changed"))"""
     return f"""(progn
 (vl-load-com)
 (setq nlp3-dc nil)
@@ -249,6 +287,7 @@ def _fingerprint_lisp(output_path: Path) -> str:
     (progn
       (setq r nil)
       (setq b (vl-catch-all-apply 'vla-item (list bs n)))
+      {definition_check}
       (if (not (vl-catch-all-error-p b))
         (vlax-for x b
           (if (= (vla-get-ObjectName x) "AcDbAttributeDefinition")
@@ -264,7 +303,8 @@ def _fingerprint_lisp(output_path: Path) -> str:
   (reverse r))
 (setq d (vla-get-ActiveDocument (vlax-get-acad-object)))
 (setq bs (vla-get-Blocks d))
-(setq ss (ssget "_X" (list (cons 0 "INSERT") (cons 410 "Model"))))
+{guard}
+{selection}
 (setq f (open "{path}" "w" "utf8"))
 (if ss
   (progn
@@ -293,13 +333,21 @@ def _fingerprint_lisp(output_path: Path) -> str:
 """.replace("\n", " ")
 
 
-def _fingerprints(document, identity: str, *, timeout_seconds: float = 15.0) -> dict[str, Any]:
+def _fingerprints(
+    document,
+    identity: str,
+    *,
+    timeout_seconds: float = 15.0,
+    handles: tuple[str, ...] | None = None,
+) -> dict[str, Any]:
     fd, raw_path = tempfile.mkstemp(prefix="nlp3-cad-fingerprint-", suffix=".txt")
     os.close(fd)
     Path(raw_path).unlink(missing_ok=True)
     try:
         Path(raw_path).parent.mkdir(parents=True, exist_ok=True)
-        document.SendCommand(_fingerprint_lisp(Path(raw_path)) + "\n")
+        document.SendCommand(
+            _fingerprint_lisp(Path(raw_path), handles=handles, expected_identity=identity) + "\n"
+        )
         deadline = time.monotonic() + timeout_seconds
         text = ""
         while time.monotonic() < deadline:
@@ -335,6 +383,92 @@ def _fingerprints(document, identity: str, *, timeout_seconds: float = 15.0) -> 
         }
     finally:
         Path(raw_path).unlink(missing_ok=True)
+
+
+def _lisp_string(value: str) -> str:
+    """AutoLISP string literal; never interpolate document/path/handle as code."""
+    if any(ord(char) < 32 for char in value):
+        raise ValueError("Control characters are not supported in LISP paths")
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _checked_handles(handles) -> tuple[str, ...]:
+    values = tuple(handles)
+    if any(not isinstance(h, str) or re.fullmatch(r"[0-9A-F]+", h) is None for h in values):
+        raise RuntimeError("Invalid canonical INSERT handle")
+    if len(set(values)) != len(values):
+        raise RuntimeError("Duplicate INSERT handles")
+    return values
+
+
+def _insert_census(document, identity: str) -> dict[str, str]:
+    """Complete lightweight census; reads no names, points, attributes or definitions."""
+    if _document_identity(document).casefold() != identity.casefold():
+        raise RuntimeError("Census document identity changed")
+    census: dict[str, str] = {}
+    for entity in document.ModelSpace:
+        if str(entity.ObjectName) != "AcDbBlockReference":
+            continue
+        handle = str(entity.Handle)
+        _checked_handles((handle,))
+        if handle in census:
+            raise RuntimeError("Duplicate census handle")
+        layer = entity.Layer
+        if not isinstance(layer, str):
+            raise RuntimeError("Invalid census layer")
+        census[handle] = layer
+    if _document_identity(document).casefold() != identity.casefold():
+        raise RuntimeError("Census document identity changed")
+    return census
+
+
+def _scan_working_layers(
+    document, identity, tracked_handles, definition_names=None, *, timeout_seconds=15.0
+):
+    """Explicit diagnostic operation, never a reconciliation snapshot.
+
+    One shared COM handle/layer census selects heavy work for BOTH LISP and COM.
+    Surviving tracked handles are always read, including excluded/legacy layers.
+    No deletion proof is inferred from a lookup failure or absent heavy payload.
+    """
+    if not identity or not str(document.FullName or ""):
+        raise RuntimeError("Saved-path document identity required for census read")
+    tracked = _checked_handles(tracked_handles)
+    before = _insert_census(document, identity)
+    selected = tuple(
+        h for h, layer in before.items() if is_working_layer_for_scan(layer) or h in tracked
+    )
+    try:
+        payload = _fingerprints(
+            document, identity, timeout_seconds=timeout_seconds, handles=selected
+        )
+        if tuple(payload["handles"]) != selected or set(payload["signatures"]) != set(selected):
+            raise RuntimeError("Selected fingerprint owner set mismatch")
+        mode = "FILTERED_FINGERPRINT"
+    except Exception:
+        # Discard the entire failed LISP result; never merge it into COM fallback.
+        payload = _scan_handles(document, identity, list(selected), definition_names, strict=True)
+        mode = "FILTERED_COM_FALLBACK"
+    after = _insert_census(document, identity)
+    if before != after:
+        raise RuntimeError("INSERT census changed during filtered read; repeat full read")
+    metadata = dict(payload["source_metadata"])
+    metadata.update(
+        layer_filter_applied=True,
+        scan_is_complete_for_reconciliation=False,
+        skipped_block_references=len(before) - len(selected),
+        scan_mode=mode,
+    )
+    return {
+        **payload,
+        "source_metadata": metadata,
+        "census_before": before,
+        "census_after": after,
+        "selected_handles": list(selected),
+        "tracked_handles": list(tracked),
+        "status": "REQUIRES_ATTENTION",
+        "next_action": "Use full unfiltered read for preview/apply; absence is not proven.",
+    }
 
 
 def _find_attribute(document, handle: str, tag: str):
@@ -446,6 +580,19 @@ def _serve(pipe: str) -> int:
                             set(request.get("definition_names", [])),
                             lambda stage: _send_progress(connection, stage),
                         )
+                    elif operation == "scan_working_layers":
+                        if not request.get("read_id") or not request.get(
+                            "expected_document_identity"
+                        ):
+                            raise RuntimeError("Explicit filtered read identity required")
+                        result = _scan_working_layers(
+                            document,
+                            identity,
+                            request.get("tracked_handles", []),
+                            set(request.get("definition_names", [])),
+                            timeout_seconds=float(request.get("timeout_seconds", 15.0)),
+                        )
+                        result["read_id"] = request["read_id"]
                     elif operation == "scan_handles":
                         result = _scan_handles(
                             document,

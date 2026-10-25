@@ -363,3 +363,121 @@ def test_c7c_incremental_move_off_numeric_layer_keeps_insertion(monkeypatch):
         "scan_handles",
         "fingerprint",
     ]
+
+
+@pytest.mark.parametrize("mode", ["FILTERED_FINGERPRINT", "FILTERED_COM_FALLBACK"])
+def test_explicit_filtered_read_preserves_presence_and_c6_gate(monkeypatch, mode):
+    from types import SimpleNamespace
+
+    from nl_project_2.cad_sync import DwgSyncError, DwgSyncService
+
+    client = AutoCadBridgeClient()
+    cached = object()
+    client._cached_batch = cached
+    calls = []
+
+    def fake_call(request, _deadline):
+        calls.append(request)
+        assert request["operation"] == "scan_working_layers"
+        assert request["tracked_handles"] == ["A10", "DEAD"]
+        payload = _scan_payload()
+        payload.update(
+            read_id=request["read_id"],
+            census_before={"A10": "ARCH", "B1": "350_X"},
+            census_after={"A10": "ARCH", "B1": "350_X"},
+            selected_handles=["A10"],
+            tracked_handles=["A10", "DEAD"],
+        )
+        payload["observations"][0]["layer"] = "ARCH"
+        payload["source_metadata"].update(
+            layer_filter_applied=True,
+            scan_is_complete_for_reconciliation=False,
+            skipped_block_references=1,
+            scan_mode=mode,
+        )
+        if mode == "FILTERED_FINGERPRINT":
+            payload["handles"] = ["A10"]
+            payload["signatures"] = {"A10": '("SOCKET_IN" "ARCH" (10 20 0) :vlax-false () ())'}
+            del payload["observations"]
+        return payload
+
+    monkeypatch.setattr(client, "_call", fake_call)
+    result = client.read_layer_filtered_observations(
+        CadReadRequest("C:/fixture/working.dwg", 1), tracked_handles=("A10", "DEAD")
+    )
+    assert result.status == "REQUIRES_ATTENTION"
+    assert result.present_excluded_handles == ("A10",)
+    assert result.absent_unknown_handles == ("DEAD",)
+    assert [(o.handle, o.layer) for o in result.batch.observations] == [("A10", "ARCH")]
+    assert client._cached_batch is cached
+    assert len(calls) == 1
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Diagnostic filtered read reached database")
+
+    service = DwgSyncService(SimpleNamespace(connect=forbidden, begin=forbidden))
+    with pytest.raises(DwgSyncError, match="SCAN_NOT_AUTHORITATIVE"):
+        service.preview(project_id="synthetic", batch=result.batch)
+    with pytest.raises(DwgSyncError, match="SCAN_NOT_AUTHORITATIVE"):
+        service.apply_dwg_to_project(
+            SimpleNamespace(batch=result.batch), selected_paths=(), confirmed=True
+        )
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "stale_read",
+        "document",
+        "census",
+        "layer",
+        "missing",
+        "duplicate",
+        "forged_authority",
+        "selected",
+        "tracked",
+    ],
+)
+def test_explicit_filtered_read_rejects_bad_transport_evidence(monkeypatch, fault):
+    client = AutoCadBridgeClient()
+
+    def fake_call(request, _deadline):
+        payload = _scan_payload()
+        payload.update(
+            read_id=request["read_id"],
+            census_before={"A10": "POWER"},
+            census_after={"A10": "POWER"},
+            selected_handles=["A10"],
+            tracked_handles=["A10"],
+        )
+        payload["source_metadata"].update(
+            layer_filter_applied=True,
+            scan_is_complete_for_reconciliation=False,
+            skipped_block_references=0,
+            scan_mode="FILTERED_COM_FALLBACK",
+        )
+        if fault == "stale_read":
+            payload["read_id"] = "old"
+        elif fault == "document":
+            payload["document_identity"] = "other"
+        elif fault == "census":
+            payload["census_after"] = {}
+        elif fault == "layer":
+            payload["observations"][0]["layer"] = "ARCH"
+        elif fault == "missing":
+            payload["observations"] = []
+        elif fault == "duplicate":
+            payload["observations"] *= 2
+        elif fault == "forged_authority":
+            payload["source_metadata"]["scan_is_complete_for_reconciliation"] = True
+        elif fault == "selected":
+            payload["selected_handles"] = []
+        elif fault == "tracked":
+            payload["tracked_handles"] = []
+        return payload
+
+    monkeypatch.setattr(client, "_call", fake_call)
+    with pytest.raises(BridgeError, match="FILTERED_READ_INVALID"):
+        client.read_layer_filtered_observations(
+            CadReadRequest("C:/fixture/working.dwg", 1), tracked_handles=("A10",)
+        )

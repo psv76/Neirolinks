@@ -60,3 +60,8 @@ Earlier sandbox run before 8 additional defensive tests: 256 passed / 1 failed; 
 ## Exact next operation
 
 Push checkpoint and implementation commits to origin/feature/nlp-255-c7c-scan-integration; report final_head_sha and PARTIAL in existing Issue #255. Then review this staged increment and explicitly approve a continuation of C7C to define/implement a complete lightweight INSERT census and fresh document/revision/absence evidence producer for BOTH AutoLISP and COM. Before activation, prove C1 parity and LISP escaping/error handling, bind heavy payloads to the same stable read, read every existing tracked handle even on excluded layers, handle unknown absence as requires-attention, and verify full snapshot authority end-to-end without changing C6 semantics or #148 atomicity. Any necessary service.py change requires separately expanded scope. Keep production full/unfiltered until then. Do not begin C7d; Issue #255 stays OPEN.
+
+
+## Resumed C7C after explicit request to finish
+
+The prior PARTIAL describes the first saved increment. Work now adds a separate diagnostic read_layer_filtered_observations API and scan_working_layers transport, shared lightweight COM census, selected-only AutoLISP fingerprints and strict COM fallback. Default read_observations/Update remains unfiltered; no authority promotion. Both paths keep tracked insertions even on excluded layers. New synthetic call-count/error/transport tests pass; final combined checks pending. Final results below will supersede the first increment's no-speedup/no-producer statements.
