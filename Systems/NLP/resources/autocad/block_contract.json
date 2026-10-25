@@ -948,6 +948,7 @@
     "POWER": {
       "cable_prefix": "1",
       "layers": [
+        "100_POWER",
         "POWER",
         "POWER_MOTOR",
         "BOARD"
@@ -965,6 +966,7 @@
     "SWITCHES": {
       "cable_prefix": "2",
       "layers": [
+        "200_SWITCHES",
         "SWITCHES"
       ],
       "device_types": [
@@ -977,6 +979,7 @@
     "LIGHTING_230V": {
       "cable_prefix": "3",
       "layers": [
+        "300_LIGHTING_230V",
         "LIGHTING_230V",
         "TRACK_230V",
         "TRACK_DALI",
@@ -994,6 +997,7 @@
     "LIGHTING_LED": {
       "cable_prefix": "4",
       "layers": [
+        "400_LIGHTING_LED",
         "LIGHTING_LED",
         "TRACK_48V",
         "TRACK_DALI"
@@ -1008,6 +1012,7 @@
     "SENSORS": {
       "cable_prefix": "5",
       "layers": [
+        "500_SENSORS",
         "SENSORS"
       ],
       "device_types": [
@@ -1015,32 +1020,35 @@
         "EL_BOX"
       ]
     },
-    "VENTILATION": {
+    "HVAC": {
       "cable_prefix": "6",
       "layers": [
-        "VENTILATION"
+        "600_HVAC",
+        "VENTILATION",
+        "HEATING"
       ],
       "device_types": [
         "AIR_VALVE",
         "MOTOR",
         "CABLE_OUTLET",
-        "EL_BOX"
+        "EL_BOX",
+        "HEATING_DEVICE"
       ]
     },
-    "HEATING": {
-      "cable_prefix": "7",
+    "AV": {
+      "cable_prefix": null,
       "layers": [
-        "HEATING"
+        "700_AV",
+        "AV"
       ],
       "device_types": [
-        "HEATING_DEVICE",
-        "CABLE_OUTLET",
-        "EL_BOX"
+        "CABLE_OUTLET"
       ]
     },
     "NETWORK": {
       "cable_prefix": "8",
       "layers": [
+        "800_NETWORK",
         "NETWORK"
       ],
       "device_types": [
@@ -1054,6 +1062,7 @@
     "BUS": {
       "cable_prefix": "9",
       "layers": [
+        "900_BUS",
         "BUS"
       ],
       "device_types": [
@@ -1061,15 +1070,6 @@
         "SENSOR",
         "RELAY_DEVICE",
         "EL_BOX"
-      ]
-    },
-    "AV": {
-      "cable_prefix": null,
-      "layers": [
-        "AV"
-      ],
-      "device_types": [
-        "CABLE_OUTLET"
       ]
     }
   },
@@ -1348,7 +1348,16 @@
     },
     {
       "names": [
-        "BOARD_IN",
+        "BOARD_IN"
+      ],
+      "class": "FUNCTIONAL",
+      "device_type": "BOARD",
+      "attribute_profile": "BOARD",
+      "load_type_group": "BOARD",
+      "cable_link_kind": "CABLE"
+    },
+    {
+      "names": [
         "BOARD_OUT",
         "BOARD_OUT_IP44",
         "BOARD_OUT_IP54",
@@ -1358,8 +1367,8 @@
       "class": "FUNCTIONAL",
       "device_type": "BOARD",
       "attribute_profile": "BOARD",
-      "load_type_group": "BOARD",
-      "cable_link_kind": "CABLE"
+      "cable_link_kind": "CABLE",
+      "load_type_group": "ORDINARY_BOARD"
     },
     {
       "names": [
@@ -1459,18 +1468,28 @@
       "BOARD_IN_AVR",
       "BOARD_DISTRIBUTION",
       "BOARD_AVR",
-      "BOARD_SCS"
+      "BOARD_SCS",
+      "BOARD_AV"
     ],
     "AV": [
       "SPEAKER_CABLE",
       "HDMI"
+    ],
+    "ORDINARY_BOARD": [
+      "BOARD_METER",
+      "BOARD_IN",
+      "BOARD_IN_AVR",
+      "BOARD_DISTRIBUTION",
+      "BOARD_AVR",
+      "BOARD_SCS"
     ]
   },
   "board_rules": {
     "feed_required_roles": [],
     "feed_attributes": [],
-    "av_role": "",
-    "av_block_name": ""
+    "av_role": "BOARD_AV",
+    "av_block_name": "BOARD_IN",
+    "av_function_group": "AV"
   },
   "av_rules": {
     "layer": "AV",
