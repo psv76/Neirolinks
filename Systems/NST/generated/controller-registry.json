@@ -25,6 +25,17 @@
       "profile": "Objects/05_16_Iset/controllers/AFMEUYOT.json",
       "role": "house",
       "state": "active"
+    },
+    "AGYPLABX": {
+      "capabilities": [],
+      "diagnostics_profile": "Systems/NST/diagnostics/controller-default-v1.json",
+      "fingerprint_sha256": "76c94ff6919ed809325f8104c3242faad3543325aa4d5e1a074c1fc549341fa4",
+      "name": "Основной контроллер (назначение уточняется)",
+      "node": "main",
+      "object": "04_90_Losinka",
+      "profile": "Objects/04_90_Losinka/controllers/AGYPLABX.json",
+      "role": "house",
+      "state": "planned"
     }
   },
   "schema": 1,
