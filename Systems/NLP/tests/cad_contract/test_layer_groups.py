@@ -84,10 +84,12 @@ def test_av_classifies_only_the_layer_without_cable_id_rules(suffix: str) -> Non
 
 
 def test_hvac_union_preserves_both_actual_contract_families(block_contract) -> None:
-    ventilation = block_contract.functional_groups["VENTILATION"].device_types
-    heating = block_contract.functional_groups["HEATING"].device_types
-    assert ventilation
-    assert heating
+    # C7A replaces the two machine groups with HVAC. Keep both approved former
+    # families explicit so dropping either family still fails this inventory.
+    ventilation = frozenset({"AIR_VALVE", "MOTOR", "CABLE_OUTLET", "EL_BOX"})
+    heating = frozenset({"HEATING_DEVICE", "CABLE_OUTLET", "EL_BOX"})
+    assert "VENTILATION" not in block_contract.functional_groups
+    assert "HEATING" not in block_contract.functional_groups
 
     result = hvac_allowed_device_types(ventilation, heating)
 
@@ -95,6 +97,7 @@ def test_hvac_union_preserves_both_actual_contract_families(block_contract) -> N
     assert ventilation <= result
     assert heating <= result
     assert result == ventilation | heating
+    assert block_contract.functional_groups["HVAC"].device_types == result
 
 
 @pytest.mark.parametrize(
