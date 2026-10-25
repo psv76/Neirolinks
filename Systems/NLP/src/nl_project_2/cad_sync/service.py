@@ -88,6 +88,7 @@ from .reconciliation import (
     normalize_validated_snapshot,
     reconcile_snapshot_edge_projections,
 )
+from .reconciliation_safety import is_authoritative_scan_metadata
 from .selection import atomic_line_import_groups
 from .track_power import TrackInternalPowerError, selected_internal_track_power
 
@@ -204,6 +205,11 @@ class DwgSyncService:
         batch: CadObservationBatch,
         progress: Callable[[DwgScanProgress], None] | None = None,
     ) -> ScanProposal:
+        if not is_authoritative_scan_metadata(batch.source_metadata):
+            raise DwgSyncError(
+                "SCAN_NOT_AUTHORITATIVE: incomplete, filtered or invalid scan metadata; "
+                "a full unfiltered DWG snapshot is required for reconciliation"
+            )
         validation = self._validator_for_project(project_id).validate(batch)
         if progress is not None:
             progress(DwgScanProgress("FORMING_CHANGES"))
@@ -672,6 +678,11 @@ class DwgSyncService:
         allow_structural: bool = False,
         failure_hook: Callable[[], None] | None = None,
     ) -> str:
+        if not is_authoritative_scan_metadata(proposal.batch.source_metadata):
+            raise DwgSyncError(
+                "SCAN_NOT_AUTHORITATIVE: incomplete, filtered or invalid scan metadata; "
+                "a full unfiltered DWG snapshot is required for reconciliation"
+            )
         if not confirmed:
             raise DwgSyncError("Explicit user confirmation is required")
         selected = set(selected_paths)
