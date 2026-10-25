@@ -14,7 +14,10 @@ def test_every_approved_name_has_a_valid_metadata_observation(
     block_contract, make_observation, name
 ):
     observation = make_observation(
-        name, handle="A1", layer="300_DALI" if name == "DALI_GROUP" else None
+        name,
+        handle="A1",
+        layer="300_DALI" if name == "DALI_GROUP" else None,
+        attributes={"LOAD_TYPE": "BOARD_DISTRIBUTION"} if name == "BOARD_IN" else None,
     )
     observations = (observation,)
     if block_contract.block(name).key_count:
