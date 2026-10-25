@@ -383,3 +383,16 @@ def test_filtered_fallback_metadata_failure_never_returns_partial_success(monkey
     document.Blocks.Item = failed
     with pytest.raises(RuntimeError, match="read failed"):
         bridge._scan_working_layers(document, document.FullName, ())
+
+
+def test_apply_census_reads_only_identity_and_layer():
+    from tools.autocad_sta_bridge import _insert_census
+
+    blocks = [
+        CensusBlock("300_Light", "A1", forbidden=True),
+        CensusBlock("ARCH", "B2", forbidden=True),
+    ]
+    document = census_document(blocks)
+    assert _insert_census(document, document.FullName) == {"A1": "300_Light", "B2": "ARCH"}
+    assert document.Blocks.calls == []
+    assert all(block.reads == ["ObjectName", "Handle", "Layer"] for block in blocks)

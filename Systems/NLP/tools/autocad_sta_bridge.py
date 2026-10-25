@@ -580,6 +580,18 @@ def _serve(pipe: str) -> int:
                             set(request.get("definition_names", [])),
                             lambda stage: _send_progress(connection, stage),
                         )
+                    elif operation == "insert_census":
+                        if not request.get("read_id") or not request.get(
+                            "expected_document_identity"
+                        ):
+                            raise RuntimeError("Explicit census identity required")
+                        result = {
+                            "document_identity": identity,
+                            "read_id": request["read_id"],
+                            "census": _insert_census(document, identity),
+                            "complete": True,
+                            "unfiltered": True,
+                        }
                     elif operation == "scan_working_layers":
                         if not request.get("read_id") or not request.get(
                             "expected_document_identity"

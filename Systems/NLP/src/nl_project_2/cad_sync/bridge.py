@@ -194,6 +194,41 @@ class AutoCadBridgeClient:
             dbmod=before.dbmod,
         )
 
+    def read_insert_census(self, request: CadReadRequest) -> tuple[tuple[str, str], ...]:
+        """Fresh Handle+Layer only; does not detect attribute/coordinate-only edits."""
+        expected = request.expected_document_identity.strip()
+        if not expected or request.deadline_seconds <= 0:
+            raise BridgeError("CENSUS_EXPLICIT_DOCUMENT_AND_DEADLINE_REQUIRED")
+        read_id = uuid.uuid4().hex
+        payload = self._call(
+            {
+                "operation": "insert_census",
+                "expected_document_identity": expected,
+                "read_id": read_id,
+            },
+            request.deadline_seconds,
+        )
+        try:
+            entries = payload["census"]
+            if (
+                payload["document_identity"].casefold() != expected.casefold()
+                or payload["read_id"] != read_id
+                or payload["complete"] is not True
+                or payload["unfiltered"] is not True
+                or not isinstance(entries, dict)
+            ):
+                raise ValueError("incomplete, stale or foreign census")
+            if any(
+                not isinstance(h, str)
+                or re.fullmatch(r"[0-9A-F]+", h) is None
+                or not isinstance(layer, str)
+                for h, layer in entries.items()
+            ):
+                raise ValueError("malformed census")
+            return tuple(sorted(entries.items()))
+        except (KeyError, TypeError, AttributeError, ValueError) as exc:
+            raise BridgeError(f"CENSUS_INVALID: {exc}") from exc
+
     def read_layer_filtered_observations(
         self, request: CadReadRequest, *, tracked_handles: tuple[str, ...]
     ) -> LayerFilteredRead:

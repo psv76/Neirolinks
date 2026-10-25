@@ -977,6 +977,10 @@ class ObjectWorkspace(QWidget):
         self._sync_operation = None
         self._sync_in_progress = False
         self._sync_progress_dialog = None
+        self._sync_project_id = None
+        self._sync_document_identity = ""
+        self._sync_filtered_attempt = False
+        self._sync_verify_census = False
         self._navigation_history: list[dict] = []
         self.lines_workspace = None
         self.equipment_workspace = None
@@ -997,6 +1001,13 @@ class ObjectWorkspace(QWidget):
         self.sync_status_label = QLabel("", self)
         self.sync_status_label.setObjectName("dwgSyncStatusLabel")
         self.sync_button.clicked.connect(self._sync_dwg)
+        self.filtered_sync_checkbox = QCheckBox("Пробовать отбор по рабочим слоям", self)
+        self.filtered_sync_checkbox.setObjectName("dwgFilteredSyncOptIn")
+        self.filtered_sync_checkbox.setToolTip(
+            "При неподтверждённой полноте будет предложено полное сканирование. "
+            "Перед применением проверяются Handle и Layer; "
+            "изменения атрибутов и координат не проверяются."
+        )
         self.cables_button = QPushButton("Кабельные линии", self)
         self.cables_button.setObjectName("cableWorkspaceButton")
         self.cables_button.setEnabled(False)
@@ -1073,6 +1084,7 @@ class ObjectWorkspace(QWidget):
         second.addWidget(self.total_label)
         second.addWidget(self.time_button)
         second.addWidget(self.sync_button)
+        second.addWidget(self.filtered_sync_checkbox)
         second.addWidget(self.sync_status_label)
         second.addStretch(1)
         second.addWidget(self.service_button)
@@ -1913,6 +1925,7 @@ class ObjectWorkspace(QWidget):
         manager = self.runtime.background_operations
         if project_id is None or service is None or manager is None:
             return
+        self._sync_project_id = project_id
         self._sync_operation = BackgroundOperationController(manager, self)
         self._sync_operation.completed.connect(self._sync_identity_completed)
         self._sync_operation.failed.connect(self._sync_scan_failed)
@@ -1935,15 +1948,31 @@ class ObjectWorkspace(QWidget):
 
     def _sync_identity_completed(self, result) -> None:
         self._finish_sync_scan()
+        if self.runtime.current_project_id != self._sync_project_id:
+            QMessageBox.warning(
+                self, "Проект изменён", "Выберите проект и повторите сканирование DWG."
+            )
+            return
         document = result.value
         self._start_dwg_scan(document.document_identity)
 
-    def _start_dwg_scan(self, document_identity: str) -> None:
+    def _start_dwg_scan(self, document_identity: str, *, full_fallback: bool = False) -> None:
         project_id = self.runtime.current_project_id
         service = self.runtime.dwg_sync
         manager = self.runtime.background_operations
         if project_id is None or service is None or manager is None:
             return
+        self._sync_project_id = project_id
+        self._sync_document_identity = document_identity
+        self._sync_filtered_attempt = self.filtered_sync_checkbox.isChecked() and not full_fallback
+        self._sync_verify_census = full_fallback
+        scan_options = (
+            {"prefer_filtered": True}
+            if self._sync_filtered_attempt
+            else {"verify_census": True}
+            if full_fallback
+            else {}
+        )
         self._sync_operation = BackgroundOperationController(manager, self)
         self._sync_operation.completed.connect(self._sync_scan_completed)
         self._sync_operation.failed.connect(self._sync_scan_failed)
@@ -1961,6 +1990,7 @@ class ObjectWorkspace(QWidget):
                 project_id=project_id,
                 expected_identity=document_identity,
                 progress=progress,
+                **scan_options,
             )
             token.checkpoint()
             return proposal
@@ -1988,14 +2018,79 @@ class ObjectWorkspace(QWidget):
 
     def _sync_scan_failed(self, category: str, message: str) -> None:
         self._finish_sync_scan()
+        if self._sync_filtered_attempt or self._sync_verify_census:
+            self._offer_full_scan(message)
+            return
         QMessageBox.warning(self, "Синхронизация DWG не выполнена", f"{category}: {message}")
+
+    def _offer_full_scan(self, message: str) -> None:
+        if self.runtime.current_project_id != self._sync_project_id:
+            QMessageBox.warning(
+                self, "Проект изменён", "Выберите проект и начните новое сканирование DWG."
+            )
+            return
+        answer = QMessageBox.question(
+            self,
+            "Требуется полное сканирование",
+            f"{message}\n\nВыполнить полное сканирование и открыть новый предпросмотр?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self._start_dwg_scan(self._sync_document_identity, full_fallback=True)
 
     def _sync_scan_completed(self, result) -> None:
         self._finish_sync_scan()
         QApplication.beep()
         self._review_sync_proposal(result.value)
 
+    def _review_pragmatic_proposal(self, proposal) -> None:
+        dialog = DwgSyncPreviewDialog(proposal, self)
+        dialog.setWindowTitle("Полный предпросмотр — проверка Handle/Layer перед применением")
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        if proposal.project_id != self.runtime.current_project_id:
+            QMessageBox.warning(
+                self,
+                "Проект изменён",
+                "Нельзя применить просмотр другого проекта. Повторите сканирование.",
+            )
+            return
+        selected = dialog.selected_paths()
+        if not selected:
+            return
+        try:
+            if dialog.direction.currentData() == "DWG_TO_PROJECT":
+                self.runtime.dwg_sync.apply_dwg_to_project(
+                    proposal, selected_paths=selected, confirmed=True
+                )
+            else:
+                self.runtime.dwg_sync.write_project_to_dwg(
+                    proposal, selected_paths=selected, confirmed=True
+                )
+        except (DwgSyncError, BridgeError) as exc:
+            self._offer_full_scan(str(exc))
+            return
+        self._detail = self.runtime.objects.get_project(proposal.project_id)
+        self._load_detail()
+        if self.lines_workspace is not None:
+            self.lines_workspace.refresh()
+        self._refresh_related_working_views()
+        self.sync_status_label.setText(
+            "Выбранные изменения применены; для следующих изменений выполните новое сканирование"
+        )
+
     def _review_sync_proposal(self, proposal) -> None:
+        if proposal.project_id != self.runtime.current_project_id:
+            QMessageBox.warning(
+                self,
+                "Проект изменён",
+                "Предпросмотр относится к другому проекту. Повторите сканирование.",
+            )
+            return
+        if "c7f_check_id" in proposal.batch.source_metadata:
+            self._review_pragmatic_proposal(proposal)
+            return
         service = self.runtime.dwg_sync
         existing_buses = (
             frozenset(
