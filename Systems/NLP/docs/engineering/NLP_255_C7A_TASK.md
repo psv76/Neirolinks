@@ -40,3 +40,35 @@ Completion of any one substage is **NOT** release approval and does not close Is
 **Checkpoint:** after implementation/tests, safe commit, final head SHA in Issue #255, concise `NLP_255_C7A.md` with start SHA, changed paths, exact tests, status PASSED/PARTIAL/BLOCKED, impact on existing validators and **one next action**. If remaining token/time budget low, persist partial and stop.
 
 **Next action:** independent coordinator C7a review. **C7b not started.**
+
+
+## Approved C7A resumption decision — 2026-10-25 (supersedes earlier BOARD_AV ambiguity)
+
+**Decision reference:** Issue #255 architectural approval comment 6393840510. BOARD_AV placement has been explicitly resolved. Resume after checkpoint at `2bc4ca6275c5119b609e9a5cab12510558a2e371`; **start from the current brief-update HEAD**, not the original `54452f5d...`.
+
+1. `BOARD_IN` with `DEVICE_TYPE=BOARD`, `LOAD_TYPE=BOARD_AV`, `BOARD_ID` is the AV destination board and must be accepted on **any valid `700_*` working layer**. AV `CABLE_OUTLET` also uses `700_*`. No need or permission to put BOARD_AV on `100_*`.
+2. This is a **narrow exception based on block name + LOAD_TYPE + layer together**, not blanket permission for all BOARD blocks or ordinary power boards on `700_*`. Other BOARD roles follow their existing group restrictions. Prevent generic `BOARD_IN` on `700_*` with non-AV LOAD_TYPE; ensure a BOARD_AV on other numeric group is rejected.
+3. Preserve the exact normative AV model: `docs/product/24_AV_CABLE_SYSTEM.md` §§2–5, `BOARD + CABLE_ID` free-text identity, allowed HDMI/SPEAKER_CABLE and duplicate rules. Machine JSON has a pre-existing inconsistency: `load_types.BOARD` lacks BOARD_AV and `board_rules.av_role` / `av_block_name` are empty. **Restore** `BOARD_AV`, `BOARD_IN` in those fields and verify tests.
+4. The authoring exact reference `docs/autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md` must be updated **narrowly** for the approved BOARD_AV role and placement; this reference is explicitly added to C7A allowed scope. The canonical product document `docs/product/20_AUTOCAD_BLOCK_CONTRACT.md` may receive a narrowly scoped approved BOARD_AV layer rule for parity. Do **not** rewrite unrelated blocks/ATTDEF hashes/physical DALI contract.
+5. Preserve unchanged existing BOARD_IN semantics and explicit negative tests for ordinary BOARD on `700_*`; if the contract serializer cannot represent role-conditional layer placement without extending validator semantics, stage the intended role restriction in machine metadata + targeted tests **but do not claim runtime acceptance** before C7b. Never broaden allowed_groups for all BOARD types without a demonstrated role check.
+6. **Baseline tests before edits:** 251 C1-C4 passed. Selected catalog/exact reference/validator tests had 125 passed, **7 pre-existing failures**: contract version 3.0.0 vs 3.2.0; 72nd CABLE_OUTLET_BUS definition; four existing ATTDEF hashes; blanket BUS_ID assertion. Do not disguise or change those expectations automatically. Document changes introduced by C7A distinctly from those existing baseline failures. No test-skipping to force green.
+
+### Updated allowed paths
+
+In addition to original C7A allowed machine JSON, `cad_contract/catalog.py`, targeted CAD-contract tests and C7A checkpoint, **allow only narrowly relevant** updates to:
+- `Systems/NLP/docs/autocad/AUTOCAD_BLOCK_ATTRIBUTE_REFERENCE.md` (BOARD_AV role + layer placement, without unrelated canonical changes);
+- `Systems/NLP/docs/product/20_AUTOCAD_BLOCK_CONTRACT.md` (only short approved BOARD_AV layer contract clarification).
+
+Do NOT edit `validator.py` or COM/reconciliation. Record what validator cannot yet enforce, for C7b.
+
+### Required negative and positive evidence
+
+- valid `700_Аудио`/ `700_AV boards` with `BOARD_IN / BOARD_AV`; different free valid 700 suffixes may coexist;
+- ordinary `BOARD_IN` roles (e.g. BOARD_DISTRIBUTION) on 700 rejected; BOARD_AV on 100 rejected; arbitrary BOARD-family entries not granted 700 permission;
+- AV `CABLE_OUTLET` and identity remain correct, BOARD_AV source role resolved;
+- existing TRACK_DALI overlap, HVAC union and non-AV group matching preserved;
+- test and checkpoint clearly distinguish **staged machine/catalog allowance** from still-unmigrated runtime validator; if not enforceable without C7b changes, stop or mark PARTIAL rather than claim PASSED.
+
+### Resume checkpoint
+
+Do not redo C1-C6 or the C7A baseline investigation. Read `docs/engineering/checkpoints/NLP_255_C7A.md` only to understand prior blocker, then this addendum. The prior BLOCKED checkpoint is historical evidence; append a new result section or a new `NLP_255_C7A_RESUME.md` checkpoint and post final SHA/status to existing #255. Do not rewrite history. Next step remains independent coordinator review; **no C7b**.
