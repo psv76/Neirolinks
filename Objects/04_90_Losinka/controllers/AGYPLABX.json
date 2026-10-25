@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "name": "Основной контроллер (назначение уточняется)",
+  "node": "main",
+  "role": "house",
+  "state": "planned",
+  "capabilities": [],
+  "diagnostics_profile": "Systems/NST/diagnostics/controller-default-v1.json",
+  "fingerprint_sha256": "76c94ff6919ed809325f8104c3242faad3543325aa4d5e1a074c1fc549341fa4"
+}
