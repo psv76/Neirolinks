@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 import time
 import uuid
@@ -18,6 +19,7 @@ from nl_project_2.cad_contract import (
     CadObservationBatch,
     CadReadRequest,
 )
+from nl_project_2.cad_contract.layer_names import parse_working_layer_name
 from nl_project_2.runtime_resources import sta_bridge_command
 
 from .models import WriteResult
@@ -51,6 +53,18 @@ class FreshCadReadWitness:
     dbmod: int
     scan_mode: str = "FORCED_FULL_SCAN"
     proves_durable_file_identity: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class LayerFilteredRead:
+    """Diagnostic read only. The embedded batch remains blocked by C6."""
+
+    batch: CadObservationBatch
+    census: tuple[tuple[str, str], ...]
+    present_excluded_handles: tuple[str, ...]
+    absent_unknown_handles: tuple[str, ...]
+    status: str = "REQUIRES_ATTENTION"
+    next_action: str = "Obtain a full unfiltered read before preview/apply."
 
 
 class AutoCadBridgeClient:
@@ -178,6 +192,96 @@ class AutoCadBridgeClient:
             fingerprint_sha256=hashlib.sha256(digest_payload.encode("utf-8")).hexdigest(),
             document_saved=before.saved,
             dbmod=before.dbmod,
+        )
+
+    def read_layer_filtered_observations(
+        self, request: CadReadRequest, *, tracked_handles: tuple[str, ...]
+    ) -> LayerFilteredRead:
+        """Explicit diagnostic API; never used by Update or the #148 cache.
+
+        A complete handle/layer census brackets selected LISP/COM heavy reads.
+        It proves presence at those samples, not durable deletion or a stable
+        attribute revision. Absent tracked handles therefore stay unknown.
+        """
+        expected = request.expected_document_identity.strip()
+        if not expected or request.deadline_seconds <= 0:
+            raise BridgeError("FILTERED_READ_EXPLICIT_DOCUMENT_AND_DEADLINE_REQUIRED")
+        if len(set(tracked_handles)) != len(tracked_handles) or any(
+            not isinstance(h, str) or re.fullmatch(r"[0-9A-F]+", h) is None for h in tracked_handles
+        ):
+            raise BridgeError("FILTERED_READ_TRACKED_HANDLES_INVALID")
+        read_id = uuid.uuid4().hex
+        payload = self._call(
+            {
+                "operation": "scan_working_layers",
+                "expected_document_identity": expected,
+                "tracked_handles": list(tracked_handles),
+                "read_id": read_id,
+                "definition_names": list(request.definition_names),
+                "timeout_seconds": min(15.0, request.deadline_seconds),
+            },
+            request.deadline_seconds,
+        )
+        try:
+            if (
+                payload["read_id"] != read_id
+                or payload["document_identity"].casefold() != expected.casefold()
+            ):
+                raise ValueError("stale or foreign document response")
+            before, after = payload["census_before"], payload["census_after"]
+            if not isinstance(before, dict) or not isinstance(after, dict) or before != after:
+                raise ValueError("census drift")
+            if any(
+                not isinstance(h, str)
+                or re.fullmatch(r"[0-9A-F]+", h) is None
+                or not isinstance(layer, str)
+                for h, layer in before.items()
+            ):
+                raise ValueError("malformed census")
+            selected = {
+                h
+                for h, layer in before.items()
+                if parse_working_layer_name(layer) is not None or h in tracked_handles
+            }
+            returned = payload["selected_handles"]
+            if len(returned) != len(set(returned)) or set(returned) != selected:
+                raise ValueError("selected handle mismatch")
+            if payload["tracked_handles"] != list(tracked_handles):
+                raise ValueError("tracked handle mismatch")
+            metadata = payload["source_metadata"]
+            if (
+                metadata.get("layer_filter_applied") is not True
+                or metadata.get("scan_is_complete_for_reconciliation") is not False
+                or type(metadata.get("skipped_block_references")) is not int
+                or metadata["skipped_block_references"] != len(before) - len(selected)
+            ):
+                raise ValueError("missing non-authoritative flags")
+            batch = (
+                _batch_from_fingerprint(payload, definition_names=set(request.definition_names))
+                if metadata["scan_mode"] == "FILTERED_FINGERPRINT"
+                else _batch_from_payload(payload)
+            )
+            if (
+                len(batch.observations) != len(selected)
+                or {o.handle for o in batch.observations} != selected
+            ):
+                raise ValueError("heavy observation owner mismatch")
+            if any(o.layer != before[o.handle] for o in batch.observations):
+                raise ValueError("heavy observation layer drift")
+        except (KeyError, TypeError, ValueError, AttributeError) as exc:
+            raise BridgeError(f"FILTERED_READ_INVALID: {exc}") from exc
+        excluded = tuple(
+            sorted(
+                h
+                for h in tracked_handles
+                if h in before and parse_working_layer_name(before[h]) is None
+            )
+        )
+        return LayerFilteredRead(
+            batch,
+            tuple(before.items()),
+            excluded,
+            tuple(sorted(set(tracked_handles) - before.keys())),
         )
 
     def read_observations(self, request: CadReadRequest) -> CadObservationBatch:

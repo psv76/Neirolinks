@@ -240,3 +240,146 @@ assert 'sqlalchemy' not in sys.modules
         [sys.executable, "-I", "-c", script, str(bridge_path)], capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
+
+
+class CensusBlock(Block):
+    def __getattribute__(self, key):
+        if key == "Handle":
+            object.__getattribute__(self, "reads").append(key)
+            return object.__getattribute__(self, key)
+        return super().__getattribute__(key)
+
+
+def census_document(blocks):
+    document = Document([])
+    document.ModelSpace = tuple(blocks)
+    by_handle = {object.__getattribute__(b, "Handle"): b for b in blocks}
+    document.HandleToObject = by_handle.__getitem__
+    return document
+
+
+@pytest.mark.parametrize("fallback", [False, True])
+def test_census_filters_heavy_work_on_both_paths_and_keeps_tracked(monkeypatch, fallback):
+    import tools.autocad_sta_bridge as bridge
+
+    included = [
+        CensusBlock("300_Свет", "A1", name="DALI_GROUP"),
+        CensusBlock("400_LED", "A2", name="DALI_GROUP"),
+        CensusBlock("ARCH", "A3"),
+    ]
+    excluded = [CensusBlock(layer, f"B{i:X}", forbidden=True) for i, layer in enumerate(INVALID)]
+    document = census_document(included + excluded)
+    selected_calls = []
+
+    def fingerprint(doc, identity, *, timeout_seconds, handles):
+        selected_calls.append(handles)
+        if fallback:
+            raise RuntimeError("LISP unavailable")
+        # Model the selected-only LISP heavy read; real generated code is checked below.
+        heavy = bridge._scan_handles(doc, identity, list(handles))
+        return {
+            "document_identity": identity,
+            "handles": list(handles),
+            "signatures": dict.fromkeys(handles, "synthetic"),
+            "source_metadata": heavy["source_metadata"],
+        }
+
+    monkeypatch.setattr(bridge, "_fingerprints", fingerprint)
+    result = bridge._scan_working_layers(document, document.FullName, ("A3", "DEAD"))
+    assert selected_calls == [("A1", "A2", "A3")]
+    assert result["census_before"] == result["census_after"]
+    assert len(result["census_before"]) == len(included + excluded)
+    assert result["source_metadata"]["scan_mode"] == (
+        "FILTERED_COM_FALLBACK" if fallback else "FILTERED_FINGERPRINT"
+    )
+    assert result["source_metadata"]["scan_is_complete_for_reconciliation"] is False
+    assert result["source_metadata"]["skipped_block_references"] == len(excluded)
+    assert result["status"] == "REQUIRES_ATTENTION"
+    for block in excluded:
+        assert block.reads == ["ObjectName", "Handle", "Layer"] * 2
+    for block in included:
+        assert block.reads.count("GetAttributes") == 1
+        assert block.reads.count("EffectiveName") == 1
+    assert document.Blocks.calls == ["DALI_GROUP", "SOCKET_IN"]
+
+
+@pytest.mark.parametrize("change", ["layer", "removed", "added", "identity"])
+def test_filtered_read_rejects_census_or_document_drift(monkeypatch, change):
+    import tools.autocad_sta_bridge as bridge
+
+    block = CensusBlock("300_Light", "A1")
+    document = census_document([block])
+
+    def fingerprint(doc, identity, **kwargs):
+        if change == "layer":
+            block.Layer = "ARCH"
+        elif change == "removed":
+            doc.ModelSpace = ()
+        elif change == "added":
+            doc.ModelSpace += (CensusBlock("ARCH", "B1"),)
+        else:
+            doc.FullName = "other.dwg"
+        return {
+            "document_identity": identity,
+            "handles": ["A1"],
+            "signatures": {"A1": "synthetic"},
+            "source_metadata": {},
+        }
+
+    monkeypatch.setattr(bridge, "_fingerprints", fingerprint)
+    with pytest.raises(RuntimeError, match="changed"):
+        bridge._scan_working_layers(document, document.FullName, ())
+
+
+@pytest.mark.parametrize("failure", ["duplicate", "layer_error", "handle"])
+def test_census_errors_stop_before_heavy_properties(monkeypatch, failure):
+    import tools.autocad_sta_bridge as bridge
+
+    first = CensusBlock("ARCH", "A1", forbidden=True)
+    second = CensusBlock(
+        "ARCH",
+        "bad" if failure == "handle" else "A1" if failure == "duplicate" else "A2",
+        forbidden=True,
+        layer_error=failure == "layer_error",
+    )
+    document = census_document([first, second])
+    monkeypatch.setattr(
+        bridge, "_fingerprints", lambda *a, **k: pytest.fail("heavy read after failed census")
+    )
+    with pytest.raises(RuntimeError):
+        bridge._scan_working_layers(document, document.FullName, ())
+
+
+def test_lisp_selected_handles_are_escaped_and_selection_precedes_heavy_reads():
+    from tools.autocad_sta_bridge import _fingerprint_lisp, _lisp_string
+
+    code = _fingerprint_lisp(
+        Path("C:/temp/fingerprint.txt"),
+        handles=("A1", "B2"),
+        expected_identity="C:/Project/Тест.dwg",
+    )
+    assert '(foreach h \'("A1" "B2")' in code
+    assert 'ssget "_X"' not in code
+    assert code.index("(handent h)") < code.index("(vla-get-EffectiveName o)")
+    assert '(strcase "C:/Project/Тест.dwg")' in code
+    assert _lisp_string('a"b\\c') == '"a\\"b\\\\c"'
+    with pytest.raises(RuntimeError, match="handle"):
+        _fingerprint_lisp(Path("out"), handles=('A1") (command',), expected_identity="doc")
+    with pytest.raises(ValueError, match="Control"):
+        _lisp_string("bad\npath")
+    # Default fingerprint still enumerates the full model space.
+    assert 'ssget "_X"' in _fingerprint_lisp(Path("out"))
+
+
+def test_filtered_fallback_metadata_failure_never_returns_partial_success(monkeypatch):
+    import tools.autocad_sta_bridge as bridge
+
+    document = census_document([CensusBlock("300_Light", "A1")])
+
+    def failed(*args, **kwargs):
+        raise RuntimeError("read failed")
+
+    monkeypatch.setattr(bridge, "_fingerprints", failed)
+    document.Blocks.Item = failed
+    with pytest.raises(RuntimeError, match="read failed"):
+        bridge._scan_working_layers(document, document.FullName, ())
