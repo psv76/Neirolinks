@@ -2172,6 +2172,55 @@ class DwgSyncService:
                         )
                     owner_endpoint = endpoint_ids.get(plan.source_point_key)
                     if owner_endpoint is None:
+                        # A cross-line BOX is an accepted physical point of the
+                        # owning line. During a selective update its handle is
+                        # not necessarily active, so endpoint_ids (the current
+                        # selection) cannot serve as the complete Project index.
+                        # Reuse only an unambiguous, already linked endpoint;
+                        # never synthesize an unconfirmed source box here.
+                        accepted_device_ids = {
+                            device_ids[handle]
+                            for handle in source_plan.handles
+                            if handle in device_ids
+                        }
+                        if accepted_device_ids:
+                            known_owner_endpoints = set(
+                                uow.execute(
+                                    select(cable_topology_endpoint.c.id)
+                                    .join(
+                                        cable_point,
+                                        cable_topology_endpoint.c.cable_point_id
+                                        == cable_point.c.id,
+                                    )
+                                    .join(
+                                        cable_line,
+                                        cable_point.c.cable_line_id == cable_line.c.id,
+                                    )
+                                    .join(
+                                        cable_point_field_device,
+                                        cable_point_field_device.c.cable_point_id
+                                        == cable_point.c.id,
+                                    )
+                                    .where(
+                                        cable_point.c.project_id == project_id,
+                                        cable_point.c.point_kind == "EL_BOX",
+                                        cable_point.c.logical_identity
+                                        == source_plan.logical_identity,
+                                        cable_line.c.project_id == project_id,
+                                        cable_line.c.designation == source_plan.base,
+                                        cable_line.c.lifecycle == "ACTIVE",
+                                        cable_topology_endpoint.c.project_id == project_id,
+                                        cable_topology_endpoint.c.cable_line_id
+                                        == cable_point.c.cable_line_id,
+                                        cable_point_field_device.c.field_device_id.in_(
+                                            accepted_device_ids
+                                        ),
+                                    )
+                                ).scalars()
+                            )
+                            if len(known_owner_endpoints) == 1:
+                                owner_endpoint = next(iter(known_owner_endpoints))
+                    if owner_endpoint is None:
                         raise DwgSyncError(
                             f"Распределительная коробка {plan.source_reference} "
                             "ещё не принята в Project."

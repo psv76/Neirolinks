@@ -718,13 +718,17 @@ class DwgSyncResolutionDialog(QDialog):
         self._write_paths: set[str] = set()
         self._bus_roots: set[str] = set()
         self.open_checks_requested = False
-        self.setWindowTitle("Требуют решения")
+        self.setWindowTitle("Ошибки и нерешённые изменения DWG")
         self.resize(1180, 580)
 
-        rows = [("CONFLICT", item) for item in plan.conflicts]
+        # A failed Apply is the primary outcome. Never bury it after tens
+        # of unrelated missing bus roots or validator warnings.
+        rows = [("RUNTIME", message) for message in runtime_errors]
+        rows.extend(("CONFLICT", item) for item in plan.conflicts)
         rows.extend(("PROBLEM", item) for item in plan.problems)
         rows.extend(("BUS_ROOT", designation) for designation in plan.missing_bus_roots)
-        rows.extend(("RUNTIME", message) for message in runtime_errors)
+        if plan.write_paths:
+            rows.append(("OUTBOUND", len(plan.write_paths)))
 
         self.table = QTableWidget(len(rows), 6, self)
         self.table.setObjectName("dwgResolutionTable")
@@ -744,12 +748,34 @@ class DwgSyncResolutionDialog(QDialog):
         observations = {item.handle: item for item in proposal.batch.observations if item.handle}
         for row, (kind, payload) in enumerate(rows):
             if kind == "RUNTIME":
-                values = ("Обновление DWG", "—", "—", "—", str(payload))
+                values = ("Импорт DWG → Project", "Ошибка", "Не применено", "—", str(payload))
                 for column, value in enumerate(values):
                     self.table.setItem(row, column, QTableWidgetItem(value))
                 action = QPushButton("Открыть проверки", self.table)
                 action.clicked.connect(self._request_checks)
                 self.table.setCellWidget(row, 5, action)
+                continue
+            if kind == "OUTBOUND":
+                count = int(payload)
+                can_send = not bool(plan.import_paths)
+                values = (
+                    "Project → DWG",
+                    "Подготовлено",
+                    str(count),
+                    "Ожидает",
+                    "Обратная запись не выполняется автоматически. "
+                    + (
+                        "Для сохранения изменений в DWG нужно отдельное подтверждение."
+                        if can_send
+                        else "Сначала завершите импорт и повторите сканирование DWG."
+                    ),
+                )
+                for column, value in enumerate(values):
+                    self.table.setItem(row, column, QTableWidgetItem(str(value)))
+                button = QPushButton("Записать в DWG…", self.table)
+                button.setEnabled(can_send)
+                button.clicked.connect(lambda _checked=False, r=row: self._request_outbound(r))
+                self.table.setCellWidget(row, 5, button)
                 continue
             if kind == "BUS_ROOT":
                 designation = str(payload)
@@ -832,6 +858,20 @@ class DwgSyncResolutionDialog(QDialog):
             close.setText("Закрыть")
 
         layout = QVBoxLayout(self)
+        self.apply_error_summary = QTextEdit(self)
+        self.apply_error_summary.setObjectName("dwgApplyErrorSummary")
+        self.apply_error_summary.setReadOnly(True)
+        if runtime_errors:
+            self.apply_error_summary.setPlainText(
+                "ИМПОРТ НЕ ВЫПОЛНЕН. Ни одно изменение из отклонённой "
+                "транзакции не сохранено в Project.\n\n"
+                + "\n\n".join(str(item) for item in runtime_errors)
+            )
+            self.apply_error_summary.setMinimumHeight(115)
+            self.apply_error_summary.setMaximumHeight(210)
+            layout.addWidget(self.apply_error_summary)
+        else:
+            self.apply_error_summary.hide()
         self.candidate_evidence = QTextEdit(self)
         self.candidate_evidence.setObjectName("dwgInsertionEvidence")
         self.candidate_evidence.setReadOnly(True)
@@ -866,6 +906,25 @@ class DwgSyncResolutionDialog(QDialog):
 
     def requested_bus_roots(self) -> set[str]:
         return set(self._bus_roots)
+
+    def _request_outbound(self, row: int) -> None:
+        count = len(self.plan.write_paths)
+        if self.plan.import_paths or not count:
+            return
+        confirmed = QMessageBox.question(
+            self,
+            "Запись Project → DWG",
+            f"Подтверждаете запись {count} подготовленных изменений в "
+            "открытый DWG? Это изменит атрибуты AutoCAD; сохранить "
+            "файл потребуется отдельно.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirmed is not QMessageBox.StandardButton.Yes:
+            return
+        self._write_paths.update(self.plan.write_paths)
+        self.table.item(row, 4).setText("Запись явно подтверждена")
+        self.table.cellWidget(row, 5).setEnabled(False)
 
     def _request_checks(self) -> None:
         self.open_checks_requested = True
@@ -2027,6 +2086,7 @@ class ObjectWorkspace(QWidget):
         written = 0
         dwg_unsaved = False
         runtime_errors: list[str] = []
+        import_failed = False
 
         if plan.import_paths:
             try:
@@ -2038,6 +2098,7 @@ class ObjectWorkspace(QWidget):
                 imported = len(plan.import_paths)
                 working = replace(working, project_revision=working.project_revision + 1)
             except Exception as exc:
+                import_failed = True
                 logging.getLogger(__name__).exception("Automatic DWG apply failed")
                 try:
                     StructuredLogger(
@@ -2051,33 +2112,29 @@ class ObjectWorkspace(QWidget):
                         error=exc,
                         summary=apply_failure_evidence(working, plan.import_paths, exc),
                     )
-                except OSError:
+                except Exception:
+                    # The diagnostic log is secondary evidence; a log/summary
+                    # failure must never hide the original Apply error from
+                    # the user or suppress the resolution dialog.
                     logging.getLogger(__name__).exception("DWG apply diagnostic logging failed")
-                runtime_errors.append(apply_failure_message(exc))
+                message = apply_failure_message(exc, working)
+                runtime_errors.append(message)
+                # The status badge alone was easy to overlook; show the
+                # transaction failure immediately, before any other warnings.
+                QMessageBox.warning(self, "Импорт DWG не выполнен", message)
 
-        if plan.write_paths:
-            try:
-                write_result = service.write_project_to_dwg(
-                    working,
-                    selected_paths=plan.write_paths,
-                    confirmed=True,
-                )
-                written = len(plan.write_paths)
-                dwg_unsaved = bool(write_result.no_save_confirmed)
-            except Exception as exc:
-                logging.getLogger(__name__).exception("Automatic Project to DWG write failed")
-                runtime_errors.append(
-                    _localized_sync_error(str(exc))
-                    if isinstance(exc, (BridgeError, DwgSyncError))
-                    else "Не удалось передать изменения Project в DWG."
-                )
-
+        # Outbound edits are never the side effect of a read/update action.
+        # In particular do not write 313 auto-generated GOFRA_ID values to
+        # the open DWG while diagnosing a failed inbound Apply. A dedicated,
+        # explicitly confirmed Project→DWG action is required.
+        outbound_pending = len(plan.write_paths)
         needs_resolution = bool(
             plan.conflicts
             or plan.problems
             or plan.blocked_lines
             or plan.missing_bus_roots
             or runtime_errors
+            or outbound_pending
         )
         if needs_resolution:
             blocked = tuple(
@@ -2113,6 +2170,7 @@ class ObjectWorkspace(QWidget):
                     imported += len(selected_import)
                     working = replace(working, project_revision=working.project_revision + 1)
                 except Exception as exc:
+                    import_failed = True
                     logging.getLogger(__name__).exception("DWG decision apply failed")
                     try:
                         StructuredLogger(
@@ -2126,7 +2184,7 @@ class ObjectWorkspace(QWidget):
                             error=exc,
                             summary=apply_failure_evidence(working, selected_import, exc),
                         )
-                    except OSError:
+                    except Exception:
                         logging.getLogger(__name__).exception("DWG apply diagnostic logging failed")
                     QMessageBox.warning(
                         self,
@@ -2135,7 +2193,7 @@ class ObjectWorkspace(QWidget):
                     )
 
             selected_write = dialog.selected_write_paths()
-            if selected_write:
+            if selected_write and not import_failed and imported == 0:
                 try:
                     write_result = service.write_project_to_dwg(
                         working,
@@ -2173,8 +2231,12 @@ class ObjectWorkspace(QWidget):
                 parts.append(f"из DWG: {imported}")
             if written:
                 parts.append(f"в DWG: {written}")
-            if needs_resolution:
+            if import_failed:
+                parts.append("ошибка импорта — изменения не применены")
+            elif needs_resolution:
                 parts.append("требует решения")
+            if outbound_pending:
+                parts.append(f"в DWG ожидают записи: {outbound_pending}")
             if dwg_unsaved:
                 parts.append("DWG не сохранён")
             self.sync_status_label.setText(" · ".join(parts) or "Обновлено")

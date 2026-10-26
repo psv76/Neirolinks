@@ -267,13 +267,90 @@ def test_failed_automatic_dwg_apply_becomes_visible_problem(
     )
     widget._review_sync_proposal(_ProposalStub(project_id=pid))
 
-    assert warnings == []
-    assert widget.sync_status_label.text() == "требует решения"
+    assert len(warnings) == 1
+    assert warnings[0][0] == "Импорт DWG не выполнен"
+    assert str(error) in warnings[0][1]
+    assert "НЕ применены" in warnings[0][1]
+    assert widget.sync_status_label.text() == "ошибка импорта — изменения не применены"
     assert any(
         record.exc_info
         for record in caplog.records
         if record.message == "Automatic DWG apply failed"
     )
+    widget.close()
+    runtime.close()
+
+
+def test_update_apply_failure_never_triggers_outbound_dwg_writes(qtbot, tmp_path, monkeypatch):
+    runtime = ApplicationRuntime.open(_paths(tmp_path))
+    pid = runtime.objects.create_project(
+        ProjectCard(name="No silent outbound", project_code="NO-OUTBOUND")
+    )
+    widget = ObjectWorkspace(runtime)
+    qtbot.addWidget(widget)
+    widget.open_project(pid)
+
+    monkeypatch.setattr(
+        object_workspace_module,
+        "build_dwg_update_plan",
+        lambda _proposal, **_kwargs: SimpleNamespace(
+            import_paths=frozenset({"858E5:CABLE_TYPE"}),
+            write_paths=frozenset({"858E5:GOFRA_ID"}),
+            conflicts=(),
+            problems=(),
+            blocked_lines=(),
+            missing_bus_roots=(),
+        ),
+    )
+    monkeypatch.setattr(
+        runtime.dwg_sync,
+        "apply_dwg_to_project",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            DwgSyncError("Распределительная коробка BOX.024 ещё не принята в Project.")
+        ),
+    )
+    outbound_calls = []
+    monkeypatch.setattr(
+        runtime.dwg_sync,
+        "write_project_to_dwg",
+        lambda *_args, **_kwargs: outbound_calls.append("WRITE"),
+    )
+    warnings = []
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        lambda _parent, title, body: warnings.append((title, body)),
+    )
+
+    class Resolution:
+        open_checks_requested = False
+
+        def __init__(self, _proposal, plan, runtime_errors=(), parent=None):
+            assert runtime_errors
+            assert plan.write_paths == {"858E5:GOFRA_ID"}
+
+        def exec(self):
+            return QDialog.DialogCode.Rejected
+
+        @staticmethod
+        def selected_import_paths():
+            return set()
+
+        @staticmethod
+        def selected_write_paths():
+            return set()
+
+        @staticmethod
+        def requested_bus_roots():
+            return set()
+
+    monkeypatch.setattr(object_workspace_module, "DwgSyncResolutionDialog", Resolution)
+    widget._review_sync_proposal(_ProposalStub(project_id=pid))
+    assert outbound_calls == []
+    assert len(warnings) == 1
+    assert "BOX.024" in warnings[0][1]
+    assert "ошибка импорта" in widget.sync_status_label.text()
+    assert "в DWG ожидают записи: 1" in widget.sync_status_label.text()
     widget.close()
     runtime.close()
 
