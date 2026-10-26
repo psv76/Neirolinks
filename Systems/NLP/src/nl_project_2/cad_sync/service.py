@@ -2967,6 +2967,28 @@ class DwgSyncService:
     def _materialize_segment_conduits(
         self, uow, *, project_id, plans, segment_ids, device_ids
     ) -> None:
+        assigned_auto = {
+            row["cable_segment_id"]: row
+            for row in uow.execute(
+                select(
+                    conduit_segment_assignment.c.cable_segment_id,
+                    conduit.c.designation,
+                    conduit.c.conduit_type,
+                    conduit.c.color,
+                    conduit.c.path_json,
+                )
+                .select_from(conduit_segment_assignment)
+                .join(
+                    conduit,
+                    conduit.c.id == conduit_segment_assignment.c.conduit_id,
+                )
+                .where(
+                    conduit_segment_assignment.c.project_id == project_id,
+                    conduit.c.lifecycle == "ACTIVE",
+                )
+            ).mappings()
+            if (row["path_json"] or {}).get("origin") == "AUTO_SEGMENT"
+        }
         designation_counts = Counter(
             dict(plan.route).get("GOFRA_ID", "")
             for plan in plans
@@ -2996,6 +3018,21 @@ class DwgSyncService:
                 continue
             designation = route.get("GOFRA_ID", "")
             generated = not designation
+            existing_auto = assigned_auto.get(segment_id) if generated else None
+            if existing_auto is not None:
+                if existing_auto["conduit_type"] != route["GOFRA_TYPE"] or (
+                    existing_auto["color"] or ""
+                ) != route.get("GOFRA_COLOR", ""):
+                    raise DwgSyncError(
+                        "AUTO_CONDUIT_ROUTE_CHANGED_REQUIRES_ATTENTION: "
+                        f"{plan.key}: the existing automatically generated "
+                        "conduit differs in type or color"
+                    )
+                # Keep the physical assignment and generated designation on
+                # an unrelated selective Apply. Never use the next free number
+                # for a segment that already owns an AUTO_SEGMENT conduit.
+                designation = existing_auto["designation"]
+                generated = False
             if generated:
                 if next_number > 999:
                     raise DwgSyncError("No automatic conduit number remains in NNN format")
