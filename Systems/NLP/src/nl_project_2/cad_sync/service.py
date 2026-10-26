@@ -2601,6 +2601,23 @@ class DwgSyncService:
                 # field device/ports materializable and defer only BUS topology
                 # until a Project bus root (for example MGE) is assigned.
                 continue
+            if not any(plan.handle in active_handles for plan in plans):
+                # Selective cable import must not silently churn existing BUS
+                # conduit IDs/assignments. Still allow delayed initialization
+                # of a pre-accepted BUS device when its Project root appears.
+                accepted = set(
+                    uow.execute(
+                        select(
+                            bus_endpoint.c.field_device_id,
+                            bus_endpoint.c.address,
+                        ).where(
+                            bus_endpoint.c.project_id == project_id,
+                            bus_endpoint.c.bus_id == bus_row["id"],
+                        )
+                    ).all()
+                )
+                if all((device_ids[plan.handle], plan.point_id) in accepted for plan in plans):
+                    continue
             kinds = {plan.bus_kind for plan in plans}
             if kinds != {bus_row["bus_kind"]}:
                 raise DwgSyncError(
