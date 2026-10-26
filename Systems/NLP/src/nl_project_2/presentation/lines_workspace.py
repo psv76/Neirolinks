@@ -1156,7 +1156,9 @@ class LinesWorkspace(QWidget):
                     or (definition.key == "designation" and bool(physical_row.issue_reason))
                     or (definition.key == "board" and bool(source_issue))
                 )
-                if child_has_issue:
+                if child_has_issue and not (
+                    definition.key == "effective_m" and str(value).startswith("⚠")
+                ):
                     child.setIcon(
                         QApplication.style().standardIcon(
                             QStyle.StandardPixmap.SP_MessageBoxWarning
