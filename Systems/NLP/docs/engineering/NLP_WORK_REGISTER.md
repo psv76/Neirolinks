@@ -10,6 +10,16 @@
 > **Регистр = навигация и реестр обязательств, НЕ доказательство принятия кода.**
 > Дата среза ниже 2026-10-26; перечни быстро устаревают. Перед **каждым** новым чатом, постановкой задачи, интеграцией и релизом заново получать весь GitHub inventory, а не доверять только этому снимку.
 
+## Открытое обязательство: полный каталог паспортов устройств — Issue #293 (26.10.2026)
+
+| Направление | Issue / PR / ветка | Принятое требование | В установленной NLP 3.1 | Target / выпуск / блокер |
+| --- | --- | --- | --- | --- |
+| Полная миграция и паспортизация известного оборудования WB, включая `WBE2-I-RS485-ISO`, MOD1…MOD4, WB-MGE v.3, WB-DALI3 и RS-485/DALI ресурсы | [Issue #293](https://github.com/psv76/Neirolinks/issues/293); **PR / ветка ещё не созданы** | Инвентаризация 43 legacy SKU / 16 module definitions / 36 engineering definitions без двойного подсчёта; полные проверенные `EquipmentPassport/Product/InstanceResource`, типизированные подключения модулей и назначение корней шин 900; миграция каталога и проверка работающей SQLite | **NOT IMPLEMENTED / PARTIAL** — в `main` только 19 паспортов всех категорий, 32 товара; недостаёт `WBE2-I-RS485-ISO` и части известной библиотеки | Выпуск **не назначен**, не считать автоматически 3.2; требуются provenance/mapping/официальная верификация, code+UI tests, штатный catalog successor, backup→migration→startup smoke |
+
+**Источники:** legacy `D:\NLP\catalogs\wb_equipment_catalog.json`, `wb_module_catalog.json`, `wb_engineering_reference.json` — reference/evidence, не действующий machine catalog. Основная постановка, критерии, зависимости и ссылки — **[#293](https://github.com/psv76/Neirolinks/issues/293)**. Навигаторы [#145](https://github.com/psv76/Neirolinks/issues/145), [#286](https://github.com/psv76/Neirolinks/issues/286), [#235](https://github.com/psv76/Neirolinks/issues/235). Нельзя выдавать существование legacy справочника за готовность production паспорта.
+
+---
+
 ## Q07 working patch — установлен 26.10.2026
 
 **Решение пользователя:** второй визуальный вариант Q07 разрешено использовать в
