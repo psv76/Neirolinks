@@ -42,6 +42,7 @@ from nl_project_2.guided_actions import GuidedAction
 
 from .bulk_action_dialog import BulkActionDialog
 from .guided_action_dialog import GuidedActionDialog
+from .physical_tree import compact_physical_edge_rows, physical_edge_layout
 from .room_presentation import ROOM_MARKERS_ROLE, RoomChipDelegate
 
 
@@ -1080,44 +1081,16 @@ class LinesWorkspace(QWidget):
 
         self.table.setSortingEnabled(False)
         insert_at = base_row + 1
-        selected_edges = list(enumerate(edges))
-        hidden_count = 0
-        if len(edges) > 8 and line_id not in self._full_tree_line_ids:
-            keep = {0, 1, 2, len(edges) - 2, len(edges) - 1}
-            keep.update(
-                index
-                for index, edge in enumerate(edges)
-                if bool((edge.get("target") or {}).get("room_unresolved"))
-                or edge.get("calculation_status") != "READY"
-            )
-            keep = {index for index in keep if 0 <= index < len(edges)}
-            hidden_count = len(edges) - len(keep)
-            selected_edges = [(index, edges[index]) for index in sorted(keep)]
-
-        previous_index = -1
-        more_inserted = False
-        for edge_index, edge in selected_edges:
-            if hidden_count and not more_inserted and edge_index > previous_index + 1:
-                self.table.insertRow(insert_at)
-                for column, definition in enumerate(COLUMNS):
-                    value = ""
-                    if definition.key == "designation":
-                        value = "⋮"
-                    elif definition.key == "load_name":
-                        value = f"Ещё {hidden_count} точек — показать все"
-                    more = NaturalSortItem(value)
-                    more.setFlags(more.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                    more.setData(Qt.ItemDataRole.UserRole, line_id)
-                    more.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
-                    more.setData(Qt.ItemDataRole.UserRole + 3, "MORE")
-                    more.setForeground(QBrush(QColor("#1769e0")))
-                    self.table.setItem(insert_at, column, more)
-                insert_at += 1
-                more_inserted = True
-            previous_index = edge_index
+        physical_rows = physical_edge_layout(edges)
+        selected_rows, hidden_count = (
+            (physical_rows, 0)
+            if line_id in self._full_tree_line_ids
+            else compact_physical_edge_rows(physical_rows)
+        )
+        for physical_row in selected_rows:
+            edge = physical_row.edge
             self.table.insertRow(insert_at)
             target = dict(edge.get("target") or {})
-            depth = int(edge.get("depth") or 0)
             description = str(target.get("description") or "").strip()
             if not description and target.get("point_kind") == "EL_BOX":
                 description = "Распределительная коробка"
@@ -1125,7 +1098,7 @@ class LinesWorkspace(QWidget):
                 "building_names": target.get("building_names") or "",
                 "board": "",
                 "room_names": target.get("room_names") or "",
-                "designation": f"{'   ' * depth}└─ {target.get('label') or 'Точка'}",
+                "designation": f"{physical_row.prefix}{target.get('label') or 'Точка'}",
                 "load_name": description,
                 "cable_type": "",
                 "mount_way": edge.get("mount_way") or "",
@@ -1144,10 +1117,16 @@ class LinesWorkspace(QWidget):
                 child.setData(Qt.ItemDataRole.UserRole, line_id)
                 child.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
                 child.setData(Qt.ItemDataRole.UserRole + 3, "CHILD")
+                child.setData(Qt.ItemDataRole.UserRole + 4, edge.get("segment_id"))
                 child.setForeground(QBrush(QColor("#4b5563")))
                 child_has_issue = (
-                    definition.key == "room_names" and bool(target.get("room_unresolved"))
-                ) or (definition.key == "effective_m" and edge.get("calculation_status") != "READY")
+                    (definition.key == "room_names" and bool(target.get("room_unresolved")))
+                    or (
+                        definition.key == "effective_m"
+                        and edge.get("calculation_status") != "READY"
+                    )
+                    or (definition.key == "designation" and bool(physical_row.issue_reason))
+                )
                 if child_has_issue:
                     child.setIcon(
                         QApplication.style().standardIcon(
@@ -1156,6 +1135,26 @@ class LinesWorkspace(QWidget):
                     )
                 if str(value):
                     child.setToolTip(str(value))
+                if definition.key == "designation" and physical_row.issue_reason:
+                    child.setToolTip(physical_row.issue_reason)
+                    child.setData(
+                        _ISSUE_CONTEXT_ROLE,
+                        {
+                            "issue_kind": "TOPOLOGY",
+                            "line_id": line_id,
+                            "network_kind": card.get("network_kind", "CABLE"),
+                            "column_key": "designation",
+                            "row_kind": "CHILD",
+                            "segment_id": edge.get("segment_id"),
+                            "target_label": target.get("label") or "Точка",
+                            "title": f"{target.get('label') or 'Участок'} · topology",
+                            "reason": physical_row.issue_reason,
+                            "required_action": "Проверьте физический источник и конец участка.",
+                            "fix_action": (
+                                "OPEN_BUS" if card.get("network_kind") == "BUS" else "SYNC_DWG"
+                            ),
+                        },
+                    )
                 if definition.key == "room_names" and target.get("room_unresolved"):
                     child.setToolTip("Помещение не связано с каноническим помещением Project")
                     child.setData(
@@ -1212,6 +1211,23 @@ class LinesWorkspace(QWidget):
                         },
                     )
                 self.table.setItem(insert_at, column, child)
+            insert_at += 1
+
+        if hidden_count:
+            self.table.insertRow(insert_at)
+            for column, definition in enumerate(COLUMNS):
+                value = ""
+                if definition.key == "designation":
+                    value = "⋮"
+                elif definition.key == "load_name":
+                    value = f"Ещё {hidden_count} участков — показать все"
+                more_item = NaturalSortItem(value)
+                more_item.setFlags(more_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                more_item.setData(Qt.ItemDataRole.UserRole, line_id)
+                more_item.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
+                more_item.setData(Qt.ItemDataRole.UserRole + 3, "MORE")
+                more_item.setForeground(QBrush(QColor("#1769e0")))
+                self.table.setItem(insert_at, column, more_item)
             insert_at += 1
 
         for addition in additions:
@@ -1309,15 +1325,15 @@ class LinesWorkspace(QWidget):
             header_font.setPointSize(header_font.pointSize() + 1)
         header.setFont(header_font)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        for row, edge in enumerate(edges):
+        for row, physical_row in enumerate(physical_edge_layout(edges)):
+            edge = physical_row.edge
             target = dict(edge.get("target") or {})
-            depth = int(edge.get("depth") or 0)
             description = str(target.get("description") or "").strip()
             if not description and target.get("point_kind") == "EL_BOX":
                 description = "Распределительная коробка"
             values = (
                 target.get("room_names") or "",
-                f"{'   ' * depth}└─ {target.get('label') or 'Точка'}",
+                f"{physical_row.prefix}{target.get('label') or 'Точка'}",
                 description,
                 edge.get("mount_way") or "",
                 edge.get("gofra_id")
@@ -1331,6 +1347,14 @@ class LinesWorkspace(QWidget):
             for column, value in enumerate(values):
                 cell = QTableWidgetItem(str(value))
                 cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                cell.setData(Qt.ItemDataRole.UserRole + 4, edge.get("segment_id"))
+                if column == 1 and physical_row.issue_reason:
+                    cell.setToolTip(physical_row.issue_reason)
+                    cell.setIcon(
+                        QApplication.style().standardIcon(
+                            QStyle.StandardPixmap.SP_MessageBoxWarning
+                        )
+                    )
                 table.setItem(row, column, cell)
         layout.addWidget(table, 1)
 
