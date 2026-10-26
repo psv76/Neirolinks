@@ -51,6 +51,11 @@ from nl_project_2.cad_sync import (
     atomic_line_import_groups,
     build_dwg_update_plan,
 )
+from nl_project_2.cad_sync.diagnostics import (
+    apply_failure_evidence,
+    apply_failure_message,
+    preview_evidence,
+)
 from nl_project_2.config import PathConfig
 from nl_project_2.objects.models import ProjectCard, ProjectSettings, TimeSummary
 from nl_project_2.objects.service import ObjectValidationError
@@ -828,6 +833,12 @@ class DwgSyncResolutionDialog(QDialog):
             close.setText("Закрыть")
 
         layout = QVBoxLayout(self)
+        self.candidate_evidence = QTextEdit(self)
+        self.candidate_evidence.setObjectName("dwgInsertionEvidence")
+        self.candidate_evidence.setReadOnly(True)
+        self.candidate_evidence.setPlainText(preview_evidence(proposal))
+        self.candidate_evidence.setMaximumHeight(140)
+        layout.addWidget(self.candidate_evidence)
         layout.addWidget(self.table)
         layout.addWidget(buttons)
 
@@ -2083,18 +2094,11 @@ class ObjectWorkspace(QWidget):
                         result="failed",
                         duration_ms=0,
                         error=exc,
-                        summary={
-                            "selected_count": len(plan.import_paths),
-                            "project_revision": working.project_revision,
-                            "reason": str(exc)[:1200],
-                        },
+                        summary=apply_failure_evidence(working, plan.import_paths, exc),
                     )
                 except OSError:
                     logging.getLogger(__name__).exception("DWG apply diagnostic logging failed")
-                runtime_errors.append(
-                    f"DWG apply failed ({type(exc).__name__}): {str(exc)[:350]}. "
-                    "See sync-apply.jsonl in local application logs."
-                )
+                runtime_errors.append(apply_failure_message(exc))
 
         if plan.write_paths:
             try:
@@ -2155,12 +2159,24 @@ class ObjectWorkspace(QWidget):
                     working = replace(working, project_revision=working.project_revision + 1)
                 except Exception as exc:
                     logging.getLogger(__name__).exception("DWG decision apply failed")
+                    try:
+                        StructuredLogger(
+                            PathConfig.from_environment().log_root / "sync-apply.jsonl"
+                        ).record(
+                            level="ERROR",
+                            component="dwg_sync",
+                            operation="decision_apply",
+                            result="failed",
+                            duration_ms=0,
+                            error=exc,
+                            summary=apply_failure_evidence(working, selected_import, exc),
+                        )
+                    except OSError:
+                        logging.getLogger(__name__).exception("DWG apply diagnostic logging failed")
                     QMessageBox.warning(
                         self,
                         "Изменение не применено",
-                        _localized_sync_error(str(exc))
-                        if isinstance(exc, (BridgeError, DwgSyncError))
-                        else "Не удалось применить выбранное решение.",
+                        apply_failure_message(exc),
                     )
 
             selected_write = dialog.selected_write_paths()
