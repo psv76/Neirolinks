@@ -22,8 +22,8 @@ Frozen build: `dist\NLProject3\NLProject3.exe`.
 
 ## Доказательство полноты workstream перед релизом
 
-**Каждая** новая сессия, задача, integration PR или release перед началом сверяется с [Issue #145](https://github.com/psv76/Neirolinks/issues/145) и [реестром открытых работ](engineering/NLP_WORK_REGISTER.md).
+**ChatGPT-координатор, а не Codex:** при начале новой ветки чата, постановке задачи, подготовке интеграции или выпуска сверяет [Issue #145](https://github.com/psv76/Neirolinks/issues/145) и [реестр открытых работ](engineering/NLP_WORK_REGISTER.md). **Codex получает подготовленный task brief и занимается только реализацией в заданном scope, кодом, тестами и отчётом по результату.**
 
-Обязательны полный GitHub inventory `Issues + open PR + все remote branches` (включая `docs/*`, `spike/*` и ветки без PR), чтение принятых UX решений и docs-only PR, проверка зависимого `psv76/NEIROLINKS-TechDocs`, затем **release coverage matrix** на фактическом HEAD и UI: `SHIPPED_VERIFIED / NOT_INCLUDED_APPROVED / BLOCKED` для каждого принятого требования.
+Координатору обязательны полный GitHub inventory `Issues + open PR + все remote branches` (включая `docs/*`, `spike/*` и ветки без PR), чтение принятых UX решений и docs-only PR, проверка зависимого `psv76/NEIROLINKS-TechDocs`, затем **release coverage matrix** на фактическом HEAD и UI: `SHIPPED_VERIFIED / NOT_INCLUDED_APPROVED / BLOCKED` для каждого принятого требования.
 
 **Не выпускать молча неполную реализацию:** зелёный CI/PR merge не доказывает наличие рабочего экрана. При исключении согласованного UX или функции требуется предварительное решение владельца, записанное в #145 + issue + docs register; не заменять это предположением, что работа «перенесена на следующую версию».
