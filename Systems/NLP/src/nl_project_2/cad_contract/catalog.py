@@ -107,6 +107,15 @@ class BlockContractCatalog:
             ):
                 return frozenset({group}) if group in self.functional_groups else frozenset()
             return frozenset()
+        # Ethernet SCS cabinet is a network root, not a 230 V distribution
+        # board. Permit ONLY the approved BOARD_OUT + BOARD_SCS combination
+        # on numeric 800 layers; never generalize to POWER boards or BOARD_IN.
+        if function_group_for_working_layer(layer) == "NETWORK":
+            return (
+                frozenset({"NETWORK"})
+                if block_name == "BOARD_OUT" and load_type == "BOARD_SCS"
+                else frozenset()
+            )
         return self.groups_for_layer(layer) & rule.allowed_groups
 
 
