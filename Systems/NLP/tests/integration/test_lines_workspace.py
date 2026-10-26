@@ -374,8 +374,15 @@ def test_local_warning_click_keeps_exact_cell_and_segment_context(qtbot):
         and workspace.table.item(row, 0).data(Qt.ItemDataRole.UserRole) == "line-1"
     )
     child_length = workspace.table.item(child_row, _column("effective_m"))
+    assert child_length.text() == "⚠ нет длины"
+    assert child_length.toolTip() == "Приёмник: нет помещения (канонической связи)"
     assert not child_length.icon().isNull()
-    workspace._table_item_clicked(child_length)
+    workspace.table.scrollToItem(child_length)
+    qtbot.mouseClick(
+        workspace.table.viewport(),
+        Qt.MouseButton.LeftButton,
+        pos=workspace.table.visualItemRect(child_length).center(),
+    )
     assert captured[-1]["row_kind"] == "CHILD"
     assert captured[-1]["segment_id"] == "segment-line-1"
     assert captured[-1]["target_label"] == "1.01"
@@ -581,6 +588,10 @@ def test_reordered_graph_preserves_columns_issues_and_double_click(qtbot, monkey
                 workspace.table.item(row, column).data(Qt.ItemDataRole.UserRole + 4)
                 == edge["segment_id"]
             )
+        assert workspace.table.item(row, _column("board")).text() == edge["source"]["label"]
+        assert (
+            edge["source"]["endpoint_id"] in workspace.table.item(row, _column("board")).toolTip()
+        )
         assert workspace.table.item(row, _column("mount_way")).text() == edge["mount_way"]
         assert workspace.table.item(row, _column("gofra_id")).text() == edge["gofra_id"]
         assert workspace.table.item(row, _column("effective_m")).text() == edge["cable_length_m"]
@@ -596,13 +607,17 @@ def test_reordered_graph_preserves_columns_issues_and_double_click(qtbot, monkey
     def inspect_dialog(dialog):
         table = dialog.findChild(QTableWidget)
         dialogs.append(table.rowCount())
-        assert [table.item(row, 1).text() for row in range(4)] == [
+        assert table.horizontalHeaderItem(0).text() == "Источник"
+        assert [table.item(row, 0).text() for row in range(4)] == [
+            edge["source"]["label"] for edge in ordered
+        ]
+        assert [table.item(row, 2).text() for row in range(4)] == [
             "↳ BOX",
             "   ├─ A",
             "   └─ B",
             "↳ ORPHAN",
         ]
-        assert [table.item(row, 1).data(Qt.ItemDataRole.UserRole + 4) for row in range(4)] == [
+        assert [table.item(row, 2).data(Qt.ItemDataRole.UserRole + 4) for row in range(4)] == [
             edge["segment_id"] for edge in ordered
         ]
         return 0
@@ -610,3 +625,101 @@ def test_reordered_graph_preserves_columns_issues_and_double_click(qtbot, monkey
     monkeypatch.setattr(QDialog, "exec", inspect_dialog)
     workspace._table_item_double_clicked(workspace.table.item(rows[0], _column("designation")))
     assert dialogs == [4]
+
+
+@pytest.mark.parametrize("manual", [None, "0", "28.75"])
+def test_length_components_only_in_details_without_changing_total(qtbot, monkeypatch, manual):
+    service = FakeCableService()
+    original = service.topology
+    facts = {
+        "board_reserve_m": "4",
+        "distribution_box_reserve_m": "1.4",
+        "distribution_box_lines": 2,
+        "endpoint_reserve_m": "1.2",
+        "endpoint_mechanisms": 4,
+        "meander_reserve_m": "0.555",
+        "obstacle_reserve_m": "0.3",
+        "additional_m": "0.25",
+        "unrounded_m": "17.7",
+        "rounded_m": "18",
+        "manual_full_m": manual,
+    }
+    edges = [
+        _graph_edge("board-id", "box-id", source_kind="BOARD_OUTPUT", box=True),
+        _graph_edge("box-id", "socket-id"),
+    ]
+    labels = {"board-id": "ЩР-1", "box-id": "BOX.007", "socket-id": "X07.01"}
+    for edge in edges:
+        for side in ("source", "target"):
+            edge[side]["label"] = labels[edge[side]["reference"]]
+    service.topology = lambda project_id, line_id: {
+        **original(project_id, line_id),
+        **facts,
+        "edges": deepcopy(edges),
+    }
+    workspace = LinesWorkspace(service, FakeConstructor(), "project")
+    qtbot.addWidget(workspace)
+    base = _row(workspace, "line-1")
+    before = workspace.table.item(base, _column("effective_m")).text()
+    workspace._toggle_line_tree(base, "line-1")
+    assert all(workspace._row_kind(r) != "ADJUSTMENT" for r in range(workspace.table.rowCount()))
+    assert workspace.table.item(base, _column("effective_m")).text() == before
+    assert workspace.table.item(base + 1, _column("board")).text() == "ЩР-1"
+    assert workspace.table.item(base + 2, _column("board")).text() == "BOX.007"
+    assert workspace.table.item(base + 1, _column("designation")).text() == "↳ BOX.007"
+    assert workspace.table.item(base + 2, _column("designation")).text() == "   └─ X07.01"
+
+    inspected = []
+
+    def inspect(dialog):
+        table = dialog.findChild(QTableWidget, "lineLengthComponentsTable")
+        actual = {table.item(r, 0).text(): table.item(r, 1).text() for r in range(table.rowCount())}
+        expected = {
+            "+ подключение в щите": "4",
+            "+ коммутация в распредкоробках (2 линий)": "1.4",
+            "+ выводы из подрозетников (4 механизмов)": "1.2",
+            "+ нелинейность трассы («змейка»)": "0.555",
+            "+ обходы стен и балок": "0.3",
+            "+ дополнительная длина": "0.25",
+            "= до округления": "17.7",
+            "= к выдаче (вверх до шага проекта)": "18",
+        }
+        if manual is not None:
+            expected["= полная ручная длина"] = manual
+        assert actual == expected
+        segments = dialog.findChild(QTableWidget, "lineDetailsSegments")
+        assert segments.rowCount() == 2
+        assert segments.item(1, 0).text() == "BOX.007"
+        inspected.append(True)
+        return 0
+
+    monkeypatch.setattr(QDialog, "exec", inspect)
+    workspace._table_item_double_clicked(workspace.table.item(base, _column("designation")))
+    assert inspected == [True]
+    assert workspace.table.item(base, _column("effective_m")).text() == before
+    assert not service.calls and not service.segment_calls
+
+
+def test_missing_source_label_stays_unknown_and_routes_to_exact_segment(qtbot):
+    service = FakeCableService()
+    original = service.topology
+    edge = _graph_edge("BOARD", "X07.01", source_kind="BOARD_OUTPUT")
+    edge["source"].pop("label")
+    service.topology = lambda project_id, line_id: {
+        **original(project_id, line_id),
+        "edges": [deepcopy(edge)],
+    }
+    workspace = LinesWorkspace(service, FakeConstructor(), "project")
+    qtbot.addWidget(workspace)
+    base = _row(workspace, "line-1")
+    workspace._toggle_line_tree(base, "line-1")
+    source = workspace.table.item(base + 1, _column("board"))
+    assert source.text() == "Источник не определён"
+    assert "отсутствует подпись" in source.toolTip()
+    assert "BOARD" in source.toolTip()
+    captured = []
+    workspace.issueRequested.connect(captured.append)
+    workspace._table_item_clicked(source)
+    assert captured[-1]["segment_id"] == edge["segment_id"]
+    assert captured[-1]["column_key"] == "board"
+    assert captured[-1]["issue_kind"] == "TOPOLOGY"
