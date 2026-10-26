@@ -145,3 +145,47 @@ def test_ethernet_18_candidates_and_transaction_boundary(database, failure, qtbo
     replay = service.preview(project_id=pid, batch=batch)
     assert not _applicable(replay)
     assert _state(database) == after
+
+
+def test_selected_new_ethernet_does_not_reassign_accepted_bus_conduits(database):
+    # An existing accepted BUS with a conduit is not an implicit side effect
+    # of an unrelated Ethernet-only Apply.
+    pid = _project(database)
+    _insert_root(database, pid, designation="906", kind="DALI")
+    service = DwgSyncService(database.engine)
+    bus_observation = _outlet(handle="BUS906", point_id="906.001", source="906.000")
+    attributes = {item.tag: item.value for item in bus_observation.raw_attributes}
+    attributes.update(BUS_GOFRA_TYPE="ППЛ20", BUS_GOFRA_COLOR="Синий")
+    bus_observation = CadObservation.from_mapping(
+        effective_name="CABLE_OUTLET_BUS",
+        layer="BUS",
+        handle="BUS906",
+        x=100,
+        y=200,
+        raw_attributes=attributes,
+        definition=BlockDefinitionMetadata(tuple(attributes)),
+    )
+    initial = service.preview(project_id=pid, batch=_batch(_ethernet(830), bus_observation))
+    assert initial.can_apply, initial.issues
+    service.apply_dwg_to_project(initial, selected_paths=_applicable(initial), confirmed=True)
+    before = _state(database)
+    assert before["bus_segment_conduit_assignment"], (
+        "Fixture must persist at least one BUS conduit assignment before Ethernet update"
+    )
+    assert before["conduit"]
+    updated = service.preview(
+        project_id=pid, batch=_batch(_ethernet(830), _ethernet(857), bus_observation)
+    )
+    inserted = [
+        c.field_path
+        for c in updated.changes
+        if c.change_class is ChangeClass.NEW_DWG_INSERTION and c.handle == "E857"
+    ]
+    assert inserted == ["E857:$"]
+    service.apply_dwg_to_project(updated, selected_paths=inserted, confirmed=True)
+    after = _state(database)
+    assert after["bus_endpoint"] == before["bus_endpoint"]
+    assert after["bus_segment"] == before["bus_segment"]
+    assert after["bus_segment_conduit_assignment"] == before["bus_segment_conduit_assignment"]
+    assert all(row in after["conduit"] for row in before["conduit"])
+    assert len(after["cable_line"]) == len(before["cable_line"]) + 1
