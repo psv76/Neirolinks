@@ -117,9 +117,18 @@ class RouteSegment:
 
 
 @dataclass(frozen=True, slots=True)
+class RouteLoadProblem:
+    line_id: str
+    line: str
+    network_kind: str
+    details: str
+
+
+@dataclass(frozen=True, slots=True)
 class RouteSnapshot:
     conduits: tuple[RouteConduit, ...]
     segments: tuple[RouteSegment, ...]
+    problems: tuple[RouteLoadProblem, ...] = ()
 
 
 def load_routes_snapshot(cables, buses, project_id: str) -> RouteSnapshot:
@@ -140,6 +149,7 @@ def load_routes_snapshot(cables, buses, project_id: str) -> RouteSnapshot:
     known_conduits = {tube.id for tube in conduits}
     segments = []
     identities: set[tuple[str, str]] = set()
+    problems: list[RouteLoadProblem] = []
 
     def add_edges(card: dict, topology: dict, kind: str) -> None:
         for edge in topology.get("edges", ()):
@@ -177,12 +187,32 @@ def load_routes_snapshot(cables, buses, project_id: str) -> RouteSnapshot:
                 )
             )
 
+    def add_card(card: dict, topology_reader, kind: str) -> None:
+        # Existing Project may contain a dangling endpoint reference. Keep the
+        # other lines visible but do not present incomplete graph data as valid.
+        before = len(segments)
+        before_ids = identities.copy()
+        try:
+            add_edges(card, topology_reader(project_id, str(card["id"])), kind)
+        except (KeyError, ValueError) as exc:
+            del segments[before:]
+            identities.clear()
+            identities.update(before_ids)
+            problems.append(
+                RouteLoadProblem(
+                    line_id=str(card["id"]),
+                    line=str(card.get("designation") or card["id"]),
+                    network_kind=kind,
+                    details=f"{type(exc).__name__}: {exc}",
+                )
+            )
+
     for card in cables.line_cards(project_id):
-        add_edges(card, cables.topology(project_id, str(card["id"])), "CABLE")
+        add_card(card, cables.topology, "CABLE")
     if buses is not None:
         for card in buses.journal_cards(project_id):
-            add_edges(card, buses.journal_topology(project_id, str(card["id"])), "BUS")
-    return RouteSnapshot(conduits, tuple(segments))
+            add_card(card, buses.journal_topology, "BUS")
+    return RouteSnapshot(conduits, tuple(segments), tuple(problems))
 
 
 @dataclass(frozen=True, slots=True)
@@ -477,6 +507,7 @@ class RoutesWorkspace(QWidget):
             self,
         )
         self.read_only_info.setWordWrap(True)
+        self._read_only_intro = self.read_only_info.text()
         root.addWidget(self.read_only_info)
 
         self.table = RoutesTable(self)
@@ -566,6 +597,23 @@ class RoutesWorkspace(QWidget):
             QMessageBox.warning(self, "Трассы не загружены", str(exc))
             return
         self.snapshot = snapshot
+        self.read_only_info.setText(self._read_only_intro)
+        self.read_only_info.setToolTip("")
+        if snapshot.problems:
+            names = ", ".join(problem.line for problem in snapshot.problems[:6])
+            extra = "…" if len(snapshot.problems) > 6 else ""
+            self.read_only_info.setText(
+                self._read_only_intro
+                + "\n⚠ Не отображены участки линий с ошибками топологии "
+                + f"({len(snapshot.problems)}): {names}{extra}. "
+                + "Остальные физические участки показаны; данные не исправлялись."
+            )
+            self.read_only_info.setToolTip(
+                "\n".join(
+                    f"{problem.network_kind} {problem.line} ({problem.line_id}): {problem.details}"
+                    for problem in snapshot.problems
+                )
+            )
         valid_ids = {t.id for t in snapshot.conduits}
         valid_ids.update(f"{s.network_kind}:{s.id}" for s in snapshot.segments)
         self._selected.intersection_update(valid_ids)

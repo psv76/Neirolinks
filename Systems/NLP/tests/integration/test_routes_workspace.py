@@ -439,3 +439,28 @@ def test_shell_lazy_refresh_spec_jump_and_exact_line_navigation(qtbot, tmp_path)
         event.remove(runtime.database.engine, "before_cursor_execute", capture)
         shell._timer.stop()
         runtime.database.close()
+
+
+def test_broken_line_topology_reports_incomplete_snapshot_without_hiding_good_rows(qtbot):
+    class BrokenCables(Cables):
+        def topology(self, project_id, line_id):
+            if line_id == "line-1":
+                raise KeyError("orphan-cable-point")
+            return super().topology(project_id, line_id)
+
+    cables = BrokenCables()
+    snap = load_routes_snapshot(cables, Buses(), "p")
+    assert len(snap.problems) == 1
+    assert snap.problems[0].line == "101"
+    assert snap.problems[0].line_id == "line-1"
+    assert "orphan-cable-point" in snap.problems[0].details
+    assert {s.id for s in snap.segments} == {"seg-5", "bus-seg-1"}
+    workspace = RoutesWorkspace(cables, Buses(), "p")
+    qtbot.addWidget(workspace)
+    workspace.refresh()
+    assert workspace.snapshot is not None
+    assert "101" in workspace.read_only_info.text()
+    assert "Не отображены участки" in workspace.read_only_info.text()
+    assert "orphan-cable-point" not in workspace.read_only_info.text()
+    assert "orphan-cable-point" in workspace.read_only_info.toolTip()
+    assert workspace.model.rowCount() > 0
