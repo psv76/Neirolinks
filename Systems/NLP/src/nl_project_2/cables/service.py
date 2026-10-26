@@ -435,6 +435,7 @@ class CableService:
                 reference = f"{point_id}/{port['port_tag']}"
                 return {
                     "kind": "FIELD_PORT",
+                    "endpoint_id": endpoint_id,
                     "reference": reference,
                     "label": reference,
                 }
@@ -442,6 +443,7 @@ class CableService:
                 reference = str(endpoint["instance_resource_id"])
                 return {
                     "kind": "INSTANCE_RESOURCE",
+                    "endpoint_id": endpoint_id,
                     "resource_id": reference,
                     "label": resource_user_label(resources.get(reference)),
                 }
@@ -450,6 +452,7 @@ class CableService:
                 board_name = str(facts.get("BOARD", "") or "")
                 return {
                     "kind": "BOARD_OUTPUT",
+                    "endpoint_id": endpoint_id,
                     "board": board_name,
                     "label": f"Щит {board_name}" if board_name else "Источник линии",
                 }
@@ -483,6 +486,7 @@ class CableService:
                     unresolved_room = True
             return {
                 "kind": "TOPOLOGY_POINT",
+                "endpoint_id": endpoint_id,
                 "reference": reference,
                 "point_kind": point["point_kind"],
                 "label": reference,

@@ -42,6 +42,7 @@ from nl_project_2.guided_actions import GuidedAction
 
 from .bulk_action_dialog import BulkActionDialog
 from .guided_action_dialog import GuidedActionDialog
+from .physical_tree import compact_physical_edge_rows, physical_edge_layout
 from .room_presentation import ROOM_MARKERS_ROLE, RoomChipDelegate
 
 
@@ -252,6 +253,69 @@ def _format_length(value) -> str:
     except (InvalidOperation, ValueError):
         return str(value)
     return f"{number:.2f}".rstrip("0").rstrip(".")
+
+
+def _source_label(edge: dict) -> str:
+    return str((edge.get("source") or {}).get("label") or "").strip() or "Источник не определён"
+
+
+def _source_tooltip(edge: dict, issue_reason: str) -> str:
+    source = edge.get("source") or {}
+    identity = source.get("endpoint_id") or source.get("reference") or source.get("resource_id")
+    parts = [_source_label(edge)]
+    if identity:
+        parts.append(f"{source.get('kind') or source.get('point_kind') or ''}: {identity}")
+    if not str(source.get("label") or "").strip():
+        parts.append("В Project отсутствует подпись физического источника участка.")
+    if issue_reason:
+        parts.append(issue_reason)
+    return "\n".join(parts)
+
+
+def _length_components(topology: dict) -> list[dict]:
+    additions: list[dict] = []
+    reserve = Decimal(str(topology.get("board_reserve_m") or "0"))
+    box_reserve = Decimal(str(topology.get("distribution_box_reserve_m") or "0"))
+    endpoint_reserve = Decimal(str(topology.get("endpoint_reserve_m") or "0"))
+    meander_reserve = Decimal(str(topology.get("meander_reserve_m") or "0"))
+    obstacle_reserve = Decimal(str(topology.get("obstacle_reserve_m") or "0"))
+    additional = Decimal(str(topology.get("additional_m") or "0"))
+    unrounded = topology.get("unrounded_m")
+    rounded = topology.get("rounded_m")
+    manual = topology.get("manual_full_m")
+    if reserve:
+        additions.append({"label": "+ подключение в щите", "length": reserve})
+    if box_reserve:
+        count = int(topology.get("distribution_box_lines") or 0)
+        additions.append(
+            {
+                "label": f"+ коммутация в распредкоробках ({count} линий)",
+                "length": box_reserve,
+            }
+        )
+    if endpoint_reserve:
+        count = int(topology.get("endpoint_mechanisms") or 0)
+        additions.append(
+            {
+                "label": f"+ выводы из подрозетников ({count} механизмов)",
+                "length": endpoint_reserve,
+            }
+        )
+    if meander_reserve:
+        additions.append({"label": "+ нелинейность трассы («змейка»)", "length": meander_reserve})
+    if obstacle_reserve:
+        additions.append({"label": "+ обходы стен и балок", "length": obstacle_reserve})
+    if additional:
+        additions.append({"label": "+ дополнительная длина", "length": additional})
+    if manual is not None:
+        additions.append({"label": "= полная ручная длина", "length": Decimal(str(manual))})
+    if unrounded is not None:
+        additions.append({"label": "= до округления", "length": Decimal(str(unrounded))})
+    if rounded is not None:
+        additions.append(
+            {"label": "= к выдаче (вверх до шага проекта)", "length": Decimal(str(rounded))}
+        )
+    return additions
 
 
 class LinesWorkspace(QWidget):
@@ -1032,100 +1096,34 @@ class LinesWorkspace(QWidget):
             QMessageBox.warning(self, "Линия не раскрыта", str(exc))
             return
         edges = list(topology.get("edges") or ())
-        additions: list[dict] = []
-        reserve = Decimal(str(topology.get("board_reserve_m") or "0"))
-        box_reserve = Decimal(str(topology.get("distribution_box_reserve_m") or "0"))
-        endpoint_reserve = Decimal(str(topology.get("endpoint_reserve_m") or "0"))
-        meander_reserve = Decimal(str(topology.get("meander_reserve_m") or "0"))
-        obstacle_reserve = Decimal(str(topology.get("obstacle_reserve_m") or "0"))
-        additional = Decimal(str(topology.get("additional_m") or "0"))
-        unrounded = topology.get("unrounded_m")
-        rounded = topology.get("rounded_m")
-        manual = topology.get("manual_full_m")
-        if reserve:
-            additions.append({"label": "+ подключение в щите", "length": reserve})
-        if box_reserve:
-            count = int(topology.get("distribution_box_lines") or 0)
-            additions.append(
-                {
-                    "label": f"+ коммутация в распредкоробках ({count} линий)",
-                    "length": box_reserve,
-                }
-            )
-        if endpoint_reserve:
-            count = int(topology.get("endpoint_mechanisms") or 0)
-            additions.append(
-                {
-                    "label": f"+ выводы из подрозетников ({count} механизмов)",
-                    "length": endpoint_reserve,
-                }
-            )
-        if meander_reserve:
-            additions.append(
-                {"label": "+ нелинейность трассы («змейка»)", "length": meander_reserve}
-            )
-        if obstacle_reserve:
-            additions.append({"label": "+ обходы стен и балок", "length": obstacle_reserve})
-        if additional:
-            additions.append({"label": "+ дополнительная длина", "length": additional})
-        if manual is not None:
-            additions.append({"label": "= полная ручная длина", "length": Decimal(str(manual))})
-        elif unrounded is not None and rounded is not None:
-            additions.append({"label": "= до округления", "length": Decimal(str(unrounded))})
-            additions.append(
-                {"label": "= к выдаче (вверх до шага проекта)", "length": Decimal(str(rounded))}
-            )
-        if not edges and not additions:
+        if not edges:
             return
 
         self.table.setSortingEnabled(False)
         insert_at = base_row + 1
-        selected_edges = list(enumerate(edges))
-        hidden_count = 0
-        if len(edges) > 8 and line_id not in self._full_tree_line_ids:
-            keep = {0, 1, 2, len(edges) - 2, len(edges) - 1}
-            keep.update(
-                index
-                for index, edge in enumerate(edges)
-                if bool((edge.get("target") or {}).get("room_unresolved"))
-                or edge.get("calculation_status") != "READY"
-            )
-            keep = {index for index in keep if 0 <= index < len(edges)}
-            hidden_count = len(edges) - len(keep)
-            selected_edges = [(index, edges[index]) for index in sorted(keep)]
-
-        previous_index = -1
-        more_inserted = False
-        for edge_index, edge in selected_edges:
-            if hidden_count and not more_inserted and edge_index > previous_index + 1:
-                self.table.insertRow(insert_at)
-                for column, definition in enumerate(COLUMNS):
-                    value = ""
-                    if definition.key == "designation":
-                        value = "⋮"
-                    elif definition.key == "load_name":
-                        value = f"Ещё {hidden_count} точек — показать все"
-                    more = NaturalSortItem(value)
-                    more.setFlags(more.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                    more.setData(Qt.ItemDataRole.UserRole, line_id)
-                    more.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
-                    more.setData(Qt.ItemDataRole.UserRole + 3, "MORE")
-                    more.setForeground(QBrush(QColor("#1769e0")))
-                    self.table.setItem(insert_at, column, more)
-                insert_at += 1
-                more_inserted = True
-            previous_index = edge_index
+        physical_rows = physical_edge_layout(edges)
+        selected_rows, hidden_count = (
+            (physical_rows, 0)
+            if line_id in self._full_tree_line_ids
+            else compact_physical_edge_rows(physical_rows)
+        )
+        for physical_row in selected_rows:
+            edge = physical_row.edge
             self.table.insertRow(insert_at)
             target = dict(edge.get("target") or {})
-            depth = int(edge.get("depth") or 0)
             description = str(target.get("description") or "").strip()
             if not description and target.get("point_kind") == "EL_BOX":
                 description = "Распределительная коробка"
+            source_issue = physical_row.issue_reason or (
+                "В Project отсутствует подпись физического источника участка."
+                if not str((edge.get("source") or {}).get("label") or "").strip()
+                else ""
+            )
             values = {
                 "building_names": target.get("building_names") or "",
-                "board": "",
+                "board": _source_label(edge),
                 "room_names": target.get("room_names") or "",
-                "designation": f"{'   ' * depth}└─ {target.get('label') or 'Точка'}",
+                "designation": f"{physical_row.prefix}{target.get('label') or 'Точка'}",
                 "load_name": description,
                 "cable_type": "",
                 "mount_way": edge.get("mount_way") or "",
@@ -1134,7 +1132,7 @@ class LinesWorkspace(QWidget):
                 "effective_m": (
                     _format_length(edge.get("cable_length_m"))
                     if edge.get("cable_length_m") is not None
-                    else "—"
+                    else "⚠ нет длины"
                 ),
             }
             for column, definition in enumerate(COLUMNS):
@@ -1144,11 +1142,23 @@ class LinesWorkspace(QWidget):
                 child.setData(Qt.ItemDataRole.UserRole, line_id)
                 child.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
                 child.setData(Qt.ItemDataRole.UserRole + 3, "CHILD")
+                child.setData(Qt.ItemDataRole.UserRole + 4, edge.get("segment_id"))
                 child.setForeground(QBrush(QColor("#4b5563")))
                 child_has_issue = (
-                    definition.key == "room_names" and bool(target.get("room_unresolved"))
-                ) or (definition.key == "effective_m" and edge.get("calculation_status") != "READY")
-                if child_has_issue:
+                    (definition.key == "room_names" and bool(target.get("room_unresolved")))
+                    or (
+                        definition.key == "effective_m"
+                        and (
+                            edge.get("calculation_status") != "READY"
+                            or edge.get("cable_length_m") is None
+                        )
+                    )
+                    or (definition.key == "designation" and bool(physical_row.issue_reason))
+                    or (definition.key == "board" and bool(source_issue))
+                )
+                if child_has_issue and not (
+                    definition.key == "effective_m" and str(value).startswith("⚠")
+                ):
                     child.setIcon(
                         QApplication.style().standardIcon(
                             QStyle.StandardPixmap.SP_MessageBoxWarning
@@ -1156,6 +1166,34 @@ class LinesWorkspace(QWidget):
                     )
                 if str(value):
                     child.setToolTip(str(value))
+                if definition.key == "board":
+                    child.setToolTip(_source_tooltip(edge, physical_row.issue_reason))
+                if (definition.key == "designation" and physical_row.issue_reason) or (
+                    definition.key == "board" and source_issue
+                ):
+                    child.setToolTip(
+                        _source_tooltip(edge, source_issue)
+                        if definition.key == "board"
+                        else physical_row.issue_reason
+                    )
+                    child.setData(
+                        _ISSUE_CONTEXT_ROLE,
+                        {
+                            "issue_kind": "TOPOLOGY",
+                            "line_id": line_id,
+                            "network_kind": card.get("network_kind", "CABLE"),
+                            "column_key": definition.key,
+                            "row_kind": "CHILD",
+                            "segment_id": edge.get("segment_id"),
+                            "target_label": target.get("label") or "Точка",
+                            "title": f"{target.get('label') or 'Участок'} · topology",
+                            "reason": source_issue,
+                            "required_action": "Проверьте физический источник и конец участка.",
+                            "fix_action": (
+                                "OPEN_BUS" if card.get("network_kind") == "BUS" else "SYNC_DWG"
+                            ),
+                        },
+                    )
                 if definition.key == "room_names" and target.get("room_unresolved"):
                     child.setToolTip("Помещение не связано с каноническим помещением Project")
                     child.setData(
@@ -1180,7 +1218,9 @@ class LinesWorkspace(QWidget):
                             "fix_action": "SYNC_DWG",
                         },
                     )
-                if definition.key == "effective_m" and edge.get("calculation_status") != "READY":
+                if definition.key == "effective_m" and (
+                    edge.get("calculation_status") != "READY" or edge.get("cable_length_m") is None
+                ):
                     reason = edge.get("calculation_reason") or "Длина не рассчитана"
                     child.setToolTip(reason)
                     child.setData(
@@ -1214,21 +1254,21 @@ class LinesWorkspace(QWidget):
                 self.table.setItem(insert_at, column, child)
             insert_at += 1
 
-        for addition in additions:
+        if hidden_count:
             self.table.insertRow(insert_at)
             for column, definition in enumerate(COLUMNS):
                 value = ""
                 if definition.key == "designation":
-                    value = addition["label"]
-                elif definition.key == "effective_m":
-                    value = _format_length(addition["length"])
-                child = NaturalSortItem(str(value))
-                child.setFlags(child.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                child.setData(Qt.ItemDataRole.UserRole, line_id)
-                child.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
-                child.setData(Qt.ItemDataRole.UserRole + 3, "ADJUSTMENT")
-                child.setForeground(QBrush(QColor("#5f6b7a")))
-                self.table.setItem(insert_at, column, child)
+                    value = "⋮"
+                elif definition.key == "load_name":
+                    value = f"Ещё {hidden_count} участков — показать все"
+                more_item = NaturalSortItem(value)
+                more_item.setFlags(more_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                more_item.setData(Qt.ItemDataRole.UserRole, line_id)
+                more_item.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
+                more_item.setData(Qt.ItemDataRole.UserRole + 3, "MORE")
+                more_item.setForeground(QBrush(QColor("#1769e0")))
+                self.table.setItem(insert_at, column, more_item)
             insert_at += 1
 
         self._expanded_line_ids.add(line_id)
@@ -1298,9 +1338,10 @@ class LinesWorkspace(QWidget):
         layout.addWidget(summary)
 
         edges = list(topology.get("edges") or ())
-        table = QTableWidget(len(edges), 6, dialog)
+        table = QTableWidget(len(edges), 7, dialog)
+        table.setObjectName("lineDetailsSegments")
         table.setHorizontalHeaderLabels(
-            ["Помещение", "ID", "Назначение", "Прокладка", "Труба", "Длина, м"]
+            ["Источник", "Помещение", "ID", "Назначение", "Прокладка", "Труба", "Длина, м"]
         )
         header = table.horizontalHeader()
         header_font = header.font()
@@ -1309,15 +1350,16 @@ class LinesWorkspace(QWidget):
             header_font.setPointSize(header_font.pointSize() + 1)
         header.setFont(header_font)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        for row, edge in enumerate(edges):
+        for row, physical_row in enumerate(physical_edge_layout(edges)):
+            edge = physical_row.edge
             target = dict(edge.get("target") or {})
-            depth = int(edge.get("depth") or 0)
             description = str(target.get("description") or "").strip()
             if not description and target.get("point_kind") == "EL_BOX":
                 description = "Распределительная коробка"
             values = (
+                _source_label(edge),
                 target.get("room_names") or "",
-                f"{'   ' * depth}└─ {target.get('label') or 'Точка'}",
+                f"{physical_row.prefix}{target.get('label') or 'Точка'}",
                 description,
                 edge.get("mount_way") or "",
                 edge.get("gofra_id")
@@ -1325,28 +1367,56 @@ class LinesWorkspace(QWidget):
                 (
                     _format_length(edge.get("cable_length_m"))
                     if edge.get("cable_length_m") is not None
-                    else "—"
+                    else "⚠ нет длины"
                 ),
             )
             for column, value in enumerate(values):
                 cell = QTableWidgetItem(str(value))
                 cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                cell.setData(Qt.ItemDataRole.UserRole + 4, edge.get("segment_id"))
+                if column == 0:
+                    cell.setToolTip(_source_tooltip(edge, physical_row.issue_reason))
+                if column == 6:
+                    cell.setToolTip(str(edge.get("calculation_reason") or value))
+                if column == 2 and physical_row.issue_reason:
+                    cell.setToolTip(physical_row.issue_reason)
+                    cell.setIcon(
+                        QApplication.style().standardIcon(
+                            QStyle.StandardPixmap.SP_MessageBoxWarning
+                        )
+                    )
                 table.setItem(row, column, cell)
         layout.addWidget(table, 1)
 
-        adjustments = []
-        reserve = Decimal(str(topology.get("board_reserve_m") or "0"))
-        additional = Decimal(str(topology.get("additional_m") or "0"))
-        if reserve:
-            adjustments.append(f"+ запас у щита: {_format_length(reserve)} м")
-        if additional:
-            adjustments.append(f"+ дополнительная длина: {_format_length(additional)} м")
-        if topology.get("manual_full_m") is not None:
-            adjustments.append(
-                f"Полная ручная длина: {_format_length(topology['manual_full_m'])} м"
+        components = _length_components(topology)
+        if components:
+            group = QGroupBox("Состав длины", dialog)
+            group.setObjectName("lineLengthComponents")
+            component_layout = QVBoxLayout(group)
+            explanation = QLabel(
+                "Нефизические составляющие расчёта длины линии, не участки трассы. "
+                "Не добавляйте их к итогу повторно. Ручная длина заменяет расчётный итог; "
+                "итоги — не слагаемые.",
+                group,
             )
-        if adjustments:
-            layout.addWidget(QLabel(" · ".join(adjustments), dialog))
+            explanation.setWordWrap(True)
+            component_layout.addWidget(explanation)
+            component_table = QTableWidget(len(components), 2, group)
+            component_table.setObjectName("lineLengthComponentsTable")
+            component_table.setHorizontalHeaderLabels(["Составляющая / итог", "Длина, м"])
+            component_table.horizontalHeader().setSectionResizeMode(
+                0, QHeaderView.ResizeMode.Stretch
+            )
+            for row, component in enumerate(components):
+                for column, value in enumerate(
+                    (component["label"], format(component["length"], "f"))
+                ):
+                    cell = QTableWidgetItem(value)
+                    cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    cell.setToolTip(str(component["length"]) if column else value)
+                    component_table.setItem(row, column, cell)
+            component_layout.addWidget(component_table)
+            layout.addWidget(group)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, dialog)
         buttons.rejected.connect(dialog.reject)
