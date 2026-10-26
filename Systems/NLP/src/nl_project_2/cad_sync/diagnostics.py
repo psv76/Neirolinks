@@ -1,5 +1,6 @@
 """Read-only scan evidence; candidates never imply a committed transaction."""
 
+import re
 from collections.abc import Iterable
 
 from .models import ChangeClass, ScanProposal
@@ -55,10 +56,31 @@ def apply_failure_evidence(
     }
 
 
-def apply_failure_message(error: Exception) -> str:
+def apply_failure_message(error: Exception, proposal: ScanProposal | None = None) -> str:
+    """Concise, user-visible failed-transaction cause with DWG source evidence."""
+    context = ""
+    match = re.search(r"BOX\.\d+", str(error), flags=re.IGNORECASE)
+    if match and proposal is not None and hasattr(proposal, "batch"):
+        identity = match.group(0).upper()
+        sources: set[str] = set()
+        dependents: set[str] = set()
+        for observation in proposal.batch.observations:
+            values = {a.tag.upper(): a.value for a in observation.raw_attributes}
+            base = str(values.get("CABLE_ID") or "").split(".", 1)[0]
+            if str(values.get("BOX_ID") or "").upper() == identity and base:
+                sources.add(base)
+            if str(values.get("CABLE_SOURCE") or "").upper() == identity and base:
+                dependents.add(base)
+        if sources or dependents:
+            context = (
+                f"Источник {identity}: физическая коробка на линии "
+                f"{', '.join(sorted(sources)) or 'не определена'}; "
+                f"от неё зависят линии {', '.join(sorted(dependents)) or 'не определены'}.\n"
+            )
     return (
-        "DWG → Project: выбранный импорт не применён. Проверка могла остановить Apply "
-        "до записи; при ошибке транзакции все её изменения отменены. "
-        "Исправьте указанную причину и повторите сканирование.\n"
-        f"{type(error).__name__}: {error}"
+        "ОШИБКА ИМПОРТА DWG → Project. Изменения выбранной транзакции "
+        "НЕ применены (откат).\n"
+        + context
+        + "Устраните причину, затем повторите сканирование.\n"
+        + f"{type(error).__name__}: {error}"
     )

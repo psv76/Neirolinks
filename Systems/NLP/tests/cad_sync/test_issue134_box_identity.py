@@ -179,6 +179,70 @@ def test_selective_missing_source_is_domain_error_and_imports_no_dependency(data
         assert connection.scalar(select(func.count()).select_from(dwg_scan)) == scans
 
 
+def test_accepted_crossline_box_survives_selective_endpoint_and_unrelated_864_change(database):
+    pid = _project(database)
+    service = DwgSyncService(database.engine)
+    box = _box(1, base="111")
+    dependent = _observation(
+        "SOCKET_IN", handle="S125", cable_id="125.01", attributes={"CABLE_SOURCE": "BOX.021"}
+    )
+    ethernet = _observation(
+        "SOCKET_ETHERNET", handle="E864", cable_id="864", attributes={"CABLE_TYPE": "FTP 5e"}
+    )
+    initial = service.preview(project_id=pid, batch=_batch(box, dependent, ethernet))
+    assert initial.summary.invalid == 0, initial.issues
+    _apply_new(service, initial)
+    with database.engine.connect() as connection:
+        physical_before = dict(
+            connection.execute(
+                select(cable_point).where(cable_point.c.logical_identity == "BOX.021")
+            )
+            .mappings()
+            .one()
+        )
+        owner_endpoints_before = {
+            row["id"]
+            for row in connection.execute(
+                select(cable_topology_endpoint).where(
+                    cable_topology_endpoint.c.cable_point_id == physical_before["id"],
+                    cable_topology_endpoint.c.cable_line_id == physical_before["cable_line_id"],
+                )
+            ).mappings()
+        }
+    modified_eth = replace(
+        ethernet,
+        raw_attributes=tuple(
+            replace(attr, value="FTP 6e") if attr.tag == "CABLE_TYPE" else attr
+            for attr in ethernet.raw_attributes
+        ),
+    )
+    changed_dependent = replace(dependent, x=dependent.x + 20)
+    proposal = service.preview(project_id=pid, batch=_batch(box, changed_dependent, modified_eth))
+    paths = {"S125:X", "E864:CABLE_TYPE"}
+    assert paths <= {
+        c.field_path for c in proposal.changes if c.change_class is ChangeClass.DWG_CHANGED
+    }
+    service.apply_dwg_to_project(proposal, selected_paths=paths, confirmed=True)
+    with database.engine.connect() as connection:
+        physical_after = dict(
+            connection.execute(select(cable_point).where(cable_point.c.id == physical_before["id"]))
+            .mappings()
+            .one()
+        )
+        assert physical_before == physical_after
+        assert {
+            row["id"]
+            for row in connection.execute(
+                select(cable_topology_endpoint).where(
+                    cable_topology_endpoint.c.cable_point_id == physical_before["id"],
+                    cable_topology_endpoint.c.cable_line_id == physical_before["cable_line_id"],
+                )
+            ).mappings()
+        } == owner_endpoints_before
+        assert connection.exec_driver_sql("PRAGMA integrity_check").scalar() == "ok"
+        assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+
+
 def test_unaccepted_cross_line_box_source_is_domain_error_not_keyerror(database):
     pid = _project(database)
     service = DwgSyncService(database.engine)
