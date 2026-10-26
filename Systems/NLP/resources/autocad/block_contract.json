@@ -1056,7 +1056,8 @@
         "CABLE_OUTLET",
         "SOCKET",
         "CONTROL_PANEL",
-        "EL_BOX"
+        "EL_BOX",
+        "FRAME"
       ]
     },
     "BUS": {
