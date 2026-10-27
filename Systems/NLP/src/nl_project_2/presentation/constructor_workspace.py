@@ -55,6 +55,7 @@ class ConstructorWorkspaceDialog(QDialog):
         tabs = QTabWidget(self)
         tabs.addTab(self._build_instances_tab(), "Экземпляры и ресурсы")
         tabs.addTab(self._build_relations_tab(), "Связи")
+        tabs.addTab(self._build_module_installation_tab(), "Установка модулей")
         layout = QVBoxLayout(self)
         layout.addWidget(self.context_label)
         layout.addWidget(tabs)
@@ -179,12 +180,258 @@ class ConstructorWorkspaceDialog(QDialog):
         layout.addWidget(self.chain_trace_table)
         return tab
 
+    def _build_module_installation_tab(self) -> QWidget:
+        """Physical host/slot/module workflow; the generic relation editor stays available."""
+        tab = QWidget(self)
+        self.install_host_combo = QComboBox(tab)
+        self.install_host_combo.setObjectName("installationControllerCombo")
+        self.install_host_combo.currentIndexChanged.connect(self._refresh_installation_slots)
+        self.install_slot_combo = QComboBox(tab)
+        self.install_slot_combo.setObjectName("installationSlotCombo")
+        self.install_slot_combo.currentIndexChanged.connect(self._refresh_installation_modules)
+        self.install_module_combo = QComboBox(tab)
+        self.install_module_combo.setObjectName("installationModuleCombo")
+        self.install_module_combo.currentIndexChanged.connect(self._preview_installation)
+        self.install_slot_table = QTableWidget(0, 3, tab)
+        self.install_slot_table.setObjectName("installationSlotsTable")
+        self.install_slot_table.setHorizontalHeaderLabels(
+            ["Слот контроллера", "Состояние", "Установленный модуль"]
+        )
+        self.install_slot_table.itemSelectionChanged.connect(self._select_installation_table_slot)
+        self.install_status = QLabel(tab)
+        self.install_status.setObjectName("installationCompatibilityStatus")
+        self.install_status.setWordWrap(True)
+        self.install_button = QPushButton("Установить модуль", tab)
+        self.install_button.setObjectName("installModuleButton")
+        self.install_button.clicked.connect(self._install_module)
+        self.uninstall_button = QPushButton("Снять модуль", tab)
+        self.uninstall_button.setObjectName("uninstallModuleButton")
+        self.uninstall_button.clicked.connect(self._uninstall_module)
+        form = QFormLayout()
+        form.addRow("Контроллер", self.install_host_combo)
+        form.addRow("Физический слот", self.install_slot_combo)
+        form.addRow("Модуль", self.install_module_combo)
+        actions = QHBoxLayout()
+        actions.addWidget(self.install_button)
+        actions.addWidget(self.uninstall_button)
+        actions.addStretch(1)
+        layout = QVBoxLayout(tab)
+        description = QLabel(
+            "Выберите контроллер, свободный слот и уже созданный модуль. "
+            "Модуль создаётся на вкладке «Экземпляры и ресурсы». "
+            "MOD1–MOD4 и отдельный слот MODEM не взаимозаменяемы.",
+            tab,
+        )
+        description.setWordWrap(True)
+        layout.addWidget(description)
+        layout.addLayout(form)
+        layout.addWidget(self.install_status)
+        layout.addLayout(actions)
+        layout.addWidget(QLabel("Слоты выбранного контроллера", tab))
+        layout.addWidget(self.install_slot_table)
+        return tab
+
+    @staticmethod
+    def _slot_display(row: dict) -> str:
+        if row["resource_kind"] == "INTERNAL_MODEM_SLOT":
+            return "MODEM"
+        return f"MOD{int(row['ordinal']) + 1}"
+
+    def refresh_installation(self) -> None:
+        """Refresh display from persisted instances/resources/relations, never from guesses."""
+        self._install_resources = self.service.list_resources(self.project_id)
+        self._install_instances = {
+            row["id"]: row for row in self.service.list_instances(self.project_id)
+        }
+        self._install_relations = {
+            row["source_resource_id"]: row
+            for row in self.service.list_relations(self.project_id)
+            if row["relation_kind"] in {"MODULE_INSTALLATION", "MODEM_INSTALLATION"}
+        }
+        selected_host = self.install_host_combo.currentData()
+        self.install_host_combo.blockSignals(True)
+        self.install_host_combo.clear()
+        hosts = {
+            row["project_instance_id"]
+            for row in self._install_resources
+            if row["resource_kind"] in {"INTERNAL_EXPANSION_SLOT", "INTERNAL_MODEM_SLOT"}
+        }
+        for host_id in sorted(
+            hosts,
+            key=lambda ident: self._install_instances[ident]["designation"],
+        ):
+            name = self._install_instances[host_id]["designation"]
+            self.install_host_combo.addItem(name, host_id)
+        index = self.install_host_combo.findData(selected_host)
+        self.install_host_combo.setCurrentIndex(index if index >= 0 else 0)
+        self.install_host_combo.blockSignals(False)
+        self._refresh_installation_slots()
+
+    def _refresh_installation_slots(self) -> None:
+        host_id = self.install_host_combo.currentData()
+        selected_slot = self.install_slot_combo.currentData()
+        self.install_slot_combo.blockSignals(True)
+        self.install_slot_combo.clear()
+        self._install_slots = sorted(
+            (
+                row for row in getattr(self, "_install_resources", ())
+                if row["project_instance_id"] == host_id
+                and row["resource_kind"] in {"INTERNAL_EXPANSION_SLOT", "INTERNAL_MODEM_SLOT"}
+            ),
+            key=lambda row: (row["resource_kind"] == "INTERNAL_MODEM_SLOT", row["ordinal"]),
+        )
+        targets = {
+            row["id"]: row for row in getattr(self, "_install_resources", ())
+        }
+        self.install_slot_table.blockSignals(True)
+        self.install_slot_table.setRowCount(len(self._install_slots))
+        for index, slot in enumerate(self._install_slots):
+            installed = self._install_relations.get(slot["id"])
+            target = targets.get(installed["target_resource_id"]) if installed else None
+            module = (
+                self._install_instances.get(target["project_instance_id"]) if target else None
+            )
+            label = self._slot_display(slot)
+            module_name = module["designation"] if module else "—"
+            self.install_slot_combo.addItem(
+                f"{label} — {module_name if installed else 'свободен'}", slot["id"]
+            )
+            cells = (label, "Занят" if installed else "Свободен", module_name)
+            for column, value in enumerate(cells):
+                item = QTableWidgetItem(value)
+                item.setData(Qt.ItemDataRole.UserRole, slot["id"])
+                self.install_slot_table.setItem(index, column, item)
+        index = self.install_slot_combo.findData(selected_slot)
+        self.install_slot_combo.setCurrentIndex(index if index >= 0 else 0)
+        self.install_slot_combo.blockSignals(False)
+        self.install_slot_table.blockSignals(False)
+        self._refresh_installation_modules()
+
+    def _select_installation_table_slot(self) -> None:
+        row = self.install_slot_table.currentRow()
+        if row < 0:
+            return
+        slot_id = self.install_slot_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        index = self.install_slot_combo.findData(slot_id)
+        if index >= 0:
+            self.install_slot_combo.setCurrentIndex(index)
+
+    def _refresh_installation_modules(self) -> None:
+        slot_id = self.install_slot_combo.currentData()
+        slot = next(
+            (row for row in getattr(self, "_install_slots", ()) if row["id"] == slot_id),
+            None,
+        )
+        previous = self.install_module_combo.currentData()
+        self._installation_candidates = {}
+        self.install_module_combo.blockSignals(True)
+        self.install_module_combo.clear()
+        if slot and slot_id not in self._install_relations:
+            target_kind = (
+                "INTERNAL_MODEM_SLOT_ATTACHMENT"
+                if slot["resource_kind"] == "INTERNAL_MODEM_SLOT"
+                else "INTERNAL_EXPANSION_MODULE_ATTACHMENT"
+            )
+            relation_kind = (
+                "MODEM_INSTALLATION"
+                if slot["resource_kind"] == "INTERNAL_MODEM_SLOT"
+                else "MODULE_INSTALLATION"
+            )
+            for resource in self._install_resources:
+                if resource["resource_kind"] != target_kind:
+                    continue
+                preview = self.service.preview_relation(
+                    project_id=self.project_id,
+                    relation_kind=relation_kind,
+                    source_resource_id=slot_id,
+                    target_resource_id=resource["id"],
+                )
+                if not preview.allowed:
+                    continue
+                instance = self._install_instances[resource["project_instance_id"]]
+                self._installation_candidates[resource["id"]] = (relation_kind, preview)
+                self.install_module_combo.addItem(
+                    f"{instance['designation']} — {instance['passport_name']}", resource["id"]
+                )
+        index = self.install_module_combo.findData(previous)
+        self.install_module_combo.setCurrentIndex(index if index >= 0 else 0)
+        self.install_module_combo.blockSignals(False)
+        self._preview_installation()
+
+    def _preview_installation(self) -> None:
+        slot_id = self.install_slot_combo.currentData()
+        host = self.install_host_combo.currentText()
+        slot = next(
+            (r for r in getattr(self, "_install_slots", ()) if r["id"] == slot_id), None
+        )
+        installed = self._install_relations.get(slot_id)
+        target_id = self.install_module_combo.currentData()
+        self.install_button.setEnabled(
+            bool(slot and not installed and target_id in self._installation_candidates)
+        )
+        self.uninstall_button.setEnabled(bool(installed))
+        if slot is None:
+            self.install_status.setText("В проекте нет контроллеров с доступными слотами.")
+        elif installed:
+            self.install_status.setText(
+                f"{host} / {self._slot_display(slot)}: модуль уже установлен. "
+                "Чтобы освободить слот, сначала снимите его; используемые активными шинами "
+                "модули не могут быть сняты."
+            )
+        elif target_id in self._installation_candidates:
+            self.install_status.setText(
+                f"{host} / {self._slot_display(slot)}: слот свободен, "
+                "выбранный модуль совместим."
+            )
+        else:
+            self.install_status.setText(
+                f"{host} / {self._slot_display(slot)}: слот свободен, "
+                "но совместимых неустановленных модулей пока нет. "
+                "Создайте экземпляр на первой вкладке."
+            )
+
+    def _install_module(self) -> None:
+        slot_id = self.install_slot_combo.currentData()
+        target_id = self.install_module_combo.currentData()
+        candidate = self._installation_candidates.get(target_id)
+        if not candidate or not self.install_button.isEnabled():
+            return
+        try:
+            self.service.create_relation(
+                project_id=self.project_id,
+                relation_kind=candidate[0],
+                source_resource_id=slot_id,
+                target_resource_id=target_id,
+            )
+            self.refresh_all()
+        except (ConstructorError, RuntimeError) as exc:
+            QMessageBox.warning(self, "Установка не выполнена", str(exc))
+
+    def _uninstall_module(self) -> None:
+        relation = self._install_relations.get(self.install_slot_combo.currentData())
+        if relation is None:
+            return
+        if QMessageBox.question(
+            self, "Снятие модуля",
+            "Снять модуль с выбранного слота? Активные шины и защищённые связи "
+            "должны быть отключены заранее.",
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.service.delete_relation(
+                project_id=self.project_id, relation_id=relation["id"]
+            )
+            self.refresh_all()
+        except (ConstructorError, RuntimeError) as exc:
+            QMessageBox.warning(self, "Модуль не снят", str(exc))
+
     def refresh_all(self) -> None:
         self._refresh_passports()
         self.refresh_instances()
         self.refresh_resources()
         self.refresh_relations()
         self.refresh_assignments()
+        self.refresh_installation()
 
     def focus_instance(self, instance_id: str) -> None:
         """Keep navigation anchored to the same ProjectInstance across views."""
@@ -194,6 +441,10 @@ class ConstructorWorkspaceDialog(QDialog):
                 self.instances_table.selectRow(row)
                 selected_designation = self.instances_table.item(row, 0).text()
                 break
+        if hasattr(self, "install_host_combo"):
+            index = self.install_host_combo.findData(instance_id)
+            if index >= 0:
+                self.install_host_combo.setCurrentIndex(index)
         self.context_label.setText(
             "Проектный expert-инструмент: таблицы показывают весь проект. "
             f"Контекст перехода — {selected_designation or instance_id}. "
@@ -490,6 +741,7 @@ class ConstructorWorkspaceDialog(QDialog):
             )
             self.refresh_resources()
             self.refresh_relations()
+            self.refresh_installation()
         except BlockingViolation as exc:
             QMessageBox.warning(self, "Связь не создана", str(exc))
 
@@ -502,6 +754,7 @@ class ConstructorWorkspaceDialog(QDialog):
             self.service.delete_relation(project_id=self.project_id, relation_id=relation_id)
             self.refresh_resources()
             self.refresh_relations()
+            self.refresh_installation()
         except ConstructorError as exc:
             QMessageBox.warning(self, "Связь не удалена", str(exc))
 

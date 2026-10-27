@@ -46,4 +46,6 @@
 
 Тесты `tests/catalog/test_issue293_modem_and_grouped_vout.py` проверяют реализацию на **одноразовой SQLite**, а полный successor репетирован на копии реальной БД: `D:\NLP_3_BACKUPS\issue293_51_67_rehearsal\successor_rehearsal_receipt.json` — PASS, старые instance/resource/bus ID сохранены, integrity/FK PASS, idempotence PASS.
 
+Операторский сценарий выбора физического слота реализован отдельно в `ISSUE_293_OPERATOR_MODULE_INSTALLATION_UI.md` (вкладка «Установка модулей»). Synthetic acceptance: три WB8.5, 12 MOD-слотов, установка в `WB-23/MOD3`, 8 корней `903…910`, reopen — PASS. Полная регрессия 201 PASS.
+
 **Не заявлять, что старые WB8 или WB-MGE экземпляры автоматически исправлены.** Следующий gate: UI acceptance новых вариантов на отдельном объекте, политика миграции активных экземпляров и старых output/control назначений с сохранением их ID; затем verified backup и штатная установка рабочего каталога. DWG/рабочая SQLite на этом этапе не изменяются.
