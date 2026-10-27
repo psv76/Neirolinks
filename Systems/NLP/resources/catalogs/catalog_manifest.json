@@ -1,18 +1,39 @@
 {
   "manifest_version": 1,
-  "release_code": "nlp3.equipment.2026-10-05.wb-mge-v3",
+  "release_code": "nlp3.equipment.2026-10-27.wbe2-rs485-iso",
   "additive_predecessors": {
     "nlp2.mvp.equipment.2026-08-24.repair-05": {
-      "passports": ["gateway.wirenboard.wb_mge_v3"],
-      "products": ["product.wirenboard.wb_mge_v3"]
+      "passports": [
+        "gateway.wirenboard.wb_mge_v3",
+        "module.wirenboard.wbe2_i_rs485_iso"
+      ],
+      "products": [
+        "product.wirenboard.wb_mge_v3",
+        "product.wirenboard.wbe2_i_rs485_iso"
+      ]
+    },
+    "nlp3.equipment.2026-10-05.wb-mge-v3": {
+      "passports": [
+        "module.wirenboard.wbe2_i_rs485_iso"
+      ],
+      "products": [
+        "product.wirenboard.wbe2_i_rs485_iso"
+      ]
     }
   },
   "schema_version": 1,
-  "content_sha256": "e92935b0742367ecb83c3204fc2a49f4a67ace09ffb68d6c988c82cbde91858f",
+  "content_sha256": "4e3f7a0b96ffc36919de9d1b49f25a93361f526ee6402cb92977930b4a8f60d5",
   "files": {
-    "equipment_passports.json": "1704440dc22cb5bf290846804a253cf8e58e57db8fa84a6b427f0004fb78918f",
-    "products.json": "93e5b696505de04b756c4f0a55b30f095ffb01c0a06ffbae57bc4001e3e0fd13"
+    "equipment_passports.json": "89ec12ab0b1eb2c3ef4a8011772ba527f2313e2bbfc62479b8b71c58f9efa34b",
+    "products.json": "08719a4407348fb18cb125cf3d7a97b0166c58f583b2934c41b902bdf77a35eb"
   },
-  "expected_counts": {"passports": 19, "products": 32},
-  "forbidden_manufacturers": ["Vendor Alpha", "Vendor Beta", "Vendor Gamma"]
+  "expected_counts": {
+    "passports": 20,
+    "products": 33
+  },
+  "forbidden_manufacturers": [
+    "Vendor Alpha",
+    "Vendor Beta",
+    "Vendor Gamma"
+  ]
 }

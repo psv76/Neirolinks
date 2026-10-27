@@ -1,6 +1,6 @@
 # Issue #293 — WBE2 RS-485 module installation and bus-root gate
 
-**Status:** implemented at the Constructor/BusService code layer; catalog candidate only, **not an approved runtime catalog release**.
+**Status (2026-10-27):** Constructor/BusService implementation and additive catalog successor are in source of truth. The successor is verified on an SQLite backup **but is not installed on the live NLP 3.1 database** while application instances remain open. Issue #293 still PARTIAL.
 
 ## Contract
 
@@ -20,4 +20,4 @@
 
 ## Release gates still open
 
-The WBE2-I-RS485-ISO passport/Product exist only under `docs/legacy/issue293/candidates/`. No runtime catalog manifest or successor has been updated. Do not claim the feature available in the working GUI yet. Requires approved catalog successor, installation/selector UI test with installed release, schema/release compatibility, verified working SQLite backup and startup smoke, and coverage of all remaining legacy WB models. No live SQLite/DWG mutations were performed in this increment.
+The WBE2-I-RS485-ISO passport/Product are now included in canonical `resources/catalogs/` and normative mirror `docs/product/catalogs/`, with release `nlp3.equipment.2026-10-27.wbe2-rs485-iso`, 20 passports, 33 products. `docs/legacy/issue293/candidates/` remains historical candidate evidence. Constructor UI and persisted MOD→module→Bus 903 tests PASS on isolated test databases. Real working SQLite successor rehearse PASS on a verified online backup; original 25 instances, 296 instance resources and 27 buses are preserved. Live install is **blocked while two NLP instances remain open**. After closing the application, run the guarded `tools/apply_additive_catalog_successor.py` and verify live startup. Issue #293 requires full legacy WB device coverage and acceptance on a copy of the Bogdanovich project; not PASSED yet. No DWG mutations.

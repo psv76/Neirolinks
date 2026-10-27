@@ -81,7 +81,39 @@ class ApplicationRuntime:
         else:
             database = manager.initialize_new(target)
         try:
-            CatalogInstaller(database.engine).install(load_packaged_payload())
+            payload = load_packaged_payload()
+            if created:
+                # Only an entirely new database may receive a catalog on startup.
+                CatalogInstaller(database.engine).install(payload)
+            else:
+                # Existing Project-owned SQLite requires an explicit verified
+                # backup and offline additive successor. Startup is read-only
+                # with respect to catalog releases.
+                from sqlalchemy import select
+                from nl_project_2.catalog.validation import validate_payload
+                from nl_project_2.persistence.schema import catalog_release
+
+                validate_payload(payload)
+                with database.engine.connect() as connection:
+                    active_catalog = connection.execute(
+                        select(catalog_release.c.release_code, catalog_release.c.content_sha256)
+                        .where(catalog_release.c.status == "ACTIVE")
+                    ).one_or_none()
+                active_release = active_catalog.release_code if active_catalog else None
+                allowed = {
+                    payload.manifest["release_code"],
+                    *(payload.manifest.get("additive_predecessors") or {}),
+                }
+                if (
+                    active_release == payload.manifest["release_code"]
+                    and active_catalog.content_sha256 != payload.content_sha256
+                ):
+                    raise RuntimeError("Installed catalog release has a different content hash")
+                if active_release not in allowed:
+                    raise RuntimeError(
+                        f"Installed catalog {active_release!r} is not compatible with "
+                        "the packaged release; use the approved offline migration procedure"
+                    )
         except Exception:
             database.close()
             if created:

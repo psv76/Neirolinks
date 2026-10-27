@@ -389,6 +389,81 @@
       "validation_parameters": ["material_code", "nominal_diameter_mm", "color"],
       "din_layout": {"mounting": "ROUTE", "width_modules": 0},
       "required_product_data": ["material_code", "nominal_diameter_mm", "inside_diameter_mm", "color", "package_length_m", "official_source"]
+    },
+    {
+      "id": "module.wirenboard.wbe2_i_rs485_iso",
+      "passport_id": "module.wirenboard.wbe2_i_rs485_iso",
+      "version": 1,
+      "name": "Wiren Board WBE2-I-RS485-ISO",
+      "equipment_class": "RS485_INTERFACE_MODULE",
+      "functional_role": "One additional galvanically isolated RS-485 interface installed into a compatible controller MOD slot",
+      "normative_basis": [
+        "docs/legacy/issue293/WBE2_RS485_ISO_VERIFIED_FACTS.md"
+      ],
+      "project_characteristics": {
+        "rs485_port_count": 1,
+        "mounting": "INTERNAL_EXTENSION_SLOT"
+      },
+      "resources": [
+        {
+          "resource_id": "HOST_SLOT_ATTACHMENT",
+          "kind": "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
+          "direction": "IN",
+          "quantity": 1,
+          "exclusive": true,
+          "branching": "FORBIDDEN",
+          "constraints": {
+            "compatible_controller_models": [
+              "WB8.5"
+            ],
+            "compatible_slot_labels": [
+              "MOD1",
+              "MOD2",
+              "MOD3",
+              "MOD4"
+            ]
+          }
+        },
+        {
+          "resource_id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 1,
+          "exclusive": true,
+          "branching": "BUS_TOPOLOGY_ONLY",
+          "constraints": {
+            "protocol": "MODBUS_RTU",
+            "isolated": true,
+            "isolation_kv": 1.5
+          }
+        }
+      ],
+      "compatibility": {
+        "host": "WB8_5_MOD1_TO_MOD4",
+        "rs485_source": "RS485",
+        "installation_relation": "MODULE_INSTALLATION",
+        "host_attachment_and_bus_link_independent": true,
+        "root_requires_valid_installation": true
+      },
+      "validation_parameters": [
+        "host_slot_compatibility",
+        "host_slot_occupancy",
+        "module_host_attachment",
+        "rs485_port_occupancy",
+        "bus_root_protocol"
+      ],
+      "din_layout": {
+        "mounting": "INTERNAL_EXTENSION_SLOT",
+        "width_modules": 0
+      },
+      "required_product_data": [
+        "compatible_controller_models",
+        "compatible_slot_labels",
+        "rs485_port_count",
+        "isolation_kv",
+        "official_source"
+      ],
+      "unknown_data_policy": "Unverified dimensions, current consumption and peak power remain null; no DIN rail footprint assumed."
     }
   ]
 }

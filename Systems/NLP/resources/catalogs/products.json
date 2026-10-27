@@ -543,6 +543,44 @@
       "accepted_project_evidence": {"technical_card": "01_TK_EOM_01_2026-08-17.docx", "certificate": "ЕАЭС RU C-RU.НК07.В.00041/26", "standard": "ГОСТ 35043-2023", "flammability_class": "ПВ-0"},
       "mvp_reference": true,
       "lifecycle_status": "OFFICIAL_PRODUCT_PAGE_AVAILABLE_NO_DISCONTINUED_MARKER"
+    },
+    {
+      "id": "product.wirenboard.wbe2_i_rs485_iso",
+      "product_id": "product.wirenboard.wbe2_i_rs485_iso",
+      "version": 1,
+      "name": "Wiren Board WBE2-I-RS485-ISO",
+      "passport_id": "module.wirenboard.wbe2_i_rs485_iso",
+      "manufacturer": "Wiren Board",
+      "series": "WBE2",
+      "model": "WBE2-I-RS485-ISO",
+      "article": "WBE2-I-RS485-ISO",
+      "parameters_used_by_project": {
+        "compatible_controller_models": [
+          "WB8.5"
+        ],
+        "compatible_slot_labels": [
+          "MOD1",
+          "MOD2",
+          "MOD3",
+          "MOD4"
+        ],
+        "rs485_port_count": 1,
+        "isolation_kv": 1.5,
+        "mounting": "INTERNAL_EXTENSION_SLOT"
+      },
+      "dimensions_mm": {
+        "width": null,
+        "height": null,
+        "depth": null
+      },
+      "din_modules": 0,
+      "official_source": {
+        "type": "OFFICIAL_MANUFACTURER_WIKI",
+        "title": "WBE2-I-RS485-ISO RS485 Extension Module",
+        "url": "https://wiki.wirenboard.com/wiki/WBE2-I-RS485-ISO_RS485_Extension_Module",
+        "checked_on": "2026-10-27"
+      },
+      "mvp_reference": false
     }
   ]
 }

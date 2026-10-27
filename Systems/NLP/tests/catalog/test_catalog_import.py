@@ -58,10 +58,10 @@ def test_canonical_payload_schema_hash_and_exact_coverage(catalog_dir):
     payload = load_payload(catalog_dir)
     validate_payload(payload)
     assert (
-        payload.content_sha256 == "e92935b0742367ecb83c3204fc2a49f4a67ace09ffb68d6c988c82cbde91858f"
+        payload.content_sha256 == "4e3f7a0b96ffc36919de9d1b49f25a93361f526ee6402cb92977930b4a8f60d5"
     )
-    assert len(payload.passports["passports"]) == 19
-    assert len(payload.products["products"]) == 32
+    assert len(payload.passports["passports"]) == 20
+    assert len(payload.products["products"]) == 33
     passports = {item["id"]: item for item in payload.passports["passports"]}
     assert (
         sum(
@@ -134,14 +134,14 @@ def test_install_is_atomic_immutable_idempotent_and_sqlite_queryable(
     assert second.release_id == installed_catalog.release_id
     with database.engine.connect() as connection:
         assert connection.scalar(select(func.count()).select_from(catalog_release)) == 1
-        assert connection.scalar(select(func.count()).select_from(passport_definition)) == 19
-        assert connection.scalar(select(func.count()).select_from(product_definition)) == 32
+        assert connection.scalar(select(func.count()).select_from(passport_definition)) == 20
+        assert connection.scalar(select(func.count()).select_from(product_definition)) == 33
         assert (
             connection.scalar(select(func.count()).select_from(passport_resource_definition)) > 14
         )
     queries = CatalogQueries(database.engine)
-    assert len(queries.passports()) == 19
-    assert len(queries.products()) == 32
+    assert len(queries.passports()) == 20
+    assert len(queries.products()) == 33
     with pytest.raises(PermissionError, match="immutable"):
         ImmutableCatalogEditor().edit_published("anything")
 

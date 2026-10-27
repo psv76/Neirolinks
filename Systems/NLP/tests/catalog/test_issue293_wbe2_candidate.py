@@ -28,10 +28,14 @@ def test_wbe2_rs485_iso_draft_has_separate_installation_and_bus_resources():
     assert product["dimensions_mm"] == {"width": None, "height": None, "depth": None}
 
 
-def test_wbe2_candidate_does_not_collide_with_published_catalog():
+def test_wbe2_release_matches_verified_candidate_without_drift():
     candidate = json.loads(CANDIDATE.read_text(encoding="utf-8"))
     catalog = ROOT / "resources/catalogs"
     passports = json.loads((catalog / "equipment_passports.json").read_text(encoding="utf-8"))["passports"]
     products = json.loads((catalog / "products.json").read_text(encoding="utf-8"))["products"]
-    assert candidate["passport"]["id"] not in {x["id"] for x in passports}
-    assert candidate["product"]["id"] not in {x["id"] for x in products}
+    assert [x for x in passports if x["id"] == candidate["passport"]["id"]] == [
+        candidate["passport"]
+    ]
+    assert [x for x in products if x["id"] == candidate["product"]["id"]] == [
+        candidate["product"]
+    ]
