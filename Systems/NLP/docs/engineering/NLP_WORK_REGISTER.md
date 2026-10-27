@@ -22,7 +22,7 @@
 
 ### 27.10.2026: расширенный каталог WB — кандидат, не live
 
-В ходе #293 собран проверочный successor `nlp3.equipment.2026-10-27.wb-expanded-audit` на **49 паспортов / 65 товаров**. Матрица 43 legacy SKU: **33 READY по модели и ресурсам, 10 NEEDS_VERIFICATION**. Проверки: 171 основных тестов, 6 тестов матрицы, catalog-check и реальный DB-clone successor (PASS, исходные ID экземпляров/ресурсов/шин сохранены). Состояние **PARTIAL / NOT LIVE**: работающая SQLite продолжает использовать успешно установленный ранее выпуск WBE2 (20/33), без обновления до 49/65. Полный перечень открытых проверок и доказательства в `docs/engineering/ISSUE_293_EXPANDED_CATALOG_EVIDENCE_2026-10-27.md` и `docs/legacy/issue293/CURRENT_COVERAGE_2026-10-27.md`. Не закрывать #293 до принятия оставшихся моделей/ревизий и GUI/workflow acceptance.
+В ходе #293 собран проверочный successor `nlp3.equipment.2026-10-27.wb-expanded-audit` на **49 паспортов / 65 товаров**. Матрица 43 legacy SKU: **38 READY по модели и ресурсам, 5 NEEDS_VERIFICATION**. Проверки: 171 основных тестов, 22 теста матрицы/аудита действующих паспортов, catalog-check и реальный DB-clone successor (PASS, исходные ID экземпляров/ресурсов/шин сохранены). Состояние **PARTIAL / NOT LIVE**: работающая SQLite продолжает использовать успешно установленный ранее выпуск WBE2 (20/33), без обновления до 49/65. Полный перечень открытых проверок и доказательства в `docs/engineering/ISSUE_293_EXPANDED_CATALOG_EVIDENCE_2026-10-27.md` и `docs/legacy/issue293/CURRENT_COVERAGE_2026-10-27.md`. Не закрывать #293 до принятия оставшихся моделей/ревизий и GUI/workflow acceptance.
 
 ---
 

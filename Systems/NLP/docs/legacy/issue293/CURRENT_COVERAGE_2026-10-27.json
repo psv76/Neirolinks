@@ -5,8 +5,8 @@
   "engineering_types": 36,
   "module_definitions": 16,
   "status_counts": {
-    "READY": 33,
-    "NEEDS_VERIFICATION": 10,
+    "READY": 38,
+    "NEEDS_VERIFICATION": 5,
     "MISSING": 0,
     "DEPRECATED": 0
   },
@@ -110,7 +110,8 @@
           "quantity": 2
         }
       ],
-      "rationale": "Published model needs full revision/resource audit"
+      "rationale": "WB8-4G-64G-IND denotes 4 GB RAM and 64 GB eMMC (not an installed LTE modem). Its WB8.5 hardware has 2 native RS485 and 4 MOD slots, but the current base passport unconditionally materializes optional CELLULAR_MODEM. Requires typed optional resource/product configuration without altering existing instances.",
+      "audit_scope": "Blocked by conditional resource, semantic mismatch, unknown revision, or manufacturer development status."
     },
     {
       "article": "WBIO-DI-WD-14",
@@ -178,10 +179,10 @@
     {
       "article": "WB-UPS v.3",
       "engineering_code": "WB-UPS_V3",
-      "status": "NEEDS_VERIFICATION",
+      "status": "READY",
       "passport_id": "power.wb_ups_v3",
       "product_id": "product.wirenboard.wb_ups_v3",
-      "source": "https://wirenboard.com/en/contents/product/wb-ups-v3/",
+      "source": "https://wiki.wirenboard.com/wiki/WB-UPS_v.3_Backup_power_supply",
       "resources": [
         {
           "id": "VIN",
@@ -209,7 +210,8 @@
           "quantity": 8
         }
       ],
-      "rationale": "Published model needs full revision/resource audit"
+      "rationale": "1 Vin 10–27 V, 1 Vout 9–25 V battery mode, 15 W continuous/20 W peak, internal 2×18650 battery, RS485 Modbus. The existing catalog reflects the electrical resources.",
+      "audit_scope": "Published passport resources cross-checked; hardware revision scoped to named product; GUI/end-to-end gate outstanding"
     },
     {
       "article": "WBC2-4G",
@@ -261,7 +263,7 @@
     {
       "article": "WBE2-I-KNX",
       "engineering_code": "WBE2-I-KNX",
-      "status": "NEEDS_VERIFICATION",
+      "status": "READY",
       "passport_id": "module.wirenboard.wbe2_i_knx",
       "product_id": "product.wirenboard.wbe2_i_knx",
       "source": "https://wiki.wirenboard.com/wiki/index.php/KNX_Module_for_WB6_%28WBE2-I-KNX%29",
@@ -277,7 +279,8 @@
           "quantity": 1
         }
       ],
-      "rationale": "Published model needs full revision/resource audit"
+      "rationale": "Exactly one KNX bus port (not RS485), 4 kV isolation, external KNX bus power, and one host MOD attachment. WB8.5 attachment supported by the current Constructor.",
+      "audit_scope": "Published passport resources cross-checked; hardware revision scoped to named product; GUI/end-to-end gate outstanding"
     },
     {
       "article": "WBE2-I-RS232",
@@ -402,7 +405,7 @@
     {
       "article": "WB-MR6C v.2",
       "engineering_code": "WB-MR6C_V2",
-      "status": "NEEDS_VERIFICATION",
+      "status": "READY",
       "passport_id": "controller.wb_mr6c_v2",
       "product_id": "product.wirenboard.wb_mr6c_v2",
       "source": "https://wiki.wirenboard.com/wiki/WB-MR6C_v.2_Modbus_Relay_Modules",
@@ -433,7 +436,8 @@
           "quantity": 6
         }
       ],
-      "rationale": "Published model needs full revision/resource audit"
+      "rationale": "6 NO relay outputs, COM1/COM2 with 3 outputs per group, group 30 A nominal, individual 10 A nominal/16 A maximum/80 A inrush at 20 ms, seven dry inputs 0–6, Modbus RTU.",
+      "audit_scope": "Published passport resources cross-checked; hardware revision scoped to named product; GUI/end-to-end gate outstanding"
     },
     {
       "article": "WB-MR6C v.3",
@@ -658,9 +662,10 @@
       "status": "NEEDS_VERIFICATION",
       "passport_id": null,
       "product_id": null,
-      "source": null,
+      "source": "https://wirenboard.com/en/product/WB-MRM2-mini-v3/",
       "resources": [],
-      "rationale": "Legacy v.3 does not match official published 2.x revision table; do not substitute blindly."
+      "rationale": "The v.3 device EXISTS as a distinct planned product with 2 relay outputs and FOUR configurable 1-Wire/DI/DO inputs. Manufacturer states UNDER DEVELOPMENT / NOT AVAILABLE. Do not substitute a v.2 passport.",
+      "audit_scope": "Blocked by conditional resource, semantic mismatch, unknown revision, or manufacturer development status."
     },
     {
       "article": "WB-MAP3ET",
@@ -929,7 +934,8 @@
           "quantity": 4
         }
       ],
-      "rationale": "Legacy article lacks revision; existing product describes WB-LED v.1. Revision-specific UI/resource audit needed."
+      "rationale": "Legacy article lacks explicit hardware revision, while the published canonical item is WB-LED v.1. Do not silently map unversioned legacy item to one revision.",
+      "audit_scope": "Blocked by conditional resource, semantic mismatch, unknown revision, or manufacturer development status."
     },
     {
       "article": "WB-MDM3",
@@ -970,7 +976,7 @@
     {
       "article": "WB-DALI3",
       "engineering_code": "WB-DALI3",
-      "status": "NEEDS_VERIFICATION",
+      "status": "READY",
       "passport_id": "gateway.wirenboard.wb_dali3",
       "product_id": "product.wirenboard.wb_dali3",
       "source": "https://wiki.wirenboard.com/wiki/WB-DALI_Modbus-to-DALI_Gateway_%283-channel%29",
@@ -1001,7 +1007,8 @@
           "quantity": 7
         }
       ],
-      "rationale": "Published model needs full revision/resource audit"
+      "rationale": "3 separate DA1/DA2/DA3 buses 200/100/100 mA, 7 dry inputs, separate upstream RS485 Modbus and both AC 230 V and DC 9–28 V power feeds.",
+      "audit_scope": "Published passport resources cross-checked; hardware revision scoped to named product; GUI/end-to-end gate outstanding"
     },
     {
       "article": "WB-MAO4",
@@ -1156,10 +1163,10 @@
     {
       "article": "WB-MCM8",
       "engineering_code": "WB-MCM8",
-      "status": "NEEDS_VERIFICATION",
+      "status": "READY",
       "passport_id": "module.wirenboard.wb_mcm8",
       "product_id": "product.wirenboard.wb_mcm8",
-      "source": "https://wiki.wirenboard.com/wiki/WB-MCM8_Modbus_Module",
+      "source": "https://wiki.wirenboard.com/wiki/WB-MCM8_Modbus_Count_Inputs/en",
       "resources": [
         {
           "id": "ELECTRONICS_POWER",
@@ -1177,7 +1184,8 @@
           "quantity": 8
         }
       ],
-      "rationale": "Published model needs full revision/resource audit"
+      "rationale": "8 isolated-group dry contact/open-collector counter inputs, RS485 Modbus RTU, 9–28 VDC supply. No relay outputs.",
+      "audit_scope": "Published passport resources cross-checked; hardware revision scoped to named product; GUI/end-to-end gate outstanding"
     },
     {
       "article": "WB-MCM8HV",
@@ -1211,7 +1219,7 @@
       "status": "NEEDS_VERIFICATION",
       "passport_id": "gateway.wirenboard.wb_mge_v3",
       "product_id": "product.wirenboard.wb_mge_v3",
-      "source": "https://wiki.wirenboard.com/wiki/WB-MGE_v.3_Modbus_Ethernet_Gateway",
+      "source": "https://wiki.wirenboard.com/wiki/WB-MGE_v.3_Modbus_Ethernet_Gateway/en",
       "resources": [
         {
           "id": "VIN",
@@ -1244,7 +1252,8 @@
           "quantity": 2
         }
       ],
-      "rationale": "Published model needs full revision/resource audit"
+      "rationale": "2 RS485 and 2 Vout terminals confirmed; Vout are switched as ONE GROUP, not independently. Existing per-port resources lack shared actuator semantics; addition/change to immutable published passport requires versioned successor plus live-preserving migration.",
+      "audit_scope": "Blocked by conditional resource, semantic mismatch, unknown revision, or manufacturer development status."
     },
     {
       "article": "WB-MIO",
@@ -1278,9 +1287,11 @@
       "status": "NEEDS_VERIFICATION",
       "passport_id": null,
       "product_id": null,
-      "source": null,
+      "source": "https://wirenboard.com/ru/contents/product/WB-MDIO8/",
       "resources": [],
-      "rationale": "Manufacturer page describes a device under development and not available; no confirmed released revision."
+      "rationale": "Manufacturer states UNDER DEVELOPMENT with estimated first deliveries in 2027. Planned 8 button inputs, 6 LED/backlight outputs are preliminary and not an approved deliverable product.",
+      "audit_scope": "Blocked by conditional resource, semantic mismatch, unknown revision, or manufacturer development status."
     }
-  ]
+  ],
+  "audit_status": "PARTIAL_NOT_LIVE"
 }

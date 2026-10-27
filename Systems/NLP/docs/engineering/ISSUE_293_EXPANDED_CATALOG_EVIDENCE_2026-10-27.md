@@ -18,11 +18,11 @@
 - `docs/legacy/issue293/CURRENT_COVERAGE_2026-10-27.md`;
 - `docs/legacy/issue293/CURRENT_COVERAGE_2026-10-27.json`.
 
-**33 SKU — READY на уровне документированного паспорта/ресурсов; 10 — NEEDS_VERIFICATION; 0 молча пропущенных SKU.**
+**38 SKU — READY на уровне документированного паспорта/ресурсов; 5 — NEEDS_VERIFICATION; 0 молча пропущенных SKU.**
 READY здесь **не означает**, что прошли полная UI-приёмка, поддержка всех режимов или установка на реальном объекте.
 
-Открытые проверки: `WB8-4G-64G-IND`, `WB-UPS v.3`, `WBE2-I-KNX`, `WB-MR6C v.2`, `WB-MRM2-mini v.3`, `WB-LED`, `WB-DALI3`, `WB-MCM8`, `WB-MGE v.3`, `WB-MDIO8`.
-У `WB-MRM2-mini v.3` нет доказанного соответствия текущим опубликованным аппаратным ревизиям производителя; `WB-MDIO8` не подтверждён как готовый к поставке вариант. Не подменять их идентичность.
+Открытые проверки: `WB8-4G-64G-IND` (модем опционален), `WB-MGE v.3` (два Vout управляются одной группой), `WB-LED` (legacy-ревизия не указана), `WB-MRM2-mini v.3` (производитель ещё разрабатывает), `WB-MDIO8` (производитель ещё разрабатывает).
+`WB-MRM2-mini v.3` существует как отдельная разрабатываемая модель: 2 реле и 4 универсальных входа 1-Wire/DI/DO. Это не версия v.2; до выпуска нельзя подменять его идентичность. Для `WB-MDIO8` производитель указывает ориентировочные поставки в 2027 году. Оба устройства документированы как заблокированные для production до подтверждения окончательных спецификаций.
 
 Встроенный `WB-LED v.1` — не автоматический эквивалент legacy записи `WB-LED` без ревизии.
 
@@ -41,6 +41,7 @@ READY здесь **не означает**, что прошли полная UI-
 
 - `pytest -q tests/catalog tests/constructor tests/buses tests/recovery tests/cables`: **171 passed** (до добавления отдельного тестового файла матрицы, на том же каталоге).
 - `pytest -q tests/catalog/test_issue293_coverage_matrix.py`: **6 passed**.
+- `pytest -q tests/catalog/test_issue293_existing_audit.py tests/catalog/test_issue293_coverage_matrix.py`: **22 passed**. Нормативные основания: `docs/legacy/issue293/EXISTING_EQUIPMENT_MANUFACTURER_AUDIT_2026-10-27.md`.
 - `tools/catalog_check.py`: **PASS**, структура/hashes/normative parity.
 - Проверенный successor на **копии реальной SQLite**, а не на рабочей:
   `D:\NLP_3_BACKUPS\issue293_49_65_rehearsal\nl_project_3_CATALOG_REHEARSAL.sqlite`.
