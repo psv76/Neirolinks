@@ -51,8 +51,8 @@ def test_search_label_does_not_overlap_search_field(qtbot):
     w.show()
     QApplication.processEvents()
     labels=[x for x in w.findChildren(QLabel) if x.text()=="Поиск по линиям"]
-    assert len(labels)==1
-    assert labels[0].geometry().right()<w.search.geometry().left()
+    assert not labels
+    assert "Номер" in w.search.placeholderText()
     assert w.search.width()>400
 
 
@@ -70,3 +70,84 @@ def test_stale_length_exposes_saved_value_without_pretending_it_is_current():
     assert "7.61" in value
     assert "7.61" in tooltip and "7.32" in tooltip
     assert _segment_length_text({"cable_length_m":None})=="⚠ нет расчёта"
+
+
+def test_hover_and_current_cell_render_white_text_on_dark_blue(qtbot):
+    from PySide6.QtTest import QTest
+    from PySide6.QtCore import QPoint
+    from PySide6.QtWidgets import QApplication
+    service=FakeCableService()
+    w=LinesWorkspace(service,FakeConstructor(),"project")
+    qtbot.addWidget(w)
+    w.resize(1450,850)
+    w.show()
+    QApplication.processEvents()
+    col=_column_index("designation")
+    first=_row(w,"line-1")
+    second=_row(w,"line-2")
+    w.table.setCurrentCell(first,col)
+    QTest.mouseMove(w.table.viewport(),w.table.visualItemRect(w.table.item(second,col)).center())
+    QApplication.processEvents()
+    for row in (first,second):
+        rect=w.table.visualItemRect(w.table.item(row,col))
+        image=w.table.viewport().grab(rect).toImage()
+        # The painted item contains actual blue background AND visible
+        # near-white antialiased pixels from text glyphs.
+        blue=white=0
+        for y in range(3,image.height()-3):
+            for x in range(2,min(75,image.width()-3)):
+                c=image.pixelColor(x,y)
+                if c.blue()>c.red()*1.4 and c.blue()>c.green()*1.1 and c.red()<100:
+                    blue+=1
+                if c.red()>220 and c.green()>220 and c.blue()>220:
+                    white+=1
+        assert blue>30,(row,blue,white)
+        assert white>5,(row,blue,white)
+
+
+def test_review_stale_lengths_requires_confirmation_and_verified_backup(
+    qtbot,monkeypatch,tmp_path,
+):
+    from types import SimpleNamespace
+    from PySide6.QtWidgets import QMessageBox
+    from nl_project_2.persistence import migration
+    class Stub(FakeCableService):
+        def __init__(self):
+            super().__init__()
+            self.recalculated = []
+            self._engine = SimpleNamespace(
+                url=SimpleNamespace(database=str(tmp_path/"working.sqlite"))
+            )
+        def stale_length_report(self,pid):
+            return () if self.recalculated else ({
+                "segment_id":"seg-1","cable_line_id":"line-1",
+                "designation":"1","stored_m":"7.6097",
+                "new_m":"7.3209","delta_m":"-0.2888",
+            },)
+        def recalculate(self,**kwargs):
+            self.recalculated.append(kwargs)
+    (tmp_path/"working.sqlite").write_bytes(b"test-file")
+    service=Stub()
+    w=LinesWorkspace(service,FakeConstructor(),"project")
+    qtbot.addWidget(w)
+    decisions=[]
+    monkeypatch.setattr(QMessageBox,"question",lambda *a,**kw:(
+        decisions.append(a[2]) or QMessageBox.StandardButton.No
+    ))
+    monkeypatch.setattr(QMessageBox,"information",lambda *a,**k:None)
+    copied=[]
+    def fake_backup(path,folder):
+        copied.append((path,folder))
+        return SimpleNamespace(path=folder/"nlp.sqlite")
+    monkeypatch.setattr(migration,"create_verified_backup",fake_backup)
+    w._review_stale_lengths()
+    assert not service.recalculated and not copied
+    assert "7.61" in decisions[0] and "7.32" in decisions[0]
+    monkeypatch.setattr(QMessageBox,"question",
+        lambda *a,**kw:QMessageBox.StandardButton.Yes)
+    w._review_stale_lengths()
+    assert len(copied)==1
+    assert service.recalculated==[{
+        "project_id":"project","segment_ids":{"seg-1"},
+    }]
+    assert w.recalculate_stale_button.objectName()=="reviewStaleLengthsButton"

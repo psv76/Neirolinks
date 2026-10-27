@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import QItemSelectionModel, QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QAction, QBrush, QColor, QIcon, QKeySequence, QPainter, QPen, QPixmap
@@ -26,6 +28,8 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QSplitter,
     QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QStyleOptionHeader,
     QTableWidget,
     QTableWidgetItem,
@@ -90,6 +94,52 @@ class CableMarkItem(NaturalSortItem):
             super().setData(Qt.ItemDataRole.DisplayRole, format_cable_mark(self._edit_value))
             return
         super().setData(role, value)
+
+
+class ContrastCellDelegate(QStyledItemDelegate):
+    """Paint actual white glyphs on blue for hover/selection/current cell.
+
+    Qt stylesheet-only solutions can leave ForegroundRole=black painted over
+    the selected blue rectangle on Windows/QStyle. Draw the glyphs ourselves.
+    """
+
+    ACTIVE_BG = QColor("#174A75")
+    ACTIVE_FG = QColor("#FFFFFF")
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:
+        active = bool(
+            option.state & (
+                QStyle.StateFlag.State_Selected | QStyle.StateFlag.State_MouseOver
+            )
+        )
+        view = option.widget
+        if isinstance(view, QTableWidget):
+            active = active or index == view.currentIndex()
+        if not active:
+            super().paint(painter, option, index)
+            return
+        painter.save()
+        painter.fillRect(option.rect, self.ACTIVE_BG)
+        painter.setPen(self.ACTIVE_FG)
+        painter.setFont(option.font)
+        text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+        metrics = option.fontMetrics
+        available = option.rect.adjusted(5, 0, -5, 0)
+        decoration = index.data(Qt.ItemDataRole.DecorationRole)
+        if isinstance(decoration, QIcon) and not decoration.isNull():
+            pixmap = decoration.pixmap(QSize(16, 16))
+            painter.drawPixmap(
+                available.left(),
+                available.center().y() - pixmap.height() // 2,
+                pixmap,
+            )
+            available.adjust(20, 0, 0, 0)
+        elided = metrics.elidedText(text, option.textElideMode, max(0, available.width()))
+        alignment = (
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        painter.drawText(available, alignment, elided)
+        painter.restore()
 
 
 class SpreadsheetTable(QTableWidget):
@@ -397,9 +447,8 @@ class LinesWorkspace(QWidget):
         filter_row = QVBoxLayout()
         filter_row.setSpacing(5)
         search_row = QHBoxLayout()
-        search_label = QLabel("Поиск по линиям", self)
-        search_label.setMinimumWidth(search_label.sizeHint().width() + 12)
-        search_row.addWidget(search_label)
+        # Search field has a descriptive placeholder; omit a separate caption
+        # that collides with the panel edge on small desktop scaling factors.
         search_row.setSpacing(12)
         self.search.setMinimumWidth(260)
         search_row.addWidget(self.search, 1)
@@ -410,6 +459,14 @@ class LinesWorkspace(QWidget):
         )
         self.recalculate_line_button.clicked.connect(self._recalculate_selected_line)
         search_row.addWidget(self.recalculate_line_button)
+        self.recalculate_stale_button = QPushButton("Проверить устаревшие длины", self)
+        self.recalculate_stale_button.setObjectName("reviewStaleLengthsButton")
+        self.recalculate_stale_button.setToolTip(
+            "Показать число расхождений и пересчитать только после подтверждения "
+            "с проверенной резервной копией SQLite"
+        )
+        self.recalculate_stale_button.clicked.connect(self._review_stale_lengths)
+        search_row.addWidget(self.recalculate_stale_button)
         filter_row.addLayout(search_row)
 
         options_row = QHBoxLayout()
@@ -441,6 +498,9 @@ class LinesWorkspace(QWidget):
         self.table.setWordWrap(False)
         self.table.verticalHeader().setDefaultSectionSize(30)
         self.table.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.table.setMouseTracking(True)
+        self.table.viewport().setMouseTracking(True)
+        self.table.setItemDelegate(ContrastCellDelegate(self.table))
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.table.setItemDelegateForColumn(
@@ -1737,6 +1797,78 @@ class LinesWorkspace(QWidget):
             self.segment_conduit_number.setValue(row["conduit_number"])
             self.segment_gofra_type_edit.setText(row["conduit_type"])
             self.segment_gofra_color_edit.setText(row["color"] or "")
+
+    def _review_stale_lengths(self) -> None:
+        """User-directed and backed-up reconciliation; never run on refresh."""
+        try:
+            differences = self.cables.stale_length_report(self.project_id)
+        except Exception as exc:
+            QMessageBox.warning(self, "Проверка расчётов", str(exc))
+            return
+        if not differences:
+            QMessageBox.information(
+                self, "Проверка расчётов",
+                "Расхождений между сохранёнными метрами и текущей геометрией не найдено.",
+            )
+            return
+        line_ids = {entry["cable_line_id"] for entry in differences}
+        samples = "\n".join(
+            f"• {entry['designation']}: {Decimal(entry['stored_m']):.2f} → "
+            f"{Decimal(entry['new_m']):.2f} м"
+            for entry in differences[:8]
+        )
+        remainder = (
+            f"\n… и ещё {len(differences)-8} участков."
+            if len(differences) > 8 else ""
+        )
+        confirm = QMessageBox.question(
+            self, "Пересчёт по текущей геометрии",
+            f"Найдено {len(differences)} устаревших участков в "
+            f"{len(line_ids)} кабельных линиях.\n\n"
+            f"{samples}{remainder}\n\n"
+            "Пересчитать только эти участки по текущей геометрии Project? "
+            "Будет создана проверенная резервная копия рабочей SQLite. "
+            "DWG и номера кабельных линий не меняются. "
+            "Старые результаты могут отличаться на десятки сантиметров.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            from nl_project_2.persistence.migration import create_verified_backup
+            database_name = str(self.cables._engine.url.database or "")
+            path = Path(database_name)
+            if not database_name or not path.is_file():
+                raise RuntimeError("Не найден путь к рабочей SQLite для резервной копии")
+            preferred = Path(path.anchor) / "NLP_3_BACKUPS"
+            backup_root = preferred if preferred.is_dir() else path.parent / "backups"
+            folder = backup_root / (
+                "nlp32_length_recalculation_"
+                + datetime.now().strftime("%Y%m%dT%H%M%S%f")
+            )
+            receipt = create_verified_backup(path, folder)
+            self.cables.recalculate(
+                project_id=self.project_id,
+                segment_ids={entry["segment_id"] for entry in differences},
+            )
+            remaining = self.cables.stale_length_report(self.project_id)
+        except Exception as exc:
+            QMessageBox.warning(
+                self, "Пересчёт не завершён",
+                f"{exc}\n\nСостояние проверьте по резервной копии, "
+                "если операция была частично выполнена.",
+            )
+            self.refresh()
+            return
+        self.refresh()
+        self.projectChanged.emit()
+        QMessageBox.information(
+            self, "Расчёты обновлены",
+            f"Пересчитано {len(differences)} участков. "
+            f"Расхождений осталось: {len(remaining)}.\n"
+            f"Проверенная резервная копия: {receipt.path}",
+        )
 
     def _recalculate_selected_line(self) -> None:
         line_id = self.current_line_id()

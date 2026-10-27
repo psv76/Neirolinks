@@ -1689,6 +1689,49 @@ class CableService:
             uow.commit()
         return self.effective_length(project_id, cable_line_id)
 
+    def stale_length_report(self, project_id: str) -> tuple[dict, ...]:
+        """Preview materially stale segment lengths, without touching SQLite data.
+
+        Tiny (<1 mm) numerical rounding differences are not stale. Missing
+        physical geometry is not silently replaced by a past stored value.
+        """
+        result: list[dict] = []
+        with UnitOfWork(self._engine) as uow:
+            segments = [
+                dict(row) for row in uow.execute(
+                    select(
+                        cable_segment,
+                        cable_line.c.designation.label("line_designation"),
+                    )
+                    .join(cable_line, cable_line.c.id == cable_segment.c.cable_line_id)
+                    .where(
+                        cable_segment.c.project_id == project_id,
+                        cable_line.c.lifecycle == "ACTIVE",
+                    )
+                ).mappings()
+            ]
+            for segment in segments:
+                saved = segment["calculated_length_m_decimal"]
+                if saved is None:
+                    continue
+                diag = segment_geometry_diagnostics(uow, project_id, segment)
+                if not diag["complete"] or diag["calculated_length_m"] is None:
+                    continue
+                current = Decimal(diag["calculated_length_m"])
+                previous = Decimal(saved)
+                if abs(current - previous) <= Decimal("0.001"):
+                    continue
+                result.append({
+                    "segment_id": segment["id"],
+                    "cable_line_id": segment["cable_line_id"],
+                    "designation": segment["line_designation"],
+                    "stored_m": str(previous),
+                    "new_m": str(current),
+                    "delta_m": str(current-previous),
+                })
+            uow.rollback()
+        return tuple(sorted(result, key=lambda row: row["designation"]))
+
     def recalculate(
         self,
         *,
