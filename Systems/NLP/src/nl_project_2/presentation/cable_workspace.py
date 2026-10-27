@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -67,6 +67,7 @@ class CableWorkspaceDialog(QDialog):
         tab = QWidget(self)
         self.system_filter = QComboBox(tab)
         self.system_filter.setObjectName("cableSystemFilter")
+        self.system_filter.installEventFilter(self)
         self.system_filter.addItem("Все системы", "ALL")
         self.system_filter.addItem("Только AV", "AV")
         self.system_filter.currentIndexChanged.connect(self.refresh_lines)
@@ -97,6 +98,7 @@ class CableWorkspaceDialog(QDialog):
         self.gofra_color_edit = QLineEdit(tab)
         self.gofra_id_edit = QLineEdit(tab)
         self.route_combo = QComboBox(tab)
+        self.route_combo.installEventFilter(self)
         for method, title in (
             (RouteMethod.FLOOR, "По полу"),
             (RouteMethod.SCREED, "В стяжке"),
@@ -141,8 +143,14 @@ class CableWorkspaceDialog(QDialog):
         assignment_actions.addWidget(unassign)
         assignment_actions.addStretch(1)
 
+        self.conduit_search = QLineEdit(tab)
+        self.conduit_search.setObjectName("conduitSearchEdit")
+        self.conduit_search.setPlaceholderText("Найти трубу по номеру или типу, например 146")
+        self.conduit_search.textChanged.connect(self.refresh_conduits)
         self.conduits_table = QTableWidget(0, 7, tab)
         self.conduits_table.setObjectName("conduitsTable")
+        self.conduits_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.conduits_table.viewport().installEventFilter(self)
         self.conduits_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.conduits_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.conduits_table.setHorizontalHeaderLabels(
@@ -151,6 +159,8 @@ class CableWorkspaceDialog(QDialog):
         create = QPushButton("Создать пустую трубу", tab)
         create.clicked.connect(self._create_conduit)
         move = QPushButton("Перенести выбранную линию", tab)
+        move.setObjectName("moveLineToConduitButton")
+        move.setToolTip("Перенос выполняется только после подтверждения номера линии и трубы")
         move.clicked.connect(self._move_line)
         edit_length = QPushButton("Изменить длину трубы", tab)
         edit_length.clicked.connect(self._edit_conduit_length)
@@ -174,6 +184,7 @@ class CableWorkspaceDialog(QDialog):
         layout.addWidget(self.resource_targets, 1)
         layout.addLayout(assignment_actions)
         layout.addWidget(QLabel("Экземпляры труб", tab))
+        layout.addWidget(self.conduit_search)
         layout.addWidget(self.conduits_table, 1)
         layout.addLayout(conduit_actions)
         return tab
@@ -256,6 +267,22 @@ class CableWorkspaceDialog(QDialog):
         layout.addLayout(form)
         layout.addLayout(actions)
         return tab
+
+    def eventFilter(self, watched, event) -> bool:
+        """Wheel must scroll a conduit list, never change the chosen target."""
+        if event.type() == QEvent.Type.Wheel:
+            if watched in (self.system_filter, self.route_combo):
+                event.accept()
+                return True
+            if watched is self.conduits_table.viewport():
+                delta = event.angleDelta().y() or event.pixelDelta().y()
+                if delta:
+                    scrollbar = self.conduits_table.verticalScrollBar()
+                    direction = 1 if delta < 0 else -1
+                    scrollbar.setValue(scrollbar.value() + direction * 2)
+                event.accept()
+                return True
+        return super().eventFilter(watched, event)
 
     def refresh_all(self) -> None:
         self.refresh_lines()
@@ -350,7 +377,14 @@ class CableWorkspaceDialog(QDialog):
                 self.resource_targets.setItem(index, column, item)
 
     def refresh_conduits(self) -> None:
-        rows = self.service.list_conduits(self.project_id)
+        needle = self.conduit_search.text().strip().casefold()
+        rows = [
+            row for row in self.service.list_conduits(self.project_id)
+            if not needle or any(
+                needle in str(row.get(key) or "").casefold()
+                for key in ("designation", "conduit_number", "conduit_type", "color")
+            )
+        ]
         self.conduits_table.setRowCount(len(rows))
         for index, row in enumerate(rows):
             values = (
@@ -553,15 +587,47 @@ class CableWorkspaceDialog(QDialog):
         line_id = self._selected_line_id()
         conduit_ids = self._selected_conduit_ids()
         if line_id is None or len(conduit_ids) != 1:
-            QMessageBox.information(self, "Перенос", "Выберите одну линию и одну трубу")
+            QMessageBox.information(
+                self, "Перенос", "Выберите одну кабельную линию и одну целевую трубу"
+            )
+            return
+        target_id = next(iter(conduit_ids))
+        line = self._line_cards_by_id.get(line_id, {})
+        designation = str(line.get("designation") or "?")
+        old_name = str(line.get("gofra_id") or "без трубы")
+        target = next(
+            (row for row in self.service.list_conduits(self.project_id)
+             if row["id"] == target_id), None
+        )
+        if target is None:
+            QMessageBox.warning(self, "Перенос", "Целевая труба больше не существует")
+            return
+        target_name = target["designation"]
+        if old_name == target_name:
+            QMessageBox.information(
+                self, "Перенос не требуется",
+                f"Кабельная линия {designation} уже находится в трубе {target_name}.",
+            )
+            return
+        confirm = QMessageBox.question(
+            self, "Подтвердить изменение трубы",
+            f"Линия {designation}: перенести из {old_name} в {target_name}?\n"
+            "Это изменит монтажные поля линии и, если исходная труба "
+            "создана автоматически и опустеет, может удалить её. "
+            "Выберите «Нет», если номер трубы не тот.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
             return
         try:
             self.service.move_line_to_conduit(
                 project_id=self.project_id,
                 cable_line_id=line_id,
-                target_conduit_id=next(iter(conduit_ids)),
+                target_conduit_id=target_id,
             )
             self.refresh_all()
+            self.focus_line(line_id)
         except CableError as exc:
             QMessageBox.warning(self, "Перенос не выполнен", str(exc))
 
