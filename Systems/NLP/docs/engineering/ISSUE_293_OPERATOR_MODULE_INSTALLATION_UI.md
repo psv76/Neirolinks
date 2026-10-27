@@ -27,6 +27,10 @@
 - `tests/buses/test_issue293_eight_wbe2_roots.py`: 3 синтетических WB8.5, 8 отдельных WBE2, создание 8 корней физических шин `903…910`, сохранение/reopen.
 - Старые Expert вкладки («Экземпляры и ресурсы», «Связи») и существующие данные сохранены.
 
+### Offscreen GUI smoke на копии фактической базы (27.10.2026)
+
+Копия после successor 51/67: `D:\NLP_3_BACKUPS\issue293_51_67_rehearsal\nl_project_3_CATALOG_REHEARSAL.sqlite`. С новым кодом Constructor создан реальный `QApplication` и открыта вкладка «Установка модулей» (offscreen). **PASS**: объект `NL.05.441.03`, ровно **один** host `WB-20`, слоты `MOD1, MOD2, MOD3, MOD4`. Журнал: `D:\NLP_3_BACKUPS\issue293_clone_ui_smoke.log`. Это подтверждает GUI/startup на DB-copy, но не исправляет отсутствующие в данных MOD-слоты `WB-23` и `WB-26`.
+
 ## Ограничение реальной базы Богдановича
 
 **Только чтение, 27.10.2026:** текущая рабочая `D:\NL_Project_3_Data\Projects\nl_project_3.sqlite` содержит WB8.5-паспорт и **четыре MOD-слота только у `WB-20`**. `WB-23` и `WB-26` зарегистрированы как `gateway.wirenboard.wb_mge_v3` и MOD-слотов не имеют. Также `WB-21/22/24/25/27/28/29` — такие же MGE v.3.
