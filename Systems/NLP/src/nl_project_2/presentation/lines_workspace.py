@@ -221,15 +221,15 @@ COLUMNS = (
 )
 
 _DEFAULT_COLUMN_WIDTHS = {
-    "building_names": 130,
-    "board": 115,
+    "building_names": 100,
+    "board": 135,
     "room_names": 190,
-    "designation": 100,
-    "load_name": 270,
-    "cable_type": 185,
+    "designation": 105,
+    "load_name": 340,
+    "cable_type": 195,
     "mount_way": 125,
-    "gofra_id": 110,
-    "effective_m": 90,
+    "gofra_id": 113,
+    "effective_m": 150,
     "user_status": 155,
     "load_type": 150,
     "system_kind": 110,
@@ -237,7 +237,7 @@ _DEFAULT_COLUMN_WIDTHS = {
     "resource_labels": 230,
 }
 
-LINES_LAYOUT_VERSION = 4
+LINES_LAYOUT_VERSION = 5
 _ISSUE_CONTEXT_ROLE = int(Qt.ItemDataRole.UserRole) + 5
 
 
@@ -253,6 +253,30 @@ def _format_length(value) -> str:
     except (InvalidOperation, ValueError):
         return str(value)
     return f"{number:.2f}".rstrip("0").rstrip(".")
+
+
+def _segment_length_text(edge: dict) -> str:
+    """Show saved stale evidence, without claiming it is the current length."""
+    current = edge.get("cable_length_m")
+    if current is not None:
+        return _format_length(current)
+    old = edge.get("stored_length_m")
+    if old is not None and edge.get("stale_calculation"):
+        return f"{_format_length(old)} ⚠ устар."
+    return "⚠ нет расчёта"
+
+
+def _segment_length_tooltip(edge: dict) -> str:
+    if edge.get("stale_calculation"):
+        previous = _format_length(edge.get("stored_length_m"))
+        current = _format_length(edge.get("current_geometry_length_m"))
+        return (
+            f"Сохранённая длина: {previous} м (УСТАРЕЛА).\\n"
+            f"По текущей геометрии: {current} м.\\n"
+            "Значения различаются. Нажмите «Пересчитать выбранную линию». "
+            "Старое значение не считается актуальным и не входит в текущие итоги."
+        ).replace("\\n", "\n")
+    return str(edge.get("calculation_reason") or "Длина не рассчитана")
 
 
 def _source_label(edge: dict) -> str:
@@ -370,17 +394,40 @@ class LinesWorkspace(QWidget):
         self.view_button.setObjectName("linesViewButton")
         self.view_button.setText("Вид")
         self.view_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        filter_row = QHBoxLayout()
-        filter_label = QLabel("Фильтр / поиск", self)
-        filter_label.setMinimumWidth(filter_label.sizeHint().width() + 8)
-        self.search.setMinimumWidth(320)
-        filter_row.addWidget(filter_label)
-        filter_row.addWidget(self.search, 2)
-        filter_row.addWidget(self.system_filter)
-        filter_row.addWidget(self.room_filter)
-        filter_row.addWidget(self.board_filter)
-        filter_row.addWidget(self.status_filter)
-        filter_row.addWidget(self.view_button)
+        filter_row = QVBoxLayout()
+        filter_row.setSpacing(5)
+        search_row = QHBoxLayout()
+        search_label = QLabel("Поиск по линиям", self)
+        search_label.setMinimumWidth(search_label.sizeHint().width() + 12)
+        search_row.addWidget(search_label)
+        search_row.setSpacing(12)
+        self.search.setMinimumWidth(260)
+        search_row.addWidget(self.search, 1)
+        self.recalculate_line_button = QPushButton("Пересчитать выбранную линию", self)
+        self.recalculate_line_button.setObjectName("recalculateSelectedLineButton")
+        self.recalculate_line_button.setToolTip(
+            "Пересчитать длины по текущей геометрии только у выбранной кабельной линии"
+        )
+        self.recalculate_line_button.clicked.connect(self._recalculate_selected_line)
+        search_row.addWidget(self.recalculate_line_button)
+        filter_row.addLayout(search_row)
+
+        options_row = QHBoxLayout()
+        options_row.setSpacing(8)
+        for caption, selector in (
+            ("Система", self.system_filter),
+            ("Помещение", self.room_filter),
+            ("Щит", self.board_filter),
+            ("Состояние", self.status_filter),
+        ):
+            column = QVBoxLayout()
+            column.setSpacing(2)
+            column.addWidget(QLabel(caption, self))
+            selector.setMinimumWidth(120)
+            column.addWidget(selector)
+            options_row.addLayout(column, 1)
+        options_row.addWidget(self.view_button)
+        filter_row.addLayout(options_row)
 
         self.table = SpreadsheetTable(0, len(COLUMNS), self)
         self.table.setObjectName("linesSpreadsheetTable")
@@ -391,12 +438,17 @@ class LinesWorkspace(QWidget):
         self.table.horizontalHeader().setSectionsMovable(True)
         self.table.horizontalHeader().setStretchLastSection(False)
         self.table.setAlternatingRowColors(True)
+        self.table.setWordWrap(False)
+        self.table.verticalHeader().setDefaultSectionSize(30)
+        self.table.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.table.setItemDelegateForColumn(
             _column_index("room_names"), RoomChipDelegate(self.table)
         )
         self.table.setStyleSheet(
-            "QTableWidget::item:selected { background: #2f6fab; color: white; }"
-            "QTableWidget::item:selected:!active { background: #607d99; color: white; }"
+            "QTableWidget::item:selected { background: #174A75; color: #FFFFFF; }"
+            "QTableWidget::item:selected:!active { background: #174A75; color: #FFFFFF; }"
             "QTableWidget::item:disabled { background: #eceff1; color: #737b82; }"
         )
         header_font = self.table.horizontalHeader().font()
@@ -777,7 +829,8 @@ class LinesWorkspace(QWidget):
                     flags = item.flags()
                     if definition.editable_field is None or card.get("network_kind") != "CABLE":
                         flags &= ~Qt.ItemFlag.ItemIsEditable
-                        item.setForeground(QBrush(QColor("#424a52")))
+                        # Do not override selected-item foreground: white-on-blue
+                        # must remain readable even for non-editable engineering data.
                     item.setFlags(flags)
                     item.setData(
                         Qt.ItemDataRole.UserRole + 4,
@@ -1129,11 +1182,7 @@ class LinesWorkspace(QWidget):
                 "mount_way": edge.get("mount_way") or "",
                 "gofra_id": edge.get("gofra_id")
                 or (f"{edge.get('gofra_type')} · без №" if edge.get("gofra_type") else "—"),
-                "effective_m": (
-                    _format_length(edge.get("cable_length_m"))
-                    if edge.get("cable_length_m") is not None
-                    else "⚠ нет длины"
-                ),
+                "effective_m": _segment_length_text(edge),
             }
             for column, definition in enumerate(COLUMNS):
                 value = values.get(definition.key, "")
@@ -1143,7 +1192,7 @@ class LinesWorkspace(QWidget):
                 child.setData(Qt.ItemDataRole.UserRole + 1, definition.key)
                 child.setData(Qt.ItemDataRole.UserRole + 3, "CHILD")
                 child.setData(Qt.ItemDataRole.UserRole + 4, edge.get("segment_id"))
-                child.setForeground(QBrush(QColor("#4b5563")))
+                # Respect native selected-text contrast also on expanded rows.
                 child_has_issue = (
                     (definition.key == "room_names" and bool(target.get("room_unresolved")))
                     or (
@@ -1168,6 +1217,8 @@ class LinesWorkspace(QWidget):
                     child.setToolTip(str(value))
                 if definition.key == "board":
                     child.setToolTip(_source_tooltip(edge, physical_row.issue_reason))
+                if definition.key == "effective_m":
+                    child.setToolTip(_segment_length_tooltip(edge))
                 if (definition.key == "designation" and physical_row.issue_reason) or (
                     definition.key == "board" and source_issue
                 ):
@@ -1222,7 +1273,7 @@ class LinesWorkspace(QWidget):
                     edge.get("calculation_status") != "READY" or edge.get("cable_length_m") is None
                 ):
                     reason = edge.get("calculation_reason") or "Длина не рассчитана"
-                    child.setToolTip(reason)
+                    child.setToolTip(_segment_length_tooltip(edge))
                     child.setData(
                         _ISSUE_CONTEXT_ROLE,
                         {
@@ -1364,11 +1415,7 @@ class LinesWorkspace(QWidget):
                 edge.get("mount_way") or "",
                 edge.get("gofra_id")
                 or (f"{edge.get('gofra_type')} · без №" if edge.get("gofra_type") else "—"),
-                (
-                    _format_length(edge.get("cable_length_m"))
-                    if edge.get("cable_length_m") is not None
-                    else "⚠ нет длины"
-                ),
+                _segment_length_text(edge),
             )
             for column, value in enumerate(values):
                 cell = QTableWidgetItem(str(value))
@@ -1377,7 +1424,7 @@ class LinesWorkspace(QWidget):
                 if column == 0:
                     cell.setToolTip(_source_tooltip(edge, physical_row.issue_reason))
                 if column == 6:
-                    cell.setToolTip(str(edge.get("calculation_reason") or value))
+                    cell.setToolTip(_segment_length_tooltip(edge))
                 if column == 2 and physical_row.issue_reason:
                     cell.setToolTip(physical_row.issue_reason)
                     cell.setIcon(
@@ -1432,13 +1479,25 @@ class LinesWorkspace(QWidget):
         current = self.table.currentRow()
         context = QBrush(QColor("#e7f1fb"))
         clear = QBrush()
+        selected_text = QBrush(QColor("#FFFFFF"))
+        backup_flag_role = int(Qt.ItemDataRole.UserRole) + 76
+        backup_brush_role = int(Qt.ItemDataRole.UserRole) + 77
         signals_were_blocked = self.table.blockSignals(True)
         try:
             for row in range(self.table.rowCount()):
                 for column in range(self.table.columnCount()):
                     item = self.table.item(row, column)
-                    if item is not None:
-                        item.setBackground(context if row == current else clear)
+                    if item is None:
+                        continue
+                    item.setBackground(context if row == current else clear)
+                    if not item.data(backup_flag_role):
+                        item.setData(backup_brush_role, item.foreground())
+                        item.setData(backup_flag_role, True)
+                    item.setForeground(
+                        selected_text
+                        if item.isSelected()
+                        else item.data(backup_brush_role) or QBrush()
+                    )
         finally:
             self.table.blockSignals(signals_were_blocked)
 
@@ -1548,7 +1607,7 @@ class LinesWorkspace(QWidget):
                     edge.get("mount_way") or "Не указана",
                     edge.get("gofra_id") or "—",
                     _format_length(edge.get("physical_length_m")),
-                    _format_length(edge.get("cable_length_m")),
+                    _segment_length_text(edge),
                     status,
                     edge.get("gofra_type") or "—",
                     edge.get("gofra_color") or "—",
@@ -1563,7 +1622,10 @@ class LinesWorkspace(QWidget):
                     item = QTableWidgetItem(str(value))
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     item.setData(Qt.ItemDataRole.UserRole, edge["segment_id"])
-                    item.setToolTip(str(value))
+                    item.setToolTip(
+                        _segment_length_tooltip(edge) if column in (4, 5, 6)
+                        else str(value)
+                    )
                     self.segment_table.setItem(row_index, column, item)
         finally:
             self.segment_table.blockSignals(False)

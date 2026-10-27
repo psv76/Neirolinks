@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Engine, delete, func, select, update
+from sqlalchemy import Engine, delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from nl_project_2.objects.room_rules import DEFAULT_ROOM_COLOR
@@ -309,12 +309,24 @@ class CableService:
                     )
                 ).mappings()
             }
+            # Shared EL_BOX / topology points can belong to the preceding
+            # physical cable line while an endpoint of this line references
+            # the SAME canonical point ID. Restricting by cable_line_id made
+            # lines 125 and 131 crash with KeyError despite an existing point.
+            referenced_point_ids = {
+                row["cable_point_id"]
+                for row in endpoint_rows.values()
+                if row["endpoint_kind"] == "TOPOLOGY_POINT" and row["cable_point_id"]
+            }
             point_rows = {
                 row["id"]: dict(row)
                 for row in connection.execute(
                     select(cable_point).where(
                         cable_point.c.project_id == project_id,
-                        cable_point.c.cable_line_id == cable_line_id,
+                        or_(
+                            cable_point.c.cable_line_id == cable_line_id,
+                            cable_point.c.id.in_(referenced_point_ids),
+                        ),
                     )
                 ).mappings()
             }
@@ -448,7 +460,17 @@ class CableService:
                     "resource_id": reference,
                     "label": resource_user_label(resources.get(reference)),
                 }
-            point = point_rows[endpoint["cable_point_id"]]
+            point = point_rows.get(endpoint["cable_point_id"])
+            if point is None:
+                return {
+                    "kind": "TOPOLOGY_POINT",
+                    "endpoint_id": endpoint_id,
+                    "reference": "",
+                    "point_kind": "UNRESOLVED",
+                    "label": "⚠ Физическая точка не найдена",
+                    "description": "Ссылка на физическую точку не разрешена в Project",
+                    "point_missing": True,
+                }
             if point["point_kind"] == "INTERNAL_SOURCE":
                 board_name = str(facts.get("BOARD", "") or "")
                 return {
@@ -528,6 +550,7 @@ class CableService:
                 "room": "помещения (канонической связи)",
                 "not_calculated": "сохранённый расчёт; выполните пересчёт",
                 "stale_calculation": "актуальный расчёт; выполните пересчёт",
+                "missing_cable_point": "физической точки трассы в Project",
             }
             parts = []
             for code in codes:
@@ -582,10 +605,26 @@ class CableService:
         for depth, row in ordered:
             diag = diagnostics[row["id"]]
             calculated = row["calculated_length_m_decimal"]
+            saved_calculated = calculated
+            geometry_calculated = (
+                diag["calculated_length_m"] if diag["complete"] else None
+            )
+            is_stale = False
             if diag["complete"] and calculated is None:
                 diag = {"complete": False, "missing": ("not_calculated",)}
-            elif diag["complete"] and Decimal(calculated) != Decimal(diag["calculated_length_m"]):
+            elif (
+                diag["complete"]
+                and abs(Decimal(calculated) - Decimal(diag["calculated_length_m"]))
+                > Decimal("0.001")
+            ):
+                # Sub-millimetre differences are representation/rounding noise.
+                # Genuine geometry changes must still stay unverified.
+                is_stale = True
                 diag = {"complete": False, "missing": ("stale_calculation",)}
+            source_value = endpoint_value(row["source_endpoint_id"])
+            target_value = endpoint_value(row["target_endpoint_id"])
+            if source_value.get("point_missing") or target_value.get("point_missing"):
+                diag = {"complete": False, "missing": ("missing_cable_point",)}
             if not diag["complete"]:
                 calculated = None
             cable_length = Decimal(calculated) if calculated is not None else None
@@ -615,8 +654,8 @@ class CableService:
                 {
                     "segment_id": row["id"],
                     "depth": depth,
-                    "source": endpoint_value(row["source_endpoint_id"]),
-                    "target": endpoint_value(row["target_endpoint_id"]),
+                    "source": source_value,
+                    "target": target_value,
                     "connection_kind": "CABLE",
                     "mount_way": row["mount_way"] or "",
                     "gofra_type": row["gofra_type"] or "",
@@ -630,6 +669,21 @@ class CableService:
                         None if physical_length is None else str(physical_length)
                     ),
                     "cable_length_m": (None if physical_length is None else str(physical_length)),
+                    # Archived value is DIAGNOSTIC ONLY: it must not silently
+                    # enter validated totals when geometry has changed.
+                    "stored_length_m": (
+                        None if saved_calculated is None else str(
+                            conduit_length_from_segment_length(saved_calculated, route)
+                            if route is not None else Decimal(saved_calculated)
+                        )
+                    ),
+                    "current_geometry_length_m": (
+                        None if geometry_calculated is None else str(
+                            conduit_length_from_segment_length(geometry_calculated, route)
+                            if route is not None else Decimal(geometry_calculated)
+                        )
+                    ),
+                    "stale_calculation": is_stale,
                     "calculation_status": "READY" if diag["complete"] else "INCOMPLETE",
                     "calculation_reason": (
                         "" if diag["complete"] else missing_text(diag["missing"])

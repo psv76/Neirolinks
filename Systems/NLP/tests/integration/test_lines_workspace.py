@@ -374,7 +374,7 @@ def test_local_warning_click_keeps_exact_cell_and_segment_context(qtbot):
         and workspace.table.item(row, 0).data(Qt.ItemDataRole.UserRole) == "line-1"
     )
     child_length = workspace.table.item(child_row, _column("effective_m"))
-    assert child_length.text() == "⚠ нет длины"
+    assert child_length.text() == "⚠ нет расчёта"
     assert child_length.toolTip() == "Приёмник: нет помещения (канонической связи)"
     # The inline warning glyph is the only visible warning indicator.
     # Keep tooltip and exact clickable issue context; no second Qt warning icon.
