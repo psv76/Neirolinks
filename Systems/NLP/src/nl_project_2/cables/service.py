@@ -1123,7 +1123,23 @@ class CableService:
         for parent in parents:
             parent["lines"] = by_conduit.get(parent["id"], [])
             for child in parent["lines"]:
-                edge = topologies[child["cable_line_id"]][child["id"]]
+                edge = topologies.get(child["cable_line_id"], {}).get(child["id"])
+                if edge is None:
+                    # A persisted segment can outlive its derived topology edge.
+                    # Keep its conduit assignment visible rather than crashing
+                    # the entire cable editor or fabricating a route length.
+                    child.update(
+                        source="Не определён",
+                        target="Не определён",
+                        mount_way="",
+                        physical_m=None,
+                        cable_m=None,
+                        calculation_reason=(
+                            "Сегмент отсутствует в рассчитанной топологии; "
+                            "проверьте исходные точки и пересчитайте линию"
+                        ),
+                    )
+                    continue
                 child.update(
                     source=edge["source"]["label"],
                     target=edge["target"]["label"],
