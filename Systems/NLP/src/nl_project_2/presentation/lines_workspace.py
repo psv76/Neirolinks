@@ -902,6 +902,15 @@ class LinesWorkspace(QWidget):
                     )
                     if text:
                         item.setToolTip(text)
+                    if card.get("network_kind") == "BUS":
+                        if definition.key == "load_name":
+                            item.setToolTip(
+                                card.get("load_name_tooltip") or text
+                            )
+                        elif definition.key == "board":
+                            item.setToolTip(
+                                card.get("source_tooltip") or text
+                            )
                     has_issue = (
                         definition.key == "room_names" and bool(card.get("unresolved_room_names"))
                     ) or (
@@ -979,7 +988,10 @@ class LinesWorkspace(QWidget):
                     self.table.setItem(row, column, item)
             self._populate_filter(self.system_filter, (card["system_kind"] for card in self._cards))
             self._populate_filter(self.room_filter, (card["room_names"] for card in self._cards))
-            self._populate_filter(self.board_filter, (card["board"] for card in self._cards))
+            self._populate_filter(
+                self.board_filter,
+                (self._source_board_filter_value(card) for card in self._cards),
+            )
             self._populate_filter(self.status_filter, (card["user_status"] for card in self._cards))
         finally:
             self.table.blockSignals(False)
@@ -1024,6 +1036,13 @@ class LinesWorkspace(QWidget):
         self._highlight_current_row()
 
     @staticmethod
+    def _source_board_filter_value(card: dict) -> str:
+        """Group buses by physical panel, not by each individual RS485/DA port."""
+        if card.get("network_kind") == "BUS":
+            return str(card.get("source_board") or card.get("board") or "")
+        return str(card.get("board") or "")
+
+    @staticmethod
     def _populate_filter(combo: QComboBox, values) -> None:
         current = combo.currentData()
         unique = sorted({str(value) for value in values if str(value).strip()}, key=_natural_key)
@@ -1066,6 +1085,7 @@ class LinesWorkspace(QWidget):
                         for key in (
                             "designation",
                             "load_name",
+                            "load_name_tooltip",
                             "room_names",
                             "board",
                             "user_status",
@@ -1078,7 +1098,10 @@ class LinesWorkspace(QWidget):
                 (not needle or needle in searchable)
                 and (not system or card["system_kind"] == system)
                 and (not room or card["room_names"] == room)
-                and (not board or card["board"] == board)
+                and (
+                    not board
+                    or self._source_board_filter_value(card) == board
+                )
                 and (not status or card["user_status"] == status)
             )
             for row in rows:

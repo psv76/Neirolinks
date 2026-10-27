@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
     building,
+    board,
     bus,
     bus_branch,
     bus_branch_point,
@@ -983,10 +984,136 @@ class BusService:
                 ),
             }
 
+    def _journal_human_context(self, project_id: str) -> dict[str, dict]:
+        """Read-only, project-scoped origin/purpose for buses already in Project.
+
+        LOAD_NAME belongs to the *individual bus participant*, not the bus.
+        Always retain all distinct member names and never guess a bus title
+        from the first field device or from SENSOR_* resource kinds.
+        """
+        with self._engine.connect() as conn:
+            origin_rows = conn.execute(
+                select(
+                    bus.c.id.label("bus_id"),
+                    project_instance.c.id.label("owner_instance_id"),
+                    board.c.designation.label("board_name"),
+                )
+                .join(instance_resource, instance_resource.c.id == bus.c.root_resource_id)
+                .join(
+                    project_instance,
+                    project_instance.c.id == instance_resource.c.project_instance_id,
+                )
+                .outerjoin(board, board.c.id == project_instance.c.board_id)
+                .where(
+                    bus.c.project_id == project_id,
+                    bus.c.lifecycle == "ACTIVE",
+                    project_instance.c.project_id == project_id,
+                )
+            ).mappings().all()
+            members = conn.execute(
+                select(
+                    bus_endpoint.c.bus_id,
+                    bus.c.designation.label("bus_designation"),
+                    bus_endpoint.c.endpoint_order,
+                    bus_endpoint.c.address,
+                    field_device.c.normalized_fields_json,
+                )
+                .join(bus, bus.c.id == bus_endpoint.c.bus_id)
+                .join(field_device, field_device.c.id == bus_endpoint.c.field_device_id)
+                .where(
+                    bus.c.project_id == project_id,
+                    bus.c.lifecycle == "ACTIVE",
+                    field_device.c.project_id == project_id,
+                    field_device.c.lifecycle == "ACTIVE",
+                )
+                .order_by(
+                    bus_endpoint.c.bus_id,
+                    bus_endpoint.c.endpoint_order,
+                    bus_endpoint.c.address,
+                )
+            ).mappings().all()
+            # WBE2 has no independent board placement: inherit it strictly
+            # from the real controller's occupied MOD slot relation.
+            module_attachment = instance_resource.alias("module_attachment")
+            host_slot = instance_resource.alias("host_slot")
+            host_instance = project_instance.alias("host_instance")
+            module_boards = dict(
+                conn.execute(
+                    select(
+                        module_attachment.c.project_instance_id,
+                        board.c.designation,
+                    )
+                    .select_from(functional_relation)
+                    .join(
+                        module_attachment,
+                        module_attachment.c.id
+                        == functional_relation.c.target_resource_id,
+                    )
+                    .join(host_slot, host_slot.c.id == functional_relation.c.source_resource_id)
+                    .join(
+                        host_instance,
+                        host_instance.c.id == host_slot.c.project_instance_id,
+                    )
+                    .join(board, board.c.id == host_instance.c.board_id)
+                    .where(
+                        functional_relation.c.project_id == project_id,
+                        functional_relation.c.relation_kind == "MODULE_INSTALLATION",
+                        module_attachment.c.resource_kind
+                        == "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
+                        host_slot.c.resource_kind == "INTERNAL_EXPANSION_SLOT",
+                        host_instance.c.project_id == project_id,
+                        host_instance.c.lifecycle == "ACTIVE",
+                    )
+                ).all()
+            )
+        result: dict[str, dict] = {}
+        for row in origin_rows:
+            result[row["bus_id"]] = {
+                "source_board": (
+                    row["board_name"]
+                    or module_boards.get(row["owner_instance_id"])
+                    or ""
+                ),
+                "purposes": [],
+                "purpose_details": [],
+            }
+        for row in members:
+            item = result.get(row["bus_id"])
+            if item is None:
+                continue
+            values = dict(row["normalized_fields_json"] or {})
+            dwg_bus_id = str(values.get("BUS_ID") or "").strip()
+            if dwg_bus_id and dwg_bus_id != row["bus_designation"]:
+                # Conflicting DWG tag: never ascribe a different bus's load.
+                continue
+            name = str(values.get("LOAD_NAME") or "").strip()
+            # A device without LOAD_NAME is not evidence of an inferred bus purpose.
+            if not name:
+                continue
+            # Only physically linked BusEndpoints are considered.
+            if name not in item["purposes"]:
+                item["purposes"].append(name)
+            item["purpose_details"].append(
+                (str(row["address"] or "").strip(), name)
+            )
+        return result
+
+    @staticmethod
+    def _journal_purpose_summary(purposes: list[str]) -> str:
+        if not purposes:
+            return "Назначение не задано"
+        if len(purposes) == 1:
+            return purposes[0]
+        preview = " · ".join(purposes[:2])
+        remainder = len(purposes) - 2
+        return preview + (f" · ещё {remainder}" if remainder else "")
+
     def journal_cards(self, project_id: str) -> list[dict]:
         """Return physical buses in the same read-model shape as the cable journal."""
 
         result = []
+        human_context = self._journal_human_context(project_id)
+        root_labels = self.list_bus_resource_labels(project_id)
         for stored in self.list_buses(project_id):
             topology = self.journal_topology(project_id, stored["id"])
             edges = list(topology["edges"])
@@ -1049,17 +1176,38 @@ class BusService:
                     effective = str(length_breakdown.rounded_m)
                 except Exception:
                     automatic = effective = None
-            details = " / ".join(endpoint_kinds[:3])
-            load_name = stored["bus_kind"]
-            if details:
-                load_name += f" · {details}"
+            context = human_context.get(stored["id"], {})
+            purposes = context.get("purposes", [])
+            load_name = self._journal_purpose_summary(purposes)
+            board_name = str(context.get("source_board") or "").strip()
+            root_label = str(
+                root_labels.get(str(stored["root_resource_id"]), {}).get("label")
+                or topology["root_endpoint"]["label"]
+            )
+            source_label = (
+                f"{board_name} · {root_label}" if board_name else root_label
+            )
+            purpose_details = context.get("purpose_details", [])
+            purpose_tooltip = (
+                "\n".join(f"{address}: {name}" for address, name in purpose_details)
+                if purpose_details
+                else "LOAD_NAME не указан в подключённых устройствах DWG"
+            )
             result.append(
                 {
                     **stored,
                     "network_kind": "BUS",
                     "load_name": load_name,
+                    "load_name_tooltip": purpose_tooltip,
+                    "load_name_count": len(purposes),
+                    "source_board": board_name,
+                    "source_interface": root_label,
+                    "source_tooltip": (
+                        f"Щит: {board_name or 'не указан'}\n"
+                        f"Контроллер / порт: {root_label}"
+                    ),
                     "load_type": "BUS",
-                    "board": topology["root_endpoint"]["label"],
+                    "board": source_label,
                     "building_names": ", ".join(buildings),
                     "room_names": ", ".join(rooms),
                     "room_markers": (),
@@ -1175,8 +1323,8 @@ class BusService:
                 raw_building = str(fields.get("BUILDING") or "").strip()
                 canonical_building = str(meta.get("building_name") or "").strip()
                 description = str(
-                    fields.get("DEVICE_NAME")
-                    or fields.get("LOAD_NAME")
+                    fields.get("LOAD_NAME")
+                    or fields.get("DEVICE_NAME")
                     or meta.get("block_kind")
                     or "Полевое устройство"
                 ).strip()

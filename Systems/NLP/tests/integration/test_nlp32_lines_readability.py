@@ -186,3 +186,73 @@ def test_bulk_action_buttons_are_laid_out_below_search_not_floating(qtbot):
                     width,buttons[a].text(),buttons[b].text(),rects[a],rects[b]
                 )
         w.close()
+
+
+def test_human_bus_purpose_and_source_are_visible_in_main_grid(qtbot):
+    from copy import deepcopy
+    from nl_project_2.presentation.lines_workspace import _column_index
+    from PySide6.QtWidgets import QApplication
+    class BusCards:
+        def journal_cards(self, _pid):
+            return [{
+                "id": "bus-903", "designation": "903", "network_kind": "BUS", "load_type": "BUS",
+                "load_name": "Датчик MSW · Преобразователь WB-M1W2",
+                "load_name_tooltip": "903.001: Датчик MSW\n903.002: Преобразователь WB-M1W2",
+                "source_board": "ВРУ-20",
+                "source_interface": "WB-21 / RS485-1",
+                "source_tooltip": "Щит: ВРУ-20\nКонтроллер / порт: WB-21 / RS485-1",
+                "board": "ВРУ-20 · WB-21 / RS485-1",
+                "room_names": "Прихожая, Постирочная",
+                "building_names": "Дом_2",
+                "unresolved_room_names": (),
+                "system_kind": "RS485",
+                "cable_type": "FTP 5e",
+                "mount_way": "По полу",
+                "gofra_id": "MIXED",
+                "conduit_count": 2,
+                "effective_m": "15",
+                "length_mode": "Автоматическая",
+                "length_explanation": "Из физических участков шины",
+                "known_segment_m": "15",
+                "incomplete_segments": 0,
+            }]
+        def journal_topology(self, _pid, bus_id):
+            assert bus_id == "bus-903"
+            return {
+                "edges": [{
+                    "segment_id": "903-a",
+                    "depth": 0,
+                    "source": {"label":"WB-21 / RS485-1"},
+                    "target": {
+                        "label": "903.001","description":"Датчик MSW",
+                        "room_names":"Прихожая","building_names":"Дом_2",
+                        "point_kind":"SENSOR_MSW","room_unresolved":False,
+                    },
+                    "mount_way":"По полу","gofra_id":"310.PP20",
+                    "calculation_status":"READY","cable_length_m":"5",
+                }],
+            }
+    w=LinesWorkspace(FakeCableService(),FakeConstructor(),"project",bus_service=BusCards())
+    qtbot.addWidget(w)
+    w.show()
+    QApplication.processEvents()
+    row=_row(w,"bus-903")
+    source=w.table.item(row,_column_index("board"))
+    purpose=w.table.item(row,_column_index("load_name"))
+    destination=w.table.item(row,_column_index("room_names"))
+    assert source.text().startswith("ВРУ-20")
+    assert "RS485-1" in source.toolTip()
+    assert "Преобразователь WB-M1W2" in purpose.text()
+    assert "903.001: Датчик MSW" in purpose.toolTip()
+    assert "Прихожая" in destination.text()
+    w._expand_line_tree(row,"bus-903")
+    child=w.table.item(row+1,_column_index("load_name"))
+    assert child.text()=="Датчик MSW"
+    idx=w.board_filter.findData("ВРУ-20")
+    assert idx > 0
+    w.board_filter.setCurrentIndex(idx)
+    assert not w.table.isRowHidden(row)
+    assert w.table.isRowHidden(_row(w,"line-1"))
+    # Search matches complete DWG LOAD_NAME tooltip, not only truncated header.
+    w.search.setText("903.002: Преобразователь WB-M1W2")
+    assert not w.table.isRowHidden(row)
