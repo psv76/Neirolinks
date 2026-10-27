@@ -91,6 +91,9 @@ class BusWorkspaceDialog(QDialog):
         self.create_rs485_button = QPushButton("Создать RS-485", self)
         self.create_rs485_button.setObjectName("createRs485BusButton")
         self.create_rs485_button.clicked.connect(self._create_rs485_bus)
+        self.transfer_rs485_button = QPushButton("Изменить источник RS-485", self)
+        self.transfer_rs485_button.setObjectName("transferRs485SourceButton")
+        self.transfer_rs485_button.clicked.connect(self._transfer_rs485_source)
         self.create_dali_button = QPushButton("Создать DALI", self)
         self.create_dali_button.setObjectName("createDaliBusButton")
         self.create_dali_button.clicked.connect(self._create_dali_bus)
@@ -108,6 +111,7 @@ class BusWorkspaceDialog(QDialog):
         self.delete_bus_button.clicked.connect(self._delete_selected_bus)
         actions = QHBoxLayout()
         actions.addWidget(self.create_rs485_button)
+        actions.addWidget(self.transfer_rs485_button)
         actions.addWidget(self.create_dali_button)
         actions.addWidget(self.edit_dali_button)
         actions.addWidget(self.add_endpoint_button)
@@ -320,6 +324,69 @@ class BusWorkspaceDialog(QDialog):
             self.refresh(previous_bus_id)
             return False
         self.refresh(receipt.bus_id)
+        return True
+
+    def _transfer_rs485_source(self) -> None:
+        self.transfer_rs485_source()
+
+    def transfer_rs485_source(self) -> bool:
+        """Change only the RS485 root, preserving 9YY and the physical bus graph."""
+        bus_id = self._current_rs485_bus_id()
+        if bus_id is None:
+            return False
+        stored = self.service.get_bus(self.project_id, bus_id)
+        current_root = stored["root_resource_id"]
+        candidates = [
+            c for c in self.service.list_rs485_resource_candidates(self.project_id)
+            if c["source_available"] or c["id"] == current_root
+        ]
+        candidates.sort(key=lambda c: c["label"])
+        if len(candidates) < 2:
+            QMessageBox.warning(
+                self, "Источник RS-485 не изменён",
+                "Нет других свободных и совместимых физических портов RS-485."
+            )
+            return False
+        dialog = _Rs485ResourceDialog(
+            title=f"Изменить источник шины {stored['designation']}",
+            designation_label="Номер шины (не изменяется)",
+            resource_caption="Физический интерфейс RS-485",
+            designation=stored["designation"],
+            selected_resource_id=current_root,
+            candidates=candidates,
+            parent=self,
+        )
+        dialog.designation_edit.setReadOnly(True)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return False
+        _designation, new_root = dialog.values()
+        if new_root == current_root:
+            return False
+        old_label = self._resource_label(current_root)
+        new_label = self._resource_label(new_root)
+        answer = QMessageBox.question(
+            self, "Подтвердить перенос источника RS-485",
+            f"Шина {stored['designation']}: заменить источник "
+            f"{old_label} на {new_label}?\n"
+            "Номер, точки, кабели и существующие длины останутся прежними. "
+            "Для шины с точками перенос разрешён только внутри одного щита. "
+            "Проверьте фактическое подключение кабеля в новом порту.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return False
+        try:
+            self.service.transfer_rs485_source(
+                project_id=self.project_id,
+                bus_id=bus_id,
+                new_root_resource_id=new_root,
+            )
+        except BusError as exc:
+            QMessageBox.warning(self, "Источник RS-485 не изменён", str(exc))
+            self.refresh(bus_id)
+            return False
+        self.refresh(bus_id)
         return True
 
     def _create_dali_bus(self) -> None:
@@ -563,6 +630,7 @@ class BusWorkspaceDialog(QDialog):
     def _update_action_state(self) -> None:
         is_rs485 = self._current_rs485_bus_id() is not None
         self.add_endpoint_button.setEnabled(is_rs485)
+        self.transfer_rs485_button.setEnabled(is_rs485)
         self.delete_bus_button.setEnabled(
             is_rs485 or self._current_dali_bus_id() is not None
         )

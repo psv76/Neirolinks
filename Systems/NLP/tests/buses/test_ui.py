@@ -508,3 +508,22 @@ def test_create_dali_button_rejects_invalid_number_and_unavailable_output(
     dialog.create_dali_button.click()
     assert "Нет свободных выходов" in warnings[-1][1]
     assert len(service.list_buses(project_id)) == 3
+
+
+def test_rs485_source_transfer_command_keeps_903_and_bus_id(database, qtbot, monkeypatch):
+    pid=database.test_project_id
+    old,new,*_= _rs485_resources(database,3)
+    service=BusService(database.engine)
+    bus=service.create_rs485_bus(project_id=pid,designation="903",root_resource_id=old,points=())
+    dialog=BusWorkspaceDialog(service,pid)
+    qtbot.addWidget(dialog)
+    assert dialog.transfer_rs485_button.isEnabled()
+    _submit_resource_dialog("903","WB-1 / RS485")
+    monkeypatch.setattr(QMessageBox,"question",
+                        lambda *a,**kwargs: QMessageBox.StandardButton.Yes)
+    dialog.transfer_rs485_button.click()
+    result=service.get_bus(pid,bus.bus_id)
+    assert result["designation"]=="903"
+    assert result["root_resource_id"]==new
+    assert result["id"]==bus.bus_id
+    assert dialog.buses_table.item(0,3).text()=="WB-1 / RS485"

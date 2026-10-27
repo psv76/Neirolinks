@@ -283,6 +283,134 @@ class BusService:
             uow.commit()
         return BusReceipt(bus_id, endpoint_count)
 
+    def transfer_rs485_source(
+        self, *, project_id: str, bus_id: str, new_root_resource_id: str
+    ) -> None:
+        """Retarget an existing RS485 bus without deleting topology or cable identities.
+
+        Populated buses can only move between ports mounted in the SAME board.
+        The source-to-first-point length remains an existing engineering estimate;
+        changing boards would require a reviewed topology/length migration.
+        """
+        with UnitOfWork(self._engine) as uow:
+            current = self._rs485_bus_row(uow, project_id, bus_id)
+            previous_root = current["root_resource_id"]
+            if new_root_resource_id == previous_root:
+                uow.rollback()
+                return
+            self._validate_rs485_resources(uow, project_id, (new_root_resource_id,))
+            if not self._validate_rs485_module_root(
+                uow, project_id, new_root_resource_id
+            ):
+                raise BusError(
+                    "Новый интерфейс RS-485 не установлен в действительный MOD-слот WB8.5"
+                )
+            self._validate_root_available(uow, project_id, new_root_resource_id)
+            attached_as_point = uow.execute(
+                select(bus_endpoint.c.id).where(
+                    bus_endpoint.c.project_id == project_id,
+                    bus_endpoint.c.bus_id == bus_id,
+                    bus_endpoint.c.resource_id == new_root_resource_id,
+                ).limit(1)
+            ).first()
+            if attached_as_point:
+                raise BusError(
+                    "Новый источник RS-485 уже является точкой этой шины"
+                )
+            # Existing 9YY.ZZZ points and stored cable/segment geometry are
+            # unchanged. Only same-board replacement is supported for wired buses.
+            has_physical_data = any(
+                uow.execute(
+                    select(table.c.id).where(
+                        table.c.project_id == project_id,
+                        table.c.bus_id == bus_id,
+                    ).limit(1)
+                ).first()
+                for table in (
+                    bus_endpoint, bus_segment, bus_branch,
+                    bus_physical_node, bus_physical_link,
+                )
+            )
+            if has_physical_data:
+                old_board = self._root_board_id(uow, project_id, previous_root)
+                new_board = self._root_board_id(uow, project_id, new_root_resource_id)
+                if old_board is None or new_board is None or old_board != new_board:
+                    raise BusError(
+                        "Шина с точками/сегментами может менять RS-485 источник "
+                        "только внутри того же щита. Перенос между щитами "
+                        "требует отдельного согласования трассы и длин."
+                    )
+            updated = uow.execute(
+                update(bus)
+                .where(
+                    bus.c.id == bus_id,
+                    bus.c.project_id == project_id,
+                    bus.c.bus_kind == "RS485",
+                    bus.c.lifecycle == "ACTIVE",
+                    bus.c.root_resource_id == previous_root,
+                )
+                .values(root_resource_id=new_root_resource_id)
+            )
+            if updated.rowcount != 1:
+                raise BusError("Исходная шина изменилась; перенос отменён")
+            uow.commit()
+
+    @staticmethod
+    def _root_board_id(uow, project_id: str, resource_id: str) -> str | None:
+        """Resolve either a directly placed RS485 device or its installed MOD host."""
+        row = uow.execute(
+            select(
+                project_instance.c.board_id,
+                project_instance.c.id.label("instance_id"),
+                passport_definition.c.passport_key,
+            )
+            .select_from(instance_resource)
+            .join(project_instance,
+                  project_instance.c.id == instance_resource.c.project_instance_id)
+            .join(passport_definition,
+                  passport_definition.c.id == project_instance.c.passport_definition_id)
+            .where(
+                instance_resource.c.id == resource_id,
+                instance_resource.c.project_id == project_id,
+                instance_resource.c.active.is_(True),
+                project_instance.c.lifecycle == "ACTIVE",
+            )
+        ).mappings().one_or_none()
+        if row is None:
+            return None
+        if row["board_id"]:
+            return str(row["board_id"])
+        if row["passport_key"] != "module.wirenboard.wbe2_i_rs485_iso":
+            return None
+        attached = uow.execute(
+            select(instance_resource.c.id)
+            .where(
+                instance_resource.c.project_id == project_id,
+                instance_resource.c.project_instance_id == row["instance_id"],
+                instance_resource.c.resource_kind
+                == "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
+                instance_resource.c.active.is_(True),
+            )
+        ).scalars().all()
+        if len(attached) != 1:
+            return None
+        host_boards = uow.execute(
+            select(project_instance.c.board_id)
+            .select_from(functional_relation)
+            .join(instance_resource,
+                  instance_resource.c.id == functional_relation.c.source_resource_id)
+            .join(project_instance,
+                  project_instance.c.id == instance_resource.c.project_instance_id)
+            .where(
+                functional_relation.c.project_id == project_id,
+                functional_relation.c.relation_kind == "MODULE_INSTALLATION",
+                functional_relation.c.target_resource_id == attached[0],
+                instance_resource.c.resource_kind == "INTERNAL_EXPANSION_SLOT",
+                project_instance.c.lifecycle == "ACTIVE",
+            )
+        ).scalars().all()
+        return str(host_boards[0]) if len(host_boards) == 1 and host_boards[0] else None
+
     def delete_rs485_bus(self, *, project_id: str, bus_id: str) -> None:
         """Delete an RS-485 bus and its endpoints, preserving resources and relations."""
 
