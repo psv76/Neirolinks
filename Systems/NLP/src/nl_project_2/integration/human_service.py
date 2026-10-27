@@ -292,6 +292,58 @@ class IntegratedUiService:
                     segments=tuple(segments.get(card["id"], ())),
                 )
             )
+        # The in-app journal and its Excel export must enumerate the same
+        # physical lines. Previously the GUI stopped at cable_line and silently
+        # discarded all RS-485 and DALI buses even though the Lines workspace
+        # and Excel exporter included them.
+        if self.buses is not None:
+            for card in self.buses.journal_cards(project_id):
+                topology = self.buses.journal_topology(project_id, card["id"])
+                edges = tuple(topology["edges"])
+                status = (
+                    UserStatus.DATA_REQUIRED
+                    if not edges or card.get("effective_m") is None
+                    else (
+                        UserStatus.ACTION_REQUIRED
+                        if card.get("unresolved_room_names")
+                        else UserStatus.READY
+                    )
+                )
+                rows.append(
+                    CableJournalRow(
+                        cable_line_id=str(card["id"]),
+                        cable_id=str(card["designation"]),
+                        load_name=str(card.get("load_name") or card["bus_kind"]),
+                        load_type=str(card["bus_kind"]),
+                        board=str(card.get("board") or ""),
+                        building=str(card.get("building_names") or ""),
+                        room=str(card.get("room_names") or ""),
+                        cable_type=format_cable_mark(card.get("cable_type")),
+                        mount_way=str(card.get("mount_way") or ""),
+                        conduit=str(card.get("gofra_id") or ""),
+                        total_length_m=(
+                            None if card.get("effective_m") is None else str(card["effective_m"])
+                        ),
+                        length_mode=str(card.get("length_mode") or "Не рассчитана"),
+                        length_explanation=str(card.get("length_explanation") or ""),
+                        status=status,
+                        segments=tuple(
+                            CableJournalSegment(
+                                segment_id=str(edge["segment_id"]),
+                                source_label=str(edge["source"].get("label") or ""),
+                                target_label=str(edge["target"].get("label") or ""),
+                                mount_way=str(edge.get("mount_way") or ""),
+                                conduit_label=str(edge.get("gofra_id") or ""),
+                                length_m=(
+                                    None
+                                    if edge.get("cable_length_m") is None
+                                    else str(edge["cable_length_m"])
+                                ),
+                            )
+                            for edge in edges
+                        ),
+                    )
+                )
         return tuple(sorted(rows, key=lambda row: _natural_key(row.cable_id)))
 
     def operation_rows(self, project_id: str) -> tuple[OperationJournalRow, ...]:
