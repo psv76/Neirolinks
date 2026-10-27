@@ -1,6 +1,6 @@
 {
   "manifest_version": 1,
-  "release_code": "nlp3.equipment.2026-10-27.wb-expanded-audit",
+  "release_code": "nlp3.equipment.2026-10-27.wb-optional-modem-shared-vout",
   "additive_predecessors": {
     "nlp2.mvp.equipment.2026-08-24.repair-05": {
       "passports": [
@@ -50,7 +50,9 @@
         "module.wirenboard.wbc2_4g",
         "module.wirenboard.ds18b20_probe",
         "module.wirenboard.wb_t120",
-        "module.wirenboard.wb_ampled"
+        "module.wirenboard.wb_ampled",
+        "controller.wiren_board_8_5_modular_cellular",
+        "gateway.wirenboard.wb_mge_v3_shared_vout"
       ],
       "products": [
         "product.wirenboard.wbe2_i_opentherm",
@@ -84,7 +86,9 @@
         "product.wirenboard.ds18b20_5m",
         "product.wirenboard.ds18b20_10m",
         "product.wirenboard.wb_t120",
-        "product.wirenboard.wb_ampled"
+        "product.wirenboard.wb_ampled",
+        "product.wirenboard.wb8_4g_64g_ind_modular_cellular",
+        "product.wirenboard.wb_mge_v3_shared_vout"
       ]
     },
     "nlp3.equipment.2026-10-27.wb-verified-eight": {
@@ -161,17 +165,27 @@
       "products": [
         "product.wirenboard.wb_ampled"
       ]
+    },
+    "nlp3.equipment.2026-10-27.wb-expanded-audit": {
+      "passports": [
+        "controller.wiren_board_8_5_modular_cellular",
+        "gateway.wirenboard.wb_mge_v3_shared_vout"
+      ],
+      "products": [
+        "product.wirenboard.wb8_4g_64g_ind_modular_cellular",
+        "product.wirenboard.wb_mge_v3_shared_vout"
+      ]
     }
   },
   "schema_version": 1,
-  "content_sha256": "eaa9952e9d3b01e9432e4a7b8793106c44fdb303f79cc745fc0e00c374c33024",
+  "content_sha256": "903b323f6bd759fb90c57e5a6d69e447d6ac4a5dd717c8b937e85b95200f41ec",
   "files": {
-    "equipment_passports.json": "14853ae121f2fa2dfab5c00defb40571778b4c1408b2ec03bc62190935257661",
-    "products.json": "7801e84a0def5c7dce07273d9c0929b94e161d5c4cbc878c153ffabec97b98fe"
+    "equipment_passports.json": "042b954132d555395423e3a8e47f6575d409a62ee13e05a8cb19dc6dee2080bd",
+    "products.json": "b7d4f2c396691558da56086ff38c3f087d6cc06f18c39f43c60657bb97c79992"
   },
   "expected_counts": {
-    "passports": 49,
-    "products": 65
+    "passports": 51,
+    "products": 67
   },
   "forbidden_manufacturers": [
     "Vendor Alpha",

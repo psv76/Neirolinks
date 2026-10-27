@@ -4,11 +4,11 @@
 
 ## Кандидат
 
-- Выпуск: `nlp3.equipment.2026-10-27.wb-expanded-audit`; predecessor фактической рабочей базы: `nlp3.equipment.2026-10-27.wbe2-rs485-iso`.
-- Каталог: **49 EquipmentPassports / 65 Products** всех категорий; увеличение относительно рабочей базы **20 / 33**.
+- Выпуск: `nlp3.equipment.2026-10-27.wb-optional-modem-shared-vout`; predecessor фактической рабочей базы: `nlp3.equipment.2026-10-27.wbe2-rs485-iso`.
+- Каталог: **51 EquipmentPassports / 67 Products** всех категорий; увеличение относительно рабочей базы **20 / 33**.
 - Schema head: `000000000017` (новая миграция схемы не вводилась).
 - Каталог и зеркальные нормативные JSON совпадают; `tools/catalog_check.py` — PASS.
-- Хеш содержимого: `eaa9952e9d3b01e9432e4a7b8793106c44fdb303f79cc745fc0e00c374c33024`.
+- Хеш содержимого: `903b323f6bd759fb90c57e5a6d69e447d6ac4a5dd717c8b937e85b95200f41ec`.
 
 ## Источники и покрытие
 
@@ -18,10 +18,10 @@
 - `docs/legacy/issue293/CURRENT_COVERAGE_2026-10-27.md`;
 - `docs/legacy/issue293/CURRENT_COVERAGE_2026-10-27.json`.
 
-**38 SKU — READY на уровне документированного паспорта/ресурсов; 5 — NEEDS_VERIFICATION; 0 молча пропущенных SKU.**
+**40 SKU — READY на уровне документированного паспорта/ресурсов; 3 — NEEDS_VERIFICATION; 0 молча пропущенных SKU.**
 READY здесь **не означает**, что прошли полная UI-приёмка, поддержка всех режимов или установка на реальном объекте.
 
-Открытые проверки: `WB8-4G-64G-IND` (модем опционален), `WB-MGE v.3` (два Vout управляются одной группой), `WB-LED` (legacy-ревизия не указана), `WB-MRM2-mini v.3` (производитель ещё разрабатывает), `WB-MDIO8` (производитель ещё разрабатывает).
+Открытые модели без подтверждённой готовой аппаратной ревизии: `WB-LED` (legacy-ревизия не указана), `WB-MRM2-mini v.3` (производитель ещё разрабатывает), `WB-MDIO8` (производитель ещё разрабатывает). Для WB8.5 и WB-MGE созданы **новые корректные варианты паспортов**, а прежние экземпляры пока не переведены. Подробности: `docs/engineering/ISSUE_293_WB8_MGE_VERSIONED_RESOURCE_CORRECTIONS.md`.
 `WB-MRM2-mini v.3` существует как отдельная разрабатываемая модель: 2 реле и 4 универсальных входа 1-Wire/DI/DO. Это не версия v.2; до выпуска нельзя подменять его идентичность. Для `WB-MDIO8` производитель указывает ориентировочные поставки в 2027 году. Оба устройства документированы как заблокированные для production до подтверждения окончательных спецификаций.
 
 Встроенный `WB-LED v.1` — не автоматический эквивалент legacy записи `WB-LED` без ревизии.
@@ -39,17 +39,17 @@ READY здесь **не означает**, что прошли полная UI-
 
 ## Проверки кандидата
 
-- `pytest -q tests/catalog tests/constructor tests/buses tests/recovery tests/cables`: **171 passed** (до добавления отдельного тестового файла матрицы, на том же каталоге).
+- `pytest -q tests/catalog tests/constructor tests/buses tests/recovery tests/cables`: **198 passed** (до добавления отдельного тестового файла матрицы, на том же каталоге).
 - `pytest -q tests/catalog/test_issue293_coverage_matrix.py`: **6 passed**.
 - `pytest -q tests/catalog/test_issue293_existing_audit.py tests/catalog/test_issue293_coverage_matrix.py`: **22 passed**. Нормативные основания: `docs/legacy/issue293/EXISTING_EQUIPMENT_MANUFACTURER_AUDIT_2026-10-27.md`.
 - `tools/catalog_check.py`: **PASS**, структура/hashes/normative parity.
 - Проверенный successor на **копии реальной SQLite**, а не на рабочей:
-  `D:\NLP_3_BACKUPS\issue293_49_65_rehearsal\nl_project_3_CATALOG_REHEARSAL.sqlite`.
-- Отчёт: `D:\NLP_3_BACKUPS\issue293_49_65_rehearsal\successor_rehearsal_receipt.json`: **PASS**, 49/65, исходные project-instance/resource/bus ID сохранены, `integrity_check=ok`, foreign-key violations 0, установка idempotent.
+  `D:\NLP_3_BACKUPS\issue293_51_67_rehearsal\nl_project_3_CATALOG_REHEARSAL.sqlite`.
+- Отчёт: `D:\NLP_3_BACKUPS\issue293_51_67_rehearsal\successor_rehearsal_receipt.json`: **PASS**, 51/67, исходные project-instance/resource/bus ID сохранены, `integrity_check=ok`, foreign-key violations 0, установка idempotent.
 
 ## Границы / статус
 
-**Текущая рабочая SQLite остаётся на выпущенном ранее каталоге 20 паспортов / 33 товара**, включая WBE2-I-RS485-ISO. Расширенный 49/65 — только **каталог-кандидат в исходниках** до утверждения отсутствующих аппаратных договорённостей, end-to-end UI acceptance и контролируемого live-successor после verified backup.
+**Текущая рабочая SQLite остаётся на выпущенном ранее каталоге 20 паспортов / 33 товара**, включая WBE2-I-RS485-ISO. Расширенный 51/67 — только **каталог-кандидат в исходниках** до утверждения отсутствующих аппаратных договорённостей, end-to-end UI acceptance и контролируемого live-successor после verified backup.
 
 Никакие DWG, CABLE_ID, проект Богданович, активные шины, назначенные экземпляры или конфигурация реального контроллера этим этапом не менялись.
 

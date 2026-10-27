@@ -1,12 +1,12 @@
 {
   "issue": 293,
-  "release": "nlp3.equipment.2026-10-27.wb-expanded-audit",
+  "release": "nlp3.equipment.2026-10-27.wb-optional-modem-shared-vout",
   "sku_total": 43,
   "engineering_types": 36,
   "module_definitions": 16,
   "status_counts": {
-    "READY": 38,
-    "NEEDS_VERIFICATION": 5,
+    "READY": 40,
+    "NEEDS_VERIFICATION": 3,
     "MISSING": 0,
     "DEPRECATED": 0
   },
@@ -14,9 +14,9 @@
     {
       "article": "WB8-4G-64G-IND",
       "engineering_code": "WB8",
-      "status": "NEEDS_VERIFICATION",
-      "passport_id": "controller.wiren_board_8_5",
-      "product_id": "product.wirenboard.wb8_4g_64g_ind",
+      "status": "READY",
+      "passport_id": "controller.wiren_board_8_5_modular_cellular",
+      "product_id": "product.wirenboard.wb8_4g_64g_ind_modular_cellular",
       "source": "https://wiki.wirenboard.com/wiki/Wiren_Board_8.5",
       "resources": [
         {
@@ -100,18 +100,13 @@
           "quantity": 1
         },
         {
-          "id": "CELLULAR_MODEM",
-          "kind": "CELLULAR_INTERFACE",
+          "id": "INTERNAL_MODEM_SLOT",
+          "kind": "INTERNAL_MODEM_SLOT",
           "quantity": 1
-        },
-        {
-          "id": "NANOSIM",
-          "kind": "SIM_SLOT",
-          "quantity": 2
         }
       ],
-      "rationale": "WB8-4G-64G-IND denotes 4 GB RAM and 64 GB eMMC (not an installed LTE modem). Its WB8.5 hardware has 2 native RS485 and 4 MOD slots, but the current base passport unconditionally materializes optional CELLULAR_MODEM. Requires typed optional resource/product configuration without altering existing instances.",
-      "audit_scope": "Blocked by conditional resource, semantic mismatch, unknown revision, or manufacturer development status."
+      "rationale": "Corrected NEW WB8.5 variant provides 4 MOD slots and one dedicated MODEM slot; no preinstalled cellular interface, WBC2-4G requires typed installation. Old published passport/instances are NOT automatically migrated.",
+      "audit_scope": "NEW_VERSIONED_MODEL_CORRECTED_ONLY__EXISTING_LIVE_INSTANCES_NEED_MIGRATION"
     },
     {
       "article": "WBIO-DI-WD-14",
@@ -1216,10 +1211,10 @@
     {
       "article": "WB-MGE v.3",
       "engineering_code": "WB-MGE_V3",
-      "status": "NEEDS_VERIFICATION",
-      "passport_id": "gateway.wirenboard.wb_mge_v3",
-      "product_id": "product.wirenboard.wb_mge_v3",
-      "source": "https://wiki.wirenboard.com/wiki/WB-MGE_v.3_Modbus_Ethernet_Gateway/en",
+      "status": "READY",
+      "passport_id": "gateway.wirenboard.wb_mge_v3_shared_vout",
+      "product_id": "product.wirenboard.wb_mge_v3_shared_vout",
+      "source": "https://wiki.wirenboard.com/wiki/WB-MGE_v.3_Modbus_Ethernet_Gateway",
       "resources": [
         {
           "id": "VIN",
@@ -1252,8 +1247,8 @@
           "quantity": 2
         }
       ],
-      "rationale": "2 RS485 and 2 Vout terminals confirmed; Vout are switched as ONE GROUP, not independently. Existing per-port resources lack shared actuator semantics; addition/change to immutable published passport requires versioned successor plus live-preserving migration.",
-      "audit_scope": "Blocked by conditional resource, semantic mismatch, unknown revision, or manufacturer development status."
+      "rationale": "Corrected NEW variant preserves two physical Vout terminals but ONE shared switching group. Old published passport/instances are NOT automatically migrated.",
+      "audit_scope": "NEW_VERSIONED_MODEL_CORRECTED_ONLY__EXISTING_LIVE_INSTANCES_NEED_MIGRATION"
     },
     {
       "article": "WB-MIO",

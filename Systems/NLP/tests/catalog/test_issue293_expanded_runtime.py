@@ -43,7 +43,7 @@ def test_all_new_products_create_complete_disposable_instances(database):
         installed.append(receipt.instance_id)
     all_instances = instance_service.list_instances(project_id)
     all_resources = instance_service.list_resources(project_id)
-    assert len(installed) == len(delta["products"]) == 32
+    assert len(installed) == len(delta["products"]) == 34
     assert {row["id"] for row in all_instances} >= set(installed)
     assert {row["project_instance_id"] for row in all_resources} >= set(installed)
 

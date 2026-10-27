@@ -109,8 +109,8 @@ def _mcm8(database, designation="MCM8.1"):
 def test_packaged_catalog_current_release_and_mcm8_materialization(p0005_database):
     root = Path(__file__).resolve().parents[2] / "docs" / "product" / "catalogs"
     payload = load_packaged_payload()
-    assert len(payload.passports["passports"]) == 49
-    assert len(payload.products["products"]) == 65
+    assert len(payload.passports["passports"]) == 51
+    assert len(payload.products["products"]) == 67
     assert payload.passports == json.loads(
         (root / "equipment_passports.json").read_text(encoding="utf-8-sig")
     )

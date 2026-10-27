@@ -4804,6 +4804,370 @@
         "official_source"
       ],
       "unknown_data_policy": "LED strip power and amplifier consumption cannot be inferred from channel limit."
+    },
+    {
+      "id": "controller.wiren_board_8_5_modular_cellular",
+      "passport_id": "controller.wiren_board_8_5_modular_cellular",
+      "version": 1,
+      "name": "WB8.5 4/64 — модем устанавливается отдельно",
+      "equipment_class": "WIREN_BOARD_8_5",
+      "functional_role": "Wiren Board 8.5 automation controller with onboard I/O, communications and expansion resources",
+      "normative_basis": [
+        "https://wiki.wirenboard.com/wiki/Wiren_Board_8.5",
+        "docs/engineering/ISSUE_293_WB8_MGE_VERSIONED_RESOURCE_CORRECTIONS.md"
+      ],
+      "project_characteristics": {
+        "electronics_power_v_dc": 24,
+        "model_variant": "MODEM_IS_OPTIONAL"
+      },
+      "resources": [
+        {
+          "resource_id": "VPLUS_INPUT",
+          "kind": "DC_POWER_INPUT",
+          "direction": "IN",
+          "quantity": 2,
+          "exclusive": true,
+          "branching": "FORBIDDEN",
+          "constraints": {
+            "range_v": [
+              9,
+              48
+            ],
+            "project_value_v": 24,
+            "priority": "HIGHER_VOLTAGE"
+          }
+        },
+        {
+          "resource_id": "VOUT",
+          "kind": "SWITCHABLE_DC_POWER_OUTPUT",
+          "direction": "OUT",
+          "quantity": 1,
+          "exclusive": false,
+          "branching": "ONLY_THROUGH_DISTRIBUTION_NODE",
+          "constraints": {
+            "maximum_current_a": 1
+          }
+        },
+        {
+          "resource_id": "5VOUT",
+          "kind": "SWITCHABLE_DC_POWER_OUTPUT",
+          "direction": "OUT",
+          "quantity": 1,
+          "exclusive": false,
+          "branching": "ONLY_THROUGH_DISTRIBUTION_NODE",
+          "constraints": {
+            "voltage_v": 5
+          }
+        },
+        {
+          "resource_id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 2,
+          "exclusive": true,
+          "branching": "BUS_TOPOLOGY_ONLY",
+          "labels": [
+            "RS485-1",
+            "RS485-2"
+          ]
+        },
+        {
+          "resource_id": "WX",
+          "kind": "ONEWIRE_OR_DIGITAL_INPUT",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 2,
+          "exclusive": true,
+          "branching": "PROTOCOL_DEPENDENT"
+        },
+        {
+          "resource_id": "AX",
+          "kind": "MULTIFUNCTION_ANALOG_DIGITAL_IO",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 4,
+          "exclusive": true,
+          "branching": "FORBIDDEN"
+        },
+        {
+          "resource_id": "ETHERNET",
+          "kind": "ETHERNET_PORT",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 2,
+          "exclusive": true,
+          "branching": "FORBIDDEN",
+          "constraints": {
+            "speed_mbps": 100
+          }
+        },
+        {
+          "resource_id": "USB_HOST",
+          "kind": "USB_HOST_PORT",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 1,
+          "exclusive": true,
+          "branching": "FORBIDDEN"
+        },
+        {
+          "resource_id": "DEBUG_USB",
+          "kind": "USB_DEBUG_PORT",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 1,
+          "exclusive": true,
+          "branching": "FORBIDDEN"
+        },
+        {
+          "resource_id": "MICROSD",
+          "kind": "STORAGE_SLOT",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 1,
+          "exclusive": true,
+          "branching": "FORBIDDEN"
+        },
+        {
+          "resource_id": "INTERNAL_MODULE_SLOT",
+          "kind": "INTERNAL_EXPANSION_SLOT",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 4,
+          "exclusive": true,
+          "branching": "FORBIDDEN",
+          "labels": [
+            "MOD1",
+            "MOD2",
+            "MOD3",
+            "MOD4"
+          ]
+        },
+        {
+          "resource_id": "WBIO",
+          "kind": "EXTERNAL_IO_EXPANSION_PORT",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 1,
+          "exclusive": true,
+          "branching": "VIA_SUPPORTED_WBIO_TOPOLOGY"
+        },
+        {
+          "resource_id": "UPS_CONNECTOR",
+          "kind": "BACKUP_POWER_MODULE_PORT",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 1,
+          "exclusive": true,
+          "branching": "FORBIDDEN"
+        },
+        {
+          "resource_id": "POE_MODULE_SLOT",
+          "kind": "POE_EXPANSION_SLOT",
+          "direction": "IN",
+          "quantity": 1,
+          "exclusive": true,
+          "branching": "FORBIDDEN"
+        },
+        {
+          "resource_id": "WIFI",
+          "kind": "WIFI_INTERFACE",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 1,
+          "exclusive": false,
+          "branching": "NETWORK_TOPOLOGY"
+        },
+        {
+          "resource_id": "BLUETOOTH",
+          "kind": "BLUETOOTH_INTERFACE",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 1,
+          "exclusive": false,
+          "branching": "NETWORK_TOPOLOGY"
+        },
+        {
+          "resource_id": "INTERNAL_MODEM_SLOT",
+          "kind": "INTERNAL_MODEM_SLOT",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 1,
+          "exclusive": true,
+          "branching": "FORBIDDEN",
+          "labels": [
+            "MODEM"
+          ],
+          "constraints": {
+            "host_controller": "WB8.5",
+            "compatible_module_passports": [
+              "module.wirenboard.wbc2_4g"
+            ],
+            "physical_slot": "MODEM",
+            "not_a_mod_slot": true
+          }
+        }
+      ],
+      "compatibility": {
+        "electronics_power": "24_V_DC_PROJECT",
+        "rs485": "BUS_TOPOLOGY_RULES_APPLY",
+        "internal_modules": "SLOT_COMPATIBILITY_MUST_BE_CHECKED",
+        "cellular_installed_by_default": false,
+        "requires_modem_installation_for_lte": true,
+        "modem_installation_relation": "MODEM_INSTALLATION",
+        "cellular_capability_source": "WBC2-4G module instance",
+        "modem_slot_independent_of_MOD1_MOD4": true
+      },
+      "validation_parameters": [
+        "electronics_voltage_v",
+        "power_budget_w",
+        "rs485_port_capacity",
+        "rs485_address_uniqueness",
+        "slot_compatibility",
+        "port_occupancy",
+        "cellular_configuration",
+        "optional_modem_installation"
+      ],
+      "din_layout": {
+        "mounting": "DIN_RAIL_35_MM",
+        "width_modules": 6
+      },
+      "required_product_data": [
+        "ram_gb",
+        "emmc_gb",
+        "temperature_range_c",
+        "communication_configuration",
+        "dimensions_mm",
+        "din_modules",
+        "official_source"
+      ]
+    },
+    {
+      "id": "gateway.wirenboard.wb_mge_v3_shared_vout",
+      "passport_id": "gateway.wirenboard.wb_mge_v3_shared_vout",
+      "version": 1,
+      "name": "WB-MGE v.3 — Vout1 и Vout2 переключаются совместно",
+      "equipment_class": "WB_MGE_V3",
+      "functional_role": "Network gateway with two independent RS-485 ports, Ethernet, Wi-Fi and WBIO expansion",
+      "normative_basis": [
+        "https://wiki.wirenboard.com/wiki/WB-MGE_v.3_Modbus_Ethernet_Gateway",
+        "docs/engineering/ISSUE_293_WB8_MGE_VERSIONED_RESOURCE_CORRECTIONS.md"
+      ],
+      "project_characteristics": {
+        "nominal_project_voltage_v_dc": 24,
+        "rs485_port_count": 2,
+        "model_variant": "TWO_TERMINALS_ONE_SWITCH_GROUP",
+        "vout_terminal_count": 2,
+        "vout_independent_switch_count": 1,
+        "vout_switching_group": "VOUT_SHARED_SWITCH"
+      },
+      "resources": [
+        {
+          "resource_id": "VIN",
+          "kind": "DC_POWER_INPUT",
+          "direction": "IN",
+          "quantity": 1,
+          "exclusive": true,
+          "branching": "FORBIDDEN",
+          "constraints": {
+            "range_v": [
+              9,
+              28
+            ],
+            "project_value_v": 24
+          }
+        },
+        {
+          "resource_id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 2,
+          "exclusive": true,
+          "branching": "BUS_TOPOLOGY_ONLY",
+          "labels": [
+            "RS485-1",
+            "RS485-2"
+          ],
+          "constraints": {
+            "protocols": [
+              "MODBUS_RTU",
+              "TRANSPARENT_RS485"
+            ],
+            "isolated": false
+          }
+        },
+        {
+          "resource_id": "ETHERNET",
+          "kind": "ETHERNET_PORT",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 1,
+          "exclusive": true,
+          "branching": "FORBIDDEN",
+          "constraints": {
+            "speed_mbps": 100
+          }
+        },
+        {
+          "resource_id": "WIFI",
+          "kind": "WIFI_INTERFACE",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 1,
+          "exclusive": false,
+          "branching": "NETWORK_TOPOLOGY",
+          "constraints": {
+            "band_ghz": 2.4
+          }
+        },
+        {
+          "resource_id": "WBIO",
+          "kind": "EXTERNAL_IO_EXPANSION_PORT",
+          "direction": "BIDIRECTIONAL",
+          "quantity": 1,
+          "exclusive": true,
+          "branching": "VIA_SUPPORTED_WBIO_TOPOLOGY"
+        },
+        {
+          "resource_id": "VOUT",
+          "kind": "SWITCHABLE_DC_POWER_OUTPUT",
+          "direction": "OUT",
+          "quantity": 2,
+          "exclusive": false,
+          "branching": "ONLY_THROUGH_DISTRIBUTION_NODE",
+          "labels": [
+            "Vout-1",
+            "Vout-2"
+          ],
+          "constraints": {
+            "combined_maximum_current_a": 2.5,
+            "shared_switching_group": "VOUT_SHARED_SWITCH",
+            "independently_switchable": false,
+            "both_terminals_change_state_together": true,
+            "maximum_combined_current_a": 2.5
+          },
+          "groups": {
+            "VOUT_SHARED_SWITCH": [
+              "Vout-1",
+              "Vout-2"
+            ]
+          }
+        }
+      ],
+      "compatibility": {
+        "electronics_power": "24_V_DC_PROJECT",
+        "rs485": "TWO_INDEPENDENT_BUS_ROOTS",
+        "wbio": "SIDE_EXPANSION_SUPPORTED",
+        "vout_switching": "ONE_GROUP_SIMULTANEOUS",
+        "physical_terminals_remain_separate": true,
+        "independent_control_commands_for_vout_forbidden": true
+      },
+      "validation_parameters": [
+        "electronics_voltage_v",
+        "rs485_port_occupancy",
+        "rs485_bus_assignment",
+        "port_occupancy"
+      ],
+      "din_layout": {
+        "mounting": "DIN_RAIL_35_MM",
+        "width_modules": 2
+      },
+      "required_product_data": [
+        "supply_voltage_range_v_dc",
+        "power_consumption_w",
+        "rs485_ports",
+        "ethernet_ports",
+        "wifi",
+        "dimensions_mm",
+        "din_modules",
+        "official_source"
+      ]
     }
   ]
 }

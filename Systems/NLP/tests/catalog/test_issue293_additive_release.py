@@ -95,8 +95,8 @@ def test_real_additive_successor_keeps_existing_instance_resources_and_release_i
         ).all())
         assert all(after_passports[k] == v for k, v in before_passports.items())
         assert all(after_products[k] == v for k, v in before_products.items())
-        assert len(after_passports) == 49
-        assert len(after_products) == 65
+        assert len(after_passports) == 51
+        assert len(after_products) == 67
         assert set(conn.execute(
             select(instance_resource.c.id).where(
                 instance_resource.c.project_instance_id == controller.instance_id

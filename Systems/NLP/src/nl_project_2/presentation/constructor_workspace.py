@@ -276,7 +276,9 @@ class ConstructorWorkspaceDialog(QDialog):
                 resource_name,
                 row["resource_kind"],
                 row["direction"],
-                row["group_key"],
+                ("Общее включение Vout-1 и Vout-2"
+                 if row["group_key"] == "VOUT_SHARED_SWITCH"
+                 else row["group_key"]),
                 "YES" if row["required"] else "NO",
                 row["assignment_count"],
                 "YES" if row["occupied"] else "NO",
@@ -518,6 +520,7 @@ def _relation_label(kind: str) -> str:
         "INTERFACE": "Интерфейс",
         "BUS_LINK": "Логическая связь шины",
         "MODULE_INSTALLATION": "Установка модуля в MOD-слот",
+        "MODEM_INSTALLATION": "Установка 4G-модема в слот MODEM",
     }.get(kind, kind)
 
 

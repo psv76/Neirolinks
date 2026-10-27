@@ -1,12 +1,12 @@
-# Issue #293 — единая матрица покрытия после перепроверки исходных паспортов
+# Issue #293 — матрица покрытия после исправления WB8.5 и WB-MGE
 
-READY подтверждает соответствие паспортных ресурсов документам производителя, а не UI-приёмку.
-Всего legacy SKU: 43; подтверждено: 38; нуждаются в проверке: 5.
-Расширенный выпуск 49/65 пока кандидат в main; установленная рабочая SQLite — 20/33.
+READY означает документированную модель/ресурсы в SOURCE-кандидате, НЕ автоматически мигрированные экземпляры и не пользовательскую приёмку.
+Всего 43 legacy SKU; READY 40; NEEDS_VERIFICATION 3; MISSING 0.
+Каталог-кандидат 51 паспорт / 67 товаров; live SQLite по-прежнему 20/33.
 
-| Артикул | Статус | Passport ID | Product ID | Основание |
+| Артикул | Статус | Паспорт | Товар | Причина |
 |---|---|---|---|---|
-| WB8-4G-64G-IND | NEEDS_VERIFICATION | controller.wiren_board_8_5 | product.wirenboard.wb8_4g_64g_ind | WB8-4G-64G-IND denotes 4 GB RAM and 64 GB eMMC (not an installed LTE modem). Its WB8.5 hardware has 2 native RS485 and 4 MOD slots, but the current base passport unconditionally materializes optional CELLULAR_MODEM. Requires typed optional resource/product configuration without altering existing instances. |
+| WB8-4G-64G-IND | READY | controller.wiren_board_8_5_modular_cellular | product.wirenboard.wb8_4g_64g_ind_modular_cellular | Corrected NEW WB8.5 variant provides 4 MOD slots and one dedicated MODEM slot; no preinstalled cellular interface, WBC2-4G requires typed installation. Old published passport/instances are NOT automatically migrated. |
 | WBIO-DI-WD-14 | READY | module.wirenboard.wbio_di_wd_14 | product.wirenboard.wbio_di_wd_14 | Manufacturer-based resource model audited; not end-to-end user acceptance |
 | WBIO-DI-HVD-16 | READY | module.wirenboard.wbio_di_hvd_16 | product.wirenboard.wbio_di_hvd_16 | Manufacturer-based resource model audited; not end-to-end user acceptance |
 | WBIO-DI-HVD-8 | READY | module.wirenboard.wbio_di_hvd_8 | product.wirenboard.wbio_di_hvd_8 | Manufacturer-based resource model audited; not end-to-end user acceptance |
@@ -46,8 +46,9 @@ READY подтверждает соответствие паспортных р�
 | WB-MWAC | READY | module.wirenboard.wb_mwac_v2 | product.wirenboard.wb_mwac_v2 | Manufacturer-based resource model audited; not end-to-end user acceptance |
 | WB-MCM8 | READY | module.wirenboard.wb_mcm8 | product.wirenboard.wb_mcm8 | 8 isolated-group dry contact/open-collector counter inputs, RS485 Modbus RTU, 9–28 VDC supply. No relay outputs. |
 | WB-MCM8HV | READY | module.wirenboard.wb_mcm8hv | product.wirenboard.wb_mcm8hv | Manufacturer-based resource model audited; not end-to-end user acceptance |
-| WB-MGE v.3 | NEEDS_VERIFICATION | gateway.wirenboard.wb_mge_v3 | product.wirenboard.wb_mge_v3 | 2 RS485 and 2 Vout terminals confirmed; Vout are switched as ONE GROUP, not independently. Existing per-port resources lack shared actuator semantics; addition/change to immutable published passport requires versioned successor plus live-preserving migration. |
+| WB-MGE v.3 | READY | gateway.wirenboard.wb_mge_v3_shared_vout | product.wirenboard.wb_mge_v3_shared_vout | Corrected NEW variant preserves two physical Vout terminals but ONE shared switching group. Old published passport/instances are NOT automatically migrated. |
 | WB-MIO | READY | module.wirenboard.wb_mio | product.wirenboard.wb_mio | Manufacturer-based resource model audited; not end-to-end user acceptance |
 | WB-MDIO8 | NEEDS_VERIFICATION | — | — | Manufacturer states UNDER DEVELOPMENT with estimated first deliveries in 2027. Planned 8 button inputs, 6 LED/backlight outputs are preliminary and not an approved deliverable product. |
 
-Подробные нормативные ссылки и ограничения: EXISTING_EQUIPMENT_MANUFACTURER_AUDIT_2026-10-27.md.
+Важное ограничение: новые варианты WB8.5 и WB-MGE НЕ заменяют ранее опубликованные паспортные ресурсы и не мигрируют уже созданные экземпляры.
+Неопубликованные/неопределённые WB-MRM2-mini v.3, WB-MDIO8 и WB-LED без аппаратной ревизии остаются NEEDS_VERIFICATION.

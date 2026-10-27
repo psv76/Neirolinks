@@ -2934,6 +2934,106 @@
         "checked_on": "2026-10-27"
       },
       "mvp_reference": false
+    },
+    {
+      "id": "product.wirenboard.wb8_4g_64g_ind_modular_cellular",
+      "product_id": "product.wirenboard.wb8_4g_64g_ind_modular_cellular",
+      "version": 1,
+      "name": "WB8.5 4/64 — модем устанавливается отдельно",
+      "passport_id": "controller.wiren_board_8_5_modular_cellular",
+      "manufacturer": "Wiren Board",
+      "series": "Wiren Board 8.5",
+      "model": "Wiren Board 8.5, 4 GB RAM, 64 GB eMMC, Industrial",
+      "article": null,
+      "parameters_used_by_project": {
+        "supply_voltage_range_v_dc": [
+          9,
+          48
+        ],
+        "average_power_w": 3,
+        "maximum_power_w_with_modem": 8,
+        "ram_gb": 4,
+        "emmc_gb": 64,
+        "temperature_range_c": [
+          -40,
+          75
+        ],
+        "rs485_ports": 2,
+        "ethernet_ports": 2,
+        "internal_module_slots": 4,
+        "cellular": "2G_3G_4G_LTE",
+        "sim_slots": 2,
+        "model_variant": "MODEM_IS_OPTIONAL",
+        "cellular_modem_present_by_default": false,
+        "manufacturer_ram_gb": 4,
+        "manufacturer_emmc_gb": 64,
+        "requires_separate_WBC2_4G_module_for_cellular": true
+      },
+      "dimensions_mm": {
+        "width": 106,
+        "height": 90,
+        "depth": 58
+      },
+      "din_modules": 6,
+      "official_source": {
+        "type": "OFFICIAL_MANUFACTURER_WIKI_AND_CATALOG",
+        "title": "Wiren Board 8.5 and official standard configuration price list",
+        "url": "https://wiki.wirenboard.com/wiki/Wiren_Board_8.5",
+        "catalog_url": "https://wirenboard.com/en/catalog/pricelist/",
+        "checked_on": "2026-10-27",
+        "reference_article": "WB8-4G-64G-IND",
+        "variant_status": "MODEL_CORRECTION_NOT_NEW_MANUFACTURER_SKU"
+      },
+      "mvp_reference": true
+    },
+    {
+      "id": "product.wirenboard.wb_mge_v3_shared_vout",
+      "product_id": "product.wirenboard.wb_mge_v3_shared_vout",
+      "version": 1,
+      "name": "WB-MGE v.3 — Vout1 и Vout2 переключаются совместно",
+      "passport_id": "gateway.wirenboard.wb_mge_v3_shared_vout",
+      "manufacturer": "Wiren Board",
+      "series": "WB-MGE",
+      "model": "WB-MGE v.3",
+      "article": null,
+      "parameters_used_by_project": {
+        "supply_voltage_range_v_dc": [
+          9,
+          28
+        ],
+        "power_consumption_w_at_24v": 1,
+        "rs485_ports": 2,
+        "ethernet_ports": 1,
+        "ethernet_speed_mbps": 100,
+        "wifi_ghz": 2.4,
+        "wbio": true,
+        "vout_combined_max_current_a": 2.5,
+        "temperature_range_c": [
+          -40,
+          70
+        ],
+        "model_variant": "TWO_TERMINALS_ONE_SWITCH_GROUP",
+        "vout_terminal_count": 2,
+        "vout_independent_switch_count": 1,
+        "vout_switching_group": "VOUT_SHARED_SWITCH"
+      },
+      "dimensions_mm": {
+        "width": 36,
+        "height": 90,
+        "depth": 58
+      },
+      "din_modules": 2,
+      "official_source": {
+        "type": "OFFICIAL_MANUFACTURER_WIKI_AND_PRODUCT_PAGE",
+        "title": "Wiren Board WB-MGE v.3",
+        "url": "https://wiki.wirenboard.com/wiki/WB-MGE_v.3_Modbus_Ethernet_Gateway",
+        "catalog_url": "https://wirenboard.com/ru/contents/product/wb-mge-v3/",
+        "checked_on": "2026-10-27",
+        "reference_article": "WB-MGE v.3",
+        "variant_status": "MODEL_CORRECTION_NOT_NEW_MANUFACTURER_SKU"
+      },
+      "mvp_reference": true,
+      "lifecycle_status": "CURRENT_PRODUCT"
     }
   ]
 }

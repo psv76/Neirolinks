@@ -77,6 +77,15 @@ def default_relation_definitions() -> dict[str, RelationDefinition]:
         "BUS_LINK": RelationDefinition(
             "BUS_LINK", "BUS", check_current_kind=False, check_voltage=False
         ),
+        "MODEM_INSTALLATION": RelationDefinition(
+            "MODEM_INSTALLATION",
+            "INTERFACE",
+            source_kinds=frozenset({"INTERNAL_MODEM_SLOT"}),
+            target_kinds=frozenset({"INTERNAL_MODEM_SLOT_ATTACHMENT"}),
+            check_current_kind=False,
+            check_voltage=False,
+            check_signal=False,
+        ),
         "MODULE_INSTALLATION": RelationDefinition(
             "MODULE_INSTALLATION",
             "INTERFACE",
@@ -304,7 +313,10 @@ def _resource_family(resource: ResourceFacts) -> str:
     if explicit:
         return str(explicit).upper()
     kind = resource.kind.upper()
-    if kind in {"INTERNAL_EXPANSION_SLOT", "INTERNAL_EXPANSION_MODULE_ATTACHMENT"}:
+    if kind in {
+        "INTERNAL_EXPANSION_SLOT", "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
+        "INTERNAL_MODEM_SLOT", "INTERNAL_MODEM_SLOT_ATTACHMENT",
+    }:
         return "INTERFACE"
     if "ANALOG" in kind or "MEASUREMENT" in kind:
         return "ANALOG"

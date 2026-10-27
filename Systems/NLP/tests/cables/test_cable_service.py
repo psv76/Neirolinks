@@ -537,5 +537,5 @@ def test_mpt16_conduit_without_passport_or_product(database):
     assert row["conduit_type"] == "МПТ16"
     assert service.conduit_product_candidates(project_id=project_id, conduit_id=conduit_id) == []
     with database.engine.connect() as connection:
-        assert connection.scalar(select(func.count()).select_from(passport_definition)) == 49
-        assert connection.scalar(select(func.count()).select_from(product_definition)) == 65
+        assert connection.scalar(select(func.count()).select_from(passport_definition)) == 51
+        assert connection.scalar(select(func.count()).select_from(product_definition)) == 67

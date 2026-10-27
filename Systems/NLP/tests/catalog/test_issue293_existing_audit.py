@@ -88,7 +88,7 @@ def test_mcm8_all_eight_inputs_are_discrete_not_relays(equipment):
 
 
 @pytest.mark.parametrize("article",[
-    "WB8-4G-64G-IND", "WB-MGE v.3", "WB-LED", "WB-MRM2-mini v.3", "WB-MDIO8"
+    "WB-LED", "WB-MRM2-mini v.3", "WB-MDIO8"
 ])
 def test_blocked_hardware_is_not_implicitly_certified(records, article):
     r=records[article]
@@ -99,6 +99,6 @@ def test_blocked_hardware_is_not_implicitly_certified(records, article):
 
 def test_all_legacy_skus_have_a_reviewed_state(records):
     assert len(records)==43
-    assert sum(x["status"]=="READY" for x in records.values())==38
-    assert sum(x["status"]=="NEEDS_VERIFICATION" for x in records.values())==5
+    assert sum(x["status"]=="READY" for x in records.values())==40
+    assert sum(x["status"]=="NEEDS_VERIFICATION" for x in records.values())==3
     assert sum(x["status"]=="MISSING" for x in records.values())==0

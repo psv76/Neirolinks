@@ -924,7 +924,7 @@ class ConstructorService:
             target_relation_count=target_count,
             existing_target_demands=tuple(existing_demands),
         )
-        if definition.kind != "MODULE_INSTALLATION":
+        if definition.kind not in {"MODULE_INSTALLATION", "MODEM_INSTALLATION"}:
             return preview
         source_row = connection.execute(
             self._resource_statement(project_id).where(
@@ -936,8 +936,37 @@ class ConstructorService:
                 instance_resource.c.id == target_resource_id
             )
         ).mappings().one()
+        if definition.kind == "MODEM_INSTALLATION":
+            host_ok = (
+                source_row["passport_key"] == "controller.wiren_board_8_5_modular_cellular"
+                and source_row["resource_kind"] == "INTERNAL_MODEM_SLOT"
+                and source_row["resource_key"] == "INTERNAL_MODEM_SLOT"
+                and source_row["ordinal"] == 0
+                and target_row["passport_key"] == "module.wirenboard.wbc2_4g"
+                and target_row["resource_kind"] == "INTERNAL_MODEM_SLOT_ATTACHMENT"
+            )
+            check = RuleResult(
+                "constructor.modem_slot_compatibility", 1,
+                "PASS" if host_ok else "ERROR", True,
+                (source_resource_id, target_resource_id),
+                {
+                    "host_passport": source_row["passport_key"],
+                    "host_slot": source_row["resource_key"],
+                    "module_passport": target_row["passport_key"],
+                },
+                "Dedicated WB8.5 MODEM slot with WBC2-4G",
+                "Модем WBC2-4G совместим со слотом MODEM контроллера WB8.5"
+                if host_ok else
+                "MODEM_INSTALLATION: требуется слот MODEM контроллера WB8.5 и модем WBC2-4G",
+            )
+            return RelationPreview(
+                definition, source, target, preview.results + (check,)
+            )
         host_ok = (
-            source_row["passport_key"] == "controller.wiren_board_8_5"
+            source_row["passport_key"] in {
+                "controller.wiren_board_8_5",
+                "controller.wiren_board_8_5_modular_cellular",
+            }
             and source_row["resource_kind"] == "INTERNAL_EXPANSION_SLOT"
             and source_row["resource_key"] == "INTERNAL_MODULE_SLOT"
             and source_row["ordinal"] in (0, 1, 2, 3)
