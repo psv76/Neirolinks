@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 
 import pytest
@@ -66,4 +67,47 @@ def test_qt_event_loop_remains_responsive_during_worker(qtbot):
     timer.stop()
     assert blocker.args[0].value == "done"
     assert len(heartbeats) >= 5
+    manager.close()
+
+
+def test_worker_progress_qt_signal_runs_on_gui_thread(qtbot):
+    manager = BackgroundOperationManager(max_workers=1)
+    controller = BackgroundOperationController(manager)
+    gui_thread = threading.get_ident()
+    worker_thread_ids = []
+    delivered = []
+    controller.progress.connect(lambda value: delivered.append((value, threading.get_ident())))
+
+    def worker(_snapshot, token, progress):
+        worker_thread_ids.append(threading.get_ident())
+        for index in range(80):
+            token.checkpoint()
+            progress(index)
+            time.sleep(0.0005)
+        return "finished"
+
+    with qtbot.waitSignal(controller.completed, timeout=4500) as captured:
+        controller.start(OperationSnapshot.create("p", 1, ()), worker)
+    assert captured.args[0].value == "finished"
+    assert worker_thread_ids and worker_thread_ids[0] != gui_thread
+    assert [item[0] for item in delivered] == list(range(80))
+    assert {item[1] for item in delivered} == {gui_thread}
+    manager.close()
+
+
+def test_progress_callback_survives_deleted_qt_receiver(qtbot):
+    manager = BackgroundOperationManager(max_workers=1)
+    controller = BackgroundOperationController(manager)
+
+    def worker(_snapshot, _token, progress):
+        for index in range(70):
+            progress(index)
+            time.sleep(0.004)
+        return "safe_after_gui_closed"
+
+    controller.start(OperationSnapshot.create("p", 1, ()), worker)
+    worker_handle = controller.handle
+    controller.deleteLater()
+    qtbot.wait(60)
+    assert worker_handle.future.result(timeout=4).value == "safe_after_gui_closed"
     manager.close()
