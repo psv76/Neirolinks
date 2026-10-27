@@ -1,7 +1,7 @@
 # Issue #293 — WBE2-I-RS485-ISO additive catalog release (2026-10-27)
 
 **Source of truth:** `psv76/Neirolinks:main/Systems/NLP`.
-**Release status:** **source ready, clone verified; NOT YET INSTALLED on live SQLite**.
+**Release status:** **INSTALLED on the live SQLite (PASS on 2026-10-27); GUI launch and end-to-end operator acceptance not yet verified**.
 **Issue status:** **IN PROGRESS**; full legacy WB passport coverage is not complete.
 
 ## Release content
@@ -18,8 +18,8 @@
 
 On authorized Windows desktop:
 
-- Live DB: `D:\\NL_Project_3_Data\\Projects\\nl_project_3.sqlite`; schema `000000000017`, predecessor release active.
-- Backup via `create_verified_backup`: `D:\\NLP_3_BACKUPS\\issue293_release_validation_20261027T181226\\verified-backup\\nl_project_3.000000000017.backup.sqlite`; SHA-256 `b9e35c27c9a97b6d46874952a538d0efcdad4d9fe5d0e9d955e108fa5c70bd4c`.
+- Live DB: `D:\NL_Project_3_Data\Projects\nl_project_3.sqlite`; schema `000000000017`, predecessor release active.
+- Backup via `create_verified_backup`: `D:\NLP_3_BACKUPS\issue293_release_validation_20261027T181226\verified-backup\nl_project_3.000000000017.backup.sqlite`; SHA-256 `b9e35c27c9a97b6d46874952a538d0efcdad4d9fe5d0e9d955e108fa5c70bd4c`.
 - Official `CatalogInstaller.install` successor on `nl_project_3_REHEARSAL.sqlite`: **PASS**, idempotent on repeat; expected release code/content hash and all original identities matched.
 - Unchanged Project identity counts: 1 project, 25 ProjectInstances, 296 InstanceResources, 27 buses, 0 functional relations.
 - SQLite `integrity_check=ok`, `foreign_key_check=0`. Original live DB not modified.
@@ -31,14 +31,22 @@ On authorized Windows desktop:
 - Real-database startup smoke on two isolated backup clones (old and successor) returned PASS; same 1 project, 25 instances, 27 buses, unchanged release code in both.
 - Separate integration suite `tests/objects tests/integration`: **85 passed, 1 failed**. The failing `test_p1007_ui_stabilization.py::test_lines_default_and_persisted_layout_header_and_tree` expects three rows after expanding a cable-line tree but sees two. The same failure was reproduced independently on untouched baseline `d39b2e4`; unrelated to Issue #293.
 
-## Remaining live installation procedure
+## Live installation completed — 2026-10-27 19:05 +05
 
-**Only after all NL Project 3.1 instances have been closed and unsaved work preserved:**
+- All `python.exe` / `pythonw.exe` application processes were absent immediately before installation; the installer repeated its own process guard.
+- Live working database: `D:\NL_Project_3_Data\Projects\nl_project_3.sqlite`.
+- Exact pre-install database SHA-256: `5371f3bf7634351f9a2782fae83195caf06627faf53dfb273d39ef43b33364c6`.
+- Official `tools/apply_additive_catalog_successor.py`: **PASS**, predecessor `nlp3.equipment.2026-10-05.wb-mge-v3` to successor `nlp3.equipment.2026-10-27.wbe2-rs485-iso`, schema unchanged at `000000000017`.
+- Verified backup: `D:\NLP_3_BACKUPS\issue293_wbe2_successor_20261027T190546\nl_project_3.000000000017.backup.sqlite`. Backup SHA-256: `3f098dd665f60bf99a7e9048e7a0258fd00732ec3e06f92e017dd5b5a9e1fbbd`.
+- Receipt: `D:\NLP_3_BACKUPS\issue293_wbe2_successor_20261027T190546\release_receipt.json` (`status: PASS`; identity parity true).
+- Independent read-only SQLite readback confirms active new release hash `4e3f7a0b96ffc36919de9d1b49f25a93361f526ee6402cb92977930b4a8f60d5`, 20 passports, 33 products, 1 project, 25 ProjectInstances, 296 InstanceResources, 27 buses, `integrity_check=ok` and zero FK violations.
+- The first preflight used upper-case hex from PowerShell and was correctly rejected by the byte-for-byte **case-sensitive string** comparison (database unchanged); the subsequent lower-case SHA invocation succeeded. Installer now normalizes expected hexadecimal SHA case.
+- No DWG changes or changes to the existing project topology. No WBE2 module was installed into the live Bogdanovich object.
 
-1. Verify Git `main` source and payload, read the actual active release and schema head. Compute the live database SHA-256 **at this time**; do not reuse a stale checksum.
-2. Run `tools/apply_additive_catalog_successor.py` with `--database D:\\NL_Project_3_Data\\Projects\\nl_project_3.sqlite --backup-root D:\\NLP_3_BACKUPS --expected-database-sha256 <CURRENT_SHA256> --confirm-project-closed`. The script rejects open processes, missing predecessor, schema mismatch, unverified backup, hash mismatch and broken post-install parity. Do not apply any manual SQL patches.
-3. Confirm `release_receipt.json` PASS, `20/33` on working SQLite, same original ProjectInstance/InstanceResource/Bus IDs and `integrity_check=ok`.
-4. Restart NLP 3.1; select WBE2 passport and product in Constructor, test addition and MOD installation on a **separate test project/copy**, then bus root and reopen. Do not create WBE2 instances/buses in the live Bogdanovich project without separate approval.
-5. If a live installation fails, leave the verified backup intact, stop and evaluate recovery using the approved backup, not blind file overwrite while NLP is running.
+## Remaining acceptance
+
+- Operator UI runtime launch and selection of the released WBE2-I-RS485-ISO passport/Product in the intended working installation still require confirmation. An older separate code snapshot exists in `D:\NLP 3.1\Neirolinks\Systems\NLP`; avoid running it against the updated database, use the canonical updated `D:\GitHub_NEW\Neirolinks\Systems\NLP` source.
+- Do not create new WBE2 instances/buses in live Bogdanovich: perform any installation/RS485-903/reopen acceptance on a separate project/database copy.
+- The complete #293 hardware catalog coverage across all known legacy Wiren Board devices, UI acceptance, and cross-issue compass synchronization are not yet complete; do not mark #293 PASSED or close it.
 
 This increment does not close #293: review/normalize every legacy WB device, physical resources, model revisions and product mapping, and perform full acceptance on a copy of the Bogdanovich object.

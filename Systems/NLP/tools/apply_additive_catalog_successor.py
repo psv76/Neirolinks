@@ -86,7 +86,7 @@ def apply_successor(database: Path, catalog: Path, backup_root: Path, expected_s
 
     # A database selected before approval must not be replaced silently.
     digest = hashlib.sha256(database.read_bytes()).hexdigest()
-    if digest != expected_sha:
+    if digest != expected_sha.strip().lower():
         raise RuntimeError("Database SHA-256 differs from approved snapshot")
 
     check_integrity(database)
