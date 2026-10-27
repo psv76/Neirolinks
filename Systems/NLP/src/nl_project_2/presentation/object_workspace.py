@@ -2244,7 +2244,18 @@ class ObjectWorkspace(QWidget):
     def _open_cables(self) -> None:
         project_id = self.runtime.current_project_id
         service = self.runtime.cables
-        if project_id is None or service is None:
+        if project_id is None:
+            QMessageBox.information(self, "Кабельные линии", "Сначала откройте объект.")
+            return
+        if service is None:
+            QMessageBox.warning(
+                self, "Кабельные линии",
+                "Сервис кабельных линий недоступен. Перезапустите NLP и проверьте журнал запуска.",
+            )
+            logging.getLogger(__name__).error(
+                "Cable workspace unavailable: cable service not initialized; project_id=%s",
+                project_id,
+            )
             return
         self._show_cables(project_id, None)
 
@@ -2252,14 +2263,26 @@ class ObjectWorkspace(QWidget):
         def open_resource(resource_id: str) -> None:
             self._show_constructor(project_id, selected_resource_id=resource_id)
 
-        CableWorkspaceDialog(
-            self.runtime.cables,
-            project_id,
-            self,
-            constructor_service=self.runtime.constructor,
-            selected_line_id=selected_line_id,
-            open_resource=open_resource,
-        ).exec()
+        try:
+            dialog = CableWorkspaceDialog(
+                self.runtime.cables,
+                project_id,
+                self,
+                constructor_service=self.runtime.constructor,
+                selected_line_id=selected_line_id,
+                open_resource=open_resource,
+            )
+        except Exception as exc:
+            logging.getLogger(__name__).exception(
+                "Cable workspace failed to initialize; project_id=%s", project_id
+            )
+            QMessageBox.critical(
+                self, "Не удалось открыть кабельные линии",
+                f"Ошибка открытия редактора: {type(exc).__name__}: {exc}\n"
+                "Подробности записаны в журнал NLP.",
+            )
+            return
+        dialog.exec()
 
     def _open_constructor(self) -> None:
         project_id = self.runtime.current_project_id
