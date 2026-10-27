@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -1112,14 +1113,23 @@ class CableService:
                     "cable_type": facts.get("CABLE_TYPE", ""),
                 }
             )
-        topologies = {
-            line_id: {
-                edge["segment_id"]: edge for edge in self.topology(project_id, line_id)["edges"]
-            }
-            for line_id in {
-                child["cable_line_id"] for rows in by_conduit.values() for child in rows
-            }
-        }
+        topologies: dict[str, dict[str, dict]] = {}
+        for line_id in {
+            child["cable_line_id"] for rows in by_conduit.values() for child in rows
+        }:
+            try:
+                topologies[line_id] = {
+                    edge["segment_id"]: edge
+                    for edge in self.topology(project_id, line_id)["edges"]
+                }
+            except KeyError:
+                # Legacy/stale endpoint references must not prevent read-only
+                # access to all other cable lines. Do not invent geometry.
+                logging.getLogger(__name__).exception(
+                    "Cable topology contains a missing reference; project_id=%s line_id=%s",
+                    project_id, line_id,
+                )
+                topologies[line_id] = {}
         for parent in parents:
             parent["lines"] = by_conduit.get(parent["id"], [])
             for child in parent["lines"]:
