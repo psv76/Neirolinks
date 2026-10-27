@@ -151,3 +151,38 @@ def test_review_stale_lengths_requires_confirmation_and_verified_backup(
         "project_id":"project","segment_ids":{"seg-1"},
     }]
     assert w.recalculate_stale_button.objectName()=="reviewStaleLengthsButton"
+
+
+def test_bulk_action_buttons_are_laid_out_below_search_not_floating(qtbot):
+    from PySide6.QtCore import QPoint, QRect
+    from PySide6.QtWidgets import QApplication, QPushButton
+    for width in (1200, 1680):
+        w=LinesWorkspace(FakeCableService(),FakeConstructor(),"project")
+        qtbot.addWidget(w)
+        w.resize(width,850)
+        w.show()
+        QApplication.processEvents()
+        buttons=[
+            x for x in w.findChildren(QPushButton)
+            if x.text() in ("Изменить выбранные строки","Заполнить вниз (Ctrl+D)")
+            or x.text().startswith("Массово:")
+        ]
+        assert len(buttons)>=6
+        def box(widget):
+            return QRect(widget.mapToGlobal(QPoint(0,0)),widget.size())
+        search=box(w.search)
+        filter_box=box(w.system_filter)
+        table_box=box(w.table)
+        for button in buttons:
+            assert button.isVisible(),button.text()
+            b=box(button)
+            assert b.top()>=filter_box.bottom(),(width,button.text(),b,filter_box)
+            assert b.bottom()<table_box.top(),(width,button.text(),b,table_box)
+            assert not b.intersects(search),(width,button.text(),b,search)
+        rects=[box(button) for button in buttons]
+        for a in range(len(rects)):
+            for b in range(a+1,len(rects)):
+                assert not rects[a].intersects(rects[b]),(
+                    width,buttons[a].text(),buttons[b].text(),rects[a],rects[b]
+                )
+        w.close()

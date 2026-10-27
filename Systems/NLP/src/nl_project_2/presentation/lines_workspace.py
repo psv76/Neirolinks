@@ -568,6 +568,10 @@ class LinesWorkspace(QWidget):
         top_layout = QVBoxLayout(top)
         top_layout.setContentsMargins(0, 0, 0, 0)
         top_layout.addLayout(filter_row)
+        # Every bulk action must belong to an actual layout. Without this,
+        # Qt leaves the buttons at (0, 0) of LinesWorkspace and they paint
+        # over the search field even if the search caption is removed.
+        top_layout.addLayout(table_actions)
         top_layout.addWidget(self.table, 1)
 
         self.card_title = QLabel("Линия не выбрана", self)
