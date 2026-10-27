@@ -944,6 +944,10 @@ class ConstructorService:
             and target_row["passport_key"] in {
                 "module.wirenboard.wbe2_i_knx",
                 "module.wirenboard.wbe2_i_rs485_iso",
+                "module.wirenboard.wbe2_i_opentherm",
+                "module.wirenboard.wbe2_i_ebus",
+                "module.wirenboard.wbe2_i_rs232",
+                "module.wirenboard.wbe2r_r_zigbee_sh",
             }
             and target_row["resource_kind"] == "INTERNAL_EXPANSION_MODULE_ATTACHMENT"
         )

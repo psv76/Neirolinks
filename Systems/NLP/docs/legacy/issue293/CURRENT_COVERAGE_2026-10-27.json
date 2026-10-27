@@ -1,0 +1,1286 @@
+{
+  "issue": 293,
+  "release": "nlp3.equipment.2026-10-27.wb-expanded-audit",
+  "sku_total": 43,
+  "engineering_types": 36,
+  "module_definitions": 16,
+  "status_counts": {
+    "READY": 33,
+    "NEEDS_VERIFICATION": 10,
+    "MISSING": 0,
+    "DEPRECATED": 0
+  },
+  "rows": [
+    {
+      "article": "WB8-4G-64G-IND",
+      "engineering_code": "WB8",
+      "status": "NEEDS_VERIFICATION",
+      "passport_id": "controller.wiren_board_8_5",
+      "product_id": "product.wirenboard.wb8_4g_64g_ind",
+      "source": "https://wiki.wirenboard.com/wiki/Wiren_Board_8.5",
+      "resources": [
+        {
+          "id": "VPLUS_INPUT",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 2
+        },
+        {
+          "id": "VOUT",
+          "kind": "SWITCHABLE_DC_POWER_OUTPUT",
+          "quantity": 1
+        },
+        {
+          "id": "5VOUT",
+          "kind": "SWITCHABLE_DC_POWER_OUTPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 2
+        },
+        {
+          "id": "WX",
+          "kind": "ONEWIRE_OR_DIGITAL_INPUT",
+          "quantity": 2
+        },
+        {
+          "id": "AX",
+          "kind": "MULTIFUNCTION_ANALOG_DIGITAL_IO",
+          "quantity": 4
+        },
+        {
+          "id": "ETHERNET",
+          "kind": "ETHERNET_PORT",
+          "quantity": 2
+        },
+        {
+          "id": "USB_HOST",
+          "kind": "USB_HOST_PORT",
+          "quantity": 1
+        },
+        {
+          "id": "DEBUG_USB",
+          "kind": "USB_DEBUG_PORT",
+          "quantity": 1
+        },
+        {
+          "id": "MICROSD",
+          "kind": "STORAGE_SLOT",
+          "quantity": 1
+        },
+        {
+          "id": "INTERNAL_MODULE_SLOT",
+          "kind": "INTERNAL_EXPANSION_SLOT",
+          "quantity": 4
+        },
+        {
+          "id": "WBIO",
+          "kind": "EXTERNAL_IO_EXPANSION_PORT",
+          "quantity": 1
+        },
+        {
+          "id": "UPS_CONNECTOR",
+          "kind": "BACKUP_POWER_MODULE_PORT",
+          "quantity": 1
+        },
+        {
+          "id": "POE_MODULE_SLOT",
+          "kind": "POE_EXPANSION_SLOT",
+          "quantity": 1
+        },
+        {
+          "id": "WIFI",
+          "kind": "WIFI_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "BLUETOOTH",
+          "kind": "BLUETOOTH_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "CELLULAR_MODEM",
+          "kind": "CELLULAR_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "NANOSIM",
+          "kind": "SIM_SLOT",
+          "quantity": 2
+        }
+      ],
+      "rationale": "Published model needs full revision/resource audit"
+    },
+    {
+      "article": "WBIO-DI-WD-14",
+      "engineering_code": "WBIO-DI-WD-14",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wbio_di_wd_14",
+      "product_id": "product.wirenboard.wbio_di_wd_14",
+      "source": "https://wiki.wirenboard.com/wiki/WBIO-DI-WD-14_Discrete_Inputs",
+      "resources": [
+        {
+          "id": "WBIO_SIDE_ATTACHMENT",
+          "kind": "EXTERNAL_IO_MODULE_ATTACHMENT",
+          "quantity": 1
+        },
+        {
+          "id": "INPUT",
+          "kind": "CONFIGURABLE_DRY_CONTACT_OR_LOW_VOLTAGE_INPUT",
+          "quantity": 14
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WBIO-DI-HVD-16",
+      "engineering_code": "WBIO-DI-HVD-16",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wbio_di_hvd_16",
+      "product_id": "product.wirenboard.wbio_di_hvd_16",
+      "source": "https://wiki.wirenboard.com/wiki/WBIO-DI-HVD-16_16-Channel_230V_Detector_Module/en",
+      "resources": [
+        {
+          "id": "WBIO_SIDE_ATTACHMENT",
+          "kind": "EXTERNAL_IO_MODULE_ATTACHMENT",
+          "quantity": 1
+        },
+        {
+          "id": "INPUT",
+          "kind": "AC_VOLTAGE_DETECTION_INPUT",
+          "quantity": 16
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WBIO-DI-HVD-8",
+      "engineering_code": "WBIO-DI-HVD-8",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wbio_di_hvd_8",
+      "product_id": "product.wirenboard.wbio_di_hvd_8",
+      "source": "https://wiki.wirenboard.com/wiki/WBIO-DI-HVD-8_8-Channel_230V_Detector_Module/en",
+      "resources": [
+        {
+          "id": "WBIO_SIDE_ATTACHMENT",
+          "kind": "EXTERNAL_IO_MODULE_ATTACHMENT",
+          "quantity": 1
+        },
+        {
+          "id": "INPUT",
+          "kind": "AC_VOLTAGE_DETECTION_INPUT",
+          "quantity": 8
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-UPS v.3",
+      "engineering_code": "WB-UPS_V3",
+      "status": "NEEDS_VERIFICATION",
+      "passport_id": "power.wb_ups_v3",
+      "product_id": "product.wirenboard.wb_ups_v3",
+      "source": "https://wirenboard.com/en/contents/product/wb-ups-v3/",
+      "resources": [
+        {
+          "id": "VIN",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "VOUT",
+          "kind": "BACKED_DC_POWER_OUTPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "INTERNAL_BATTERY",
+          "kind": "INTERNAL_ENERGY_STORAGE",
+          "quantity": 1
+        },
+        {
+          "id": "TELEMETRY",
+          "kind": "MEASUREMENT_CHANNEL",
+          "quantity": 8
+        }
+      ],
+      "rationale": "Published model needs full revision/resource audit"
+    },
+    {
+      "article": "WBC2-4G",
+      "engineering_code": "WBC2-4G",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wbc2_4g",
+      "product_id": "product.wirenboard.wbc2_4g",
+      "source": "https://wiki.wirenboard.com/wiki/WBC2-4G",
+      "resources": [
+        {
+          "id": "MODEM_SLOT_ATTACHMENT",
+          "kind": "INTERNAL_MODEM_SLOT_ATTACHMENT",
+          "quantity": 1
+        },
+        {
+          "id": "CELLULAR_DATA",
+          "kind": "CELLULAR_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "MODEM_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WBE2R-R-ZIGBEE-SH",
+      "engineering_code": "WBE2R-R-ZIGBEE-SH",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wbe2r_r_zigbee_sh",
+      "product_id": "product.wirenboard.wbe2r_r_zigbee_sh",
+      "source": "https://wiki.wirenboard.com/wiki/WBE2R-R-ZIGBEE-SH",
+      "resources": [
+        {
+          "id": "HOST_SLOT_ATTACHMENT",
+          "kind": "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
+          "quantity": 1
+        },
+        {
+          "id": "ZIGBEE_SERIAL",
+          "kind": "ZIGBEE_SERIAL_INTERFACE",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WBE2-I-KNX",
+      "engineering_code": "WBE2-I-KNX",
+      "status": "NEEDS_VERIFICATION",
+      "passport_id": "module.wirenboard.wbe2_i_knx",
+      "product_id": "product.wirenboard.wbe2_i_knx",
+      "source": "https://wiki.wirenboard.com/wiki/index.php/KNX_Module_for_WB6_%28WBE2-I-KNX%29",
+      "resources": [
+        {
+          "id": "HOST_SLOT_ATTACHMENT",
+          "kind": "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
+          "quantity": 1
+        },
+        {
+          "id": "KNX_PORT",
+          "kind": "KNX_BUS_PORT",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Published model needs full revision/resource audit"
+    },
+    {
+      "article": "WBE2-I-RS232",
+      "engineering_code": "WBE2-I-RS232",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wbe2_i_rs232",
+      "product_id": "product.wirenboard.wbe2_i_rs232",
+      "source": "https://wiki.wirenboard.com/wiki/Wiren_Board%3A_Extension_Modules",
+      "resources": [
+        {
+          "id": "HOST_SLOT_ATTACHMENT",
+          "kind": "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
+          "quantity": 1
+        },
+        {
+          "id": "RS232",
+          "kind": "RS232_INTERFACE",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WBE2-I-RS485-ISO",
+      "engineering_code": "WBE2-I-RS485-ISO",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wbe2_i_rs485_iso",
+      "product_id": "product.wirenboard.wbe2_i_rs485_iso",
+      "source": "https://wiki.wirenboard.com/wiki/WBE2-I-RS485-ISO_RS485_Extension_Module",
+      "resources": [
+        {
+          "id": "HOST_SLOT_ATTACHMENT",
+          "kind": "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WBE2-I-OPENTHERM",
+      "engineering_code": "WBE2-I-OPENTHERM",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wbe2_i_opentherm",
+      "product_id": "product.wirenboard.wbe2_i_opentherm",
+      "source": "https://wiki.wirenboard.com/wiki/Wiren_Board%3A_Extension_Modules",
+      "resources": [
+        {
+          "id": "HOST_SLOT_ATTACHMENT",
+          "kind": "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
+          "quantity": 1
+        },
+        {
+          "id": "OPENTHERM",
+          "kind": "OPENTHERM_BUS_PORT",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WBE2-I-EBUS",
+      "engineering_code": "WBE2-I-EBUS",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wbe2_i_ebus",
+      "product_id": "product.wirenboard.wbe2_i_ebus",
+      "source": "https://wiki.wirenboard.com/wiki/Wiren_Board%3A_Extension_Modules",
+      "resources": [
+        {
+          "id": "HOST_SLOT_ATTACHMENT",
+          "kind": "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
+          "quantity": 1
+        },
+        {
+          "id": "EBUS",
+          "kind": "EBUS_BUS_PORT",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MRWM2",
+      "engineering_code": "WB-MRWM2",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mrwm2",
+      "product_id": "product.wirenboard.wb_mrwm2",
+      "source": "https://wirenboard.com/ru/product/wb-mrwm2/",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "RELAY_OUTPUT",
+          "kind": "NORMALLY_OPEN_RELAY_OUTPUT",
+          "quantity": 2
+        },
+        {
+          "id": "INPUT",
+          "kind": "DRY_CONTACT_INPUT",
+          "quantity": 2
+        },
+        {
+          "id": "MEASUREMENT",
+          "kind": "MEASUREMENT_CHANNEL",
+          "quantity": 2
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MR6C v.2",
+      "engineering_code": "WB-MR6C_V2",
+      "status": "NEEDS_VERIFICATION",
+      "passport_id": "controller.wb_mr6c_v2",
+      "product_id": "product.wirenboard.wb_mr6c_v2",
+      "source": "https://wiki.wirenboard.com/wiki/WB-MR6C_v.2_Modbus_Relay_Modules",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "INPUT",
+          "kind": "DRY_CONTACT_INPUT",
+          "quantity": 7
+        },
+        {
+          "id": "COM",
+          "kind": "RELAY_COMMON_INPUT",
+          "quantity": 2
+        },
+        {
+          "id": "RELAY_OUTPUT",
+          "kind": "NORMALLY_OPEN_RELAY_OUTPUT",
+          "quantity": 6
+        }
+      ],
+      "rationale": "Published model needs full revision/resource audit"
+    },
+    {
+      "article": "WB-MR6C v.3",
+      "engineering_code": "WB-MR6C_V3",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mr6c_v3",
+      "product_id": "product.wirenboard.wb_mr6c_v3",
+      "source": "https://wirenboard.com/ru/product/WB-MR6C_v3/",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "AC_POWER_INPUT",
+          "kind": "POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "RELAY_OUTPUT",
+          "kind": "NORMALLY_OPEN_RELAY_OUTPUT",
+          "quantity": 6
+        },
+        {
+          "id": "INPUT",
+          "kind": "DRY_CONTACT_INPUT",
+          "quantity": 7
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MR6LV/S",
+      "engineering_code": "WB-MR6LV_S",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mr6lv_s",
+      "product_id": "product.wirenboard.wb_mr6lv_s",
+      "source": "https://wirenboard.com/ru/contents/product/WB-MR6/",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "RELAY_OUTPUT",
+          "kind": "NORMALLY_OPEN_RELAY_OUTPUT",
+          "quantity": 6
+        },
+        {
+          "id": "INPUT",
+          "kind": "DRY_CONTACT_INPUT",
+          "quantity": 7
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MR6CU v.2",
+      "engineering_code": "WB-MR6CU_V2",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mr6cu_v2",
+      "product_id": "product.wirenboard.wb_mr6cu_v2",
+      "source": "https://wirenboard.com/ru/product/WB-MR6CU/",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "COM",
+          "kind": "RELAY_COMMON_INPUT",
+          "quantity": 2
+        },
+        {
+          "id": "RELAY_OUTPUT",
+          "kind": "NORMALLY_OPEN_RELAY_OUTPUT",
+          "quantity": 6
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MR3LV/S",
+      "engineering_code": "WB-MR3LV_S",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mr3lv_s",
+      "product_id": "product.wirenboard.wb_mr3lv_s",
+      "source": "https://wirenboard.com/ru/product/WB-MR3/",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "RELAY_OUTPUT",
+          "kind": "NORMALLY_OPEN_RELAY_OUTPUT",
+          "quantity": 3
+        },
+        {
+          "id": "INPUT",
+          "kind": "DRY_CONTACT_INPUT",
+          "quantity": 4
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MR3LV/I",
+      "engineering_code": "WB-MR3LV_I",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mr3lv_i",
+      "product_id": "product.wirenboard.wb_mr3lv_i",
+      "source": "https://wirenboard.com/ru/product/WB-MR3/",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "RELAY_OUTPUT",
+          "kind": "CHANGEOVER_RELAY_OUTPUT",
+          "quantity": 3
+        },
+        {
+          "id": "INPUT",
+          "kind": "DRY_CONTACT_INPUT",
+          "quantity": 4
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MRPS6/S",
+      "engineering_code": "WB-MRPS6_S",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mrps6_s",
+      "product_id": "product.wirenboard.wb_mrps6_s",
+      "source": "https://wirenboard.com/ru/product/WB-MRPS6/",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "RELAY_OUTPUT",
+          "kind": "NORMALLY_OPEN_RELAY_OUTPUT",
+          "quantity": 6
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MRWL3",
+      "engineering_code": "WB-MRWL3",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mrwl3",
+      "product_id": "product.wirenboard.wb_mrwl3",
+      "source": "https://wirenboard.com/ru/product/wb-mrwl3/",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "RELAY_OUTPUT",
+          "kind": "NORMALLY_OPEN_RELAY_OUTPUT",
+          "quantity": 3
+        },
+        {
+          "id": "INPUT",
+          "kind": "DRY_CONTACT_INPUT",
+          "quantity": 4
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MRM2-mini v.3",
+      "engineering_code": "WB-MRM2-mini v.3",
+      "status": "NEEDS_VERIFICATION",
+      "passport_id": null,
+      "product_id": null,
+      "source": null,
+      "resources": [],
+      "rationale": "Legacy v.3 does not match official published 2.x revision table; do not substitute blindly."
+    },
+    {
+      "article": "WB-MAP3ET",
+      "engineering_code": "WB-MAP3ET",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_map3et",
+      "product_id": "product.wirenboard.wb_map3et",
+      "source": "https://wiki.wirenboard.com/wiki/index.php/Map3et",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "VOLTAGE_INPUT",
+          "kind": "AC_VOLTAGE_MEASUREMENT_INPUT",
+          "quantity": 3
+        },
+        {
+          "id": "NEUTRAL_INPUT",
+          "kind": "AC_NEUTRAL_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "PROTECTIVE_EARTH",
+          "kind": "PROTECTIVE_EARTH_CONNECTION",
+          "quantity": 1
+        },
+        {
+          "id": "CURRENT_CHANNEL",
+          "kind": "INTERNAL_CURRENT_MEASUREMENT",
+          "quantity": 3
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-M1W2 v.3",
+      "engineering_code": "WB-M1W2_V3",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_m1w2_v3",
+      "product_id": "product.wirenboard.wb_m1w2_v3",
+      "source": "https://wirenboard.com/ru/product/WB-M1W2/",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "INPUT",
+          "kind": "ONEWIRE_OR_DRY_CONTACT_INPUT",
+          "quantity": 2
+        },
+        {
+          "id": "SENSOR_POWER",
+          "kind": "DC_AUXILIARY_OUTPUT",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "DS18B20/1m",
+      "engineering_code": "DS18B20/1m",
+      "status": "READY",
+      "passport_id": "module.wirenboard.ds18b20_probe",
+      "product_id": "product.wirenboard.ds18b20_1m",
+      "source": "https://wiki.wirenboard.com/wiki/1wire-DS18B20",
+      "resources": [
+        {
+          "id": "DATA",
+          "kind": "ONEWIRE_DEVICE_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "SENSOR_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "GROUND",
+          "kind": "DC_GROUND_CONNECTION",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "DS18B20/3m",
+      "engineering_code": "DS18B20/3m",
+      "status": "READY",
+      "passport_id": "module.wirenboard.ds18b20_probe",
+      "product_id": "product.wirenboard.ds18b20_3m",
+      "source": "https://wiki.wirenboard.com/wiki/1wire-DS18B20",
+      "resources": [
+        {
+          "id": "DATA",
+          "kind": "ONEWIRE_DEVICE_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "SENSOR_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "GROUND",
+          "kind": "DC_GROUND_CONNECTION",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "DS18B20/5m",
+      "engineering_code": "DS18B20/5m",
+      "status": "READY",
+      "passport_id": "module.wirenboard.ds18b20_probe",
+      "product_id": "product.wirenboard.ds18b20_5m",
+      "source": "https://wiki.wirenboard.com/wiki/1wire-DS18B20",
+      "resources": [
+        {
+          "id": "DATA",
+          "kind": "ONEWIRE_DEVICE_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "SENSOR_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "GROUND",
+          "kind": "DC_GROUND_CONNECTION",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "DS18B20/10m",
+      "engineering_code": "DS18B20/10m",
+      "status": "READY",
+      "passport_id": "module.wirenboard.ds18b20_probe",
+      "product_id": "product.wirenboard.ds18b20_10m",
+      "source": "https://wiki.wirenboard.com/wiki/1wire-DS18B20",
+      "resources": [
+        {
+          "id": "DATA",
+          "kind": "ONEWIRE_DEVICE_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "SENSOR_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "GROUND",
+          "kind": "DC_GROUND_CONNECTION",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MAI2-mini/CC v.3",
+      "engineering_code": "WB-MAI2_CC_V3",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mai2_cc_v3",
+      "product_id": "product.wirenboard.wb_mai2_cc_v3",
+      "source": "https://wiki.wirenboard.com/wiki/WB-MAI2-mini/CC_v.3_4-20mA_Modbus_Analog_Inputs",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "CURRENT_INPUT",
+          "kind": "ANALOG_CURRENT_INPUT",
+          "quantity": 2
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MAI6",
+      "engineering_code": "WB-MAI6",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mai6",
+      "product_id": "product.wirenboard.wb_mai6",
+      "source": "https://wiki.wirenboard.com/wiki/WB-MAI6",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "MEASUREMENT_INPUT",
+          "kind": "CONFIGURABLE_ANALOG_INPUT",
+          "quantity": 6
+        },
+        {
+          "id": "5VOUT",
+          "kind": "DC_AUXILIARY_OUTPUT",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-LED",
+      "engineering_code": "WB-LED",
+      "status": "NEEDS_VERIFICATION",
+      "passport_id": "controller.wb_led_v1",
+      "product_id": "product.wirenboard.wb_led_v1",
+      "source": "https://wiki.wirenboard.com/wiki/WB-LED_v.1_Modbus_LED_Dimmer",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "LED_LOAD_POWER",
+          "kind": "DC_LOAD_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "INPUT",
+          "kind": "DRY_CONTACT_INPUT",
+          "quantity": 4
+        },
+        {
+          "id": "PWM_OUTPUT",
+          "kind": "OPEN_COLLECTOR_PWM_OUTPUT",
+          "quantity": 4
+        }
+      ],
+      "rationale": "Legacy article lacks revision; existing product describes WB-LED v.1. Revision-specific UI/resource audit needed."
+    },
+    {
+      "article": "WB-MDM3",
+      "engineering_code": "WB-MDM3",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mdm3",
+      "product_id": "product.wirenboard.wb_mdm3",
+      "source": "https://wiki.wirenboard.com/wiki/WB-MDM3_230V_Modbus_Dimmer",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "AC_LOAD_FEED",
+          "kind": "POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "AC_DIMMER_OUTPUT",
+          "kind": "AC_PHASE_CUT_DIMMER_OUTPUT",
+          "quantity": 3
+        },
+        {
+          "id": "CONTROL_INPUT",
+          "kind": "DRY_CONTACT_INPUT",
+          "quantity": 6
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-DALI3",
+      "engineering_code": "WB-DALI3",
+      "status": "NEEDS_VERIFICATION",
+      "passport_id": "gateway.wirenboard.wb_dali3",
+      "product_id": "product.wirenboard.wb_dali3",
+      "source": "https://wiki.wirenboard.com/wiki/WB-DALI_Modbus-to-DALI_Gateway_%283-channel%29",
+      "resources": [
+        {
+          "id": "DC_ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "AC_DALI_POWER",
+          "kind": "POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "DALI_PORT",
+          "kind": "DALI_BUS_PORT",
+          "quantity": 3
+        },
+        {
+          "id": "INPUT",
+          "kind": "DRY_CONTACT_INPUT",
+          "quantity": 7
+        }
+      ],
+      "rationale": "Published model needs full revision/resource audit"
+    },
+    {
+      "article": "WB-MAO4",
+      "engineering_code": "WB-MAO4",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mao4",
+      "product_id": "product.wirenboard.wb_mao4",
+      "source": "https://wirenboard.com/ru/product/WB-MAO4/",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "ANALOG_OUTPUT",
+          "kind": "ANALOG_VOLTAGE_OUTPUT",
+          "quantity": 4
+        },
+        {
+          "id": "INPUT",
+          "kind": "DRY_CONTACT_INPUT",
+          "quantity": 3
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MAO4-20mA",
+      "engineering_code": "WB-MAO4_20MA",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mao4_20ma",
+      "product_id": "product.wirenboard.wb_mao4_20ma",
+      "source": "https://wiki.wirenboard.com/wiki/WB-MAO4-20mA_Modbus_Analog_Outputs_0-20mA",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "ANALOG_OUTPUT",
+          "kind": "ANALOG_CURRENT_OUTPUT",
+          "quantity": 4
+        },
+        {
+          "id": "INPUT",
+          "kind": "DRY_CONTACT_INPUT",
+          "quantity": 4
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-AMPLED",
+      "engineering_code": "WB-AMPLED",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_ampled",
+      "product_id": "product.wirenboard.wb_ampled",
+      "source": "https://wiki.wirenboard.com/wiki/WB-AMPLED_v.1_RGBW_Constant_Voltage_LED_Amplifier",
+      "resources": [
+        {
+          "id": "DC_SUPPLY",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "PWM_CONTROL_INPUT",
+          "kind": "PWM_OR_DRY_CONTACT_INPUT",
+          "quantity": 4
+        },
+        {
+          "id": "LED_POWER_OUTPUT",
+          "kind": "PWM_LOW_SIDE_OUTPUT",
+          "quantity": 4
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-T120",
+      "engineering_code": "WB-T120",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_t120",
+      "product_id": "product.wirenboard.wb_t120",
+      "source": "https://wiki.wirenboard.com/wiki/WB-T120",
+      "resources": [
+        {
+          "id": "RS485_A",
+          "kind": "PASSIVE_TERMINATION_CONTACT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485_B",
+          "kind": "PASSIVE_TERMINATION_CONTACT",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MWAC",
+      "engineering_code": "WB-MWAC",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mwac_v2",
+      "product_id": "product.wirenboard.wb_mwac_v2",
+      "source": "https://wiki.wirenboard.com/wiki/WB-MWAC",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "RELAY_OUTPUT",
+          "kind": "CHANGEOVER_RELAY_OUTPUT",
+          "quantity": 2
+        },
+        {
+          "id": "SENSOR_INPUT",
+          "kind": "CONFIGURABLE_LEAK_OR_BUTTON_INPUT",
+          "quantity": 6
+        },
+        {
+          "id": "PULSE_INPUT",
+          "kind": "PULSE_COUNTER_INPUT",
+          "quantity": 2
+        },
+        {
+          "id": "SENSOR_POWER",
+          "kind": "DC_AUXILIARY_OUTPUT",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MCM8",
+      "engineering_code": "WB-MCM8",
+      "status": "NEEDS_VERIFICATION",
+      "passport_id": "module.wirenboard.wb_mcm8",
+      "product_id": "product.wirenboard.wb_mcm8",
+      "source": "https://wiki.wirenboard.com/wiki/WB-MCM8_Modbus_Module",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "INPUT",
+          "kind": "DRY_CONTACT_INPUT",
+          "quantity": 8
+        }
+      ],
+      "rationale": "Published model needs full revision/resource audit"
+    },
+    {
+      "article": "WB-MCM8HV",
+      "engineering_code": "WB-MCM8HV",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mcm8hv",
+      "product_id": "product.wirenboard.wb_mcm8hv",
+      "source": "https://wiki.wirenboard.com/wiki/WB-MCM8HV_v.1_Modbus_AC_Detector",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "AC_INPUT",
+          "kind": "AC_VOLTAGE_DETECTION_INPUT",
+          "quantity": 8
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MGE v.3",
+      "engineering_code": "WB-MGE_V3",
+      "status": "NEEDS_VERIFICATION",
+      "passport_id": "gateway.wirenboard.wb_mge_v3",
+      "product_id": "product.wirenboard.wb_mge_v3",
+      "source": "https://wiki.wirenboard.com/wiki/WB-MGE_v.3_Modbus_Ethernet_Gateway",
+      "resources": [
+        {
+          "id": "VIN",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 2
+        },
+        {
+          "id": "ETHERNET",
+          "kind": "ETHERNET_PORT",
+          "quantity": 1
+        },
+        {
+          "id": "WIFI",
+          "kind": "WIFI_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "WBIO",
+          "kind": "EXTERNAL_IO_EXPANSION_PORT",
+          "quantity": 1
+        },
+        {
+          "id": "VOUT",
+          "kind": "SWITCHABLE_DC_POWER_OUTPUT",
+          "quantity": 2
+        }
+      ],
+      "rationale": "Published model needs full revision/resource audit"
+    },
+    {
+      "article": "WB-MIO",
+      "engineering_code": "WB-MIO",
+      "status": "READY",
+      "passport_id": "module.wirenboard.wb_mio",
+      "product_id": "product.wirenboard.wb_mio",
+      "source": "https://wiki.wirenboard.com/wiki/WB-MIO_Modbus_Interface_Converter",
+      "resources": [
+        {
+          "id": "ELECTRONICS_POWER",
+          "kind": "DC_POWER_INPUT",
+          "quantity": 1
+        },
+        {
+          "id": "RS485",
+          "kind": "RS485_INTERFACE",
+          "quantity": 1
+        },
+        {
+          "id": "WBIO",
+          "kind": "EXTERNAL_IO_EXPANSION_PORT",
+          "quantity": 1
+        }
+      ],
+      "rationale": "Manufacturer-based resource model audited; not end-to-end user acceptance"
+    },
+    {
+      "article": "WB-MDIO8",
+      "engineering_code": "WB-MDIO8",
+      "status": "NEEDS_VERIFICATION",
+      "passport_id": null,
+      "product_id": null,
+      "source": null,
+      "resources": [],
+      "rationale": "Manufacturer page describes a device under development and not available; no confirmed released revision."
+    }
+  ]
+}

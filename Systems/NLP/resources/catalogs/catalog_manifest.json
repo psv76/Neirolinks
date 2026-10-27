@@ -1,6 +1,6 @@
 {
   "manifest_version": 1,
-  "release_code": "nlp3.equipment.2026-10-27.wbe2-rs485-iso",
+  "release_code": "nlp3.equipment.2026-10-27.wb-expanded-audit",
   "additive_predecessors": {
     "nlp2.mvp.equipment.2026-08-24.repair-05": {
       "passports": [
@@ -19,17 +19,159 @@
       "products": [
         "product.wirenboard.wbe2_i_rs485_iso"
       ]
+    },
+    "nlp3.equipment.2026-10-27.wbe2-rs485-iso": {
+      "passports": [
+        "module.wirenboard.wbe2_i_opentherm",
+        "module.wirenboard.wbe2_i_ebus",
+        "module.wirenboard.wbe2_i_rs232",
+        "module.wirenboard.wb_mr6cu_v2",
+        "module.wirenboard.wb_mao4",
+        "module.wirenboard.wb_mao4_20ma",
+        "module.wirenboard.wb_m1w2_v3",
+        "module.wirenboard.wb_mai6",
+        "module.wirenboard.wb_mr6c_v3",
+        "module.wirenboard.wb_mr3lv_s",
+        "module.wirenboard.wb_mr3lv_i",
+        "module.wirenboard.wb_mr6lv_s",
+        "module.wirenboard.wb_mrps6_s",
+        "module.wirenboard.wb_mrwl3",
+        "module.wirenboard.wb_mrwm2",
+        "module.wirenboard.wb_mai2_cc_v3",
+        "module.wirenboard.wb_mwac_v2",
+        "module.wirenboard.wb_map3et",
+        "module.wirenboard.wb_mio",
+        "module.wirenboard.wb_mcm8hv",
+        "module.wirenboard.wb_mdm3",
+        "module.wirenboard.wbio_di_wd_14",
+        "module.wirenboard.wbio_di_hvd_8",
+        "module.wirenboard.wbio_di_hvd_16",
+        "module.wirenboard.wbe2r_r_zigbee_sh",
+        "module.wirenboard.wbc2_4g",
+        "module.wirenboard.ds18b20_probe",
+        "module.wirenboard.wb_t120",
+        "module.wirenboard.wb_ampled"
+      ],
+      "products": [
+        "product.wirenboard.wbe2_i_opentherm",
+        "product.wirenboard.wbe2_i_ebus",
+        "product.wirenboard.wbe2_i_rs232",
+        "product.wirenboard.wb_mr6cu_v2",
+        "product.wirenboard.wb_mao4",
+        "product.wirenboard.wb_mao4_20ma",
+        "product.wirenboard.wb_m1w2_v3",
+        "product.wirenboard.wb_mai6",
+        "product.wirenboard.wb_mr6c_v3",
+        "product.wirenboard.wb_mr3lv_s",
+        "product.wirenboard.wb_mr3lv_i",
+        "product.wirenboard.wb_mr6lv_s",
+        "product.wirenboard.wb_mrps6_s",
+        "product.wirenboard.wb_mrwl3",
+        "product.wirenboard.wb_mrwm2",
+        "product.wirenboard.wb_mai2_cc_v3",
+        "product.wirenboard.wb_mwac_v2",
+        "product.wirenboard.wb_map3et",
+        "product.wirenboard.wb_mio",
+        "product.wirenboard.wb_mcm8hv",
+        "product.wirenboard.wb_mdm3",
+        "product.wirenboard.wbio_di_wd_14",
+        "product.wirenboard.wbio_di_hvd_8",
+        "product.wirenboard.wbio_di_hvd_16",
+        "product.wirenboard.wbe2r_r_zigbee_sh",
+        "product.wirenboard.wbc2_4g",
+        "product.wirenboard.ds18b20_1m",
+        "product.wirenboard.ds18b20_3m",
+        "product.wirenboard.ds18b20_5m",
+        "product.wirenboard.ds18b20_10m",
+        "product.wirenboard.wb_t120",
+        "product.wirenboard.wb_ampled"
+      ]
+    },
+    "nlp3.equipment.2026-10-27.wb-verified-eight": {
+      "passports": [
+        "module.wirenboard.wb_mr6c_v3",
+        "module.wirenboard.wb_mr3lv_s",
+        "module.wirenboard.wb_mr3lv_i",
+        "module.wirenboard.wb_mr6lv_s",
+        "module.wirenboard.wb_mrps6_s",
+        "module.wirenboard.wb_mrwl3",
+        "module.wirenboard.wb_mrwm2"
+      ],
+      "products": [
+        "product.wirenboard.wb_mr6c_v3",
+        "product.wirenboard.wb_mr3lv_s",
+        "product.wirenboard.wb_mr3lv_i",
+        "product.wirenboard.wb_mr6lv_s",
+        "product.wirenboard.wb_mrps6_s",
+        "product.wirenboard.wb_mrwl3",
+        "product.wirenboard.wb_mrwm2"
+      ]
+    },
+    "nlp3.equipment.2026-10-27.wb-verified-fifteen": {
+      "passports": [
+        "module.wirenboard.wb_mai2_cc_v3",
+        "module.wirenboard.wb_mwac_v2",
+        "module.wirenboard.wb_map3et",
+        "module.wirenboard.wb_mio"
+      ],
+      "products": [
+        "product.wirenboard.wb_mai2_cc_v3",
+        "product.wirenboard.wb_mwac_v2",
+        "product.wirenboard.wb_map3et",
+        "product.wirenboard.wb_mio"
+      ]
+    },
+    "nlp3.equipment.2026-10-27.wb-verified-nineteen": {
+      "passports": [
+        "module.wirenboard.wb_mcm8hv",
+        "module.wirenboard.wb_mdm3"
+      ],
+      "products": [
+        "product.wirenboard.wb_mcm8hv",
+        "product.wirenboard.wb_mdm3"
+      ]
+    },
+    "nlp3.equipment.2026-10-27.wb-verified-twentyone": {
+      "passports": [
+        "module.wirenboard.wbio_di_wd_14",
+        "module.wirenboard.wbio_di_hvd_8",
+        "module.wirenboard.wbio_di_hvd_16",
+        "module.wirenboard.wbe2r_r_zigbee_sh",
+        "module.wirenboard.wbc2_4g",
+        "module.wirenboard.ds18b20_probe",
+        "module.wirenboard.wb_t120"
+      ],
+      "products": [
+        "product.wirenboard.wbio_di_wd_14",
+        "product.wirenboard.wbio_di_hvd_8",
+        "product.wirenboard.wbio_di_hvd_16",
+        "product.wirenboard.wbe2r_r_zigbee_sh",
+        "product.wirenboard.wbc2_4g",
+        "product.wirenboard.ds18b20_1m",
+        "product.wirenboard.ds18b20_3m",
+        "product.wirenboard.ds18b20_5m",
+        "product.wirenboard.ds18b20_10m",
+        "product.wirenboard.wb_t120"
+      ]
+    },
+    "nlp3.equipment.2026-10-27.wb-verified-twentyeight": {
+      "passports": [
+        "module.wirenboard.wb_ampled"
+      ],
+      "products": [
+        "product.wirenboard.wb_ampled"
+      ]
     }
   },
   "schema_version": 1,
-  "content_sha256": "4e3f7a0b96ffc36919de9d1b49f25a93361f526ee6402cb92977930b4a8f60d5",
+  "content_sha256": "eaa9952e9d3b01e9432e4a7b8793106c44fdb303f79cc745fc0e00c374c33024",
   "files": {
-    "equipment_passports.json": "89ec12ab0b1eb2c3ef4a8011772ba527f2313e2bbfc62479b8b71c58f9efa34b",
-    "products.json": "08719a4407348fb18cb125cf3d7a97b0166c58f583b2934c41b902bdf77a35eb"
+    "equipment_passports.json": "14853ae121f2fa2dfab5c00defb40571778b4c1408b2ec03bc62190935257661",
+    "products.json": "7801e84a0def5c7dce07273d9c0929b94e161d5c4cbc878c153ffabec97b98fe"
   },
   "expected_counts": {
-    "passports": 20,
-    "products": 33
+    "passports": 49,
+    "products": 65
   },
   "forbidden_manufacturers": [
     "Vendor Alpha",
