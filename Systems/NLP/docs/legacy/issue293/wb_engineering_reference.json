@@ -1,0 +1,1137 @@
+{
+  "catalog_version": 3,
+  "description": "Расширяемый инженерный справочник проверенных устройств Wiren Board. Хранит каналы/интерфейсы и расчётные мощности; не весь список сразу показывается в рабочем выпадающем выборе.",
+  "module_types": [
+    {
+      "code": "WB8",
+      "title": "Wiren Board 8",
+      "source": "Wiren Board: Wiren Board 8.5",
+      "note": "Контроллер WB8.5: два штатных RS-485, ETH1/ETH2, питание 24 В и слоты MOD1-MOD4.",
+      "channels": [
+        {
+          "code": "RS-485 1",
+          "kind": "interface",
+          "label": "Шина RS-485 1"
+        },
+        {
+          "code": "RS-485 2",
+          "kind": "interface",
+          "label": "Шина RS-485 2"
+        }
+      ],
+      "design_power_w": 8,
+      "power_basis": "Номинальная мощность контроллера на типовой схеме пользователя; расчёт БП контроллера пока рекомендуется выполнять вручную."
+    },
+    {
+      "code": "WB-UPS_V3",
+      "title": "WB-UPS v.3",
+      "source": "Wiren Board: WB-UPS v.3 Backup power supply",
+      "note": "Источник бесперебойного питания контроллерного узла; отображается как системный элемент без каналов.",
+      "channels": [],
+      "design_power_w": 6,
+      "power_basis": "Потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WBIO-DI-WD-14",
+      "title": "WBIO-DI-WD-14",
+      "source": "Wiren Board: WBIO-DI-WD-14",
+      "note": "Боковой модуль дискретных входов.",
+      "channels": [
+        {
+          "code": "in1",
+          "kind": "input",
+          "label": "Дискретный вход 1"
+        },
+        {
+          "code": "in2",
+          "kind": "input",
+          "label": "Дискретный вход 2"
+        },
+        {
+          "code": "in3",
+          "kind": "input",
+          "label": "Дискретный вход 3"
+        },
+        {
+          "code": "in4",
+          "kind": "input",
+          "label": "Дискретный вход 4"
+        },
+        {
+          "code": "in5",
+          "kind": "input",
+          "label": "Дискретный вход 5"
+        },
+        {
+          "code": "in6",
+          "kind": "input",
+          "label": "Дискретный вход 6"
+        },
+        {
+          "code": "in7",
+          "kind": "input",
+          "label": "Дискретный вход 7"
+        },
+        {
+          "code": "in8",
+          "kind": "input",
+          "label": "Дискретный вход 8"
+        },
+        {
+          "code": "in9",
+          "kind": "input",
+          "label": "Дискретный вход 9"
+        },
+        {
+          "code": "in10",
+          "kind": "input",
+          "label": "Дискретный вход 10"
+        },
+        {
+          "code": "in11",
+          "kind": "input",
+          "label": "Дискретный вход 11"
+        },
+        {
+          "code": "in12",
+          "kind": "input",
+          "label": "Дискретный вход 12"
+        },
+        {
+          "code": "in13",
+          "kind": "input",
+          "label": "Дискретный вход 13"
+        },
+        {
+          "code": "in14",
+          "kind": "input",
+          "label": "Дискретный вход 14"
+        }
+      ],
+      "design_power_w": 0.5,
+      "power_basis": "Потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WBIO-DI-HVD-8",
+      "title": "WBIO-DI-HVD-8",
+      "source": "Wiren Board: WBIO-DI-HVD-8",
+      "note": "Боковой модуль-детектор сетевого напряжения 230 В, 8 каналов.",
+      "channels": [
+        {
+          "code": "in1",
+          "kind": "input",
+          "label": "Детектор напряжения 1"
+        },
+        {
+          "code": "in2",
+          "kind": "input",
+          "label": "Детектор напряжения 2"
+        },
+        {
+          "code": "in3",
+          "kind": "input",
+          "label": "Детектор напряжения 3"
+        },
+        {
+          "code": "in4",
+          "kind": "input",
+          "label": "Детектор напряжения 4"
+        },
+        {
+          "code": "in5",
+          "kind": "input",
+          "label": "Детектор напряжения 5"
+        },
+        {
+          "code": "in6",
+          "kind": "input",
+          "label": "Детектор напряжения 6"
+        },
+        {
+          "code": "in7",
+          "kind": "input",
+          "label": "Детектор напряжения 7"
+        },
+        {
+          "code": "in8",
+          "kind": "input",
+          "label": "Детектор напряжения 8"
+        }
+      ],
+      "design_power_w": 0.016,
+      "power_basis": "Потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WBIO-DI-HVD-16",
+      "title": "WBIO-DI-HVD-16",
+      "source": "Wiren Board: WBIO-DI-HVD-16",
+      "note": "Боковой модуль-детектор сетевого напряжения 230 В, 16 каналов.",
+      "channels": [
+        {
+          "code": "in1",
+          "kind": "input",
+          "label": "Детектор напряжения 1"
+        },
+        {
+          "code": "in2",
+          "kind": "input",
+          "label": "Детектор напряжения 2"
+        },
+        {
+          "code": "in3",
+          "kind": "input",
+          "label": "Детектор напряжения 3"
+        },
+        {
+          "code": "in4",
+          "kind": "input",
+          "label": "Детектор напряжения 4"
+        },
+        {
+          "code": "in5",
+          "kind": "input",
+          "label": "Детектор напряжения 5"
+        },
+        {
+          "code": "in6",
+          "kind": "input",
+          "label": "Детектор напряжения 6"
+        },
+        {
+          "code": "in7",
+          "kind": "input",
+          "label": "Детектор напряжения 7"
+        },
+        {
+          "code": "in8",
+          "kind": "input",
+          "label": "Детектор напряжения 8"
+        },
+        {
+          "code": "in9",
+          "kind": "input",
+          "label": "Детектор напряжения 9"
+        },
+        {
+          "code": "in10",
+          "kind": "input",
+          "label": "Детектор напряжения 10"
+        },
+        {
+          "code": "in11",
+          "kind": "input",
+          "label": "Детектор напряжения 11"
+        },
+        {
+          "code": "in12",
+          "kind": "input",
+          "label": "Детектор напряжения 12"
+        },
+        {
+          "code": "in13",
+          "kind": "input",
+          "label": "Детектор напряжения 13"
+        },
+        {
+          "code": "in14",
+          "kind": "input",
+          "label": "Детектор напряжения 14"
+        },
+        {
+          "code": "in15",
+          "kind": "input",
+          "label": "Детектор напряжения 15"
+        },
+        {
+          "code": "in16",
+          "kind": "input",
+          "label": "Детектор напряжения 16"
+        }
+      ],
+      "design_power_w": 0.02,
+      "power_basis": "Потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WBE2-I-RS485-ISO",
+      "title": "WBE2-I-RS485-ISO",
+      "source": "Wiren Board: WBE2-I-RS485-ISO",
+      "note": "Внутренний модуль дополнительного изолированного порта RS-485.",
+      "channels": [
+        {
+          "code": "RS-485",
+          "kind": "interface",
+          "label": "Дополнительная шина RS-485"
+        }
+      ]
+    },
+    {
+      "code": "WBE2-I-OPENTHERM",
+      "title": "WBE2-I-OPENTHERM",
+      "source": "Wiren Board: WBE2-I-OPENTHERM",
+      "note": "Внутренний модуль интерфейса OpenTherm.",
+      "channels": [
+        {
+          "code": "OpenTherm",
+          "kind": "interface",
+          "label": "Шина OpenTherm"
+        }
+      ]
+    },
+    {
+      "code": "WBE2-I-EBUS",
+      "title": "WBE2-I-EBUS",
+      "source": "Wiren Board: WBE2-I-EBUS",
+      "note": "Внутренний модуль интерфейса eBUS.",
+      "channels": [
+        {
+          "code": "eBUS",
+          "kind": "interface",
+          "label": "Шина eBUS"
+        }
+      ]
+    },
+    {
+      "code": "WBE2-I-KNX",
+      "title": "WBE2-I-KNX",
+      "source": "Wiren Board: WBE2-I-KNX",
+      "note": "Внутренний модуль интерфейса KNX.",
+      "channels": [
+        {
+          "code": "KNX",
+          "kind": "interface",
+          "label": "Шина KNX"
+        }
+      ]
+    },
+    {
+      "code": "WBE2-I-RS232",
+      "title": "WBE2-I-RS232",
+      "source": "Wiren Board: WBE2-I-RS232",
+      "note": "Внутренний модуль интерфейса RS-232.",
+      "channels": [
+        {
+          "code": "RS-232",
+          "kind": "interface",
+          "label": "Интерфейс RS-232"
+        }
+      ]
+    },
+    {
+      "code": "WB-MR6C_V2",
+      "title": "WB-MR6C v.2",
+      "source": "Wiren Board: WB-MR6C v.2 Modbus Relay Modules",
+      "note": "6 релейных выходов и 6 входов.",
+      "channels": [
+        {
+          "code": "K1",
+          "kind": "output",
+          "label": "Выход реле 1"
+        },
+        {
+          "code": "K2",
+          "kind": "output",
+          "label": "Выход реле 2"
+        },
+        {
+          "code": "K3",
+          "kind": "output",
+          "label": "Выход реле 3"
+        },
+        {
+          "code": "K4",
+          "kind": "output",
+          "label": "Выход реле 4"
+        },
+        {
+          "code": "K5",
+          "kind": "output",
+          "label": "Выход реле 5"
+        },
+        {
+          "code": "K6",
+          "kind": "output",
+          "label": "Выход реле 6"
+        },
+        {
+          "code": "in1",
+          "kind": "input",
+          "label": "Вход 1"
+        },
+        {
+          "code": "in2",
+          "kind": "input",
+          "label": "Вход 2"
+        },
+        {
+          "code": "in3",
+          "kind": "input",
+          "label": "Вход 3"
+        },
+        {
+          "code": "in4",
+          "kind": "input",
+          "label": "Вход 4"
+        },
+        {
+          "code": "in5",
+          "kind": "input",
+          "label": "Вход 5"
+        },
+        {
+          "code": "in6",
+          "kind": "input",
+          "label": "Вход 6"
+        }
+      ],
+      "design_power_w": 4,
+      "power_basis": "Пиковая потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-MR3LV_S",
+      "title": "WB-MR3LV/S",
+      "source": "Wiren Board: WB-MR3LV/S and WB-MR6LV/S Modbus Relay Modules",
+      "note": "3 релейных выхода и 3 входа типа «сухой контакт».",
+      "channels": [
+        {
+          "code": "K1",
+          "kind": "output",
+          "label": "Выход реле 1"
+        },
+        {
+          "code": "K2",
+          "kind": "output",
+          "label": "Выход реле 2"
+        },
+        {
+          "code": "K3",
+          "kind": "output",
+          "label": "Выход реле 3"
+        },
+        {
+          "code": "in1",
+          "kind": "input",
+          "label": "Вход 1"
+        },
+        {
+          "code": "in2",
+          "kind": "input",
+          "label": "Вход 2"
+        },
+        {
+          "code": "in3",
+          "kind": "input",
+          "label": "Вход 3"
+        }
+      ],
+      "design_power_w": 4,
+      "power_basis": "Пиковая потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-MR6CU_V2",
+      "title": "WB-MR6CU v.2",
+      "source": "Wiren Board: WB-MR6CU v.2 Modbus Relay Modules",
+      "note": "Компактный шестиканальный релейный модуль; в текущем представлении показываются выходы.",
+      "channels": [
+        {
+          "code": "K1",
+          "kind": "output",
+          "label": "Выход реле 1"
+        },
+        {
+          "code": "K2",
+          "kind": "output",
+          "label": "Выход реле 2"
+        },
+        {
+          "code": "K3",
+          "kind": "output",
+          "label": "Выход реле 3"
+        },
+        {
+          "code": "K4",
+          "kind": "output",
+          "label": "Выход реле 4"
+        },
+        {
+          "code": "K5",
+          "kind": "output",
+          "label": "Выход реле 5"
+        },
+        {
+          "code": "K6",
+          "kind": "output",
+          "label": "Выход реле 6"
+        }
+      ],
+      "design_power_w": 4,
+      "power_basis": "Пиковая потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-MRPS6_S",
+      "title": "WB-MRPS6/S",
+      "source": "Wiren Board: WB-MRPS6 Modbus Relay Modules",
+      "note": "Шестиканальный релейный модуль без входов.",
+      "channels": [
+        {
+          "code": "K1",
+          "kind": "output",
+          "label": "Выход реле 1"
+        },
+        {
+          "code": "K2",
+          "kind": "output",
+          "label": "Выход реле 2"
+        },
+        {
+          "code": "K3",
+          "kind": "output",
+          "label": "Выход реле 3"
+        },
+        {
+          "code": "K4",
+          "kind": "output",
+          "label": "Выход реле 4"
+        },
+        {
+          "code": "K5",
+          "kind": "output",
+          "label": "Выход реле 5"
+        },
+        {
+          "code": "K6",
+          "kind": "output",
+          "label": "Выход реле 6"
+        }
+      ],
+      "design_power_w": 8,
+      "power_basis": "Пиковая потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-MRWL3",
+      "title": "WB-MRWL3",
+      "source": "Wiren Board: WB-MRWL3 Modbus Relay Module",
+      "note": "Трёхканальный релейный модуль; в текущем представлении показываются выходы.",
+      "channels": [
+        {
+          "code": "K1",
+          "kind": "output",
+          "label": "Выход реле 1"
+        },
+        {
+          "code": "K2",
+          "kind": "output",
+          "label": "Выход реле 2"
+        },
+        {
+          "code": "K3",
+          "kind": "output",
+          "label": "Выход реле 3"
+        }
+      ],
+      "design_power_w": 5,
+      "power_basis": "Пиковая потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-MRWM2",
+      "title": "WB-MRWM2",
+      "source": "Wiren Board: WB-MRWM2",
+      "note": "Двухканальный релейный модуль с измерением мощности и контролем напряжения.",
+      "channels": [
+        {
+          "code": "K1",
+          "kind": "output",
+          "label": "Выход реле 1"
+        },
+        {
+          "code": "K2",
+          "kind": "output",
+          "label": "Выход реле 2"
+        }
+      ],
+      "design_power_w": 4,
+      "power_basis": "Пиковая потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-LED",
+      "title": "WB-LED",
+      "source": "Wiren Board: WB-LED v.1 Modbus LED Dimmer",
+      "note": "4 физических ШИМ-выхода и 4 аппаратных входа. RGBW занимает все выходы: Channel 1=B, Channel 2=R, Channel 3=G, Channel 4=W.",
+      "channels": [
+        {
+          "code": "Channel 1",
+          "kind": "output",
+          "label": "ШИМ-выход 1",
+          "max_current_a": 5.0
+        },
+        {
+          "code": "Channel 2",
+          "kind": "output",
+          "label": "ШИМ-выход 2",
+          "max_current_a": 5.0
+        },
+        {
+          "code": "Channel 3",
+          "kind": "output",
+          "label": "ШИМ-выход 3",
+          "max_current_a": 5.0
+        },
+        {
+          "code": "Channel 4",
+          "kind": "output",
+          "label": "ШИМ-выход 4",
+          "max_current_a": 5.0
+        },
+        {
+          "code": "in1",
+          "kind": "input",
+          "label": "Вход 1"
+        },
+        {
+          "code": "in2",
+          "kind": "input",
+          "label": "Вход 2"
+        },
+        {
+          "code": "in3",
+          "kind": "input",
+          "label": "Вход 3"
+        },
+        {
+          "code": "in4",
+          "kind": "input",
+          "label": "Вход 4"
+        }
+      ],
+      "control_profiles": [
+        {
+          "code": "RGBW",
+          "kind": "output_group",
+          "label": "RGBW: Channel 1=B, 2=R, 3=G, 4=W",
+          "channels": ["Channel 1", "Channel 2", "Channel 3", "Channel 4"]
+        }
+      ],
+      "design_power_w": 0.3,
+      "power_basis": "Потребляемая мощность электроники по официальной сводной таблице; LED-нагрузка рассчитывается отдельно по линиям.",
+      "load_limit_basis": "WB-LED: 4 канала по 5 А, до 48 В постоянного тока; источник: официальный каталог Wiren Board."
+    },
+    {
+      "code": "WB-AMPLED",
+      "title": "WB-AMPLED",
+      "source": "Wiren Board: WB-AMPLED v.1 RGBW Constant Voltage LED Amplifier",
+      "note": "4 силовых выходных канала и 4 входа управляющего сигнала; LED-нагрузка рассчитывается по выходным линиям.",
+      "channels": [
+        {
+          "code": "out1",
+          "kind": "output",
+          "label": "Выход усилителя 1"
+        },
+        {
+          "code": "out2",
+          "kind": "output",
+          "label": "Выход усилителя 2"
+        },
+        {
+          "code": "out3",
+          "kind": "output",
+          "label": "Выход усилителя 3"
+        },
+        {
+          "code": "out4",
+          "kind": "output",
+          "label": "Выход усилителя 4"
+        },
+        {
+          "code": "in1",
+          "kind": "input",
+          "label": "Вход управления 1"
+        },
+        {
+          "code": "in2",
+          "kind": "input",
+          "label": "Вход управления 2"
+        },
+        {
+          "code": "in3",
+          "kind": "input",
+          "label": "Вход управления 3"
+        },
+        {
+          "code": "in4",
+          "kind": "input",
+          "label": "Вход управления 4"
+        }
+      ]
+    },
+    {
+      "code": "WB-MCM8",
+      "title": "WB-MCM8",
+      "source": "Wiren Board: WB-MCM8",
+      "note": "8-канальный модуль дискретных и счётных входов.",
+      "channels": [
+        {
+          "code": "in1",
+          "kind": "input",
+          "label": "Вход 1"
+        },
+        {
+          "code": "in2",
+          "kind": "input",
+          "label": "Вход 2"
+        },
+        {
+          "code": "in3",
+          "kind": "input",
+          "label": "Вход 3"
+        },
+        {
+          "code": "in4",
+          "kind": "input",
+          "label": "Вход 4"
+        },
+        {
+          "code": "in5",
+          "kind": "input",
+          "label": "Вход 5"
+        },
+        {
+          "code": "in6",
+          "kind": "input",
+          "label": "Вход 6"
+        },
+        {
+          "code": "in7",
+          "kind": "input",
+          "label": "Вход 7"
+        },
+        {
+          "code": "in8",
+          "kind": "input",
+          "label": "Вход 8"
+        }
+      ],
+      "design_power_w": 0.1,
+      "power_basis": "Потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-MAO4",
+      "title": "WB-MAO4",
+      "source": "Wiren Board: WB-MAO4",
+      "note": "Четырёхканальный модуль аналоговых выходов 0–10 В.",
+      "channels": [
+        {
+          "code": "out1",
+          "kind": "output",
+          "label": "Аналоговый выход 0–10 В 1"
+        },
+        {
+          "code": "out2",
+          "kind": "output",
+          "label": "Аналоговый выход 0–10 В 2"
+        },
+        {
+          "code": "out3",
+          "kind": "output",
+          "label": "Аналоговый выход 0–10 В 3"
+        },
+        {
+          "code": "out4",
+          "kind": "output",
+          "label": "Аналоговый выход 0–10 В 4"
+        }
+      ],
+      "design_power_w": 2.3,
+      "power_basis": "Верхняя граница потребляемой мощности по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-MAO4_20MA",
+      "title": "WB-MAO4-20mA",
+      "source": "Wiren Board: WB-MAO4-20mA",
+      "note": "Четырёхканальный модуль аналоговых выходов 0–20 мА.",
+      "channels": [
+        {
+          "code": "out1",
+          "kind": "output",
+          "label": "Аналоговый выход 0–20 мА 1"
+        },
+        {
+          "code": "out2",
+          "kind": "output",
+          "label": "Аналоговый выход 0–20 мА 2"
+        },
+        {
+          "code": "out3",
+          "kind": "output",
+          "label": "Аналоговый выход 0–20 мА 3"
+        },
+        {
+          "code": "out4",
+          "kind": "output",
+          "label": "Аналоговый выход 0–20 мА 4"
+        }
+      ],
+      "design_power_w": 2.3,
+      "power_basis": "Верхняя граница потребляемой мощности по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-MAP3ET",
+      "title": "WB-MAP3ET",
+      "source": "Wiren Board: WB-MAP3ET",
+      "note": "Измеритель параметров электрической сети; используется как системная нагрузка.",
+      "channels": [],
+      "design_power_w": 1.3,
+      "power_basis": "Потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-M1W2_V3",
+      "title": "WB-M1W2 v.3",
+      "source": "Wiren Board: WB-M1W2 v.3",
+      "note": "Преобразователь 1-Wire/сухих контактов. В рабочей модели всегда показываются W1, W2, 24V и RS-485.",
+      "channels": [
+        {
+          "code": "W1",
+          "kind": "input",
+          "label": "1-Wire / сухой контакт 1"
+        },
+        {
+          "code": "W2",
+          "kind": "input",
+          "label": "1-Wire / сухой контакт 2"
+        }
+      ],
+      "design_power_w": 0.1,
+      "power_basis": "Потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-MAI2_CC_V3",
+      "title": "WB-MAI2-mini/CC v.3",
+      "source": "Wiren Board: WB-MAI2-mini/CC v.3",
+      "note": "Модуль аналоговых входов; каналы будут уточняться отдельно.",
+      "channels": [],
+      "design_power_w": 0.06,
+      "power_basis": "Потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-MAI6",
+      "title": "WB-MAI6",
+      "source": "Wiren Board: WB-MAI6",
+      "note": "Модуль аналоговых входов; каналы будут уточняться отдельно.",
+      "channels": [],
+      "design_power_w": 0.2,
+      "power_basis": "Потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-MWAC",
+      "title": "WB-MWAC v.2",
+      "source": "Wiren Board: WB-MWAC v.2",
+      "note": "Контроль протечек: K1/K2 управляют кранами; F1-F5/S6 — входы датчиков протечки. Питание датчиков отдельно не проверяется; P1/P2 счетчиков воды пока не используются.",
+      "channels": [
+        {
+          "code": "K1",
+          "kind": "output",
+          "label": "Кран 1"
+        },
+        {
+          "code": "K2",
+          "kind": "output",
+          "label": "Кран 2"
+        },
+        {
+          "code": "F1",
+          "kind": "input",
+          "label": "Датчик протечки 1"
+        },
+        {
+          "code": "F2",
+          "kind": "input",
+          "label": "Датчик протечки 2"
+        },
+        {
+          "code": "F3",
+          "kind": "input",
+          "label": "Датчик протечки 3"
+        },
+        {
+          "code": "F4",
+          "kind": "input",
+          "label": "Датчик протечки 4"
+        },
+        {
+          "code": "F5",
+          "kind": "input",
+          "label": "Датчик протечки 5"
+        },
+        {
+          "code": "S6",
+          "kind": "input",
+          "label": "Датчик протечки 6"
+        }
+      ],
+      "design_power_w": 4,
+      "power_basis": "Пиковая потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-MGE_V3",
+      "title": "WB-MGE v.3",
+      "source": "Wiren Board: WB-MGE v.3",
+      "note": "Преобразователь интерфейсов; используется как системная нагрузка.",
+      "channels": [],
+      "design_power_w": 1,
+      "power_basis": "Потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-MIO",
+      "title": "WB-MIO",
+      "source": "Wiren Board: WB-MIO",
+      "note": "Преобразователь интерфейсов; используется как системная нагрузка.",
+      "channels": [],
+      "design_power_w": 0.85,
+      "power_basis": "Потребляемая мощность по официальной сводной таблице Wiren Board."
+    },
+    {
+      "code": "WB-DALI3",
+      "title": "WB-DALI3",
+      "source": "Wiren Board: WB-DALI3",
+      "note": "Шлюз DALI; в текущей версии хранится для системного питания без детализации интерфейсов.",
+      "channels": [],
+      "design_power_w": 3.6,
+      "power_basis": "Мощность по переменному току из официальной сводной таблицы Wiren Board."
+    },
+    {
+      "code": "WBC2-4G",
+      "title": "WBC2-4G",
+      "source": "Wiren Board: power consumption reference",
+      "note": "Модуль мобильной связи; хранится как системная нагрузка без каналов.",
+      "design_power_w": 5,
+      "power_basis": "Пиковая потребляемая мощность по официальной сводной таблице Wiren Board.",
+      "channels": []
+    },
+    {
+      "code": "WBE2R-R-ZIGBEE-SH",
+      "title": "WBE2R-R-ZIGBEE-SH",
+      "source": "Wiren Board: power consumption reference",
+      "note": "Внутренний модуль Zigbee Sprut.hub; хранится как системная нагрузка без детализации.",
+      "design_power_w": 0.3,
+      "power_basis": "Потребляемая мощность по официальной сводной таблице Wiren Board.",
+      "channels": []
+    },
+    {
+      "code": "WB-MR6C_V3",
+      "title": "WB-MR6C v.3",
+      "source": "Wiren Board: WB-MR6C v.3 Modbus Relay Modules",
+      "note": "Шестиканальный релейный модуль со встроенным блоком питания. Документация указывает входы Inputs 0–6.",
+      "design_power_w": 4,
+      "power_basis": "Пиковая потребляемая мощность по официальной сводной таблице Wiren Board.",
+      "channels": [
+        {
+          "code": "K1",
+          "kind": "output",
+          "label": "Выход реле 1"
+        },
+        {
+          "code": "K2",
+          "kind": "output",
+          "label": "Выход реле 2"
+        },
+        {
+          "code": "K3",
+          "kind": "output",
+          "label": "Выход реле 3"
+        },
+        {
+          "code": "K4",
+          "kind": "output",
+          "label": "Выход реле 4"
+        },
+        {
+          "code": "K5",
+          "kind": "output",
+          "label": "Выход реле 5"
+        },
+        {
+          "code": "K6",
+          "kind": "output",
+          "label": "Выход реле 6"
+        },
+        {
+          "code": "in0",
+          "kind": "input",
+          "label": "Вход 0"
+        },
+        {
+          "code": "in1",
+          "kind": "input",
+          "label": "Вход 1"
+        },
+        {
+          "code": "in2",
+          "kind": "input",
+          "label": "Вход 2"
+        },
+        {
+          "code": "in3",
+          "kind": "input",
+          "label": "Вход 3"
+        },
+        {
+          "code": "in4",
+          "kind": "input",
+          "label": "Вход 4"
+        },
+        {
+          "code": "in5",
+          "kind": "input",
+          "label": "Вход 5"
+        },
+        {
+          "code": "in6",
+          "kind": "input",
+          "label": "Вход 6"
+        }
+      ]
+    },
+    {
+      "code": "WB-MR6LV_S",
+      "title": "WB-MR6LV/S",
+      "source": "Wiren Board: WB-MR3LV/S and WB-MR6LV/S Modbus Relay Modules",
+      "note": "Шесть релейных выходов и дискретные входы «сухой контакт».",
+      "design_power_w": 8,
+      "power_basis": "Пиковая потребляемая мощность по официальной сводной таблице Wiren Board.",
+      "channels": [
+        {
+          "code": "K1",
+          "kind": "output",
+          "label": "Выход реле 1"
+        },
+        {
+          "code": "K2",
+          "kind": "output",
+          "label": "Выход реле 2"
+        },
+        {
+          "code": "K3",
+          "kind": "output",
+          "label": "Выход реле 3"
+        },
+        {
+          "code": "K4",
+          "kind": "output",
+          "label": "Выход реле 4"
+        },
+        {
+          "code": "K5",
+          "kind": "output",
+          "label": "Выход реле 5"
+        },
+        {
+          "code": "K6",
+          "kind": "output",
+          "label": "Выход реле 6"
+        },
+        {
+          "code": "in1",
+          "kind": "input",
+          "label": "Вход 1"
+        },
+        {
+          "code": "in2",
+          "kind": "input",
+          "label": "Вход 2"
+        },
+        {
+          "code": "in3",
+          "kind": "input",
+          "label": "Вход 3"
+        },
+        {
+          "code": "in4",
+          "kind": "input",
+          "label": "Вход 4"
+        },
+        {
+          "code": "in5",
+          "kind": "input",
+          "label": "Вход 5"
+        },
+        {
+          "code": "in6",
+          "kind": "input",
+          "label": "Вход 6"
+        }
+      ]
+    },
+    {
+      "code": "WB-MR3LV_I",
+      "title": "WB-MR3LV/I",
+      "source": "Wiren Board: WB-MR3LV/I(K) and WB-MR6LV/I(K) Modbus Relay Modules",
+      "note": "Три релейных выхода с перекидной группой контактов и дискретные входы.",
+      "design_power_w": 4,
+      "power_basis": "Пиковая потребляемая мощность для WB-MR3LV по официальной сводной таблице Wiren Board.",
+      "channels": [
+        {
+          "code": "K1",
+          "kind": "output",
+          "label": "Выход реле 1"
+        },
+        {
+          "code": "K2",
+          "kind": "output",
+          "label": "Выход реле 2"
+        },
+        {
+          "code": "K3",
+          "kind": "output",
+          "label": "Выход реле 3"
+        },
+        {
+          "code": "in1",
+          "kind": "input",
+          "label": "Вход 1"
+        },
+        {
+          "code": "in2",
+          "kind": "input",
+          "label": "Вход 2"
+        },
+        {
+          "code": "in3",
+          "kind": "input",
+          "label": "Вход 3"
+        }
+      ]
+    },
+    {
+      "code": "WB-MDM3",
+      "title": "WB-MDM3",
+      "source": "Wiren Board: Documentation",
+      "note": "Трёхканальный диммер светодиодных ламп и ламп накаливания 230 В.",
+      "design_power_w": 0.4,
+      "power_basis": "Потребляемая мощность по официальной сводной таблице Wiren Board.",
+      "channels": [
+        {
+          "code": "K1",
+          "kind": "output",
+          "label": "Канал диммера 1"
+        },
+        {
+          "code": "K2",
+          "kind": "output",
+          "label": "Канал диммера 2"
+        },
+        {
+          "code": "K3",
+          "kind": "output",
+          "label": "Канал диммера 3"
+        }
+      ]
+    },
+    {
+      "code": "WB-T120",
+      "title": "WB-T120",
+      "source": "Wiren Board: Documentation",
+      "note": "Терминатор согласования шины RS-485; пассивный элемент без каналов нагрузки.",
+      "design_power_w": 0,
+      "power_basis": "Пассивное устройство по официальной сводной таблице Wiren Board.",
+      "channels": []
+    }
+  ]
+}

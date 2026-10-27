@@ -1,0 +1,308 @@
+{
+  "catalog_version": 1,
+  "source": "Wiren Board Price List 2026-06-03.xlsx; исходный каталог: wirenboard.com/ru/catalog/pricelist/",
+  "description": "Номенклатурный справочник Wiren Board для спецификации. Не определяет каналы и инженерную логику устройства.",
+  "items": [
+    {
+      "category": "Контроллеры",
+      "article": "WB8-4G-64G-IND",
+      "name": "Контроллер для автоматизации Wiren Board 8\n4 ГБайт RAM, 64 ГБайт eMMC\nПамять и исполнение: 4 Гбайт RAM, 64 Гбайт eMMC (от −40 до +75 °С)",
+      "price_rub": 26860,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Модули для контроллеров",
+      "article": "WBIO-DI-WD-14",
+      "name": "Модуль ввода-вывода WBIO-DI-WD-14",
+      "price_rub": 3040,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Модули для контроллеров",
+      "article": "WBIO-DI-HVD-16",
+      "name": "Модуль ввода-вывода WBIO-DI-HVD-16",
+      "price_rub": 4000,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Модули для контроллеров",
+      "article": "WBIO-DI-HVD-8",
+      "name": "Модуль ввода-вывода WBIO-DI-HVD-8",
+      "price_rub": 2600,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Модули для контроллеров",
+      "article": "WB-UPS v.3",
+      "name": "Модуль резервного питания  WB-UPS v.3",
+      "price_rub": 5800,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Модули для контроллеров",
+      "article": "WBC2-4G",
+      "name": "Модуль расширения WBC2-4G",
+      "price_rub": 4000,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Модули для контроллеров",
+      "article": "WBE2R-R-ZIGBEE-SH",
+      "name": "Модуль расширения Sprut.stick ZigBee WBE2R-R-ZIGBEE-SH",
+      "price_rub": 9666,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Модули для контроллеров",
+      "article": "WBE2-I-KNX",
+      "name": "Модуль расширения WBE2-I-KNX",
+      "price_rub": 6100,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Модули для контроллеров",
+      "article": "WBE2-I-RS232",
+      "name": "Модуль расширения WBE2-I-RS232",
+      "price_rub": 840,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Модули для контроллеров",
+      "article": "WBE2-I-RS485-ISO",
+      "name": "Модуль расширения WBE2-I-RS485-ISO",
+      "price_rub": 1480,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Модули для контроллеров",
+      "article": "WBE2-I-OPENTHERM",
+      "name": "Модуль расширения WBE2-I-OPENTHERM",
+      "price_rub": 7230,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Модули для контроллеров",
+      "article": "WBE2-I-EBUS",
+      "name": "Модуль расширения WBE2-I-EBUS",
+      "price_rub": 6700,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Реле",
+      "article": "WB-MRWM2",
+      "name": "Модуль реле 2-канальный с измерением мощности и контролем напряжения WB-MRWM2",
+      "price_rub": 5000,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Реле",
+      "article": "WB-MR6C v.2",
+      "name": "Модуль реле 6-канальный WB-MR6C v.2",
+      "price_rub": 4200,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Реле",
+      "article": "WB-MR6C v.3",
+      "name": "Модуль реле 6-канальный со встроенным блоком питания WB-MR6C v.3",
+      "price_rub": 5000,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Реле",
+      "article": "WB-MR6LV/S",
+      "name": "WB-MR6LV/S\nТип выходов: / S - SPST, нормально открытый контакт, очень большой пусковой ток, до 500 A (1.5 мс)",
+      "price_rub": 5920,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Реле",
+      "article": "WB-MR6CU v.2",
+      "name": "Модуль реле 6-канальный WB-MR6CU v.2",
+      "price_rub": 3900,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Реле",
+      "article": "WB-MR3LV/S",
+      "name": "WB-MR3LV/S\nТип выходов: / S — SPST, нормально открытый контакт, очень большой пусковой ток, 500 A (1.5 мс)",
+      "price_rub": 3900,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Реле",
+      "article": "WB-MR3LV/I",
+      "name": "WB-MR3LV/I\nТип выходов: / I — SPDT, переключае​мая группа контактов, большой пусковой ток, до 120 A (20 мс)",
+      "price_rub": 3800,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Реле",
+      "article": "WB-MRPS6/S",
+      "name": "Модуль реле 6-канальный WB-MRPS6/S",
+      "price_rub": 5000,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Реле",
+      "article": "WB-MRWL3",
+      "name": "Модуль реле 3-канальный WB-MRWL3",
+      "price_rub": 4300,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Реле",
+      "article": "WB-MRM2-mini v.3",
+      "name": "Модуль реле 2-канальный с входами 1-Wire WB-MRM2-mini v.3",
+      "price_rub": 2600,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Электросчетчики",
+      "article": "WB-MAP3ET",
+      "name": "Измеритель параметров электрической сети WB-MAP3ET",
+      "price_rub": 6600,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Датчики",
+      "article": "WB-M1W2 v.3",
+      "name": "Преобразователь для цифровых термометров WB-M1W2 v.3",
+      "price_rub": 1580,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Датчики",
+      "article": "DS18B20/1m",
+      "name": "Датчик температуры 1-wire DS18B20/1m (гильза)\nДлина: 1 м",
+      "price_rub": 480,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Датчики",
+      "article": "DS18B20/3m",
+      "name": "Датчик температуры 1-wire DS18B20/3m (гильза)\nДлина: 3 м",
+      "price_rub": 720,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Датчики",
+      "article": "DS18B20/5m",
+      "name": "Датчик температуры 1-wire DS18B20/5m (гильза)\nДлина: 5 м",
+      "price_rub": 900,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Датчики",
+      "article": "DS18B20/10m",
+      "name": "Датчик температуры 1-wire DS18B20/10m (гильза)\nДлина: 10 м",
+      "price_rub": 1420,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Датчики",
+      "article": "WB-MAI2-mini/CC v.3",
+      "name": "Модуль аналоговых входов WB-MAI2-mini / СС v.3",
+      "price_rub": 1800,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Датчики",
+      "article": "WB-MAI6",
+      "name": "Модуль аналогового ввода WB-MAI6",
+      "price_rub": 5600,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Диммеры",
+      "article": "WB-LED",
+      "name": "Диммер светодиодных лент на DIN-рейку WB-LED",
+      "price_rub": 3260,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Диммеры",
+      "article": "WB-MDM3",
+      "name": "Диммер светодиодных ламп и ламп накаливания WB-MDM3",
+      "price_rub": 6700,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Диммеры",
+      "article": "WB-DALI3",
+      "name": "Шлюз DALI 3-канальный WB-DALI3",
+      "price_rub": 10500,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Диммеры",
+      "article": "WB-MAO4",
+      "name": "Модуль аналогового вывода 0-10В WB-MAO4",
+      "price_rub": 4200,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Диммеры",
+      "article": "WB-MAO4-20mA",
+      "name": "Модуль аналогового вывода 0…20 мА WB-MAO4-20mA",
+      "price_rub": 5200,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Диммеры",
+      "article": "WB-AMPLED",
+      "name": "Усилитель для светодиодных лент на DIN-рейку WB-AMPLED",
+      "price_rub": 2940,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Прочее",
+      "article": "WB-T120",
+      "name": "Терминатор шины RS-485 WB-T120",
+      "price_rub": 320,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Прочее",
+      "article": "WB-MWAC",
+      "name": "Модуль учета водопотребления и контроля протечек WB-MWAC v.2",
+      "price_rub": 6600,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Прочее",
+      "article": "WB-MCM8",
+      "name": "8-канальный модуль счетных входов WB-MCM8",
+      "price_rub": 3040,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Прочее",
+      "article": "WB-MCM8HV",
+      "name": "Модуль-детектор наличия сетевого напряжения WB-MCM8HV",
+      "price_rub": 3200,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Прочее",
+      "article": "WB-MGE v.3",
+      "name": "Преобразователь интерфейсов RS-485, Ethernet, Wi-Fi, WBIO WB-MGE v.3",
+      "price_rub": 6000,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Прочее",
+      "article": "WB-MIO",
+      "name": "Преобразователь интерфейсов WB-MIO",
+      "price_rub": 2400,
+      "manufacturer": "Wiren Board"
+    },
+    {
+      "category": "Прочее",
+      "article": "WB-MDIO8",
+      "name": "8-канальный модуль входов и выходов WB-MDIO8",
+      "price_rub": 3160,
+      "manufacturer": "Wiren Board"
+    }
+  ]
+}
