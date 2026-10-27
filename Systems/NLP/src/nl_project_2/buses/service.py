@@ -24,6 +24,7 @@ from nl_project_2.persistence.schema import (
     field_device,
     functional_relation,
     instance_resource,
+    passport_definition,
     passport_resource_definition,
     project_instance,
     room,
@@ -362,6 +363,62 @@ class BusService:
                     "technical_identity": resource_technical_identity(row),
                     "source_available": row["id"] not in occupied_sources,
                     "endpoint_available": True,
+                }
+                for row in rows
+            ]
+
+    def list_dali_source_candidates(self, project_id: str) -> list[dict]:
+        """Available physical DA1/DA2/DA3 outputs of active WB-DALI3 instances."""
+        with self._engine.connect() as connection:
+            used_sources = set(
+                connection.execute(
+                    select(bus.c.root_resource_id).where(
+                        bus.c.project_id == project_id,
+                        bus.c.lifecycle == "ACTIVE",
+                    )
+                ).scalars()
+            )
+            rows = connection.execute(
+                select(
+                    instance_resource.c.id,
+                    project_instance.c.designation.label("instance_designation"),
+                    instance_resource.c.resource_key,
+                    instance_resource.c.ordinal,
+                    instance_resource.c.snapshot_json,
+                    passport_resource_definition.c.display_json,
+                )
+                .join(
+                    project_instance,
+                    project_instance.c.id == instance_resource.c.project_instance_id,
+                )
+                .join(
+                    passport_definition,
+                    passport_definition.c.id == project_instance.c.passport_definition_id,
+                )
+                .join(
+                    passport_resource_definition,
+                    passport_resource_definition.c.id
+                    == instance_resource.c.passport_resource_definition_id,
+                )
+                .where(
+                    instance_resource.c.project_id == project_id,
+                    project_instance.c.project_id == project_id,
+                    project_instance.c.lifecycle == "ACTIVE",
+                    passport_definition.c.passport_key == "gateway.wirenboard.wb_dali3",
+                    instance_resource.c.active.is_(True),
+                    instance_resource.c.resource_kind == "DALI_BUS_PORT",
+                    ~instance_resource.c.id.in_(used_sources) if used_sources else True,
+                )
+                .order_by(
+                    project_instance.c.designation,
+                    instance_resource.c.ordinal,
+                )
+            ).mappings()
+            return [
+                {
+                    "id": row["id"],
+                    "label": resource_user_label(row),
+                    "technical_identity": resource_technical_identity(row),
                 }
                 for row in rows
             ]

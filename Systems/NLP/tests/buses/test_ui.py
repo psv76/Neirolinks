@@ -424,3 +424,86 @@ def test_bus_workspace_accepts_field_device_connection_state(database, qtbot, mo
     assert (
         dialog.states_table.item(dialog.states_table.rowCount() - 1, 0).text() == "field-device-1"
     )
+
+
+def test_create_dali_bus_button_selects_specific_wb_dali3_port(database, qtbot, monkeypatch):
+    project_id = database.test_project_id
+    automation, dali_da1, _knx_root, _instance_id = _sources(database)
+    service = BusService(database.engine)
+    candidates = service.list_dali_source_candidates(project_id)
+    assert len(candidates) == 3
+    assert {item["label"] for item in candidates} == {
+        "DALI-SOURCE / DA1",
+        "DALI-SOURCE / DA2",
+        "DALI-SOURCE / DA3",
+    }
+    assert dali_da1 == next(
+        item["id"] for item in candidates if item["label"] == "DALI-SOURCE / DA1"
+    )
+
+    dialog = BusWorkspaceDialog(service, project_id)
+    qtbot.addWidget(dialog)
+    assert dialog.create_dali_button.text() == "Создать DALI"
+    assert dialog.create_dali_button.objectName() == "createDaliBusButton"
+    observed = {}
+    _submit_resource_dialog("941", "DALI-SOURCE / DA2", observed)
+    dialog.create_dali_button.click()
+
+    assert set(observed["labels"]) == {
+        "DALI-SOURCE / DA1",
+        "DALI-SOURCE / DA2",
+        "DALI-SOURCE / DA3",
+    }
+    rows = service.list_buses(project_id)
+    assert len(rows) == 1
+    assert rows[0]["designation"] == "941"
+    assert rows[0]["bus_kind"] == "DALI"
+    assert rows[0]["topology_policy"] == "ORDERED_BRANCHES"
+    assert rows[0]["root_resource_id"] == next(
+        item["id"] for item in candidates if item["label"] == "DALI-SOURCE / DA2"
+    )
+    assert dialog.buses_table.item(0, 0).text() == "941"
+    assert dialog.buses_table.item(0, 3).text() == "DALI-SOURCE / DA2"
+    assert len(service.get_bus(project_id, rows[0]["id"])["endpoints"]) == 0
+
+    now_free = service.list_dali_source_candidates(project_id)
+    assert {item["label"] for item in now_free} == {
+        "DALI-SOURCE / DA1",
+        "DALI-SOURCE / DA3",
+    }
+    _submit_resource_dialog("942", "DALI-SOURCE / DA3")
+    dialog.create_dali_button.click()
+    assert len(service.list_buses(project_id)) == 2
+
+    _cancel_resource_dialog()
+    dialog.create_dali_button.click()
+    assert len(service.list_buses(project_id)) == 2
+
+
+def test_create_dali_button_rejects_invalid_number_and_unavailable_output(
+    database, qtbot, monkeypatch
+):
+    project_id = database.test_project_id
+    _sources(database)
+    service = BusService(database.engine)
+    dialog = BusWorkspaceDialog(service, project_id)
+    qtbot.addWidget(dialog)
+    warnings = []
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        lambda _parent, title, message: warnings.append((title, message)),
+    )
+    _submit_resource_dialog("WRONG", "DALI-SOURCE / DA1")
+    dialog.create_dali_button.click()
+    assert len(service.list_buses(project_id)) == 0
+    assert "9YY" in warnings[-1][1]
+
+    for n, port in [("941", "DA1"), ("942", "DA2"), ("943", "DA3")]:
+        _submit_resource_dialog(n, f"DALI-SOURCE / {port}")
+        dialog.create_dali_button.click()
+    assert len(service.list_buses(project_id)) == 3
+    assert service.list_dali_source_candidates(project_id) == []
+    dialog.create_dali_button.click()
+    assert "Нет свободных выходов" in warnings[-1][1]
+    assert len(service.list_buses(project_id)) == 3

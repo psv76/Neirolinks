@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -32,6 +34,7 @@ class _Rs485ResourceDialog(QDialog):
         designation_label: str,
         candidates: list[dict],
         designation: str = "",
+        resource_caption: str = "RS-485 resource",
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -52,7 +55,7 @@ class _Rs485ResourceDialog(QDialog):
 
         form = QFormLayout()
         form.addRow(designation_label, self.designation_edit)
-        form.addRow("RS-485 resource", self.resource_combo)
+        form.addRow(resource_caption, self.resource_combo)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel,
             parent=self,
@@ -83,6 +86,9 @@ class BusWorkspaceDialog(QDialog):
         self.create_rs485_button = QPushButton("Создать RS-485", self)
         self.create_rs485_button.setObjectName("createRs485BusButton")
         self.create_rs485_button.clicked.connect(self._create_rs485_bus)
+        self.create_dali_button = QPushButton("Создать DALI", self)
+        self.create_dali_button.setObjectName("createDaliBusButton")
+        self.create_dali_button.clicked.connect(self._create_dali_bus)
         self.add_endpoint_button = QPushButton("Добавить точку", self)
         self.add_endpoint_button.setObjectName("addRs485EndpointButton")
         self.add_endpoint_button.clicked.connect(self._add_rs485_endpoint)
@@ -94,6 +100,7 @@ class BusWorkspaceDialog(QDialog):
         self.delete_bus_button.clicked.connect(self._delete_rs485_bus)
         actions = QHBoxLayout()
         actions.addWidget(self.create_rs485_button)
+        actions.addWidget(self.create_dali_button)
         actions.addWidget(self.add_endpoint_button)
         actions.addWidget(self.remove_endpoint_button)
         actions.addWidget(self.delete_bus_button)
@@ -298,6 +305,54 @@ class BusWorkspaceDialog(QDialog):
                 designation=selected_designation,
                 root_resource_id=resource_id,
                 points=(),
+            )
+        except BusError as exc:
+            QMessageBox.warning(self, "Шина не создана", str(exc))
+            self.refresh(previous_bus_id)
+            return False
+        self.refresh(receipt.bus_id)
+        return True
+
+    def _create_dali_bus(self) -> None:
+        self.create_dali_bus()
+
+    def create_dali_bus(self, designation: str = "") -> bool:
+        """Attach one new physical DALI bus to a free WB-DALI3 DA port."""
+        previous_bus_id = self._current_bus_id()
+        candidates = self.service.list_dali_source_candidates(self.project_id)
+        if not candidates:
+            QMessageBox.warning(
+                self,
+                "Шина не создана",
+                "Нет свободных выходов DA1/DA2/DA3 модулей WB-DALI3.",
+            )
+            return False
+        dialog = _Rs485ResourceDialog(
+            title="Подключить шину DALI к WB-DALI3",
+            designation_label="Номер шины DALI",
+            resource_caption="Выход WB-DALI3 (DA1 / DA2 / DA3)",
+            candidates=candidates,
+            designation=designation,
+            parent=self,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return False
+        bus_designation, resource_id = dialog.values()
+        if not re.fullmatch(r"9[0-9]{2}", bus_designation):
+            QMessageBox.warning(
+                self,
+                "Шина не создана",
+                "Номер шины DALI должен состоять из трёх цифр: 9YY (например, 941).",
+            )
+            return False
+        try:
+            receipt = self.service.create_branched_bus(
+                project_id=self.project_id,
+                bus_kind="DALI",
+                designation=bus_designation,
+                root_resource_id=resource_id,
+                points=(),
+                branches=(),
             )
         except BusError as exc:
             QMessageBox.warning(self, "Шина не создана", str(exc))
