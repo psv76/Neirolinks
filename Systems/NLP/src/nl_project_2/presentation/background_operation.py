@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from queue import Empty, SimpleQueue
+
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from nl_project_2.operations import OperationCancelled
@@ -17,6 +19,9 @@ class BackgroundOperationController(QObject):
         super().__init__(parent)
         self.manager = manager
         self.handle = None
+        # Background workers must never invoke a Qt signal or touch a QWidget.
+        # QTimer drains pure-Python events and emits in the GUI thread.
+        self._pending_progress: SimpleQueue[object] = SimpleQueue()
         self._timer = QTimer(self)
         self._timer.setInterval(25)
         self._timer.timeout.connect(self._poll)
@@ -24,7 +29,7 @@ class BackgroundOperationController(QObject):
     def start(self, snapshot, worker) -> None:
         if self.handle is not None and not self.handle.future.done():
             raise RuntimeError("A background operation is already running")
-        self.handle = self.manager.submit(snapshot, worker, progress=self.progress.emit)
+        self.handle = self.manager.submit(snapshot, worker, progress=self._pending_progress.put)
         self._timer.start()
 
     def cancel(self) -> None:
@@ -32,6 +37,14 @@ class BackgroundOperationController(QObject):
             self.handle.cancel()
 
     def _poll(self) -> None:
+        # Signal delivery happens synchronously in QTimer's GUI thread,
+        # including the final progress records before completed / failed.
+        while True:
+            try:
+                update = self._pending_progress.get_nowait()
+            except Empty:
+                break
+            self.progress.emit(update)
         if self.handle is None or not self.handle.future.done():
             return
         self._timer.stop()
