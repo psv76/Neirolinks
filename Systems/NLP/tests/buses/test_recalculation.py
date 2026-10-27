@@ -332,3 +332,143 @@ def test_bus_segment_length_stays_unknown_without_root_board_geometry(database):
             )
             is None
         )
+
+
+def test_board_assignment_recalculates_rooted_dali_cable_length_without_restart(database):
+    """A verified board location becomes the DALI root when the WB-DALI3 is assigned."""
+    project_id = database.test_project_id
+    panels = PanelService(database.engine)
+    from nl_project_2.catalog.equipment import EquipmentService
+
+    board_id = panels.create_board(project_id=project_id, designation="B.01")
+    with database.engine.begin() as connection:
+        building_id, room_id = new_id(), new_id()
+        connection.execute(
+            building.insert().values(
+                id=building_id,
+                project_id=project_id,
+                code="D2",
+                normalized_code="d2",
+                name="House 2",
+                display_order=1,
+            )
+        )
+        connection.execute(
+            room.insert().values(
+                id=room_id,
+                project_id=project_id,
+                building_id=building_id,
+                name="Room",
+                normalized_name="room",
+                base_mark="0",
+                height_m_decimal="4",
+            )
+        )
+        connection.execute(
+            field_device.insert().values(
+                id=new_id(),
+                project_id=project_id,
+                block_kind="BOARD_IN",
+                room_id=room_id,
+                entity_handle="B01",
+                lifecycle="ACTIVE",
+                normalized_fields_json={
+                    "DEVICE_TYPE": "BOARD",
+                    "BOARD_ID": "B.01",
+                    "BUILDING": "D2",
+                    "ROOM": "Room",
+                    "X": 0,
+                    "Y": 0,
+                    "MOUNT_HEIGHT": "1800",
+                },
+            )
+        )
+        fd = new_id()
+        connection.execute(
+            field_device.insert().values(
+                id=fd,
+                project_id=project_id,
+                block_kind="CABLE_OUTLET_BUS",
+                room_id=room_id,
+                entity_handle="DALI1",
+                lifecycle="ACTIVE",
+                normalized_fields_json={
+                    "DEVICE_TYPE": "CABLE_OUTLET",
+                    "BUS_POINT_ID": "941.001",
+                    "BUILDING": "D2",
+                    "ROOM": "Room",
+                    "X": 5000,
+                    "Y": 0,
+                    "MOUNT_HEIGHT": "2500",
+                },
+            )
+        )
+
+    instance = EquipmentService(database.engine).create_instance(
+        project_id=project_id,
+        designation="A01",
+        passport_key="gateway.wirenboard.wb_dali3",
+        product_key="product.wirenboard.wb_dali3",
+        supply_scope="NEIROLINKS",
+    )
+    with database.engine.connect() as connection:
+        root = connection.scalar(
+            select(instance_resource.c.id).where(
+                instance_resource.c.project_instance_id == instance.instance_id,
+                instance_resource.c.resource_kind == "DALI_BUS_PORT",
+                instance_resource.c.ordinal == 0,
+            )
+        )
+    assert root
+    bus_id, endpoint_id, segment_id = new_id(), new_id(), new_id()
+    with database.engine.begin() as connection:
+        connection.execute(
+            bus.insert().values(
+                id=bus_id,
+                project_id=project_id,
+                designation="941",
+                bus_kind="DALI",
+                topology_policy="ORDERED_BRANCHES",
+                root_resource_id=root,
+                cable_type="2x1.5",
+                lifecycle="ACTIVE",
+            )
+        )
+        connection.execute(
+            bus_endpoint.insert().values(
+                id=endpoint_id,
+                project_id=project_id,
+                bus_id=bus_id,
+                endpoint_kind="FIELD_DEVICE",
+                field_device_id=fd,
+                endpoint_role="DEVICE",
+                address="941.001",
+                endpoint_order=1,
+            )
+        )
+        connection.execute(
+            bus_segment.insert().values(
+                id=segment_id,
+                project_id=project_id,
+                bus_id=bus_id,
+                source_endpoint_id=None,
+                target_endpoint_id=endpoint_id,
+                connection_kind="CABLE",
+                mount_way="По полу",
+                origin_kind="PROJECT",
+                migration_state="CONFIRMED",
+            )
+        )
+    before = BusService(database.engine).journal_cards(project_id)
+    assert next(x for x in before if x["designation"] == "941")["effective_m"] is None
+    panels.assign_instance_to_board(
+        project_id=project_id, instance_id=instance.instance_id, board_id=board_id
+    )
+    after = BusService(database.engine).journal_cards(project_id)
+    assert Decimal(next(x for x in after if x["designation"] == "941")["effective_m"]) > 0
+    with database.engine.connect() as connection:
+        length = connection.scalar(
+            select(bus_segment.c.length_m_decimal).where(bus_segment.c.id == segment_id)
+        )
+    assert Decimal(str(length)) > 0
+    assert "941" == next(x for x in after if x["designation"] == "941")["designation"]

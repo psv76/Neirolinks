@@ -8,10 +8,13 @@ from decimal import Decimal, InvalidOperation
 from sqlalchemy import Engine, and_, delete, select, update
 from sqlalchemy.exc import IntegrityError
 
+from nl_project_2.buses.recalculation import recalculate_bus_segments
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
     assembly_material_fact,
     board,
+    bus,
+    instance_resource,
     panel_placement,
     panel_rail,
     panel_section,
@@ -191,6 +194,29 @@ class PanelService:
                 .where(project_instance.c.id == instance_id)
                 .values(board_id=board_id, row_version=project_instance.c.row_version + 1)
             )
+            # The board's accepted DWG coordinates define the cable
+            # origin for every physical bus port of this instance. When
+            # an already-rooted WB-DALI3/RS-485 instance is moved into a
+            # board, refresh those bus segment lengths in the same
+            # transaction; previously the journal kept stale NULL roots
+            # until restarting the entire application.
+            rooted_bus_ids = set(
+                uow.execute(
+                    select(bus.c.id)
+                    .join(
+                        instance_resource,
+                        instance_resource.c.id == bus.c.root_resource_id,
+                    )
+                    .where(
+                        bus.c.project_id == project_id,
+                        bus.c.lifecycle == "ACTIVE",
+                        instance_resource.c.project_id == project_id,
+                        instance_resource.c.project_instance_id == instance_id,
+                    )
+                ).scalars()
+            )
+            if rooted_bus_ids:
+                recalculate_bus_segments(uow, project_id, bus_ids=rooted_bus_ids)
             self._touch_project(uow, project_id, datetime.now(UTC))
             uow.commit()
 
