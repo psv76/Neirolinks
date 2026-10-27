@@ -40,7 +40,7 @@ def test_module_version_command() -> None:
         check=False,
     )
     assert completed.returncode == 0
-    assert completed.stdout.strip() == "NL Project 3.1 (release)"
+    assert completed.stdout.strip() == "NL Project 3.2 (release)"
 
 
 def test_shell_process_starts_and_closes(tmp_path) -> None:

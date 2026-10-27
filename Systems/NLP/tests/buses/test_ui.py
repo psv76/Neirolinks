@@ -351,7 +351,8 @@ def test_dali_and_knx_views_coexist_with_rs485_write_actions(database, qtbot):
     assert dialog.groups_table.rowCount() == 1
     assert dialog.states_table.rowCount() == 5
     assert not dialog.add_endpoint_button.isEnabled()
-    assert not dialog.delete_bus_button.isEnabled()
+    assert dialog.delete_bus_button.isEnabled()
+    assert dialog.edit_dali_button.isEnabled()
 
     dialog.buses_table.selectRow(1)
     assert dialog.buses_table.item(1, 1).text() == "KNX"

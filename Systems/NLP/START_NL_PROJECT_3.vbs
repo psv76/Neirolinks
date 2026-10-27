@@ -7,7 +7,7 @@ root = fso.GetParentFolderName(WScript.ScriptFullName)
 pythonw = fso.BuildPath(root, ".venv\Scripts\pythonw.exe")
 
 If Not fso.FileExists(pythonw) Then
-    MsgBox "Среда NL Project 3.0 не подготовлена. Выполните tools\bootstrap.ps1.", 16, "NL Project 3.0"
+    MsgBox "Среда NL Project 3.2 не подготовлена. Выполните tools\bootstrap.ps1.", 16, "NL Project 3.2"
     WScript.Quit 2
 End If
 

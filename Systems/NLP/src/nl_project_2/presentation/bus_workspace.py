@@ -34,6 +34,7 @@ class _Rs485ResourceDialog(QDialog):
         designation_label: str,
         candidates: list[dict],
         designation: str = "",
+        selected_resource_id: str | None = None,
         resource_caption: str = "RS-485 resource",
         parent=None,
     ) -> None:
@@ -53,6 +54,10 @@ class _Rs485ResourceDialog(QDialog):
                 Qt.ItemDataRole.ToolTipRole,
             )
 
+        if selected_resource_id is not None:
+            selected = self.resource_combo.findData(selected_resource_id)
+            if selected >= 0:
+                self.resource_combo.setCurrentIndex(selected)
         form = QFormLayout()
         form.addRow(designation_label, self.designation_edit)
         form.addRow(resource_caption, self.resource_combo)
@@ -89,6 +94,9 @@ class BusWorkspaceDialog(QDialog):
         self.create_dali_button = QPushButton("Создать DALI", self)
         self.create_dali_button.setObjectName("createDaliBusButton")
         self.create_dali_button.clicked.connect(self._create_dali_bus)
+        self.edit_dali_button = QPushButton("Редактировать DALI", self)
+        self.edit_dali_button.setObjectName("editDaliBusButton")
+        self.edit_dali_button.clicked.connect(self._edit_dali_bus)
         self.add_endpoint_button = QPushButton("Добавить точку", self)
         self.add_endpoint_button.setObjectName("addRs485EndpointButton")
         self.add_endpoint_button.clicked.connect(self._add_rs485_endpoint)
@@ -97,10 +105,11 @@ class BusWorkspaceDialog(QDialog):
         self.remove_endpoint_button.clicked.connect(self._remove_rs485_endpoint)
         self.delete_bus_button = QPushButton("Удалить шину", self)
         self.delete_bus_button.setObjectName("deleteRs485BusButton")
-        self.delete_bus_button.clicked.connect(self._delete_rs485_bus)
+        self.delete_bus_button.clicked.connect(self._delete_selected_bus)
         actions = QHBoxLayout()
         actions.addWidget(self.create_rs485_button)
         actions.addWidget(self.create_dali_button)
+        actions.addWidget(self.edit_dali_button)
         actions.addWidget(self.add_endpoint_button)
         actions.addWidget(self.remove_endpoint_button)
         actions.addWidget(self.delete_bus_button)
@@ -361,6 +370,90 @@ class BusWorkspaceDialog(QDialog):
         self.refresh(receipt.bus_id)
         return True
 
+    def _current_dali_bus_id(self) -> str | None:
+        bus_id = self._current_bus_id()
+        row = self.buses_table.currentRow()
+        if bus_id is None or row < 0:
+            return None
+        return bus_id if self.buses_table.item(row, 1).text() == "DALI" else None
+
+    def _edit_dali_bus(self) -> None:
+        self.edit_dali_bus()
+
+    def edit_dali_bus(self) -> bool:
+        """Edit number and DA source only for a safely disconnected physical bus."""
+        bus_id = self._current_dali_bus_id()
+        if bus_id is None:
+            return False
+        stored = self.service.get_bus(self.project_id, bus_id)
+        root = stored["root_resource_id"]
+        candidates = self.service.list_dali_source_candidates(self.project_id)
+        if root not in {row["id"] for row in candidates}:
+            candidates.append({
+                "id": root,
+                "label": self._resource_label(root),
+                "technical_identity": self._resource_tooltip(root),
+            })
+        candidates.sort(key=lambda row: row["label"])
+        dialog = _Rs485ResourceDialog(
+            title="Редактировать шину DALI",
+            designation_label="Номер шины DALI (9YY)",
+            resource_caption="Выход WB-DALI3 (DA1 / DA2 / DA3)",
+            designation=stored["designation"],
+            selected_resource_id=root,
+            candidates=candidates,
+            parent=self,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return False
+        designation, resource_id = dialog.values()
+        try:
+            self.service.update_dali_bus(
+                project_id=self.project_id, bus_id=bus_id,
+                designation=designation, root_resource_id=resource_id,
+            )
+        except BusError as exc:
+            QMessageBox.warning(self, "Шина DALI не изменена", str(exc))
+            self.refresh(bus_id)
+            return False
+        self.refresh(bus_id)
+        return True
+
+    def _delete_selected_bus(self) -> None:
+        if self._current_dali_bus_id() is not None:
+            self._delete_dali_bus()
+        else:
+            self._delete_rs485_bus()
+
+    def _delete_dali_bus(self) -> None:
+        bus_id = self._current_dali_bus_id()
+        if bus_id is None:
+            return
+        stored = self.service.get_bus(self.project_id, bus_id)
+        groups = self.service.list_dali_groups(self.project_id, bus_id)
+        designation = stored["designation"]
+        answer = QMessageBox.question(
+            self,
+            "Удалить физическую шину DALI",
+            f"Удалить шину DALI {designation}?\n"
+            f"Будут удалены её {len(stored['endpoints'])} точек, "
+            f"{len(stored['branches'])} ветвей, {len(groups)} групп и "
+            "все внутренние физические связи/трассы этой шины. "
+            "DWG, экземпляры устройств, ресурсы и другие шины сохранятся. "
+            "Операция не отменяется.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.service.delete_dali_bus(project_id=self.project_id, bus_id=bus_id)
+        except BusError as exc:
+            QMessageBox.warning(self, "Шина DALI не удалена", str(exc))
+            self.refresh(bus_id)
+            return
+        self.refresh(select_first=False)
+
     def _add_rs485_endpoint(self) -> None:
         bus_id = self._current_rs485_bus_id()
         if bus_id is None:
@@ -470,7 +563,10 @@ class BusWorkspaceDialog(QDialog):
     def _update_action_state(self) -> None:
         is_rs485 = self._current_rs485_bus_id() is not None
         self.add_endpoint_button.setEnabled(is_rs485)
-        self.delete_bus_button.setEnabled(is_rs485)
+        self.delete_bus_button.setEnabled(
+            is_rs485 or self._current_dali_bus_id() is not None
+        )
+        self.edit_dali_button.setEnabled(self._current_dali_bus_id() is not None)
         self.remove_endpoint_button.setEnabled(
             is_rs485 and bool(self.endpoints_table.selectedItems())
         )

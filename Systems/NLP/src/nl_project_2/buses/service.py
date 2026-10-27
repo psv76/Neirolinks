@@ -16,6 +16,8 @@ from nl_project_2.persistence.schema import (
     bus_branch,
     bus_branch_point,
     bus_endpoint,
+    bus_physical_node,
+    bus_physical_link,
     bus_segment,
     bus_segment_conduit_assignment,
     conduit,
@@ -303,6 +305,169 @@ class BusService:
             )
             if result.rowcount != 1:
                 raise BusError("RS-485 bus not found")
+            uow.commit()
+
+    def update_dali_bus(
+        self,
+        *,
+        project_id: str,
+        bus_id: str,
+        designation: str,
+        root_resource_id: str,
+    ) -> None:
+        """Edit a DALI number and DA root without replacing its identity/topology.
+
+        Already wired buses must be rebuilt from their approved DWG physical
+        graph, rather than silently changing root or Cable-ID meaning.
+        """
+        name = designation.strip()
+        if not re.fullmatch(r"9[0-9]{2}", name):
+            raise BusError("Номер шины DALI должен иметь формат 9YY (например, 941)")
+        try:
+            with UnitOfWork(self._engine) as uow:
+                current = uow.execute(
+                    select(bus).where(
+                        bus.c.project_id == project_id,
+                        bus.c.id == bus_id,
+                        bus.c.bus_kind == "DALI",
+                        bus.c.lifecycle == "ACTIVE",
+                    )
+                ).mappings().one_or_none()
+                if current is None:
+                    raise BusError("Шина DALI не найдена в выбранном проекте")
+                changing_number = name != current["designation"]
+                changing_root = root_resource_id != current["root_resource_id"]
+                if not changing_number and not changing_root:
+                    uow.rollback()
+                    return
+                attached = any(
+                    uow.execute(
+                        select(table.c.id).where(
+                            table.c.project_id == project_id,
+                            table.c.bus_id == bus_id,
+                        ).limit(1)
+                    ).first()
+                    for table in (
+                        bus_endpoint, bus_segment, bus_branch,
+                        bus_physical_node, bus_physical_link, dali_group,
+                    )
+                )
+                if attached:
+                    raise BusError(
+                        "Шина DALI имеет подключённые точки, ветви, физическую трассу "
+                        "или группы. Для изменения номера или DA-выхода сначала "
+                        "согласуйте изменение этих связей — автоматическая "
+                        "перенумерация CABLE_ID запрещена."
+                    )
+                if changing_root:
+                    candidate_ids = {
+                        row["id"] for row in self.list_dali_source_candidates(project_id)
+                    }
+                    if root_resource_id not in candidate_ids:
+                        raise BusError(
+                            "Выбранный выход DA недоступен, занят или не принадлежит WB-DALI3"
+                        )
+                duplicate = uow.execute(
+                    select(bus.c.id).where(
+                        bus.c.project_id == project_id,
+                        bus.c.designation == name,
+                        bus.c.lifecycle == "ACTIVE",
+                        bus.c.id != bus_id,
+                    )
+                ).first()
+                if duplicate:
+                    raise BusError(f"Обозначение шины {name} уже занято")
+                uow.execute(
+                    update(bus)
+                    .where(
+                        bus.c.project_id == project_id,
+                        bus.c.id == bus_id,
+                        bus.c.bus_kind == "DALI",
+                        bus.c.lifecycle == "ACTIVE",
+                    )
+                    .values(designation=name, root_resource_id=root_resource_id)
+                )
+                uow.commit()
+        except IntegrityError as exc:
+            raise BusError("Номер или выход DALI конфликтует с другой шиной") from exc
+
+    def delete_dali_bus(self, *, project_id: str, bus_id: str) -> None:
+        """Delete only the selected physical DALI bus and its owned graph.
+
+        All referenced external objects (devices, resources, conduits, cable
+        lines) survive. Cleanup is ordered for SQLite foreign-key integrity.
+        """
+        with UnitOfWork(self._engine) as uow:
+            exists = uow.execute(
+                select(bus.c.id).where(
+                    bus.c.id == bus_id,
+                    bus.c.project_id == project_id,
+                    bus.c.bus_kind == "DALI",
+                    bus.c.lifecycle == "ACTIVE",
+                )
+            ).scalar_one_or_none()
+            if exists is None:
+                raise BusError("Шина DALI не найдена в выбранном проекте")
+            group_ids = select(dali_group.c.id).where(
+                dali_group.c.project_id == project_id,
+                dali_group.c.bus_id == bus_id,
+            )
+            branch_ids = select(bus_branch.c.id).where(
+                bus_branch.c.project_id == project_id,
+                bus_branch.c.bus_id == bus_id,
+            )
+            segment_ids = select(bus_segment.c.id).where(
+                bus_segment.c.project_id == project_id,
+                bus_segment.c.bus_id == bus_id,
+            )
+            uow.execute(delete(dali_group_member).where(
+                dali_group_member.c.project_id == project_id,
+                dali_group_member.c.dali_group_id.in_(group_ids),
+            ))
+            uow.execute(delete(dali_group).where(
+                dali_group.c.project_id == project_id,
+                dali_group.c.bus_id == bus_id,
+            ))
+            uow.execute(delete(bus_physical_link).where(
+                bus_physical_link.c.project_id == project_id,
+                bus_physical_link.c.bus_id == bus_id,
+            ))
+            uow.execute(delete(bus_physical_node).where(
+                bus_physical_node.c.project_id == project_id,
+                bus_physical_node.c.bus_id == bus_id,
+            ))
+            uow.execute(delete(bus_segment_conduit_assignment).where(
+                bus_segment_conduit_assignment.c.project_id == project_id,
+                bus_segment_conduit_assignment.c.bus_segment_id.in_(segment_ids),
+            ))
+            uow.execute(delete(bus_segment).where(
+                bus_segment.c.project_id == project_id,
+                bus_segment.c.bus_id == bus_id,
+            ))
+            uow.execute(delete(bus_branch_point).where(
+                bus_branch_point.c.project_id == project_id,
+                bus_branch_point.c.bus_branch_id.in_(branch_ids),
+            ))
+            uow.execute(update(bus_endpoint).where(
+                bus_endpoint.c.project_id == project_id,
+                bus_endpoint.c.bus_id == bus_id,
+            ).values(bus_branch_id=None))
+            uow.execute(delete(bus_branch).where(
+                bus_branch.c.project_id == project_id,
+                bus_branch.c.bus_id == bus_id,
+            ))
+            uow.execute(delete(bus_endpoint).where(
+                bus_endpoint.c.project_id == project_id,
+                bus_endpoint.c.bus_id == bus_id,
+            ))
+            result = uow.execute(delete(bus).where(
+                bus.c.project_id == project_id,
+                bus.c.id == bus_id,
+                bus.c.bus_kind == "DALI",
+                bus.c.lifecycle == "ACTIVE",
+            ))
+            if result.rowcount != 1:
+                raise BusError("Шина DALI не найдена в выбранном проекте")
             uow.commit()
 
     def recalculate_lengths(
