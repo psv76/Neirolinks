@@ -517,6 +517,7 @@ def _relation_label(kind: str) -> str:
         "ANALOG_SIGNAL": "Аналоговый сигнал",
         "INTERFACE": "Интерфейс",
         "BUS_LINK": "Логическая связь шины",
+        "MODULE_INSTALLATION": "Установка модуля в MOD-слот",
     }.get(kind, kind)
 
 

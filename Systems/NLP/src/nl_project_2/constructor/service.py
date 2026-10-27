@@ -17,6 +17,7 @@ from nl_project_2.catalog.equipment import (
 )
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
+    bus,
     cable_line,
     cable_line_assignment,
     cable_topology_endpoint,
@@ -546,13 +547,41 @@ class ConstructorService:
         now = datetime.now(UTC)
         with UnitOfWork(self._engine) as uow:
             found = uow.execute(
-                select(functional_relation.c.id).where(
+                select(
+                    functional_relation.c.id,
+                    functional_relation.c.relation_kind,
+                    functional_relation.c.target_resource_id,
+                ).where(
                     functional_relation.c.id == relation_id,
                     functional_relation.c.project_id == project_id,
                 )
-            ).scalar_one_or_none()
+            ).mappings().one_or_none()
             if found is None:
                 raise ConstructorError("Relation not found")
+            if found["relation_kind"] == "MODULE_INSTALLATION":
+                module_instance_id = uow.execute(
+                    select(instance_resource.c.project_instance_id).where(
+                        instance_resource.c.id == found["target_resource_id"],
+                        instance_resource.c.project_id == project_id,
+                    )
+                ).scalar_one_or_none()
+                if module_instance_id is not None:
+                    occupied_bus = uow.execute(
+                        select(bus.c.id)
+                        .join(
+                            instance_resource,
+                            instance_resource.c.id == bus.c.root_resource_id,
+                        )
+                        .where(
+                            bus.c.project_id == project_id,
+                            bus.c.lifecycle == "ACTIVE",
+                            instance_resource.c.project_instance_id == module_instance_id,
+                        )
+                    ).first()
+                    if occupied_bus is not None:
+                        raise BlockingViolation(
+                            "Нельзя извлечь модуль: его интерфейс является корнем активной шины"
+                        )
             uow.execute(
                 delete(resource_reservation).where(
                     resource_reservation.c.owner_relation_id == relation_id
@@ -887,7 +916,7 @@ class ConstructorService:
             )
             if demand is not None:
                 existing_demands.append(demand)
-        return validate_relation(
+        preview = validate_relation(
             definition,
             source,
             target,
@@ -895,6 +924,47 @@ class ConstructorService:
             target_relation_count=target_count,
             existing_target_demands=tuple(existing_demands),
         )
+        if definition.kind != "MODULE_INSTALLATION":
+            return preview
+        source_row = connection.execute(
+            self._resource_statement(project_id).where(
+                instance_resource.c.id == source_resource_id
+            )
+        ).mappings().one()
+        target_row = connection.execute(
+            self._resource_statement(project_id).where(
+                instance_resource.c.id == target_resource_id
+            )
+        ).mappings().one()
+        host_ok = (
+            source_row["passport_key"] == "controller.wiren_board_8_5"
+            and source_row["resource_kind"] == "INTERNAL_EXPANSION_SLOT"
+            and source_row["resource_key"] == "INTERNAL_MODULE_SLOT"
+            and source_row["ordinal"] in (0, 1, 2, 3)
+            and target_row["passport_key"] in {
+                "module.wirenboard.wbe2_i_knx",
+                "module.wirenboard.wbe2_i_rs485_iso",
+            }
+            and target_row["resource_kind"] == "INTERNAL_EXPANSION_MODULE_ATTACHMENT"
+        )
+        result = RuleResult(
+            "constructor.module_host_compatibility",
+            1,
+            "PASS" if host_ok else "ERROR",
+            True,
+            (source_resource_id, target_resource_id),
+            {
+                "host_passport": source_row["passport_key"],
+                "slot_key": source_row["resource_key"],
+                "slot_ordinal": source_row["ordinal"],
+                "module_passport": target_row["passport_key"],
+            },
+            "WB8.5 MOD1–MOD4 to compatible WBE2 module attachment",
+            "Совместимый модуль подключается к MOD-слоту WB8.5"
+            if host_ok
+            else "MODULE_INSTALLATION: требуется MOD1–MOD4 контроллера WB8.5 и совместимый модуль WBE2",
+        )
+        return RelationPreview(definition, source, target, preview.results + (result,))
 
     def _load_facts(self, connection, project_id: str, resource_id: str) -> ResourceFacts:
         row = (

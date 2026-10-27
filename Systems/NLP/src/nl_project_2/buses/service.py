@@ -92,6 +92,10 @@ class BusService:
         bus_id = new_id()
         with UnitOfWork(self._engine) as uow:
             self._validate_rs485_resources(uow, project_id, (root_resource_id,))
+            if not self._validate_rs485_module_root(uow, project_id, root_resource_id):
+                raise BusError(
+                    "RS-485 module must be installed in an available WB8.5 MOD1–MOD4 slot"
+                )
             self._validate_rs485_points(uow, project_id, points)
             self._validate_root_available(uow, project_id, root_resource_id)
             uow.execute(
@@ -361,7 +365,10 @@ class BusService:
                     "resource_designation": row["resource_key"],
                     "label": resource_user_label(row),
                     "technical_identity": resource_technical_identity(row),
-                    "source_available": row["id"] not in occupied_sources,
+                    "source_available": (
+                        row["id"] not in occupied_sources
+                        and self._validate_rs485_module_root(connection, project_id, row["id"])
+                    ),
                     "endpoint_available": True,
                 }
                 for row in rows
@@ -1213,6 +1220,67 @@ class BusService:
             if row["endpoint_kind"] == "FIELD_DEVICE"
         )
         return states
+
+    @staticmethod
+    def _validate_rs485_module_root(uow, project_id: str, resource_id: str) -> bool:
+        """Module RS485 ports require a persisted, valid WB8.5 MOD installation."""
+        module = uow.execute(
+            select(instance_resource.c.project_instance_id, passport_definition.c.passport_key)
+            .join(project_instance, project_instance.c.id == instance_resource.c.project_instance_id)
+            .join(passport_definition, passport_definition.c.id == project_instance.c.passport_definition_id)
+            .where(
+                instance_resource.c.id == resource_id,
+                instance_resource.c.project_id == project_id,
+                instance_resource.c.active.is_(True),
+                project_instance.c.lifecycle == "ACTIVE",
+            )
+        ).mappings().one_or_none()
+        if module is None:
+            return False
+        if module["passport_key"] != "module.wirenboard.wbe2_i_rs485_iso":
+            return True
+        attachments = list(uow.execute(
+            select(instance_resource.c.id).where(
+                instance_resource.c.project_id == project_id,
+                instance_resource.c.project_instance_id == module["project_instance_id"],
+                instance_resource.c.resource_kind == "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
+                instance_resource.c.active.is_(True),
+            )
+        ).scalars())
+        if len(attachments) != 1:
+            return False
+        sources = list(uow.execute(
+            select(functional_relation.c.source_resource_id).where(
+                functional_relation.c.project_id == project_id,
+                functional_relation.c.relation_kind == "MODULE_INSTALLATION",
+                functional_relation.c.target_resource_id == attachments[0],
+            )
+        ).scalars())
+        if len(sources) != 1:
+            return False
+        slot = uow.execute(
+            select(
+                instance_resource.c.resource_kind,
+                instance_resource.c.resource_key,
+                instance_resource.c.ordinal,
+                passport_definition.c.passport_key,
+            )
+            .join(project_instance, project_instance.c.id == instance_resource.c.project_instance_id)
+            .join(passport_definition, passport_definition.c.id == project_instance.c.passport_definition_id)
+            .where(
+                instance_resource.c.id == sources[0],
+                instance_resource.c.project_id == project_id,
+                instance_resource.c.active.is_(True),
+                project_instance.c.lifecycle == "ACTIVE",
+            )
+        ).mappings().one_or_none()
+        return bool(
+            slot
+            and slot["passport_key"] == "controller.wiren_board_8_5"
+            and slot["resource_kind"] == "INTERNAL_EXPANSION_SLOT"
+            and slot["resource_key"] == "INTERNAL_MODULE_SLOT"
+            and slot["ordinal"] in (0, 1, 2, 3)
+        )
 
     @staticmethod
     def _validate_rs485_resources(uow, project_id: str, resource_ids) -> None:
