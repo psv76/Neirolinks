@@ -3,7 +3,7 @@
 **Входной маршрут:** [Issue #145](https://github.com/psv76/Neirolinks/issues/145).
 **Source of truth runtime:** `psv76/Neirolinks:main/Systems/NLP`.
 **Документация проектировщика:** [psv76/NEIROLINKS-TechDocs](https://github.com/psv76/NEIROLINKS-TechDocs) — отдельный источник, проверять его Issues/PR/ветки тоже.
-**Базовая версия на 26.10.2026:** установлен NL Project **3.1**, commit `de9b0bb1f75d3d64e5f729399b566ab96ae1a3bb`; ускоренное сканирование оставлено на 3.2.
+**Актуальный выпуск на 27.10.2026:** установлен **NL Project 3.2**, исходники `4b495cf`, каталог 51/67, startup smoke PASS. Ускоренное сканирование остаётся отдельной задачей и не объявляется завершённым при смене номера версии.
 
 > **Владелец реестра — ChatGPT-координатор, НЕ Codex.** Координатор проводит GitHub inventory, фиксирует решения, готовит задачи и release coverage. Codex читает готовое узкое задание, пишет код, выполняет тесты и отчитывается. Codex **не** выполняет поиск всех веток, восстановление общего контекста и систематизацию backlog.
 >
@@ -12,9 +12,9 @@
 
 ## Открытое обязательство: полный каталог паспортов устройств — Issue #293 (26.10.2026)
 
-| Направление | Issue / PR / ветка | Принятое требование | В установленной NLP 3.1 | Target / выпуск / блокер |
+| Направление | Issue / PR / ветка | Принятое требование | В установленной NLP 3.2 | Target / выпуск / блокер |
 | --- | --- | --- | --- | --- |
-| Полная миграция и паспортизация известного оборудования WB, включая `WBE2-I-RS485-ISO`, MOD1…MOD4, WB-MGE v.3, WB-DALI3 и RS-485/DALI ресурсы | [Issue #293](https://github.com/psv76/Neirolinks/issues/293); коммит [831eb76](https://github.com/psv76/Neirolinks/commit/831eb76) | Инвентаризация 43 legacy SKU / 16 module definitions / 36 engineering definitions без двойного подсчёта; полные проверенные `EquipmentPassport/Product/InstanceResource`, типизированные подключения модулей и назначение корней шин 900; миграция каталога и проверка работающей SQLite | **PARTIAL / WBE2 CATALOG SUCCESSOR LIVE PASS** — 27.10.2026 штатно установлен `nlp3.equipment.2026-10-27.wbe2-rs485-iso`: в рабочей SQLite 20 паспортов и 33 товара, integrity/FK PASS; 25 экземпляров, 296 ресурсов, 27 шин сохранены. GUI-приёмка после запуска ещё не подтверждена; остальная библиотека WB не покрыта. | Backup + release receipt: `D:\NLP_3_BACKUPS\issue293_wbe2_successor_20261027T190546\`; schema head `000000000017`, без изменения DWG и топологии Богдановича. Полное покрытие остальных устройств и UI-acceptance остаются открытыми |
+| Полная миграция и паспортизация WB, WBE2, MOD, WB-MGE, DALI/RS-485 | [Issue #293](https://github.com/psv76/Neirolinks/issues/293); релиз `4b495cf` | 43 legacy SKU, корректные паспорт/товар/ресурсы/шины, подтверждённый backup и safe successor | **NLP 3.2 LIVE PASS** — 51 паспорт, 67 товаров, схема `000000000017`, backup/identity parity/SQLite integrity/startup PASS; реальная связь M01 в MOD1 сохранена; 27 шин (13 DALI) без изменений. | Issue #293 **PARTIAL (3 производителя/ревизии NEEDS_VERIFICATION)**; DALI edit/delete реализованы; ручная acceptance интерфейса и кабельное назначение M01 отдельны. Подробности: `docs/engineering/NLP_32_RELEASE_2026-10-27.md` |
 
 **Источники:** legacy `D:\NLP\catalogs\wb_equipment_catalog.json`, `wb_module_catalog.json`, `wb_engineering_reference.json` — reference/evidence, не действующий machine catalog. Основная постановка, критерии, зависимости и ссылки — **[#293](https://github.com/psv76/Neirolinks/issues/293)**. Навигаторы [#145](https://github.com/psv76/Neirolinks/issues/145), [#286](https://github.com/psv76/Neirolinks/issues/286), [#235](https://github.com/psv76/Neirolinks/issues/235). Нельзя выдавать существование legacy справочника за готовность production паспорта.
 
@@ -22,13 +22,13 @@
 
 ### 27.10.2026: операторский путь установки WBE2 в MOD-слот — исходники готовы
 
-В проектном Constructor добавлена вкладка **«Установка модулей»**: три понятных выбора — контроллер, его физический слот, уже созданный модуль; таблица занятости слотов, проверка совместимости и безопасное снятие модуля. Проверен сценарий **3 WB8.5 / 12 MOD → WB-23 / MOD3 → M01 (WBE2-I-RS485-ISO) → reopen → uninstall**. На отдельной SQLite также проверены **восемь корней шин 903…910** с независимыми WBE2 и сохранением. **201 регрессионный тест PASSED**. Это synthetic operator acceptance, не реальная связка DWG Богдановича: в рабочей базе только `WB-20` имеет четыре MOD, `WB-23` и `WB-26` сейчас имеют паспорт `WB-MGE v.3`. Фактические назначения менять автоматически нельзя. Запущены два `pythonw.exe`; живой successor **не установлен**. Подробности в `docs/engineering/ISSUE_293_OPERATOR_MODULE_INSTALLATION_UI.md`.
+В проектном Constructor добавлена вкладка **«Установка модулей»**: три понятных выбора — контроллер, его физический слот, уже созданный модуль; таблица занятости слотов, проверка совместимости и безопасное снятие модуля. Проверен сценарий **3 WB8.5 / 12 MOD → WB-23 / MOD3 → M01 (WBE2-I-RS485-ISO) → reopen → uninstall**. На отдельной SQLite также проверены **восемь корней шин 903…910** с независимыми WBE2 и сохранением. **201 регрессионный тест PASSED**. Это synthetic operator acceptance, не реальная связка DWG Богдановича: в рабочей базе только `WB-20` имеет четыре MOD, `WB-23` и `WB-26` сейчас имеют паспорт `WB-MGE v.3`. Фактические назначения менять автоматически нельзя. Это исторический результат предварительного этапа: в тот момент приложение было запущено и successor ожидал установки. **Позднее NLP 3.2 (51/67) установлен с verified backup и startup PASS**. Пример `WB-23 / MOD3` был гипотетическим и не является задачей на исправление реального объекта. Подробности в `docs/engineering/ISSUE_293_OPERATOR_MODULE_INSTALLATION_UI.md`.
 
 ---
 
-### 27.10.2026: расширенный каталог WB — кандидат, не live
+### 27.10.2026: расширенный каталог WB — история предрелизного кандидата (теперь live)
 
-В ходе #293 собран проверочный successor `nlp3.equipment.2026-10-27.wb-optional-modem-shared-vout` на **51 паспорт / 67 товаров**. Матрица 43 legacy SKU: **40 READY по модели и ресурсам, 3 NEEDS_VERIFICATION**. Проверки: 198 тестов регрессии каталогов/Constructor/BUS/Recovery/Cables (включая новые UI-тесты), catalog-check и репетиция successor на копии рабочей SQLite (PASS, исходные ID экземпляров/ресурсов/шин сохранены). Состояние **PARTIAL / NOT LIVE**: работающая SQLite продолжает использовать успешно установленный ранее выпуск WBE2 (20/33), без обновления до 51/67. Полный перечень открытых проверок и доказательства в `docs/engineering/ISSUE_293_EXPANDED_CATALOG_EVIDENCE_2026-10-27.md` и `docs/legacy/issue293/CURRENT_COVERAGE_2026-10-27.md`. Не закрывать #293 до принятия оставшихся моделей/ревизий и GUI/workflow acceptance.
+В ходе #293 собран проверочный successor `nlp3.equipment.2026-10-27.wb-optional-modem-shared-vout` на **51 паспорт / 67 товаров**. Матрица 43 legacy SKU: **40 READY по модели и ресурсам, 3 NEEDS_VERIFICATION**. Проверки: 198 тестов регрессии каталогов/Constructor/BUS/Recovery/Cables (включая новые UI-тесты), catalog-check и репетиция successor на копии рабочей SQLite (PASS, исходные ID экземпляров/ресурсов/шин сохранены). Состояние **HISTORICAL SNAPSHOT**: в период подготовки рабочая SQLite содержала предыдущий выпуск 20/33. **Позднее 27.10.2026 релиз 3.2 с 51/67 установлен штатно**; см. `docs/engineering/NLP_32_RELEASE_2026-10-27.md`. Полный перечень открытых проверок и доказательства в `docs/engineering/ISSUE_293_EXPANDED_CATALOG_EVIDENCE_2026-10-27.md` и `docs/legacy/issue293/CURRENT_COVERAGE_2026-10-27.md`. Не закрывать #293 до принятия оставшихся моделей/ревизий и GUI/workflow acceptance.
 
 ---
 
@@ -50,7 +50,7 @@ merged [PR #287](https://github.com/psv76/Neirolinks/pull/287)
 производственным источником. Полная повторная пользовательская приёмка на
 живом объекте ещё не проводилась.
 
-**Backup/evidence:** `D:\NLP_3_BACKUPS\issue-286-q07-release-20261026\`
+**Backup/evidence:** `D:\NLP_3_BACKUPS\issue-286-q07-release-20261026`
 содержит проверенную резервную SQLite и JSON receipts до и после запуска.
 Во время обычного запуска содержимое живой SQLite изменилось; нулевых записей
 не утверждаем, предустановочная копия сохранена.
