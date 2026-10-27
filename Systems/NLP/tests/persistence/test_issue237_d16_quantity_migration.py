@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from nl_project_2.persistence.database import DatabaseManager, SchemaUpgradeRequiredError
 from nl_project_2.persistence.migration import (
     HEAD_REVISION,
+    TRANSIT_LINE_COMMIT_REVISION,
     TRANSIT_PHYSICAL_STAGING_REVISION,
     current_revision_read_only,
     downgrade_database,
@@ -30,7 +31,7 @@ def _tables(path):
 def test_rev16_to_17_uses_verified_backup_no_legacy_backfill(tmp_path):
     dbfile = tmp_path / "before16.sqlite"
     backup_folder = tmp_path / "backup"
-    assert HEAD_REVISION == "000000000017"
+    assert TRANSIT_LINE_COMMIT_REVISION == "000000000017"
     assert initialize_database(dbfile, target=TRANSIT_PHYSICAL_STAGING_REVISION) == "000000000016"
     before = _tables(dbfile)
     assert not before.intersection(TRANSIT_LINE_COMMIT_TABLE_NAMES)

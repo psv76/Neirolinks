@@ -188,7 +188,7 @@ def test_bulk_action_buttons_are_laid_out_below_search_not_floating(qtbot):
         w.close()
 
 
-def test_human_bus_purpose_and_source_are_visible_in_main_grid(qtbot):
+def test_human_bus_purpose_and_source_are_visible_in_main_grid(qtbot,monkeypatch):
     from copy import deepcopy
     from nl_project_2.presentation.lines_workspace import _column_index
     from PySide6.QtWidgets import QApplication
@@ -203,6 +203,10 @@ def test_human_bus_purpose_and_source_are_visible_in_main_grid(qtbot):
                 "source_tooltip": "Щит: ВРУ-20\nКонтроллер / порт: WB-21 / RS485-1",
                 "board": "ВРУ-20 · WB-21 / RS485-1",
                 "room_names": "Прихожая, Постирочная",
+                "room_markers": (
+                    {"id": "room-1", "name": "Прихожая", "color": "#AED6F1"},
+                    {"id": "room-2", "name": "Постирочная", "color": "#F8D7E8"},
+                ),
                 "building_names": "Дом_2",
                 "unresolved_room_names": (),
                 "system_kind": "RS485",
@@ -256,3 +260,15 @@ def test_human_bus_purpose_and_source_are_visible_in_main_grid(qtbot):
     # Search matches complete DWG LOAD_NAME tooltip, not only truncated header.
     w.search.setText("903.002: Преобразователь WB-M1W2")
     assert not w.table.isRowHidden(row)
+    from nl_project_2.presentation.room_presentation import ROOM_MARKERS_ROLE
+    assert len(destination.data(ROOM_MARKERS_ROLE)) == 2
+    assert destination.data(ROOM_MARKERS_ROLE)[0]["color"] == "#AED6F1"
+    from PySide6.QtWidgets import QInputDialog
+    changed=[]
+    def record(**kwargs):
+        changed.append(kwargs)
+    monkeypatch.setattr(w.buses, "set_bus_display_name", record, raising=False)
+    monkeypatch.setattr(QInputDialog, "getText",lambda *args,**kwargs: ("Датчики первого этажа",True))
+    w.search.clear()
+    w._table_item_double_clicked(purpose)
+    assert changed == [{"project_id":"project","bus_id":"bus-903","display_name":"Датчики первого этажа"}]

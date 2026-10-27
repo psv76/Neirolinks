@@ -1595,6 +1595,7 @@ bus = Table(
     Column("root_resource_id", String(36), nullable=False),
     Column("topology_policy", String(64), nullable=False),
     Column("cable_type", Text),
+    Column("display_name", Text),  # Project-authored title; DWG LOAD_NAME per device is unchanged.
     lifecycle_column(),
     *timestamps_and_version(),
     ForeignKeyConstraint(

@@ -905,7 +905,9 @@ class LinesWorkspace(QWidget):
                     if card.get("network_kind") == "BUS":
                         if definition.key == "load_name":
                             item.setToolTip(
-                                card.get("load_name_tooltip") or text
+                                "Двойной щелчок: изменить общее название шины в Project.\\n"
+                                "LOAD_NAME точек из AutoCAD не изменяется.\\n\\n"
+                                + (card.get("load_name_tooltip") or text)
                             )
                         elif definition.key == "board":
                             item.setToolTip(
@@ -1214,9 +1216,44 @@ class LinesWorkspace(QWidget):
         return context
 
     def _table_item_double_clicked(self, item: QTableWidgetItem) -> None:
-        line_id = item.data(Qt.ItemDataRole.UserRole)
-        if line_id:
-            self._open_line_details(str(line_id))
+        line_id = str(item.data(Qt.ItemDataRole.UserRole) or "")
+        if not line_id:
+            return
+        card = self._cards_by_id.get(line_id, {})
+        if (
+            card.get("network_kind") == "BUS"
+            and self._row_kind(item.row()) == "BASE"
+            and item.data(Qt.ItemDataRole.UserRole + 1) == "load_name"
+        ):
+            self._edit_bus_title(line_id)
+            return
+        self._open_line_details(line_id)
+
+    def _edit_bus_title(self, bus_id: str) -> None:
+        """Project-only title: never change DWG LOAD_NAME of bus participants."""
+        card = self._cards_by_id.get(bus_id, {})
+        if card.get("network_kind") != "BUS" or self.buses is None:
+            return
+        existing = str(card.get("custom_display_name") or "")
+        value, accepted = QInputDialog.getText(
+            self,
+            f"Название шины {card['designation']}",
+            "Общее название шины (только в NLP):\\n"
+            "Пустое поле возвращает автоматическую сводку LOAD_NAME из DWG.",
+            QLineEdit.EchoMode.Normal,
+            existing,
+        )
+        if not accepted:
+            return
+        try:
+            self.buses.set_bus_display_name(
+                project_id=self.project_id, bus_id=bus_id, display_name=value
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Название шины не сохранено", str(exc))
+            return
+        self.refresh(selected_line_id=bus_id)
+        self.projectChanged.emit()
 
     def _toggle_line_tree(self, base_row: int, line_id: str) -> None:
         if line_id in self._expanded_line_ids:

@@ -910,6 +910,33 @@ class BusService:
             raise BusError("Topology replacement conflicts with Project data") from exc
         return BusReceipt(bus_id, len(points))
 
+    def set_bus_display_name(
+        self, *, project_id: str, bus_id: str, display_name: str
+    ) -> str | None:
+        """Save user's title in Project without modifying bus ID/DWG LOAD_NAME."""
+        value = str(display_name or "").strip()
+        if len(value) > 160:
+            raise BusError("Название шины не должно превышать 160 символов")
+        if "\n" in value or "\r" in value or "\t" in value:
+            raise BusError("Название шины должно быть одной строкой")
+        with UnitOfWork(self._engine) as uow:
+            result = uow.execute(
+                update(bus)
+                .where(
+                    bus.c.id == bus_id,
+                    bus.c.project_id == project_id,
+                    bus.c.lifecycle == "ACTIVE",
+                )
+                .values(
+                    display_name=value or None,
+                    row_version=bus.c.row_version + 1,
+                )
+            )
+            if result.rowcount != 1:
+                raise BusError("Шина не найдена в текущем объекте")
+            uow.commit()
+        return value or None
+
     def list_buses(self, project_id: str) -> list[dict]:
         with self._engine.connect() as connection:
             rows = connection.execute(
@@ -1017,9 +1044,13 @@ class BusService:
                     bus_endpoint.c.endpoint_order,
                     bus_endpoint.c.address,
                     field_device.c.normalized_fields_json,
+                    room.c.id.label("room_id"),
+                    room.c.name.label("canonical_room"),
+                    room.c.display_json.label("room_display"),
                 )
                 .join(bus, bus.c.id == bus_endpoint.c.bus_id)
                 .join(field_device, field_device.c.id == bus_endpoint.c.field_device_id)
+                .outerjoin(room, room.c.id == field_device.c.room_id)
                 .where(
                     bus.c.project_id == project_id,
                     bus.c.lifecycle == "ACTIVE",
@@ -1076,12 +1107,24 @@ class BusService:
                 ),
                 "purposes": [],
                 "purpose_details": [],
+                "room_markers": {},
             }
         for row in members:
             item = result.get(row["bus_id"])
             if item is None:
                 continue
             values = dict(row["normalized_fields_json"] or {})
+            if row["room_id"] and row["canonical_room"]:
+                item["room_markers"].setdefault(
+                    row["room_id"],
+                    {
+                        "id": row["room_id"],
+                        "name": row["canonical_room"],
+                        "color": (row["room_display"] or {}).get(
+                            "marking_color", "#FFFFFF"
+                        ),
+                    },
+                )
             dwg_bus_id = str(values.get("BUS_ID") or "").strip()
             if dwg_bus_id and dwg_bus_id != row["bus_designation"]:
                 # Conflicting DWG tag: never ascribe a different bus's load.
@@ -1178,7 +1221,9 @@ class BusService:
                     automatic = effective = None
             context = human_context.get(stored["id"], {})
             purposes = context.get("purposes", [])
-            load_name = self._journal_purpose_summary(purposes)
+            suggested_name = self._journal_purpose_summary(purposes)
+            custom_name = str(stored.get("display_name") or "").strip()
+            load_name = custom_name or suggested_name
             board_name = str(context.get("source_board") or "").strip()
             root_label = str(
                 root_labels.get(str(stored["root_resource_id"]), {}).get("label")
@@ -1198,7 +1243,13 @@ class BusService:
                     **stored,
                     "network_kind": "BUS",
                     "load_name": load_name,
-                    "load_name_tooltip": purpose_tooltip,
+                    "custom_display_name": custom_name,
+                    "suggested_display_name": suggested_name,
+                    "load_name_tooltip": (
+                        (f"Название шины (Project): {custom_name}\n"
+                         f"LOAD_NAME точек DWG:\n{purpose_tooltip}")
+                        if custom_name else purpose_tooltip
+                    ),
                     "load_name_count": len(purposes),
                     "source_board": board_name,
                     "source_interface": root_label,
@@ -1210,7 +1261,7 @@ class BusService:
                     "board": source_label,
                     "building_names": ", ".join(buildings),
                     "room_names": ", ".join(rooms),
-                    "room_markers": (),
+                    "room_markers": tuple(context.get("room_markers", {}).values()),
                     "unresolved_room_names": tuple(unresolved_rooms),
                     "system_kind": stored["bus_kind"],
                     "cable_type": stored.get("cable_type") or "",

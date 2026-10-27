@@ -3,6 +3,7 @@
 No updates to real DWG/SQLite. Synthetic fixtures test heterogeneous purposes,
 cross-bus safety and reader support for actual MOD installation.
 """
+import pytest
 from sqlalchemy import select,update
 from nl_project_2.automation import AutomationService
 from nl_project_2.buses import BusService
@@ -131,3 +132,75 @@ def test_installed_wbe2_inherits_board_for_900_root(database):
     assert card["source_board"]=="ВРУ-20"
     assert card["board"].startswith("ВРУ-20 · M01 / RS485")
     assert card["load_name"]=="Назначение не задано"
+
+
+def test_project_bus_title_roundtrip_clear_and_project_isolation(database):
+    pid=database.test_project_id
+    root=_source_root_on_board(database,pid)
+    svc=BusService(database.engine)
+    receipt=svc.create_rs485_bus(project_id=pid,designation="903",root_resource_id=root,points=())
+    assert svc.set_bus_display_name(
+        project_id=pid,bus_id=receipt.bus_id,display_name="  Датчики первого этажа "
+    )=="Датчики первого этажа"
+    assert svc.get_bus(pid,receipt.bus_id)["display_name"]=="Датчики первого этажа"
+    a=svc.journal_cards(pid)[0]
+    assert a["custom_display_name"]=="Датчики первого этажа"
+    assert a["load_name"]=="Датчики первого этажа"
+    assert "LOAD_NAME" in a["load_name_tooltip"]
+    with pytest.raises(Exception,match="текущем объекте"):
+        svc.set_bus_display_name(
+            project_id=new_id(),bus_id=receipt.bus_id,display_name="Подмена"
+        )
+    with pytest.raises(Exception,match="160"):
+        svc.set_bus_display_name(
+            project_id=pid,bus_id=receipt.bus_id,display_name="x"*161
+        )
+    assert svc.set_bus_display_name(
+        project_id=pid,bus_id=receipt.bus_id,display_name=" "
+    ) is None
+    b=svc.journal_cards(pid)[0]
+    assert b["custom_display_name"]==""
+    assert b["load_name"]=="Назначение не задано"
+
+
+def test_bus_canonical_room_color_is_not_replaced_by_raw_dwg_room(database):
+    from nl_project_2.persistence.schema import room, building
+    import pytest
+    pid=database.test_project_id
+    root=_source_root_on_board(database,pid)
+    svc=BusService(database.engine)
+    receipt=svc.create_rs485_bus(project_id=pid,designation="903",root_resource_id=root,points=())
+    with database.engine.begin() as conn:
+        bid=new_id()
+        rid=new_id()
+        conn.execute(building.insert().values(
+            id=bid,project_id=pid,code="HOUSE2",normalized_code="house2",
+            name="Дом_2",display_order=1,properties_json={}
+        ))
+        conn.execute(room.insert().values(
+            id=rid,project_id=pid,building_id=bid,
+            name="Постирочная",normalized_name="постирочная",
+            display_json={"marking_color":"#A1B2C3"},
+        ))
+        fid=new_id()
+        eid=new_id()
+        conn.execute(field_device.insert().values(
+            id=fid,project_id=pid,room_id=rid,block_kind="SENSOR_MSW",
+            normalized_fields_json={"BUS_ID":"903","ROOM":"Неверное имя",
+                                    "LOAD_NAME":"Датчик температуры"},
+            lifecycle="ACTIVE",
+        ))
+        conn.execute(bus_endpoint.insert().values(
+            id=eid,project_id=pid,bus_id=receipt.bus_id,
+            endpoint_kind="FIELD_DEVICE",field_device_id=fid,
+            endpoint_role="DEVICE",address="903.001",endpoint_order=1
+        ))
+        conn.execute(bus_segment.insert().values(
+            id=new_id(),project_id=pid,bus_id=receipt.bus_id,
+            source_endpoint_id=None,target_endpoint_id=eid,
+            connection_kind="CABLE",origin_kind="PROJECT",migration_state="CONFIRMED",
+        ))
+    card=svc.journal_cards(pid)[0]
+    assert card["room_markers"]==({
+        "id":rid,"name":"Постирочная","color":"#A1B2C3",
+    },)
