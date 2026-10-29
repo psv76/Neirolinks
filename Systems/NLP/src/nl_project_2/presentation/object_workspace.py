@@ -73,6 +73,7 @@ from .equipment_workspace import EquipmentWorkspace
 from .lines_workspace import LinesWorkspace
 from .panel_workspace import PanelWorkspaceDialog
 from .room_presentation import ROOM_COLOR_ROLE, RoomColorComboBox, RoomSwatchDelegate
+from .routes_workspace import RoutesWorkspace
 from .validation_center import ValidationCenterDialog
 
 _SYNC_STATUS_TITLES = {
@@ -1052,6 +1053,7 @@ class ObjectWorkspace(QWidget):
         self._sync_progress_dialog = None
         self._navigation_history: list[dict] = []
         self.lines_workspace = None
+        self.routes_workspace = None
         self.equipment_workspace = None
         self.documents_workspace = None
 
@@ -1324,10 +1326,14 @@ class ObjectWorkspace(QWidget):
         documents.issueRequested.connect(self._navigate_issue)
         documents.specificationRequested.connect(self._open_specification)
         documents.specificationSourceRequested.connect(self._navigate_specification_source)
+        routes = RoutesWorkspace(self.runtime.cables, self.runtime.buses, project_id, parent=self)
+        routes.lineRequested.connect(self._navigate_routes_to_line)
         self._replace_section_page("Линии", lines)
+        self._replace_section_page("Трассы", routes)
         self._replace_section_page("Оборудование", equipment)
         self._replace_section_page("Документы", documents)
         self.lines_workspace = lines
+        self.routes_workspace = routes
         self.equipment_workspace = equipment
         self.documents_workspace = documents
 
@@ -1337,6 +1343,9 @@ class ObjectWorkspace(QWidget):
         if section != "Проект" and self.runtime.current_project_id is None:
             return
         self.section_stack.setCurrentWidget(self.section_pages[section])
+        if section == "Трассы" and self.routes_workspace is not None:
+            if self.routes_workspace.snapshot is None:
+                self.routes_workspace.refresh()
         self.navigation_buttons[section].setChecked(True)
         if save and self.runtime.ui_state is not None:
             self.runtime.ui_state.update(active_main_section=section)
@@ -1362,6 +1371,26 @@ class ObjectWorkspace(QWidget):
             }
         )
         self.lines_workspace.select_line(line_id)
+        self._switch_section("Линии")
+
+    def _navigate_routes_to_line(self, line_id: str) -> None:
+        if self.lines_workspace is None:
+            return
+        lines = self.lines_workspace
+        filters = (lines.system_filter, lines.room_filter, lines.board_filter, lines.status_filter)
+        self._navigation_history.append(
+            {
+                "section": "Трассы",
+                "lines_filters": (
+                    lines.search.text(),
+                    tuple(combo.currentIndex() for combo in filters),
+                ),
+            }
+        )
+        lines.search.clear()
+        for combo in filters:
+            combo.setCurrentIndex(0)
+        lines.select_line(line_id)
         self._switch_section("Линии")
 
     def _navigate_documents_to_line(self, line_id: str) -> None:
@@ -1390,7 +1419,8 @@ class ObjectWorkspace(QWidget):
         elif source_kind == "CONDUIT":
             self._navigation_history.append({"section": "Документы"})
             self._switch_section("Трассы")
-            self._open_cables()
+            if self.routes_workspace is not None:
+                self.routes_workspace.select_conduit(source_id)
         elif source_kind == "ASSEMBLY_MATERIAL":
             self._navigation_history.append({"section": "Документы"})
             self._switch_section("Щиты")
@@ -1504,6 +1534,12 @@ class ObjectWorkspace(QWidget):
             )
         if self.documents_workspace is not None:
             self.documents_workspace.refresh()
+        if self.routes_workspace is not None:
+            # Never read thousands of physical edges for an invisible page.
+            if self.section_stack.currentWidget() is self.routes_workspace:
+                self.routes_workspace.refresh()
+            else:
+                self.routes_workspace.snapshot = None
 
     def _navigate_issue(self, item) -> None:
         target = getattr(item, "navigation", None)
@@ -1523,7 +1559,6 @@ class ObjectWorkspace(QWidget):
             self._open_panels()
         elif target.section == "Трассы":
             self._switch_section("Трассы")
-            self._open_cables()
         elif target.section == "DWG":
             self._switch_section("DWG")
         elif target.context == "SPECIFICATION":
@@ -1551,6 +1586,16 @@ class ObjectWorkspace(QWidget):
             self._switch_section("Линии")
             return
         target = self._navigation_history.pop()
+        if "lines_filters" in target and self.lines_workspace is not None:
+            lines = self.lines_workspace
+            search, indexes = target["lines_filters"]
+            lines.search.setText(search)
+            for combo, index in zip(
+                (lines.system_filter, lines.room_filter, lines.board_filter, lines.status_filter),
+                indexes,
+                strict=True,
+            ):
+                combo.setCurrentIndex(index)
         if target["section"] == "Линии" and self.lines_workspace is not None:
             self.lines_workspace.select_line(target.get("line_id"))
         elif target["section"] == "Оборудование" and self.equipment_workspace is not None:
