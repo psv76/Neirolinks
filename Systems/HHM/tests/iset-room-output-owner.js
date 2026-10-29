@@ -169,7 +169,7 @@ check('malicious unexpected channel fails entire batch before any write',functio
     var m=mock('PHYSICAL',true,true);
     var x=m.writer.apply({state:'PLANNED_ONLY',actions:[
         {path:OFFICE,value:false,action:'ZONE_OPEN'},
-        {path:'wb-mr6cu_37/K5',value:true,action:'PUMP_START'}]});
+        {path:'wb-mr6cu_12/K5',value:true,action:'PUMP_START'}]});
     assert.strictEqual(x.mode,'REJECTED');
     assert.strictEqual(m.written.length,0);
 });
