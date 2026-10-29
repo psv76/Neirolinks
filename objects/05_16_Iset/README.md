@@ -69,3 +69,12 @@
 - `Grafana/` — dashboards и документация Grafana.
 
 Каноническая физическая адресация приведена в `Doc/PHYSICAL_CHANNEL_MAP.md`. Незакрытые вопросы находятся в `Doc/CHANNEL_MAP_OPEN_QUESTIONS.md`.
+
+## Замена насосного релейного модуля — 29.10.2026
+
+- Неисправный `wb-mr6cu_37` (Modbus 37) заменён на `wb-mr6cu_12` (Modbus 12, серийный номер 353796).
+- Перенесены каналы K1 (ГВС), K2 (ТП), K3 (цоколь), K4 (жилая зона), K5 (рециркуляция ГВС), K6 (преднагрев ПВУ).
+- Изменены активные `/etc/wb-rules/29_hhm_iset.js`, `DHW_recirculation_manager.js`, `AHU_preheat_pump_manager.js`, `/etc/wb-rules-modules/IsetServiceConfig.js`, `IsetRoomZones.js` и `/etc/wb-mqtt-db.conf`; службы `wb-rules` и `wb-mqtt-db` проверены активными.
+- Резервная копия активных JS: `/root/iset-pump-37-to-12-20261029-115202`; конфигурации истории: `/root/wb-mqtt-db.conf.backup-20261029`.
+- Карта каналов: `Doc/PHYSICAL_CHANNEL_MAP.md`. Исторические протоколы до 29.10.2026 сохраняют прежние адреса и не являются актуальной схемой.
+- Физический расход теплоносителя отдельно этим изменением не подтверждался.
