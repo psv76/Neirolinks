@@ -14,11 +14,10 @@
 | `wb-gpio`, `wb-w1`, `power_status` | используемые встроенные интерфейсы Wiren Board | локальные GPIO, 1-Wire, питание | локальный контроллер |
 | `wbe2-i-opentherm_12` | WBE2-I-OPENTHERM-FW-1.93 | `/dev/ttyMOD2` | 12 |
 | `wbe2-i-opentherm_11` | WBE2-I-OPENTHERM-FW-1.93 | `/dev/ttyMOD3` | 11 |
-| `wb-mr6cu_12` | WB-MR6CU | `/dev/ttyRS485-1` | 12 |
+| `wb-mr6cu_12` | WB-MR6CU (новый, S/N 353796, замена 29.10.2026) | `/dev/ttyRS485-1` | 12 |
 | `wb-mrm2-mini_19` | WB-MRM2-mini-NO-inputs | `/dev/ttyRS485-1` | 19 |
 | `wb-map12e_35` | WB-MAP12E fw2 | `/dev/ttyRS485-1` | 35 |
 | `wb-mr3_36` | WB-MR3 | `/dev/ttyRS485-1` | 36 |
-| `wb-mr6cu_12` | WB-MR6CU | `/dev/ttyRS485-1` | 37 |
 | `wb-msw-v4_45` | WB-MSW v.4 | `/dev/ttyRS485-1` | 45 |
 | `wb-mr6c_46` | WB-MR6C | `/dev/ttyRS485-1` | 46 |
 | `wb-msw-v4_61` | WB-MSW v.4 | `/dev/ttyRS485-1` | 61 |
