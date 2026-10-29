@@ -7,7 +7,7 @@
  * ЗОНА ОТВЕТСТВЕННОСТИ
  * -------------------------------------------------------------
  * Этот модуль является единственным писателем только в:
- *   - wb-mr6cu_37/K1
+ *   - wb-mr6cu_12/K1
  *   - wbe2-i-opentherm_11/Heating Setpoint
  *
  * В насосы отопления K2/K3/K4 модуль НЕ пишет.
@@ -23,7 +23,7 @@
 
 var DHW_TEMP_SENSOR = "wb-w1/28-00000fd7811a";
 var BOILER_SETPOINT_CH = "wbe2-i-opentherm_11/Heating Setpoint";
-var PUMP_DHW = "wb-mr6cu_37/K1";
+var PUMP_DHW = "wb-mr6cu_12/K1";
 
 var DEFAULT_ENABLED = false;
 var DEFAULT_NORMAL_SETPOINT_C = 52;
