@@ -29,6 +29,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .lines_workspace import ContrastCellDelegate
+
 _ID_ROLE = Qt.ItemDataRole.UserRole + 1
 _KIND_ROLE = Qt.ItemDataRole.UserRole + 2
 _COLS = (
@@ -521,6 +523,9 @@ class RoutesWorkspace(QWidget):
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.setWordWrap(False)
+        self.table.setMouseTracking(True)
+        self.table.viewport().setMouseTracking(True)
+        self.table.setItemDelegate(ContrastCellDelegate(self.table))
         self.table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.table.setStyleSheet(
             "QTableView::item:selected {background: #2f6fab; color: white;}"
@@ -539,6 +544,8 @@ class RoutesWorkspace(QWidget):
         header.setFont(header_font)
         for index, width in enumerate(_COL_WIDTHS):
             self.table.setColumnWidth(index, width)
+        # UUID stays in the read model and row roles, not in the operator table.
+        self.table.setColumnHidden(len(_COLS) - 1, True)
         self.table.selectionModel().selectionChanged.connect(self._selection_changed)
         self.table.clicked.connect(self._clicked)
         self.table.doubleClicked.connect(self._double_clicked)
