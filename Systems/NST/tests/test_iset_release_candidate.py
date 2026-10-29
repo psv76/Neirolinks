@@ -139,7 +139,7 @@ class IsetDraftReleaseTests(unittest.TestCase):
         channels = {x["path"]: x["kind"]
                     for x in diagnostic["current_controls"]}
         self.assertEqual(len(channels), len(diagnostic["current_controls"]))
-        self.assertEqual(channels["wb-mr6cu_37/K2"], "readback")
+        self.assertEqual(channels["wb-mr6cu_12/K2"], "readback")
         self.assertEqual(channels["wb-m1w2_67/External Sensor 1"],
                          "measurement")
         self.assertEqual(channels["iset_hhm/io_unconfirmed"], "calculated")
