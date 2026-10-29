@@ -27,34 +27,40 @@ def _paths(root):
 
 
 def _old_release(payload):
+    # Exact identifiers from the approved 2026-10-05 predecessor (commit 3349eacd).
+    # Synthetic bytes/hashes are intentionally calculated for this test payload.
+    fixture = Path(__file__).parent / "fixtures/issue293_predecessor_ids.json"
+    historical_ids = json.loads(fixture.read_text(encoding="utf-8"))
     passports = copy.deepcopy(payload.passports)
     products = copy.deepcopy(payload.products)
     passports["passports"] = [
-        row for row in passports["passports"]
-        if row["id"] != "module.wirenboard.wbe2_i_rs485_iso"
+        row for row in passports["passports"] if row["id"] in historical_ids["passports"]
     ]
     products["products"] = [
-        row for row in products["products"]
-        if row["id"] != "product.wirenboard.wbe2_i_rs485_iso"
+        row for row in products["products"] if row["id"] in historical_ids["products"]
     ]
+    assert {row["id"] for row in passports["passports"]} == set(historical_ids["passports"])
+    assert {row["id"] for row in products["products"]} == set(historical_ids["products"])
+    assert len(passports["passports"]) == 19
+    assert len(products["products"]) == 32
     raw = {
-        "equipment_passports.json": json.dumps(passports,ensure_ascii=False).encode("utf-8"),
-        "products.json": json.dumps(products,ensure_ascii=False).encode("utf-8"),
+        "equipment_passports.json": json.dumps(passports, ensure_ascii=False).encode("utf-8"),
+        "products.json": json.dumps(products, ensure_ascii=False).encode("utf-8"),
     }
     manifest = copy.deepcopy(payload.manifest)
     manifest["release_code"] = "nlp3.equipment.2026-10-05.wb-mge-v3"
     manifest["expected_counts"] = {"passports": 19, "products": 32}
-    manifest["files"] = {k: hashlib.sha256(v).hexdigest() for k,v in raw.items()}
+    manifest["files"] = {key: hashlib.sha256(value).hexdigest() for key, value in raw.items()}
     manifest["content_sha256"] = hashlib.sha256(
         raw["equipment_passports.json"] + b"\0" + raw["products.json"]
     ).hexdigest()
-    return CatalogPayload(manifest,passports,products,raw)
+    return CatalogPayload(manifest, passports, products, raw)
 
 
 def test_existing_predecessor_does_not_auto_upgrade_on_application_start(tmp_path):
     paths = _paths(tmp_path)
     db_path = paths.user_projects_root / DEFAULT_DATABASE_NAME
-    db_path.parent.mkdir(parents=True,exist_ok=True)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     catalog = Path(__file__).resolve().parents[2] / "resources/catalogs"
     payload = load_payload(catalog)
     handle = DatabaseManager().initialize_new(db_path)
@@ -82,10 +88,11 @@ def test_new_database_receives_published_successor_on_initial_start(tmp_path):
         with runtime.database.engine.connect() as conn:
             release = conn.scalar(select(catalog_release.c.release_code))
             count = len(conn.execute(select(passport_definition.c.id)).all())
-        assert release == "nlp3.equipment.2026-10-27.wbe2-rs485-iso"
-        assert count == 20
+        assert release == "nlp3.equipment.2026-10-27.wb-optional-modem-shared-vout"
+        assert count == 51
     finally:
         runtime.close()
+
 
 def test_same_release_different_hash_is_rejected_on_reopen(tmp_path):
     paths = _paths(tmp_path)
