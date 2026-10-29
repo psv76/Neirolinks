@@ -23,10 +23,10 @@ check('physical as-built sensor ownership does not use old wb-w1',function(){
     assert.strictEqual(cfg.channels.dhwTank,'wb-m1w2_67/External Sensor 2');
     assert.strictEqual(cfg.channels.otSetpoint,
         'wbe2-i-opentherm_11/Heating Setpoint');
-    assert.strictEqual(cfg.outputs.dhwPump,'wb-mr6cu_37/K1');
-    assert.strictEqual(cfg.outputs.floorPump,'wb-mr6cu_37/K2');
-    assert.strictEqual(cfg.outputs.basementPump,'wb-mr6cu_37/K3');
-    assert.strictEqual(cfg.outputs.livingPump,'wb-mr6cu_37/K4');
+    assert.strictEqual(cfg.outputs.dhwPump,'wb-mr6cu_12/K1');
+    assert.strictEqual(cfg.outputs.floorPump,'wb-mr6cu_12/K2');
+    assert.strictEqual(cfg.outputs.basementPump,'wb-mr6cu_12/K3');
+    assert.strictEqual(cfg.outputs.livingPump,'wb-mr6cu_12/K4');
     assert.strictEqual(cfg.ahu.commissioned,false);
     assert.strictEqual(cfg.floor.commissioned,false);
 });
