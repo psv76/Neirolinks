@@ -2294,7 +2294,8 @@ class ObjectWorkspace(QWidget):
             return
         if service is None:
             QMessageBox.warning(
-                self, "Кабельные линии",
+                self,
+                "Кабельные линии",
                 "Сервис кабельных линий недоступен. Перезапустите NLP и проверьте журнал запуска.",
             )
             logging.getLogger(__name__).error(
@@ -2322,7 +2323,8 @@ class ObjectWorkspace(QWidget):
                 "Cable workspace failed to initialize; project_id=%s", project_id
             )
             QMessageBox.critical(
-                self, "Не удалось открыть кабельные линии",
+                self,
+                "Не удалось открыть кабельные линии",
                 f"Ошибка открытия редактора: {type(exc).__name__}: {exc}\n"
                 "Подробности записаны в журнал NLP.",
             )

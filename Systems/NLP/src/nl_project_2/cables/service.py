@@ -606,17 +606,13 @@ class CableService:
             diag = diagnostics[row["id"]]
             calculated = row["calculated_length_m_decimal"]
             saved_calculated = calculated
-            geometry_calculated = (
-                diag["calculated_length_m"] if diag["complete"] else None
-            )
+            geometry_calculated = diag["calculated_length_m"] if diag["complete"] else None
             is_stale = False
             if diag["complete"] and calculated is None:
                 diag = {"complete": False, "missing": ("not_calculated",)}
-            elif (
-                diag["complete"]
-                and abs(Decimal(calculated) - Decimal(diag["calculated_length_m"]))
-                > Decimal("0.001")
-            ):
+            elif diag["complete"] and abs(
+                Decimal(calculated) - Decimal(diag["calculated_length_m"])
+            ) > Decimal("0.001"):
                 # Sub-millimetre differences are representation/rounding noise.
                 # Genuine geometry changes must still stay unverified.
                 is_stale = True
@@ -672,15 +668,21 @@ class CableService:
                     # Archived value is DIAGNOSTIC ONLY: it must not silently
                     # enter validated totals when geometry has changed.
                     "stored_length_m": (
-                        None if saved_calculated is None else str(
+                        None
+                        if saved_calculated is None
+                        else str(
                             conduit_length_from_segment_length(saved_calculated, route)
-                            if route is not None else Decimal(saved_calculated)
+                            if route is not None
+                            else Decimal(saved_calculated)
                         )
                     ),
                     "current_geometry_length_m": (
-                        None if geometry_calculated is None else str(
+                        None
+                        if geometry_calculated is None
+                        else str(
                             conduit_length_from_segment_length(geometry_calculated, route)
-                            if route is not None else Decimal(geometry_calculated)
+                            if route is not None
+                            else Decimal(geometry_calculated)
                         )
                     ),
                     "stale_calculation": is_stale,
@@ -1168,20 +1170,18 @@ class CableService:
                 }
             )
         topologies: dict[str, dict[str, dict]] = {}
-        for line_id in {
-            child["cable_line_id"] for rows in by_conduit.values() for child in rows
-        }:
+        for line_id in {child["cable_line_id"] for rows in by_conduit.values() for child in rows}:
             try:
                 topologies[line_id] = {
-                    edge["segment_id"]: edge
-                    for edge in self.topology(project_id, line_id)["edges"]
+                    edge["segment_id"]: edge for edge in self.topology(project_id, line_id)["edges"]
                 }
             except KeyError:
                 # Legacy/stale endpoint references must not prevent read-only
                 # access to all other cable lines. Do not invent geometry.
                 logging.getLogger(__name__).exception(
                     "Cable topology contains a missing reference; project_id=%s line_id=%s",
-                    project_id, line_id,
+                    project_id,
+                    line_id,
                 )
                 topologies[line_id] = {}
         for parent in parents:
@@ -1698,7 +1698,8 @@ class CableService:
         result: list[dict] = []
         with UnitOfWork(self._engine) as uow:
             segments = [
-                dict(row) for row in uow.execute(
+                dict(row)
+                for row in uow.execute(
                     select(
                         cable_segment,
                         cable_line.c.designation.label("line_designation"),
@@ -1721,14 +1722,16 @@ class CableService:
                 previous = Decimal(saved)
                 if abs(current - previous) <= Decimal("0.001"):
                     continue
-                result.append({
-                    "segment_id": segment["id"],
-                    "cable_line_id": segment["cable_line_id"],
-                    "designation": segment["line_designation"],
-                    "stored_m": str(previous),
-                    "new_m": str(current),
-                    "delta_m": str(current-previous),
-                })
+                result.append(
+                    {
+                        "segment_id": segment["id"],
+                        "cable_line_id": segment["cable_line_id"],
+                        "designation": segment["line_designation"],
+                        "stored_m": str(previous),
+                        "new_m": str(current),
+                        "delta_m": str(current - previous),
+                    }
+                )
             uow.rollback()
         return tuple(sorted(result, key=lambda row: row["designation"]))
 
