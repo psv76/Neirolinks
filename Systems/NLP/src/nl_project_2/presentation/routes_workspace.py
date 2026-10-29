@@ -1,10 +1,8 @@
-"""NL Project 3.1 physical Routes workspace: accepted flat variant B.
+"""NL Project 3.2 physical Routes workspace, flat variant B.
 
-This is a production PySide6 view over the existing Project-owned cable and
-BUS topology. The read model is derived at refresh; there is no second route
-storage, migration, CAD interaction or implicit DB write. Segment assignment
-commands remain unavailable until Q03/Q06 compatibility is enforced inside
-a single transactional domain service (Issue #216).
+Project-owned topology is read at refresh. Operator-initiated merge and segment
+transfer use the transactional Q03/Q06-aware RouteConduitCommands service;
+opening this view never writes to the database or DWG.
 """
 
 from __future__ import annotations
@@ -17,9 +15,11 @@ from PySide6.QtCore import QAbstractTableModel, QItemSelectionModel, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QComboBox,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -28,6 +28,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from nl_project_2.cables.route_commands import RouteConduitCommands, RouteMutationError
 
 from .lines_workspace import ContrastCellDelegate
 
@@ -504,8 +506,10 @@ class RoutesWorkspace(QWidget):
         toolbar.addWidget(self.collapse_all)
         root.addLayout(toolbar)
         self.read_only_info = QLabel(
-            "Только просмотр. Изменение труб и назначений станет доступно после проверки "
-            "физических границ и атомарных операций для кабелей и BUS.",
+            "Выделите Ctrl две или более трубы → «Объединить трубы». "
+            "Для частичного переноса раскройте трубу и выберите сегменты → «Перенести сегменты». "
+            "Предпросмотр и подтверждение физического участка обязательны. "
+            "Изменения сохраняются в Project, DWG автоматически не изменяется.",
             self,
         )
         self.read_only_info.setWordWrap(True)
@@ -553,14 +557,22 @@ class RoutesWorkspace(QWidget):
         root.addWidget(self.table, 1)
 
         actions = QHBoxLayout()
-        for label in ("Назначить трубу", "Перенести", "Убрать из трубы"):
-            button = QPushButton(label, self)
-            button.setEnabled(False)
-            button.setToolTip(
-                "Назначения появятся после транзакционной проверки физических границ и "
-                "совместимости ordinary/BUS (Issue #216)."
-            )
-            actions.addWidget(button)
+        self.merge_button = QPushButton("Объединить трубы", self)
+        self.merge_button.setObjectName("routesMergeConduits")
+        self.merge_button.setToolTip("Выберите с Ctrl минимум две строки труб")
+        self.merge_button.setEnabled(False)
+        self.move_button = QPushButton("Перенести сегменты", self)
+        self.move_button.setObjectName("routesMoveSegments")
+        self.move_button.setToolTip("Выберите физические сегменты для переноса")
+        self.move_button.setEnabled(False)
+        self.remove_button = QPushButton("Убрать из трубы", self)
+        self.remove_button.setEnabled(False)
+        self.remove_button.setToolTip("Снятие назначения без новой трубы пока не разрешено")
+        actions.addWidget(self.merge_button)
+        actions.addWidget(self.move_button)
+        actions.addWidget(self.remove_button)
+        self.merge_button.clicked.connect(self._merge_selected)
+        self.move_button.clicked.connect(self._move_selected)
         actions.addStretch(1)
         self.reload_button = QPushButton("Обновить список", self)
         self.reload_button.setObjectName("routesRefresh")
@@ -708,14 +720,119 @@ class RoutesWorkspace(QWidget):
         self._selected.update(chosen)
         self._update_selection_info()
 
+    def _visible_selected_keys(self) -> set[str]:
+        return {str(index.data(_ID_ROLE)) for index in self.table.selectionModel().selectedRows(0)}
+
     def _update_selection_info(self) -> None:
         visible = {r.identity for r in self.model.rows}
         segments = sum(key.startswith(("CABLE:", "BUS:")) for key in self._selected)
         tubes = sum(not key.startswith(("CABLE:", "BUS:")) for key in self._selected)
+        active = self._visible_selected_keys()
+        active_segments = sum(key.startswith(("CABLE:", "BUS:")) for key in active)
+        active_tubes = len(active) - active_segments
         hidden = len(self._selected - visible)
+        self.merge_button.setEnabled(active_tubes >= 2 and active_segments == 0)
+        self.move_button.setEnabled(active_segments >= 1 and active_tubes == 0)
         self.selection_info.setText(
             f"Выбрано: {segments} сегм. · {tubes} труб · скрыто выбранных: {hidden}"
         )
+
+    def _merge_selected(self) -> None:
+        if self.snapshot is None:
+            return
+        active = self._visible_selected_keys()
+        ids = sorted(k for k in active if not k.startswith(("CABLE:", "BUS:")))
+        if len(ids) < 2 or len(ids) != len(active):
+            return
+        tubes = {tube.id: tube for tube in self.snapshot.conduits}
+        choices = [tubes[i].designation for i in ids if i in tubes]
+        if len(choices) != len(ids):
+            return
+        chosen, ok = QInputDialog.getItem(
+            self, "Объединение труб", "Основная труба (сохраняется):", choices, 0, False
+        )
+        if not ok:
+            return
+        target_id = next(i for i in ids if tubes[i].designation == chosen)
+        try:
+            command = RouteConduitCommands(self.cables._engine)
+            plan = command.preview_merge(self.project_id, tuple(ids), target_id)
+            self._approve_and_apply(command, plan, tubes[target_id].designation)
+        except RouteMutationError as exc:
+            QMessageBox.warning(self, "Объединение невозможно", str(exc))
+
+    def _move_selected(self) -> None:
+        if self.snapshot is None:
+            return
+        active = self._visible_selected_keys()
+        keys = sorted(k for k in active if k.startswith(("CABLE:", "BUS:")))
+        if not keys or len(keys) != len(active):
+            return
+        tubes = sorted(self.snapshot.conduits, key=lambda t: _sort_key(t.designation))
+        names = [tube.designation for tube in tubes]
+        chosen, ok = QInputDialog.getItem(
+            self, "Перенос сегментов", "Целевая труба:", names, 0, False
+        )
+        if not ok:
+            return
+        tube = next(tube for tube in tubes if tube.designation == chosen)
+        selected = tuple(tuple(key.split(":", 1)) for key in keys)
+        try:
+            command = RouteConduitCommands(self.cables._engine)
+            plan = command.preview_move(self.project_id, selected, tube.id)
+            self._approve_and_apply(command, plan, tube.designation)
+        except RouteMutationError as exc:
+            QMessageBox.warning(self, "Перенос невозможен", str(exc))
+
+    def _approve_and_apply(self, command, plan, designation: str) -> None:
+        action = "Объединить трубы" if plan.mode == "MERGE" else "Перенести сегменты"
+        warning = QMessageBox(self)
+        warning.setWindowTitle("Предварительная проверка — " + action)
+        warning.setIcon(QMessageBox.Icon.Warning)
+        warning.setText(
+            f"Целевая труба: {designation}\n"
+            f"Физических сегментов: {plan.count}\n"
+            f"Закрываемых исходных труб: {len(plan.sources) - 1 if plan.mode == 'MERGE' else 0}"
+        )
+        tubes = {
+            tube.id: tube.designation for tube in (self.snapshot.conduits if self.snapshot else ())
+        }
+        source_names = [tubes[i] for i in plan.sources if i != plan.target_id and i in tubes]
+        if source_names:
+            warning.setText(warning.text() + "\nИсходные трубы: " + ", ".join(source_names))
+        segments = {
+            (seg.network_kind, seg.id): seg
+            for seg in (self.snapshot.segments if self.snapshot else ())
+        }
+        detailed = []
+        for kind, sid, _old, _version in plan.members:
+            item = segments.get((kind, sid))
+            if item:
+                detailed.append(f"{item.line} ({kind}): {item.source} → {item.target}")
+            else:
+                detailed.append(f"{kind}: {sid}")
+        warning.setDetailedText("\n".join(detailed))
+        warning.setInformativeText("\n".join(plan.warnings))
+        confirmed = QCheckBox("Подтверждаю общий физический участок по чертежу")
+        warning.setCheckBox(confirmed)
+        warning.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        warning.setDefaultButton(QMessageBox.StandardButton.No)
+        warning.button(QMessageBox.StandardButton.Yes).setText(action)
+        warning.button(QMessageBox.StandardButton.No).setText("Отмена")
+        if warning.exec() != QMessageBox.StandardButton.Yes:
+            return
+        if not confirmed.isChecked():
+            QMessageBox.warning(self, "Требуется подтверждение", "Операция не выполнена")
+            return
+        try:
+            command.apply(plan, confirmed_same_physical_run=True)
+        except RouteMutationError as exc:
+            QMessageBox.warning(self, "Операция отменена", str(exc))
+            self.refresh()
+            return
+        self._selected.clear()
+        self.refresh()
+        self.select_conduit(plan.target_id)
 
     def select_conduit(self, conduit_id: str) -> bool:
         """Navigate from specification without opening legacy expert dialog."""

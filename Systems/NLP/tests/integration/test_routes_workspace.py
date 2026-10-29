@@ -181,14 +181,10 @@ def test_routes_b_qt_inline_expand_hidden_selection_and_navigation(qtbot):
     assert selected_lines == ["line-1"]
 
     assert workspace.table.editTriggers() == workspace.table.EditTrigger.NoEditTriggers
-    actions = {
-        w.text(): w
-        for w in workspace.findChildren(
-            __import__("PySide6.QtWidgets", fromlist=["QPushButton"]).QPushButton
-        )
-    }
-    assert not actions["Перенести"].isEnabled()
-    assert not actions["Назначить трубу"].isEnabled()
+    assert workspace.table.isColumnHidden(11)
+    assert workspace.merge_button.text() == "Объединить трубы"
+    assert workspace.move_button.text() == "Перенести сегменты"
+    assert not workspace.remove_button.isEnabled()
 
 
 def test_geometry_display_does_not_round_away_stored_precision():
@@ -464,3 +460,30 @@ def test_broken_line_topology_reports_incomplete_snapshot_without_hiding_good_ro
     assert "orphan-cable-point" not in workspace.read_only_info.text()
     assert "orphan-cable-point" in workspace.read_only_info.toolTip()
     assert workspace.model.rowCount() > 0
+
+
+def test_ctrl_selection_enables_merge_and_exact_segment_transfer(qtbot):
+    workspace = RoutesWorkspace(Cables(), Buses(), "p")
+    qtbot.addWidget(workspace)
+    workspace.refresh()
+    selection = workspace.table.selectionModel()
+    first = workspace.model.index(0, 0)
+    second = workspace.model.index(1, 0)
+    selection.select(
+        first,
+        QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows,
+    )
+    selection.select(
+        second,
+        QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
+    )
+    assert workspace.merge_button.isEnabled()
+    assert not workspace.move_button.isEnabled()
+    workspace.toggle_conduit("tube-1")
+    segment = workspace.model.index(1, 0)
+    selection.select(
+        segment,
+        QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows,
+    )
+    assert workspace.move_button.isEnabled()
+    assert not workspace.merge_button.isEnabled()
