@@ -210,7 +210,7 @@ class DiagnosticsTests(fixtures.Fixture):
         self.assertEqual(metadata["component"], "hhm")
         controls = json.loads(files["current-controls.json"])
         names = {item["path"] for item in controls}
-        self.assertIn("wb-mr6cu_37/K4", names)
+        self.assertIn("wb-mr6cu_12/K4", names)
         self.assertNotIn("A03/K2", names)
         self.assertIn("journals/mosquitto.log", files)
         self.assertEqual(self.system.actions, [])
