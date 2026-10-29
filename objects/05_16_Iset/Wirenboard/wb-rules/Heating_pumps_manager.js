@@ -3,8 +3,8 @@
  * SCRIPT: Heating_pumps_manager.js
  * -------------------------------------------------------------
  * Единый менеджер насосов отопления для жилого этажа:
- *   - wb-mr6cu_37/K2 (тёплый пол)
- *   - wb-mr6cu_37/K4 (радиаторы жилого этажа)
+ *   - wb-mr6cu_12/K2 (тёплый пол)
+ *   - wb-mr6cu_12/K4 (радиаторы жилого этажа)
  *
  * ВАЖНО
  * -------------------------------------------------------------
@@ -24,8 +24,8 @@
  * Совместимость: ES5 / wb-rules.
  ***************************************************************/
 
-var HPM_PUMP_FLOOR = "wb-mr6cu_37/K2";
-var HPM_PUMP_RAD_LIVING = "wb-mr6cu_37/K4";
+var HPM_PUMP_FLOOR = "wb-mr6cu_12/K2";
+var HPM_PUMP_RAD_LIVING = "wb-mr6cu_12/K4";
 var HPM_DHW_PAUSE_MODE = "dhw_priority_mgr/heating_pause_mode";
 
 var HPM_FLOOR_ACTUATORS = [

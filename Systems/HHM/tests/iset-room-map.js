@@ -24,7 +24,7 @@ check('eleven NO physical outputs are mapped uniquely',function(){
     assert.strictEqual(map.actuators.closeCommand,1);
 });
 check('living K4 pump differs from zone K4 actuator',function(){
-    assert.strictEqual(map.pump,'wb-mr6cu_37/K4');
+    assert.strictEqual(map.pump,'wb-mr6cu_12/K4');
     assert.ok(map.zones.some(function(z){
         return z.outputs.indexOf('wb-mio-gpio_195:2/K4')!==-1;
     }));

@@ -15,19 +15,19 @@
   ],
   "current_controls": [
     {
-      "path": "wb-mr6cu_37/K1",
+      "path": "wb-mr6cu_12/K1",
       "kind": "readback"
     },
     {
-      "path": "wb-mr6cu_37/K2",
+      "path": "wb-mr6cu_12/K2",
       "kind": "readback"
     },
     {
-      "path": "wb-mr6cu_37/K3",
+      "path": "wb-mr6cu_12/K3",
       "kind": "readback"
     },
     {
-      "path": "wb-mr6cu_37/K4",
+      "path": "wb-mr6cu_12/K4",
       "kind": "readback"
     },
     {
@@ -336,10 +336,10 @@
     }
   ],
   "history_channels": [
-    "wb-mr6cu_37/K1",
-    "wb-mr6cu_37/K2",
-    "wb-mr6cu_37/K3",
-    "wb-mr6cu_37/K4",
+    "wb-mr6cu_12/K1",
+    "wb-mr6cu_12/K2",
+    "wb-mr6cu_12/K3",
+    "wb-mr6cu_12/K4",
     "wb-mao4_131/Channel 1 Dimming Level",
     "wb-mao4_131/Channel 1 Switch",
     "wbe2-i-opentherm_11/Heating Setpoint",

@@ -47,7 +47,7 @@
 var FM_TEMP_SUPPLY  = "wb-w1/28-00000ff8a3d5";
 var FM_TEMP_OUTDOOR = "wb-w1/28-00000fd6a9ad";
 var FM_TEMP_SOURCE  = "wb-w1/28-00000ff8446c"; // подача от котла / после гидрострелки
-var FM_PUMP_FLOOR   = "wb-mr6cu_37/K2";
+var FM_PUMP_FLOOR   = "wb-mr6cu_12/K2";
 var FM_VALVE_ENABLE = "wb-mao4_131/Channel 1 Switch";
 var FM_VALVE_POS    = "wb-mao4_131/Channel 1 Dimming Level";
 

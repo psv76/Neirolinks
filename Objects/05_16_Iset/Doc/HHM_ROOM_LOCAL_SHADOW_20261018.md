@@ -1,3 +1,5 @@
+> **Актуализация 29.10.2026:** документ сохраняет историческое состояние на дату составления. Насосный модуль `wb-mr6cu_37` (Modbus 37) заменён на `wb-mr6cu_12` (Modbus 12, S/N 353796). Ссылки на 37 ниже — исторические, для актуального управления и диагностики использовать 12. См. `objects/05_16_Iset/Doc/PHYSICAL_CHANNEL_MAP.md`.
+
 # 05 16 Исеть — WB-local room settings and shadow bridge (Issue #204)
 
 **Status 2026-10-18: offline tested, Draft only. No live controller install,

@@ -18,7 +18,7 @@ objects/05_16_Iset/etc/wb-rules/
 
 - **DHW_priority_manager.js**  
   Логика приоритета ГВС. Управляет только:
-  - насосом бойлера `wb-mr6cu_37/K1`;
+  - насосом бойлера `wb-mr6cu_12/K1`;
   - уставкой котла `wbe2-i-opentherm_11/Heating Setpoint`;
   - межмодульным сигналом `dhw_priority_mgr/heating_pause_mode` (+ `heating_pause_active`).
 
@@ -27,13 +27,13 @@ objects/05_16_Iset/etc/wb-rules/
 
 - **Heating_pumps_manager.js**  
   Единый менеджер насосов отопления жилой части:
-  - `wb-mr6cu_37/K2` (тёплый пол);
-  - `wb-mr6cu_37/K4` (радиаторы жилого этажа).
+  - `wb-mr6cu_12/K2` (тёплый пол);
+  - `wb-mr6cu_12/K4` (радиаторы жилого этажа).
   Учитывает `heating_pause_mode`.
 
 - **Basement_radiator_thermostat.js**  
   Временный термостат цоколя (до переноса в Home Assistant):
-  - управляет `wb-mr6cu_37/K3`;
+  - управляет `wb-mr6cu_12/K3`;
   - учитывает `heating_pause_mode`.
 
 ## Распределение писателей по насосам

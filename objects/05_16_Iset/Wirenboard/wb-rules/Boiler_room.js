@@ -70,12 +70,12 @@ var OT = {
 
 
 /* Насосы */
-var PUMP_GVS          = "wb-mr6cu_37/K1";
-var PUMP_FLOOR        = "wb-mr6cu_37/K2";
-var PUMP_RAD_BASE     = "wb-mr6cu_37/K3";
-var PUMP_RAD_LIVING   = "wb-mr6cu_37/K4";
-var PUMP_RECIRC       = "wb-mr6cu_37/K5";
-var PUMP_VENT         = "wb-mr6cu_37/K6";
+var PUMP_GVS          = "wb-mr6cu_12/K1";
+var PUMP_FLOOR        = "wb-mr6cu_12/K2";
+var PUMP_RAD_BASE     = "wb-mr6cu_12/K3";
+var PUMP_RAD_LIVING   = "wb-mr6cu_12/K4";
+var PUMP_RECIRC       = "wb-mr6cu_12/K5";
+var PUMP_VENT         = "wb-mr6cu_12/K6";
 
 
 /* Температурные датчики 1-Wire */

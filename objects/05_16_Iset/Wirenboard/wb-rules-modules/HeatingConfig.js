@@ -18,13 +18,13 @@ exports.ownershipMonitor = {
 
 exports.allowedOutputs = {
     Heating_floor_manager: [
-        "wb-mr6cu_37/K2",
+        "wb-mr6cu_12/K2",
         "wb-mao4_131/Channel 1 Switch",
         "wb-mao4_131/Channel 1 Dimming Level"
     ],
-    Heating_basement_manager: ["wb-mr6cu_37/K3"],
+    Heating_basement_manager: ["wb-mr6cu_12/K3"],
     Heating_living_manager: [
-        "wb-mr6cu_37/K4",
+        "wb-mr6cu_12/K4",
         "wb-mio-gpio_195:2/K1",
         "wb-mio-gpio_195:2/K2",
         "wb-mio-gpio_195:2/K3",
@@ -37,8 +37,8 @@ exports.allowedOutputs = {
         "wb-mio-gpio_195:2/K10",
         "wb-mio-gpio_195:2/K11"
     ],
-    Heating_dhw_manager: ["wb-mr6cu_37/K1"],
-    Heating_ahu_manager: ["wb-mr6cu_37/K6"],
+    Heating_dhw_manager: ["wb-mr6cu_12/K1"],
+    Heating_ahu_manager: ["wb-mr6cu_12/K6"],
     Heating_source_manager: ["wbe2-i-opentherm_11/Heating Setpoint"]
 };
 

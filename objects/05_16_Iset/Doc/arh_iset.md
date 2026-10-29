@@ -48,7 +48,7 @@
 
 wbe2-i-opentherm_11/*
 wb-w1/*
-wb-mr6cu_37/K1..K6
+wb-mr6cu_12/K1..K6
 wb-mao4_131/*
 
 Типы устройств:

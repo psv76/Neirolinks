@@ -198,7 +198,7 @@ check('mock physical mode writes exact output paths only after local requests',f
         return !/^iset_hhm/.test(x.path);
     });
     assert.ok(writes.some(function(x){
-        return x.path==='wb-mr6cu_37/K3'&&x.value===true;
+        return x.path==='wb-mr6cu_12/K3'&&x.value===true;
     }));
     assert.ok(writes.some(function(x){
         return x.path==='wb-mio-gpio_195:2/K1'&&x.value===false;
@@ -218,17 +218,17 @@ check('K4 physical pump starts only after 120s observed NO relay OPEN',function(
     w.external('iset_hhm_office/setpoint_input',22);
     w.click('iset_hhm_office/apply');
     w.external('wb-mio-gpio_195:2/K1',false);
-    w.external('wb-mr6cu_37/K4',false);
+    w.external('wb-mr6cu_12/K4',false);
     var before=w.outputs.length;
     w.step(1000);w.step(119000);w.step(1000);
     var writes=w.outputs.slice(before).filter(function(x){
-        return x.path==='wb-mr6cu_37/K4'&&x.value===true;
+        return x.path==='wb-mr6cu_12/K4'&&x.value===true;
     });
     assert.strictEqual(writes.length,1);
     assert.strictEqual(w.controls['iset_hhm_k4/relay'],'OFF');
 });
 check('physical mode only sends a repeated unconfirmed command after 5 seconds',function(){
-    var w=boot({},true),path='wb-mr6cu_37/K1';
+    var w=boot({},true),path='wb-mr6cu_12/K1';
     var first=w.outputs.filter(function(x){return x.path===path;}).length;
     w.step(1000);w.step(1000);
     var shortly=w.outputs.filter(function(x){return x.path===path;}).length;
@@ -272,7 +272,7 @@ check('manual DHW acceleration works on WB without HA',function(){
 check('DHW fault reset requires K1 observed OFF and valid tank',function(){
     var w=boot();
     w.external('wb-m1w2_67/External Sensor 2',52);
-    w.external('wb-mr6cu_37/K1',true);
+    w.external('wb-mr6cu_12/K1',true);
     w.click('iset_hhm_dhw/reset_fault');
     assert.ok(w.logs.some(function(x){
         return x[0]==='warning'&&x[1].indexOf('Сброс не разрешён')>=0;
@@ -290,7 +290,7 @@ check('physical WB floor closes MAO4 hot port at 40C without K2 stop',function()
     w.external('wbe2-i-opentherm_11/Water Pressure',1.5);
     w.external('wb-m1w2_67/External Sensor 1',40);
     w.external('wb-mao4_131/Channel 1 Dimming Level',20);
-    w.external('wb-mr6cu_37/K2',true);
+    w.external('wb-mr6cu_12/K2',true);
     var old=w.outputs.length;
     w.step(1000);
     var actions=w.outputs.slice(old);
@@ -299,7 +299,7 @@ check('physical WB floor closes MAO4 hot port at 40C without K2 stop',function()
             c.value===0;
     }));
     assert.strictEqual(actions.some(function(c){
-        return c.path==='wb-mr6cu_37/K2'&&c.value===false;
+        return c.path==='wb-mr6cu_12/K2'&&c.value===false;
     }),false);
 });
 check('physical WB floor at 45C commands K2 OFF independently',function(){
@@ -313,13 +313,13 @@ check('physical WB floor at 45C commands K2 OFF independently',function(){
     w.external('wbe2-i-opentherm_11/Heating Temperature',58);
     w.external('wbe2-i-opentherm_11/Water Pressure',1.5);
     w.external('wb-m1w2_67/External Sensor 1',45);
-    w.external('wb-mr6cu_37/K2',true);
+    w.external('wb-mr6cu_12/K2',true);
     w.external('wb-mao4_131/Channel 1 Dimming Level',20);
     var old=w.outputs.length;
     w.step(1000);
     var actions=w.outputs.slice(old);
     assert.ok(actions.some(function(c){
-        return c.path==='wb-mr6cu_37/K2'&&c.value===false;
+        return c.path==='wb-mr6cu_12/K2'&&c.value===false;
     }));
     assert.ok(actions.some(function(c){
         return c.path==='wb-mao4_131/Channel 1 Dimming Level'&&c.value===0;
@@ -342,21 +342,21 @@ check('full WB K2 preflight drives Switch ON then waits 10s and NO 120s',functio
     });
     w.external('wb-mao4_131/Channel 1 Switch',false);
     w.external('wb-mao4_131/Channel 1 Dimming Level',1);
-    w.external('wb-mr6cu_37/K2',false);
+    w.external('wb-mr6cu_12/K2',false);
     var before=w.outputs.length;
     w.step(1000);
     assert.ok(w.outputs.slice(before).some(function(a){
         return a.path==='wb-mao4_131/Channel 1 Switch'&&a.value===true;
     }));
     assert.strictEqual(w.outputs.some(function(a){
-        return a.path==='wb-mr6cu_37/K2'&&a.value===true;
+        return a.path==='wb-mr6cu_12/K2'&&a.value===true;
     }),false);
     w.external('wb-mao4_131/Channel 1 Switch',true);
     w.step(1000);
     assert.strictEqual(w.controls['iset_hhm_floor/preflight_timer'],'10 с');
     w.step(119000);
     assert.ok(w.outputs.some(function(a){
-        return a.path==='wb-mr6cu_37/K2'&&a.value===true;
+        return a.path==='wb-mr6cu_12/K2'&&a.value===true;
     }));
     assert.ok(w.devices.iset_hhm_k2.cells.start_timer);
 });
@@ -570,7 +570,7 @@ check('trace serialization failure cannot prevent safe close or readback watchdo
     assert.ok(w.logs.some(function(x){return x[1].indexOf('Нет подтверждения MQTT')>=0;}));
 });
 check('unconfirmed pump retries remain physical but produce one Russian command event',function(){
-    var p='wb-mr6cu_37/K3',w=boot({},true,[p]);
+    var p='wb-mr6cu_12/K3',w=boot({},true,[p]);
     w.external(p,false);w.logs.length=0;
     var cmd={path:p,value:true,action:'PUMP_START',reason:'REQUESTED'};
     var before=w.outputs.length;
@@ -672,7 +672,7 @@ check('no-demand room no longer reports missing OPEN data as an alarm',function(
 });
 check('pump K4 readback ON never claims it awaits permission to start',function(){
     var w=boot();
-    w.external('wb-mr6cu_37/K4',true);
+    w.external('wb-mr6cu_12/K4',true);
     w.step(1000);
     assert.strictEqual(w.controls['iset_hhm_k4/relay'],'ON');
     assert.strictEqual(w.controls['iset_hhm_k4/start_timer'],'Насос включён');
@@ -690,7 +690,7 @@ check('floor operator device follows MAO4 -> K2 -> supply -> loops',function(){
     assert.ok(cells.supply_temperature.order<cells.k12_timer.order);
     w.external('wb-mao4_131/Channel 1 Dimming Level',17);
     w.external('wb-mao4_131/Channel 1 Switch',true);
-    w.external('wb-mr6cu_37/K2',true);
+    w.external('wb-mr6cu_12/K2',true);
     w.external('wb-m1w2_67/External Sensor 1',31.5);
     w.step(1000);
     assert.strictEqual(w.controls['iset_hhm_floor/valve_position'],'17 % (MQTT)');

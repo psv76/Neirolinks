@@ -17,11 +17,11 @@ exports.channels={
     fire:'wb-mio-gpio_195:1/IN1'
 };
 exports.outputs={
-    dhwPump:'wb-mr6cu_37/K1',
-    floorPump:'wb-mr6cu_37/K2',
-    basementPump:'wb-mr6cu_37/K3',
-    livingPump:'wb-mr6cu_37/K4',
-    ahuPump:'wb-mr6cu_37/K6',
+    dhwPump:'wb-mr6cu_12/K1',
+    floorPump:'wb-mr6cu_12/K2',
+    basementPump:'wb-mr6cu_12/K3',
+    livingPump:'wb-mr6cu_12/K4',
+    ahuPump:'wb-mr6cu_12/K6',
     floorValveEnable:'wb-mao4_131/Channel 1 Switch',
     floorValveLevel:'wb-mao4_131/Channel 1 Dimming Level',
     floorLoops:[
