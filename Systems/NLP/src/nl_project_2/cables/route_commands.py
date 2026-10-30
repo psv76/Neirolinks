@@ -25,6 +25,7 @@ from nl_project_2.persistence.uow import UnitOfWork
 
 from .domain import ConduitContractError, validate_line_conduit_fields
 from .recalculation import refresh_conduit_length
+from .route_position_check import PositionAssessment, assess_terminal_positions
 from .service import CableService
 
 
@@ -43,6 +44,7 @@ class RoutePlan:
     conduits: tuple[tuple[str, str, int, str, str, str, str], ...]
     revision: int
     warnings: tuple[str, ...]
+    position: PositionAssessment
 
     @property
     def count(self) -> int:
@@ -178,6 +180,24 @@ class RouteConduitCommands:
                         )
                 # A manual route may be shared. Its length is not the sum of
                 # member lengths; uncertain length is explicitly invalidated.
+        # Include the full *resulting* target conduit, not just the moving
+        # members. Two old target members might be far apart even if each
+        # separately looks close to the moved segment.
+        position_keys = {(kind, sid) for kind, sid, _old, _version in rows}
+        for kind, assignment, segment_key in (
+            ("CABLE", conduit_segment_assignment, "cable_segment_id"),
+            ("BUS", bus_segment_conduit_assignment, "bus_segment_id"),
+        ):
+            position_keys.update(
+                (kind, sid)
+                for (sid,) in uow.execute(
+                    select(assignment.c[segment_key]).where(
+                        assignment.c.project_id == project_id,
+                        assignment.c.conduit_id == target_id,
+                    )
+                ).all()
+            )
+        position = assess_terminal_positions(uow, project_id, position_keys)
         touched = {target_id, *sources, *(row[2] for row in rows if row[2])}
         signatures = tuple(
             sorted(
@@ -218,9 +238,21 @@ class RouteConduitCommands:
             signatures,
             int(revision),
             tuple(warnings),
+            position,
         )
 
-    def apply(self, plan: RoutePlan, *, confirmed_same_physical_run: bool = False):
+    def apply(
+        self,
+        plan: RoutePlan,
+        *,
+        confirmed_same_physical_run: bool = False,
+        confirmed_position_exception: bool = False,
+    ):
+        if plan.position.requires_exception and not confirmed_position_exception:
+            raise RouteMutationError(
+                "Требуется отдельное подтверждение превышения допусков "
+                "или отсутствующих координат/высот."
+            )
         if not confirmed_same_physical_run:
             raise RouteMutationError("Требуется подтверждение общего физического участка.")
         with UnitOfWork(self.engine) as uow:

@@ -487,3 +487,82 @@ def test_ctrl_selection_enables_merge_and_exact_segment_transfer(qtbot):
     )
     assert workspace.move_button.isEnabled()
     assert not workspace.merge_button.isEnabled()
+
+
+def test_extra_position_warning_cancel_never_applies(qtbot, monkeypatch):
+    from types import SimpleNamespace
+
+    from PySide6.QtWidgets import QCheckBox, QMessageBox
+
+    from nl_project_2.cables.route_position_check import PositionAssessment
+
+    widget = RoutesWorkspace(Cables(), Buses(), "p")
+    qtbot.addWidget(widget)
+    widget.refresh()
+    plan = SimpleNamespace(
+        mode="MERGE",
+        count=1,
+        sources=("tube-1", "tube-2"),
+        target_id="tube-1",
+        members=(("CABLE", "seg-1", "tube-2", 1),),
+        warnings=(),
+        position=PositionAssessment((), 1350, 0, True, ("Расстояние XY превышает 1 м.",)),
+    )
+    monkeypatch.setattr(QMessageBox, "exec", lambda _self: QMessageBox.StandardButton.Yes)
+    monkeypatch.setattr(QCheckBox, "isChecked", lambda _self: True)
+    messages = []
+
+    def deny(_parent, _title, message, *_args):
+        messages.append(message)
+        return QMessageBox.StandardButton.No
+
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(deny))
+
+    class Command:
+        def apply(self, *_args, **_kwargs):
+            raise AssertionError("User cancelled extra confirmation; no write allowed")
+
+    widget._approve_and_apply(Command(), plan, "001.PND25")
+    assert len(messages) == 1
+    assert "1.350" in messages[0]
+    assert "1,000" in messages[0]
+
+
+def test_extra_position_approval_is_explicit_and_distinct(qtbot, monkeypatch):
+    from types import SimpleNamespace
+
+    from PySide6.QtWidgets import QCheckBox, QMessageBox
+
+    from nl_project_2.cables.route_position_check import PositionAssessment
+
+    widget = RoutesWorkspace(Cables(), Buses(), "p")
+    qtbot.addWidget(widget)
+    widget.refresh()
+    plan = SimpleNamespace(
+        mode="MERGE",
+        count=1,
+        sources=("tube-1", "tube-2"),
+        target_id="tube-1",
+        members=(("CABLE", "seg-1", "tube-2", 1),),
+        warnings=(),
+        position=PositionAssessment((), 1350, 0, True, ("Расстояние XY превышает 1 м.",)),
+    )
+    monkeypatch.setattr(QMessageBox, "exec", lambda _self: QMessageBox.StandardButton.Yes)
+    monkeypatch.setattr(QCheckBox, "isChecked", lambda _self: True)
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        staticmethod(lambda *_args: QMessageBox.StandardButton.Yes),
+    )
+    calls = []
+
+    class Command:
+        def apply(self, *args, **kwargs):
+            calls.append((args, kwargs))
+
+    widget._approve_and_apply(Command(), plan, "001.PND25")
+    assert len(calls) == 1
+    assert calls[0][1] == {
+        "confirmed_same_physical_run": True,
+        "confirmed_position_exception": True,
+    }
