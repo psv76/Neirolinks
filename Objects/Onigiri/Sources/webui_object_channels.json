@@ -1,0 +1,137 @@
+{
+  "object": "Онигири",
+  "source_sha256": "03782c28d5505d750a466a36fc8fc149e77ea064430abfad78fd6432deebdcdb",
+  "source_scope": "only object widgets; derived from wb-webui (1).conf",
+  "mqtt_paths_derived": true,
+  "live_verified": false,
+  "channels": [
+    {
+      "widget": "Нормальная работа",
+      "id": "wb-gpio/EXT1_IN3",
+      "name": "Работа компрессора КМ",
+      "kind": "status",
+      "source": "/widgets/9/cells/0/id",
+      "mqtt": "/devices/wb-gpio/controls/EXT1_IN3"
+    },
+    {
+      "widget": "Нормальная работа",
+      "id": "wb-gpio/EXT1_IN4",
+      "name": "Работа вентилятора ВО",
+      "kind": "status",
+      "source": "/widgets/9/cells/1/id",
+      "mqtt": "/devices/wb-gpio/controls/EXT1_IN4"
+    },
+    {
+      "widget": "Нормальная работа",
+      "id": "wb-gpio/EXT1_IN5",
+      "name": "Набор холода",
+      "kind": "status",
+      "source": "/widgets/9/cells/2/id",
+      "mqtt": "/devices/wb-gpio/controls/EXT1_IN5"
+    },
+    {
+      "widget": "Датчики",
+      "id": "wb-w1/28-0000109d9767",
+      "name": "Температура в камере",
+      "kind": "measurement",
+      "source": "/widgets/10/cells/0/id",
+      "mqtt": "/devices/wb-w1/controls/28-0000109d9767"
+    },
+    {
+      "widget": "Датчики",
+      "id": "wb-mai2-mini_197/input_1_value",
+      "name": "Вход 1 пересчитанное значение",
+      "kind": "measurement",
+      "source": "/widgets/10/cells/1/id",
+      "mqtt": "/devices/wb-mai2-mini_197/controls/input_1_value"
+    },
+    {
+      "widget": "Датчики",
+      "id": "wb-mai2-mini_197/input_2_value",
+      "name": "Вход 2 пересчитанное значение",
+      "kind": "measurement",
+      "source": "/widgets/10/cells/2/id",
+      "mqtt": "/devices/wb-mai2-mini_197/controls/input_2_value"
+    },
+    {
+      "widget": "Мониторинг питания",
+      "id": "wb-gpio/EXT1_IN1",
+      "name": "Наличие сети",
+      "kind": "power",
+      "source": "/widgets/11/cells/0/id",
+      "mqtt": "/devices/wb-gpio/controls/EXT1_IN1"
+    },
+    {
+      "widget": "Мониторинг питания",
+      "id": "wb_ups_v3_92/battery_status",
+      "name": "Статус батареи",
+      "kind": "power",
+      "source": "/widgets/11/cells/1/id",
+      "mqtt": "/devices/wb_ups_v3_92/controls/battery_status"
+    },
+    {
+      "widget": "Аварийные сигналы",
+      "id": "wb-gpio/EXT1_IN6",
+      "name": "Авария компрессора",
+      "kind": "alarm",
+      "source": "/widgets/12/cells/1/id",
+      "mqtt": "/devices/wb-gpio/controls/EXT1_IN6"
+    },
+    {
+      "widget": "Аварийные сигналы",
+      "id": "wb-gpio/EXT1_IN7",
+      "name": "Авария RKS",
+      "kind": "alarm",
+      "source": "/widgets/12/cells/2/id",
+      "mqtt": "/devices/wb-gpio/controls/EXT1_IN7"
+    },
+    {
+      "widget": "Аварийные сигналы",
+      "id": "wb-gpio/EXT1_IN8",
+      "name": "Авария HP",
+      "kind": "alarm",
+      "source": "/widgets/12/cells/3/id",
+      "mqtt": "/devices/wb-gpio/controls/EXT1_IN8"
+    },
+    {
+      "widget": "Аварийные сигналы",
+      "id": "wb-gpio/EXT1_IN9",
+      "name": "Авария LP",
+      "kind": "alarm",
+      "source": "/widgets/12/cells/4/id",
+      "mqtt": "/devices/wb-gpio/controls/EXT1_IN9"
+    },
+    {
+      "widget": "Аварийные сигналы",
+      "id": "wb-gpio/EXT1_IN10",
+      "name": "Авария вентилятора ВО",
+      "kind": "alarm",
+      "source": "/widgets/12/cells/6/id",
+      "mqtt": "/devices/wb-gpio/controls/EXT1_IN10"
+    },
+    {
+      "widget": "Аварийные сигналы",
+      "id": "wb-gpio/EXT1_IN11",
+      "name": "Авария ТЭН ВО",
+      "kind": "alarm",
+      "source": "/widgets/12/cells/7/id",
+      "mqtt": "/devices/wb-gpio/controls/EXT1_IN11"
+    },
+    {
+      "widget": "Аварийные сигналы",
+      "id": "wb-gpio/EXT1_IN12",
+      "name": "Авария вентилятора 1 КД",
+      "kind": "alarm",
+      "source": "/widgets/12/cells/9/id",
+      "mqtt": "/devices/wb-gpio/controls/EXT1_IN12"
+    },
+    {
+      "widget": "Аварийные сигналы",
+      "id": "wb-gpio/EXT1_IN13",
+      "name": "Авария вентилятора 2 КД",
+      "kind": "alarm",
+      "source": "/widgets/12/cells/10/id",
+      "mqtt": "/devices/wb-gpio/controls/EXT1_IN13"
+    }
+  ]
+}

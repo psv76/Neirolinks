@@ -1,0 +1,33 @@
+{
+  "object": "Онигири",
+  "recorded_date": "2026-10-30",
+  "source_filename": "wb-webui (1).conf",
+  "source_sha256": "03782c28d5505d750a466a36fc8fc149e77ea064430abfad78fd6432deebdcdb",
+  "source_bytes": 3888086,
+  "source_raw_in_repository": false,
+  "source_location": "user-provided chat attachment; re-upload/retain full original before next ingestion",
+  "export_timestamp": null,
+  "controller_serial": null,
+  "live_verified": false,
+  "dashboards": [
+    "Demo Dashboard",
+    "Demo SVG Dashboard",
+    "Холодильная установка",
+    "Сигналы"
+  ],
+  "widget_count": 13,
+  "object_widgets": [
+    "Нормальная работа",
+    "Датчики",
+    "Мониторинг питания",
+    "Аварийные сигналы"
+  ],
+  "object_unique_widget_channels": 16,
+  "svg_dashboard_name": "Холодильная установка",
+  "svg_dashboard_id": "Fridge",
+  "svg_source_pointer": "/dashboards/2/svg/current",
+  "svg_sha256": "04b0094cd8a98c1c10d9b837490bc44e5f3370dc047b88cb6f16853dbee5ac4c",
+  "svg_bytes_utf8": 3511821,
+  "svg_params_count": 0,
+  "source_level": "UI snapshot only; MQTT/live/physical wiring/polarity unverified"
+}
