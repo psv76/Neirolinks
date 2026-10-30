@@ -153,11 +153,13 @@ def test_fatal_startup_surfaces_error_and_log_path(monkeypatch, tmp_path):
 
     monkeypatch.setattr(entrypoint.PathConfig, "from_environment", lambda: object())
     monkeypatch.setattr(
-        entrypoint, "record_fatal_startup",
+        entrypoint,
+        "record_fatal_startup",
         lambda error, paths: tmp_path / "fatal-startup.jsonl",
     )
     monkeypatch.setattr(
-        entrypoint, "show_fatal_startup",
+        entrypoint,
+        "show_fatal_startup",
         lambda error, location: events.append((str(error), location)),
     )
     assert entrypoint.main([], runner=raises) == 1
