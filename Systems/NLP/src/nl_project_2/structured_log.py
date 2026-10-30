@@ -41,7 +41,9 @@ def show_fatal_startup(error: Exception, log_path: Path) -> None:
         try:
             import ctypes
 
-            ctypes.windll.user32.MessageBoxW(None, message, "NL Project — ошибка запуска", 0x00000010)
+            ctypes.windll.user32.MessageBoxW(
+                None, message, "NL Project — ошибка запуска", 0x00000010
+            )
             return
         except Exception:
             pass
