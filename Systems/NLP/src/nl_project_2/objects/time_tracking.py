@@ -12,6 +12,7 @@ from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import work_session
 from nl_project_2.persistence.uow import UnitOfWork
 
+from .instance_lock import DatabaseInstanceLock
 from .models import TimeSummary
 
 Clock = Callable[[], datetime]
@@ -80,6 +81,82 @@ class WorkTimeService:
 
     def _now(self) -> datetime:
         return _aware_utc(self._clock())
+
+    def heartbeat(self) -> bool:
+        """Persist the last known *working* instant, not elapsed wall-clock idle time.
+
+        The GUI calls this at a fixed cadence while an active period exists.
+        After a process crash, only work through this timestamp is recoverable.
+        """
+        now = self._now()
+        with UnitOfWork(self._engine) as uow:
+            active = (
+                uow.execute(select(work_session).where(work_session.c.stopped_at_utc.is_(None)))
+                .mappings()
+                .one_or_none()
+            )
+            if active is None:
+                uow.commit()
+                return False
+            if active["application_instance_id"] != self.application_instance_id:
+                raise ActiveSessionConflict("Another application owns the active period")
+            uow.execute(
+                update(work_session)
+                .where(work_session.c.id == active["id"])
+                .values(
+                    updated_at_utc=now,
+                    row_version=work_session.c.row_version + 1,
+                )
+            )
+            uow.commit()
+            return True
+
+    def recover_abandoned_session(self, lock: DatabaseInstanceLock) -> str | None:
+        """Close an orphan at its last persisted heartbeat, never at reboot time.
+
+        The caller MUST hold the OS database-lifetime lock before inspecting
+        work_session. This protects against recovering a genuinely live owner.
+        Pre-heartbeat legacy sessions recover at their last recorded update
+        (usually their start), conservatively excluding unverified downtime.
+        """
+        if not lock.held:
+            raise RuntimeError("Stale session recovery requires the OS database lock")
+        now = self._now()
+        with UnitOfWork(self._engine) as uow:
+            active = (
+                uow.execute(select(work_session).where(work_session.c.stopped_at_utc.is_(None)))
+                .mappings()
+                .one_or_none()
+            )
+            if active is None or active["application_instance_id"] == self.application_instance_id:
+                uow.commit()
+                return None
+            row = dict(active)
+            start = datetime.fromisoformat(row["intervals_json"][0]["start_utc"])
+            if now < start:
+                raise ActiveSessionConflict("System clock precedes the abandoned work period")
+            last_seen = row["updated_at_utc"] or row["started_at_utc"]
+            if isinstance(last_seen, str):
+                last_seen = datetime.fromisoformat(last_seen)
+            if last_seen.tzinfo is None:
+                last_seen = last_seen.replace(tzinfo=UTC)
+            last_seen = last_seen.astimezone(UTC)
+            stop = min(now, max(start, last_seen))
+            self._stop_row(uow, row, stop, "RECOVERY_STALE_SESSION")
+            uow.execute(
+                update(work_session)
+                .where(work_session.c.id == row["id"])
+                .values(
+                    recovery_reason=(
+                        "OS instance lock was available; previous process no longer owns "
+                        "the database. Recovery endpoint is the last persisted activity "
+                        f"{stop.isoformat()}, not the restart time {now.isoformat()}. "
+                        "The unobserved interval was excluded."
+                    )
+                )
+            )
+            uow.commit()
+            return row["id"]
 
     def switch_to(self, project_id: str) -> str:
         """End the previous project and automatically start the selected one atomically."""
@@ -220,6 +297,7 @@ class WorkTimeService:
                             "local_date": now.astimezone(self._zone).date().isoformat(),
                         }
                     ],
+                    updated_at_utc=now,
                 )
             )
         except IntegrityError as exc:
