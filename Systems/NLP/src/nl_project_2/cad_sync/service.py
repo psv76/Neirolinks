@@ -922,6 +922,24 @@ class DwgSyncService:
                     line_ids=set(line_ids.values()),
                     reconcile_conduits=False,
                 )
+                # A selected BOARD has its own incoming CABLE_ID, but many
+                # *other* lines use that board as their physical source.
+                # Their geometry changes with its X/Y/height even if none of
+                # those downstream DWG insertions was selected for Apply.
+                # Recompute under the SAME transaction from accepted Project
+                # device facts, never from unselected DWG geometry.
+                changed_board_device_ids = {
+                    device_ids[handle]
+                    for handle in active_handles
+                    if handle in device_ids and validated[handle].device_type == "BOARD"
+                }
+                if changed_board_device_ids:
+                    recalculate_segments(
+                        uow,
+                        proposal.project_id,
+                        device_ids=changed_board_device_ids,
+                        reconcile_conduits=False,
+                    )
             operation_id = new_id()
             correlation_id = new_id()
             uow.execute(
