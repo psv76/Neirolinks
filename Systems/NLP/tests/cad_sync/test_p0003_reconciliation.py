@@ -208,6 +208,7 @@ def test_cable_topology_read_model_derives_exact_field_port_root(database):
         "kind": "FIELD_PORT",
         "reference": "902.003/K1",
         "label": "902.003/K1",
+        "endpoint_id": source_endpoint_id,
     }
     assert len(topology["edges"]) == 1
 

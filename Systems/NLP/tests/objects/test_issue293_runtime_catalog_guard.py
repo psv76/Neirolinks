@@ -29,21 +29,28 @@ def _paths(root):
 def _old_release(payload):
     passports = copy.deepcopy(payload.passports)
     products = copy.deepcopy(payload.products)
+    predecessor = "nlp3.equipment.2026-10-27.wbe2-rs485-iso"
+    additions = payload.manifest["additive_predecessors"][predecessor]
+    added_passports = set(additions["passports"])
+    added_products = set(additions["products"])
     passports["passports"] = [
         row for row in passports["passports"]
-        if row["id"] != "module.wirenboard.wbe2_i_rs485_iso"
+        if row["id"] not in added_passports
     ]
     products["products"] = [
         row for row in products["products"]
-        if row["id"] != "product.wirenboard.wbe2_i_rs485_iso"
+        if row["id"] not in added_products
     ]
     raw = {
         "equipment_passports.json": json.dumps(passports,ensure_ascii=False).encode("utf-8"),
         "products.json": json.dumps(products,ensure_ascii=False).encode("utf-8"),
     }
     manifest = copy.deepcopy(payload.manifest)
-    manifest["release_code"] = "nlp3.equipment.2026-10-05.wb-mge-v3"
-    manifest["expected_counts"] = {"passports": 19, "products": 32}
+    manifest["release_code"] = predecessor
+    manifest["expected_counts"] = {
+        "passports": len(passports["passports"]),
+        "products": len(products["products"]),
+    }
     manifest["files"] = {k: hashlib.sha256(v).hexdigest() for k,v in raw.items()}
     manifest["content_sha256"] = hashlib.sha256(
         raw["equipment_passports.json"] + b"\0" + raw["products.json"]
@@ -68,9 +75,9 @@ def test_existing_predecessor_does_not_auto_upgrade_on_application_start(tmp_pat
             release = conn.scalar(select(catalog_release.c.release_code))
             pc = conn.execute(select(passport_definition.c.id)).all()
             pd = conn.execute(select(product_definition.c.id)).all()
-        assert release == "nlp3.equipment.2026-10-05.wb-mge-v3"
-        assert len(pc) == 19
-        assert len(pd) == 32
+        assert release == "nlp3.equipment.2026-10-27.wbe2-rs485-iso"
+        assert len(pc) == 20
+        assert len(pd) == 33
     finally:
         runtime.close()
 
@@ -82,8 +89,8 @@ def test_new_database_receives_published_successor_on_initial_start(tmp_path):
         with runtime.database.engine.connect() as conn:
             release = conn.scalar(select(catalog_release.c.release_code))
             count = len(conn.execute(select(passport_definition.c.id)).all())
-        assert release == "nlp3.equipment.2026-10-27.wbe2-rs485-iso"
-        assert count == 20
+        assert release == "nlp3.equipment.2026-10-27.wb-optional-modem-shared-vout"
+        assert count == 51
     finally:
         runtime.close()
 
