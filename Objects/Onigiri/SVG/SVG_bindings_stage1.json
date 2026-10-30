@@ -1,0 +1,245 @@
+[
+  {
+    "id": "value_temperature",
+    "read": {
+      "enable": true,
+      "channel": "wb-w1/28-0000109d9767",
+      "value": "val"
+    },
+    "write": {
+      "enable": false,
+      "channel": null,
+      "value": {
+        "on": 1,
+        "off": 0
+      }
+    },
+    "visible": {
+      "enable": false,
+      "channel": null,
+      "condition": "==",
+      "value": null
+    },
+    "style": {
+      "enable": false,
+      "channel": null,
+      "value": null
+    }
+  },
+  {
+    "id": "km_status_led",
+    "read": {
+      "enable": false,
+      "channel": null,
+      "value": "val"
+    },
+    "write": {
+      "enable": false,
+      "channel": null,
+      "value": {
+        "on": 1,
+        "off": 0
+      }
+    },
+    "visible": {
+      "enable": false,
+      "channel": null,
+      "condition": "==",
+      "value": null
+    },
+    "style": {
+      "enable": true,
+      "channel": "wb-gpio/EXT1_IN3",
+      "value": "(val == 1) ? 'fill:#26d06d' : 'fill:#627a8b'"
+    }
+  },
+  {
+    "id": "evap_fan_1_rotor",
+    "read": {
+      "enable": false,
+      "channel": null,
+      "value": "val"
+    },
+    "write": {
+      "enable": false,
+      "channel": null,
+      "value": {
+        "on": 1,
+        "off": 0
+      }
+    },
+    "visible": {
+      "enable": false,
+      "channel": null,
+      "condition": "==",
+      "value": null
+    },
+    "style": {
+      "enable": true,
+      "channel": "wb-gpio/EXT1_IN4",
+      "value": "(val == 1) ? 'animation:spin 1.2s linear infinite' : 'animation:none'"
+    }
+  },
+  {
+    "id": "evap_fan_1_active",
+    "read": {
+      "enable": false,
+      "channel": null,
+      "value": "val"
+    },
+    "write": {
+      "enable": false,
+      "channel": null,
+      "value": {
+        "on": 1,
+        "off": 0
+      }
+    },
+    "visible": {
+      "enable": false,
+      "channel": null,
+      "condition": "==",
+      "value": null
+    },
+    "style": {
+      "enable": true,
+      "channel": "wb-gpio/EXT1_IN4",
+      "value": "(val == 1) ? 'opacity:1' : 'opacity:0'"
+    }
+  },
+  {
+    "id": "evap_fan_1_idle",
+    "read": {
+      "enable": false,
+      "channel": null,
+      "value": "val"
+    },
+    "write": {
+      "enable": false,
+      "channel": null,
+      "value": {
+        "on": 1,
+        "off": 0
+      }
+    },
+    "visible": {
+      "enable": false,
+      "channel": null,
+      "condition": "==",
+      "value": null
+    },
+    "style": {
+      "enable": true,
+      "channel": "wb-gpio/EXT1_IN4",
+      "value": "(val == 1) ? 'opacity:0' : 'opacity:1'"
+    }
+  },
+  {
+    "id": "evap_fan_2_rotor",
+    "read": {
+      "enable": false,
+      "channel": null,
+      "value": "val"
+    },
+    "write": {
+      "enable": false,
+      "channel": null,
+      "value": {
+        "on": 1,
+        "off": 0
+      }
+    },
+    "visible": {
+      "enable": false,
+      "channel": null,
+      "condition": "==",
+      "value": null
+    },
+    "style": {
+      "enable": true,
+      "channel": "wb-gpio/EXT1_IN4",
+      "value": "(val == 1) ? 'animation:spin 1.2s linear infinite' : 'animation:none'"
+    }
+  },
+  {
+    "id": "evap_fan_2_active",
+    "read": {
+      "enable": false,
+      "channel": null,
+      "value": "val"
+    },
+    "write": {
+      "enable": false,
+      "channel": null,
+      "value": {
+        "on": 1,
+        "off": 0
+      }
+    },
+    "visible": {
+      "enable": false,
+      "channel": null,
+      "condition": "==",
+      "value": null
+    },
+    "style": {
+      "enable": true,
+      "channel": "wb-gpio/EXT1_IN4",
+      "value": "(val == 1) ? 'opacity:1' : 'opacity:0'"
+    }
+  },
+  {
+    "id": "evap_fan_2_idle",
+    "read": {
+      "enable": false,
+      "channel": null,
+      "value": "val"
+    },
+    "write": {
+      "enable": false,
+      "channel": null,
+      "value": {
+        "on": 1,
+        "off": 0
+      }
+    },
+    "visible": {
+      "enable": false,
+      "channel": null,
+      "condition": "==",
+      "value": null
+    },
+    "style": {
+      "enable": true,
+      "channel": "wb-gpio/EXT1_IN4",
+      "value": "(val == 1) ? 'opacity:0' : 'opacity:1'"
+    }
+  },
+  {
+    "id": "airflow_on",
+    "read": {
+      "enable": false,
+      "channel": null,
+      "value": "val"
+    },
+    "write": {
+      "enable": false,
+      "channel": null,
+      "value": {
+        "on": 1,
+        "off": 0
+      }
+    },
+    "visible": {
+      "enable": false,
+      "channel": null,
+      "condition": "==",
+      "value": null
+    },
+    "style": {
+      "enable": true,
+      "channel": "wb-gpio/EXT1_IN4",
+      "value": "(val == 1) ? 'opacity:1' : 'opacity:0'"
+    }
+  }
+]
