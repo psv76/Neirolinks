@@ -11,14 +11,14 @@ from sqlalchemy.exc import IntegrityError
 
 from nl_project_2.persistence.ids import new_id
 from nl_project_2.persistence.schema import (
-    building,
     board,
+    building,
     bus,
     bus_branch,
     bus_branch_point,
     bus_endpoint,
-    bus_physical_node,
     bus_physical_link,
+    bus_physical_node,
     bus_segment,
     bus_segment_conduit_assignment,
     conduit,
@@ -300,36 +300,39 @@ class BusService:
                 uow.rollback()
                 return
             self._validate_rs485_resources(uow, project_id, (new_root_resource_id,))
-            if not self._validate_rs485_module_root(
-                uow, project_id, new_root_resource_id
-            ):
+            if not self._validate_rs485_module_root(uow, project_id, new_root_resource_id):
                 raise BusError(
                     "Новый интерфейс RS-485 не установлен в действительный MOD-слот WB8.5"
                 )
             self._validate_root_available(uow, project_id, new_root_resource_id)
             attached_as_point = uow.execute(
-                select(bus_endpoint.c.id).where(
+                select(bus_endpoint.c.id)
+                .where(
                     bus_endpoint.c.project_id == project_id,
                     bus_endpoint.c.bus_id == bus_id,
                     bus_endpoint.c.resource_id == new_root_resource_id,
-                ).limit(1)
+                )
+                .limit(1)
             ).first()
             if attached_as_point:
-                raise BusError(
-                    "Новый источник RS-485 уже является точкой этой шины"
-                )
+                raise BusError("Новый источник RS-485 уже является точкой этой шины")
             # Existing 9YY.ZZZ points and stored cable/segment geometry are
             # unchanged. Only same-board replacement is supported for wired buses.
             has_physical_data = any(
                 uow.execute(
-                    select(table.c.id).where(
+                    select(table.c.id)
+                    .where(
                         table.c.project_id == project_id,
                         table.c.bus_id == bus_id,
-                    ).limit(1)
+                    )
+                    .limit(1)
                 ).first()
                 for table in (
-                    bus_endpoint, bus_segment, bus_branch,
-                    bus_physical_node, bus_physical_link,
+                    bus_endpoint,
+                    bus_segment,
+                    bus_branch,
+                    bus_physical_node,
+                    bus_physical_link,
                 )
             )
             if has_physical_data:
@@ -359,57 +362,75 @@ class BusService:
     @staticmethod
     def _root_board_id(uow, project_id: str, resource_id: str) -> str | None:
         """Resolve either a directly placed RS485 device or its installed MOD host."""
-        row = uow.execute(
-            select(
-                project_instance.c.board_id,
-                project_instance.c.id.label("instance_id"),
-                passport_definition.c.passport_key,
+        row = (
+            uow.execute(
+                select(
+                    project_instance.c.board_id,
+                    project_instance.c.id.label("instance_id"),
+                    passport_definition.c.passport_key,
+                )
+                .select_from(instance_resource)
+                .join(
+                    project_instance,
+                    project_instance.c.id == instance_resource.c.project_instance_id,
+                )
+                .join(
+                    passport_definition,
+                    passport_definition.c.id == project_instance.c.passport_definition_id,
+                )
+                .where(
+                    instance_resource.c.id == resource_id,
+                    instance_resource.c.project_id == project_id,
+                    instance_resource.c.active.is_(True),
+                    project_instance.c.lifecycle == "ACTIVE",
+                )
             )
-            .select_from(instance_resource)
-            .join(project_instance,
-                  project_instance.c.id == instance_resource.c.project_instance_id)
-            .join(passport_definition,
-                  passport_definition.c.id == project_instance.c.passport_definition_id)
-            .where(
-                instance_resource.c.id == resource_id,
-                instance_resource.c.project_id == project_id,
-                instance_resource.c.active.is_(True),
-                project_instance.c.lifecycle == "ACTIVE",
-            )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
             return None
         if row["board_id"]:
             return str(row["board_id"])
         if row["passport_key"] != "module.wirenboard.wbe2_i_rs485_iso":
             return None
-        attached = uow.execute(
-            select(instance_resource.c.id)
-            .where(
-                instance_resource.c.project_id == project_id,
-                instance_resource.c.project_instance_id == row["instance_id"],
-                instance_resource.c.resource_kind
-                == "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
-                instance_resource.c.active.is_(True),
+        attached = (
+            uow.execute(
+                select(instance_resource.c.id).where(
+                    instance_resource.c.project_id == project_id,
+                    instance_resource.c.project_instance_id == row["instance_id"],
+                    instance_resource.c.resource_kind == "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
+                    instance_resource.c.active.is_(True),
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         if len(attached) != 1:
             return None
-        host_boards = uow.execute(
-            select(project_instance.c.board_id)
-            .select_from(functional_relation)
-            .join(instance_resource,
-                  instance_resource.c.id == functional_relation.c.source_resource_id)
-            .join(project_instance,
-                  project_instance.c.id == instance_resource.c.project_instance_id)
-            .where(
-                functional_relation.c.project_id == project_id,
-                functional_relation.c.relation_kind == "MODULE_INSTALLATION",
-                functional_relation.c.target_resource_id == attached[0],
-                instance_resource.c.resource_kind == "INTERNAL_EXPANSION_SLOT",
-                project_instance.c.lifecycle == "ACTIVE",
+        host_boards = (
+            uow.execute(
+                select(project_instance.c.board_id)
+                .select_from(functional_relation)
+                .join(
+                    instance_resource,
+                    instance_resource.c.id == functional_relation.c.source_resource_id,
+                )
+                .join(
+                    project_instance,
+                    project_instance.c.id == instance_resource.c.project_instance_id,
+                )
+                .where(
+                    functional_relation.c.project_id == project_id,
+                    functional_relation.c.relation_kind == "MODULE_INSTALLATION",
+                    functional_relation.c.target_resource_id == attached[0],
+                    instance_resource.c.resource_kind == "INTERNAL_EXPANSION_SLOT",
+                    project_instance.c.lifecycle == "ACTIVE",
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         return str(host_boards[0]) if len(host_boards) == 1 and host_boards[0] else None
 
     def delete_rs485_bus(self, *, project_id: str, bus_id: str) -> None:
@@ -454,14 +475,18 @@ class BusService:
             raise BusError("Номер шины DALI должен иметь формат 9YY (например, 941)")
         try:
             with UnitOfWork(self._engine) as uow:
-                current = uow.execute(
-                    select(bus).where(
-                        bus.c.project_id == project_id,
-                        bus.c.id == bus_id,
-                        bus.c.bus_kind == "DALI",
-                        bus.c.lifecycle == "ACTIVE",
+                current = (
+                    uow.execute(
+                        select(bus).where(
+                            bus.c.project_id == project_id,
+                            bus.c.id == bus_id,
+                            bus.c.bus_kind == "DALI",
+                            bus.c.lifecycle == "ACTIVE",
+                        )
                     )
-                ).mappings().one_or_none()
+                    .mappings()
+                    .one_or_none()
+                )
                 if current is None:
                     raise BusError("Шина DALI не найдена в выбранном проекте")
                 changing_number = name != current["designation"]
@@ -471,14 +496,20 @@ class BusService:
                     return
                 attached = any(
                     uow.execute(
-                        select(table.c.id).where(
+                        select(table.c.id)
+                        .where(
                             table.c.project_id == project_id,
                             table.c.bus_id == bus_id,
-                        ).limit(1)
+                        )
+                        .limit(1)
                     ).first()
                     for table in (
-                        bus_endpoint, bus_segment, bus_branch,
-                        bus_physical_node, bus_physical_link, dali_group,
+                        bus_endpoint,
+                        bus_segment,
+                        bus_branch,
+                        bus_physical_node,
+                        bus_physical_link,
+                        dali_group,
                     )
                 )
                 if attached:
@@ -549,52 +580,76 @@ class BusService:
                 bus_segment.c.project_id == project_id,
                 bus_segment.c.bus_id == bus_id,
             )
-            uow.execute(delete(dali_group_member).where(
-                dali_group_member.c.project_id == project_id,
-                dali_group_member.c.dali_group_id.in_(group_ids),
-            ))
-            uow.execute(delete(dali_group).where(
-                dali_group.c.project_id == project_id,
-                dali_group.c.bus_id == bus_id,
-            ))
-            uow.execute(delete(bus_physical_link).where(
-                bus_physical_link.c.project_id == project_id,
-                bus_physical_link.c.bus_id == bus_id,
-            ))
-            uow.execute(delete(bus_physical_node).where(
-                bus_physical_node.c.project_id == project_id,
-                bus_physical_node.c.bus_id == bus_id,
-            ))
-            uow.execute(delete(bus_segment_conduit_assignment).where(
-                bus_segment_conduit_assignment.c.project_id == project_id,
-                bus_segment_conduit_assignment.c.bus_segment_id.in_(segment_ids),
-            ))
-            uow.execute(delete(bus_segment).where(
-                bus_segment.c.project_id == project_id,
-                bus_segment.c.bus_id == bus_id,
-            ))
-            uow.execute(delete(bus_branch_point).where(
-                bus_branch_point.c.project_id == project_id,
-                bus_branch_point.c.bus_branch_id.in_(branch_ids),
-            ))
-            uow.execute(update(bus_endpoint).where(
-                bus_endpoint.c.project_id == project_id,
-                bus_endpoint.c.bus_id == bus_id,
-            ).values(bus_branch_id=None))
-            uow.execute(delete(bus_branch).where(
-                bus_branch.c.project_id == project_id,
-                bus_branch.c.bus_id == bus_id,
-            ))
-            uow.execute(delete(bus_endpoint).where(
-                bus_endpoint.c.project_id == project_id,
-                bus_endpoint.c.bus_id == bus_id,
-            ))
-            result = uow.execute(delete(bus).where(
-                bus.c.project_id == project_id,
-                bus.c.id == bus_id,
-                bus.c.bus_kind == "DALI",
-                bus.c.lifecycle == "ACTIVE",
-            ))
+            uow.execute(
+                delete(dali_group_member).where(
+                    dali_group_member.c.project_id == project_id,
+                    dali_group_member.c.dali_group_id.in_(group_ids),
+                )
+            )
+            uow.execute(
+                delete(dali_group).where(
+                    dali_group.c.project_id == project_id,
+                    dali_group.c.bus_id == bus_id,
+                )
+            )
+            uow.execute(
+                delete(bus_physical_link).where(
+                    bus_physical_link.c.project_id == project_id,
+                    bus_physical_link.c.bus_id == bus_id,
+                )
+            )
+            uow.execute(
+                delete(bus_physical_node).where(
+                    bus_physical_node.c.project_id == project_id,
+                    bus_physical_node.c.bus_id == bus_id,
+                )
+            )
+            uow.execute(
+                delete(bus_segment_conduit_assignment).where(
+                    bus_segment_conduit_assignment.c.project_id == project_id,
+                    bus_segment_conduit_assignment.c.bus_segment_id.in_(segment_ids),
+                )
+            )
+            uow.execute(
+                delete(bus_segment).where(
+                    bus_segment.c.project_id == project_id,
+                    bus_segment.c.bus_id == bus_id,
+                )
+            )
+            uow.execute(
+                delete(bus_branch_point).where(
+                    bus_branch_point.c.project_id == project_id,
+                    bus_branch_point.c.bus_branch_id.in_(branch_ids),
+                )
+            )
+            uow.execute(
+                update(bus_endpoint)
+                .where(
+                    bus_endpoint.c.project_id == project_id,
+                    bus_endpoint.c.bus_id == bus_id,
+                )
+                .values(bus_branch_id=None)
+            )
+            uow.execute(
+                delete(bus_branch).where(
+                    bus_branch.c.project_id == project_id,
+                    bus_branch.c.bus_id == bus_id,
+                )
+            )
+            uow.execute(
+                delete(bus_endpoint).where(
+                    bus_endpoint.c.project_id == project_id,
+                    bus_endpoint.c.bus_id == bus_id,
+                )
+            )
+            result = uow.execute(
+                delete(bus).where(
+                    bus.c.project_id == project_id,
+                    bus.c.id == bus_id,
+                    bus.c.bus_kind == "DALI",
+                    bus.c.lifecycle == "ACTIVE",
+                )
+            )
             if result.rowcount != 1:
                 raise BusError("Шина DALI не найдена в выбранном проекте")
             uow.commit()
@@ -1019,50 +1074,58 @@ class BusService:
         from the first field device or from SENSOR_* resource kinds.
         """
         with self._engine.connect() as conn:
-            origin_rows = conn.execute(
-                select(
-                    bus.c.id.label("bus_id"),
-                    project_instance.c.id.label("owner_instance_id"),
-                    board.c.designation.label("board_name"),
+            origin_rows = (
+                conn.execute(
+                    select(
+                        bus.c.id.label("bus_id"),
+                        project_instance.c.id.label("owner_instance_id"),
+                        board.c.designation.label("board_name"),
+                    )
+                    .join(instance_resource, instance_resource.c.id == bus.c.root_resource_id)
+                    .join(
+                        project_instance,
+                        project_instance.c.id == instance_resource.c.project_instance_id,
+                    )
+                    .outerjoin(board, board.c.id == project_instance.c.board_id)
+                    .where(
+                        bus.c.project_id == project_id,
+                        bus.c.lifecycle == "ACTIVE",
+                        project_instance.c.project_id == project_id,
+                    )
                 )
-                .join(instance_resource, instance_resource.c.id == bus.c.root_resource_id)
-                .join(
-                    project_instance,
-                    project_instance.c.id == instance_resource.c.project_instance_id,
+                .mappings()
+                .all()
+            )
+            members = (
+                conn.execute(
+                    select(
+                        bus_endpoint.c.bus_id,
+                        bus.c.designation.label("bus_designation"),
+                        bus_endpoint.c.endpoint_order,
+                        bus_endpoint.c.address,
+                        field_device.c.normalized_fields_json,
+                        room.c.id.label("room_id"),
+                        room.c.name.label("canonical_room"),
+                        room.c.display_json.label("room_display"),
+                    )
+                    .join(bus, bus.c.id == bus_endpoint.c.bus_id)
+                    .join(field_device, field_device.c.id == bus_endpoint.c.field_device_id)
+                    .outerjoin(room, room.c.id == field_device.c.room_id)
+                    .where(
+                        bus.c.project_id == project_id,
+                        bus.c.lifecycle == "ACTIVE",
+                        field_device.c.project_id == project_id,
+                        field_device.c.lifecycle == "ACTIVE",
+                    )
+                    .order_by(
+                        bus_endpoint.c.bus_id,
+                        bus_endpoint.c.endpoint_order,
+                        bus_endpoint.c.address,
+                    )
                 )
-                .outerjoin(board, board.c.id == project_instance.c.board_id)
-                .where(
-                    bus.c.project_id == project_id,
-                    bus.c.lifecycle == "ACTIVE",
-                    project_instance.c.project_id == project_id,
-                )
-            ).mappings().all()
-            members = conn.execute(
-                select(
-                    bus_endpoint.c.bus_id,
-                    bus.c.designation.label("bus_designation"),
-                    bus_endpoint.c.endpoint_order,
-                    bus_endpoint.c.address,
-                    field_device.c.normalized_fields_json,
-                    room.c.id.label("room_id"),
-                    room.c.name.label("canonical_room"),
-                    room.c.display_json.label("room_display"),
-                )
-                .join(bus, bus.c.id == bus_endpoint.c.bus_id)
-                .join(field_device, field_device.c.id == bus_endpoint.c.field_device_id)
-                .outerjoin(room, room.c.id == field_device.c.room_id)
-                .where(
-                    bus.c.project_id == project_id,
-                    bus.c.lifecycle == "ACTIVE",
-                    field_device.c.project_id == project_id,
-                    field_device.c.lifecycle == "ACTIVE",
-                )
-                .order_by(
-                    bus_endpoint.c.bus_id,
-                    bus_endpoint.c.endpoint_order,
-                    bus_endpoint.c.address,
-                )
-            ).mappings().all()
+                .mappings()
+                .all()
+            )
             # WBE2 has no independent board placement: inherit it strictly
             # from the real controller's occupied MOD slot relation.
             module_attachment = instance_resource.alias("module_attachment")
@@ -1077,8 +1140,7 @@ class BusService:
                     .select_from(functional_relation)
                     .join(
                         module_attachment,
-                        module_attachment.c.id
-                        == functional_relation.c.target_resource_id,
+                        module_attachment.c.id == functional_relation.c.target_resource_id,
                     )
                     .join(host_slot, host_slot.c.id == functional_relation.c.source_resource_id)
                     .join(
@@ -1089,8 +1151,7 @@ class BusService:
                     .where(
                         functional_relation.c.project_id == project_id,
                         functional_relation.c.relation_kind == "MODULE_INSTALLATION",
-                        module_attachment.c.resource_kind
-                        == "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
+                        module_attachment.c.resource_kind == "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
                         host_slot.c.resource_kind == "INTERNAL_EXPANSION_SLOT",
                         host_instance.c.project_id == project_id,
                         host_instance.c.lifecycle == "ACTIVE",
@@ -1101,9 +1162,7 @@ class BusService:
         for row in origin_rows:
             result[row["bus_id"]] = {
                 "source_board": (
-                    row["board_name"]
-                    or module_boards.get(row["owner_instance_id"])
-                    or ""
+                    row["board_name"] or module_boards.get(row["owner_instance_id"]) or ""
                 ),
                 "purposes": [],
                 "purpose_details": [],
@@ -1120,9 +1179,7 @@ class BusService:
                     {
                         "id": row["room_id"],
                         "name": row["canonical_room"],
-                        "color": (row["room_display"] or {}).get(
-                            "marking_color", "#FFFFFF"
-                        ),
+                        "color": (row["room_display"] or {}).get("marking_color", "#FFFFFF"),
                     },
                 )
             dwg_bus_id = str(values.get("BUS_ID") or "").strip()
@@ -1136,9 +1193,7 @@ class BusService:
             # Only physically linked BusEndpoints are considered.
             if name not in item["purposes"]:
                 item["purposes"].append(name)
-            item["purpose_details"].append(
-                (str(row["address"] or "").strip(), name)
-            )
+            item["purpose_details"].append((str(row["address"] or "").strip(), name))
         return result
 
     @staticmethod
@@ -1229,9 +1284,7 @@ class BusService:
                 root_labels.get(str(stored["root_resource_id"]), {}).get("label")
                 or topology["root_endpoint"]["label"]
             )
-            source_label = (
-                f"{board_name} · {root_label}" if board_name else root_label
-            )
+            source_label = f"{board_name} · {root_label}" if board_name else root_label
             purpose_details = context.get("purpose_details", [])
             purpose_tooltip = (
                 "\n".join(f"{address}: {name}" for address, name in purpose_details)
@@ -1246,16 +1299,18 @@ class BusService:
                     "custom_display_name": custom_name,
                     "suggested_display_name": suggested_name,
                     "load_name_tooltip": (
-                        (f"Название шины (Project): {custom_name}\n"
-                         f"LOAD_NAME точек DWG:\n{purpose_tooltip}")
-                        if custom_name else purpose_tooltip
+                        (
+                            f"Название шины (Project): {custom_name}\n"
+                            f"LOAD_NAME точек DWG:\n{purpose_tooltip}"
+                        )
+                        if custom_name
+                        else purpose_tooltip
                     ),
                     "load_name_count": len(purposes),
                     "source_board": board_name,
                     "source_interface": root_label,
                     "source_tooltip": (
-                        f"Щит: {board_name or 'не указан'}\n"
-                        f"Контроллер / порт: {root_label}"
+                        f"Щит: {board_name or 'не указан'}\nКонтроллер / порт: {root_label}"
                     ),
                     "load_type": "BUS",
                     "board": source_label,
@@ -1348,6 +1403,7 @@ class BusService:
                 for row in connection.execute(
                     select(
                         bus_segment_conduit_assignment.c.bus_segment_id.label("segment_id"),
+                        bus_segment_conduit_assignment.c.conduit_id.label("conduit_id"),
                         conduit.c.designation,
                     )
                     .join(
@@ -1458,6 +1514,7 @@ class BusService:
                     "gofra_type": segment.get("gofra_type") or "",
                     "gofra_color": segment.get("gofra_color") or "",
                     "gofra_id": assigned.get("designation") or segment.get("gofra_id") or "",
+                    "conduit_id": assigned.get("conduit_id"),
                     "cable_length_m": length,
                     "physical_length_m": length,
                     "calculation_status": "READY" if length is not None else "INCOMPLETE",
@@ -1716,56 +1773,80 @@ class BusService:
     @staticmethod
     def _validate_rs485_module_root(uow, project_id: str, resource_id: str) -> bool:
         """Module RS485 ports require a persisted, valid WB8.5 MOD installation."""
-        module = uow.execute(
-            select(instance_resource.c.project_instance_id, passport_definition.c.passport_key)
-            .join(project_instance, project_instance.c.id == instance_resource.c.project_instance_id)
-            .join(passport_definition, passport_definition.c.id == project_instance.c.passport_definition_id)
-            .where(
-                instance_resource.c.id == resource_id,
-                instance_resource.c.project_id == project_id,
-                instance_resource.c.active.is_(True),
-                project_instance.c.lifecycle == "ACTIVE",
+        module = (
+            uow.execute(
+                select(instance_resource.c.project_instance_id, passport_definition.c.passport_key)
+                .join(
+                    project_instance,
+                    project_instance.c.id == instance_resource.c.project_instance_id,
+                )
+                .join(
+                    passport_definition,
+                    passport_definition.c.id == project_instance.c.passport_definition_id,
+                )
+                .where(
+                    instance_resource.c.id == resource_id,
+                    instance_resource.c.project_id == project_id,
+                    instance_resource.c.active.is_(True),
+                    project_instance.c.lifecycle == "ACTIVE",
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if module is None:
             return False
         if module["passport_key"] != "module.wirenboard.wbe2_i_rs485_iso":
             return True
-        attachments = list(uow.execute(
-            select(instance_resource.c.id).where(
-                instance_resource.c.project_id == project_id,
-                instance_resource.c.project_instance_id == module["project_instance_id"],
-                instance_resource.c.resource_kind == "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
-                instance_resource.c.active.is_(True),
-            )
-        ).scalars())
+        attachments = list(
+            uow.execute(
+                select(instance_resource.c.id).where(
+                    instance_resource.c.project_id == project_id,
+                    instance_resource.c.project_instance_id == module["project_instance_id"],
+                    instance_resource.c.resource_kind == "INTERNAL_EXPANSION_MODULE_ATTACHMENT",
+                    instance_resource.c.active.is_(True),
+                )
+            ).scalars()
+        )
         if len(attachments) != 1:
             return False
-        sources = list(uow.execute(
-            select(functional_relation.c.source_resource_id).where(
-                functional_relation.c.project_id == project_id,
-                functional_relation.c.relation_kind == "MODULE_INSTALLATION",
-                functional_relation.c.target_resource_id == attachments[0],
-            )
-        ).scalars())
+        sources = list(
+            uow.execute(
+                select(functional_relation.c.source_resource_id).where(
+                    functional_relation.c.project_id == project_id,
+                    functional_relation.c.relation_kind == "MODULE_INSTALLATION",
+                    functional_relation.c.target_resource_id == attachments[0],
+                )
+            ).scalars()
+        )
         if len(sources) != 1:
             return False
-        slot = uow.execute(
-            select(
-                instance_resource.c.resource_kind,
-                instance_resource.c.resource_key,
-                instance_resource.c.ordinal,
-                passport_definition.c.passport_key,
+        slot = (
+            uow.execute(
+                select(
+                    instance_resource.c.resource_kind,
+                    instance_resource.c.resource_key,
+                    instance_resource.c.ordinal,
+                    passport_definition.c.passport_key,
+                )
+                .join(
+                    project_instance,
+                    project_instance.c.id == instance_resource.c.project_instance_id,
+                )
+                .join(
+                    passport_definition,
+                    passport_definition.c.id == project_instance.c.passport_definition_id,
+                )
+                .where(
+                    instance_resource.c.id == sources[0],
+                    instance_resource.c.project_id == project_id,
+                    instance_resource.c.active.is_(True),
+                    project_instance.c.lifecycle == "ACTIVE",
+                )
             )
-            .join(project_instance, project_instance.c.id == instance_resource.c.project_instance_id)
-            .join(passport_definition, passport_definition.c.id == project_instance.c.passport_definition_id)
-            .where(
-                instance_resource.c.id == sources[0],
-                instance_resource.c.project_id == project_id,
-                instance_resource.c.active.is_(True),
-                project_instance.c.lifecycle == "ACTIVE",
-            )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         return bool(
             slot
             and slot["passport_key"] == "controller.wiren_board_8_5"

@@ -205,7 +205,9 @@ def test_lines_zero_result_search_clears_selection_and_stale_details(database, q
 
 
 def test_conduit_search_wheel_keeps_target_selection_and_move_requires_confirmation(
-    database, qtbot, monkeypatch,
+    database,
+    qtbot,
+    monkeypatch,
 ):
     from PySide6.QtCore import QPoint, QPointF
     from PySide6.QtGui import QWheelEvent
@@ -216,12 +218,13 @@ def test_conduit_search_wheel_keeps_target_selection_and_move_requires_confirmat
     cables = CableService(database.engine)
     bid = cables.create_board_av(project_id=pid, designation="AV-SAFE")
     cable_id = cables.create_av_line(
-        project_id=pid, board_id=bid, cable_id="204",
-        load_type="HDMI", cable_type="HDMI 2.1",
+        project_id=pid,
+        board_id=bid,
+        cable_id="204",
+        load_type="HDMI",
+        cable_type="HDMI 2.1",
     )
-    source = cables.create_empty_conduit(
-        project_id=pid, designation="146.PND25", conduit_type="ПНД25"
-    )
+    cables.create_empty_conduit(project_id=pid, designation="146.PND25", conduit_type="ПНД25")
     target = cables.create_empty_conduit(
         project_id=pid, designation="009.PND25", conduit_type="ПНД25"
     )
@@ -234,13 +237,16 @@ def test_conduit_search_wheel_keeps_target_selection_and_move_requires_confirmat
     dialog.conduits_table.selectRow(0)
     assert dialog._selected_conduit_ids() == {target}
     moves = []
-    monkeypatch.setattr(
-        cables, "move_line_to_conduit", lambda **kwargs: moves.append(kwargs)
-    )
+    monkeypatch.setattr(cables, "move_line_to_conduit", lambda **kwargs: moves.append(kwargs))
     wheel = QWheelEvent(
-        QPointF(12, 12), QPointF(12, 12), QPoint(0, 0), QPoint(0, -120),
-        Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
-        Qt.ScrollPhase.ScrollUpdate, False,
+        QPointF(12, 12),
+        QPointF(12, 12),
+        QPoint(0, 0),
+        QPoint(0, -120),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
     )
     QApplication.sendEvent(dialog.conduits_table.viewport(), wheel)
     assert dialog._selected_conduit_ids() == {target}
@@ -248,9 +254,11 @@ def test_conduit_search_wheel_keeps_target_selection_and_move_requires_confirmat
     assert moves == []
 
     confirmations = []
+
     def no(*args, **kwargs):
         confirmations.append(args)
         return QMessageBox.StandardButton.No
+
     monkeypatch.setattr(QMessageBox, "question", no)
     dialog._move_line()
     assert moves == []
@@ -260,9 +268,7 @@ def test_conduit_search_wheel_keeps_target_selection_and_move_requires_confirmat
 
     monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
     dialog._move_line()
-    assert moves == [{
-        "project_id": pid, "cable_line_id": cable_id, "target_conduit_id": target
-    }]
+    assert moves == [{"project_id": pid, "cable_line_id": cable_id, "target_conduit_id": target}]
     assert dialog._selected_line_id() == cable_id
 
 
@@ -270,6 +276,7 @@ def test_wheel_does_not_change_system_filter_or_route_combo(database, qtbot):
     from PySide6.QtCore import QPoint, QPointF
     from PySide6.QtGui import QWheelEvent
     from PySide6.QtWidgets import QApplication
+
     objects = ObjectService(database.engine)
     pid = objects.create_project(ProjectCard(name="Stable wheel", project_code="WHEEL-ROUTE"))
     dialog = CableWorkspaceDialog(CableService(database.engine), pid)
@@ -277,9 +284,14 @@ def test_wheel_does_not_change_system_filter_or_route_combo(database, qtbot):
     for combo in (dialog.system_filter, dialog.route_combo):
         initial = combo.currentIndex()
         wheel = QWheelEvent(
-            QPointF(5, 5), QPointF(5, 5), QPoint(0, 0), QPoint(0, -120),
-            Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
-            Qt.ScrollPhase.ScrollUpdate, False,
+            QPointF(5, 5),
+            QPointF(5, 5),
+            QPoint(0, 0),
+            QPoint(0, -120),
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+            Qt.ScrollPhase.ScrollUpdate,
+            False,
         )
         QApplication.sendEvent(combo, wheel)
         assert combo.currentIndex() == initial

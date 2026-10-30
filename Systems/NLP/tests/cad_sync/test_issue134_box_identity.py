@@ -372,8 +372,10 @@ def test_physical_output_port_supports_cross_line_full_and_selective_import(data
             "E1",
         }
         assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
-    assert CableService(database.engine).topology(pid, line_id)["root_endpoint"] == {
+    root = CableService(database.engine).topology(pid, line_id)["root_endpoint"]
+    assert root == {
         "kind": "FIELD_PORT",
+        "endpoint_id": segment["source_endpoint_id"],
         "reference": "902.003/K1",
         "label": "902.003/K1",
     }

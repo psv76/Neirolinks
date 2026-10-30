@@ -206,6 +206,7 @@ def test_cable_topology_read_model_derives_exact_field_port_root(database):
     topology = CableService(database.engine).topology(project_id, line_id)
     assert topology["root_endpoint"] == {
         "kind": "FIELD_PORT",
+        "endpoint_id": source_endpoint_id,
         "reference": "902.003/K1",
         "label": "902.003/K1",
     }
