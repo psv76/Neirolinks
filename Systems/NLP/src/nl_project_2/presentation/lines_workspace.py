@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from PySide6.QtCore import QItemSelectionModel, QPoint, QRect, QSize, Qt, Signal
@@ -29,8 +29,8 @@ from PySide6.QtWidgets import (
     QSplitter,
     QStyle,
     QStyledItemDelegate,
-    QStyleOptionViewItem,
     QStyleOptionHeader,
+    QStyleOptionViewItem,
     QTableWidget,
     QTableWidgetItem,
     QTableWidgetSelectionRange,
@@ -108,9 +108,7 @@ class ContrastCellDelegate(QStyledItemDelegate):
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:
         active = bool(
-            option.state & (
-                QStyle.StateFlag.State_Selected | QStyle.StateFlag.State_MouseOver
-            )
+            option.state & (QStyle.StateFlag.State_Selected | QStyle.StateFlag.State_MouseOver)
         )
         view = option.widget
         if isinstance(view, QTableWidget):
@@ -135,9 +133,7 @@ class ContrastCellDelegate(QStyledItemDelegate):
             )
             available.adjust(20, 0, 0, 0)
         elided = metrics.elidedText(text, option.textElideMode, max(0, available.width()))
-        alignment = (
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-        )
+        alignment = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         painter.drawText(available, alignment, elided)
         painter.restore()
 
@@ -910,9 +906,7 @@ class LinesWorkspace(QWidget):
                                 + (card.get("load_name_tooltip") or text)
                             )
                         elif definition.key == "board":
-                            item.setToolTip(
-                                card.get("source_tooltip") or text
-                            )
+                            item.setToolTip(card.get("source_tooltip") or text)
                     has_issue = (
                         definition.key == "room_names" and bool(card.get("unresolved_room_names"))
                     ) or (
@@ -1100,10 +1094,7 @@ class LinesWorkspace(QWidget):
                 (not needle or needle in searchable)
                 and (not system or card["system_kind"] == system)
                 and (not room or card["room_names"] == room)
-                and (
-                    not board
-                    or self._source_board_filter_value(card) == board
-                )
+                and (not board or self._source_board_filter_value(card) == board)
                 and (not status or card["user_status"] == status)
             )
             for row in rows:
@@ -1747,8 +1738,7 @@ class LinesWorkspace(QWidget):
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     item.setData(Qt.ItemDataRole.UserRole, edge["segment_id"])
                     item.setToolTip(
-                        _segment_length_tooltip(edge) if column in (4, 5, 6)
-                        else str(value)
+                        _segment_length_tooltip(edge) if column in (4, 5, 6) else str(value)
                     )
                     self.segment_table.setItem(row_index, column, item)
         finally:
@@ -1871,7 +1861,8 @@ class LinesWorkspace(QWidget):
             return
         if not differences:
             QMessageBox.information(
-                self, "Проверка расчётов",
+                self,
+                "Проверка расчётов",
                 "Расхождений между сохранёнными метрами и текущей геометрией не найдено.",
             )
             return
@@ -1881,12 +1872,10 @@ class LinesWorkspace(QWidget):
             f"{Decimal(entry['new_m']):.2f} м"
             for entry in differences[:8]
         )
-        remainder = (
-            f"\n… и ещё {len(differences)-8} участков."
-            if len(differences) > 8 else ""
-        )
+        remainder = f"\n… и ещё {len(differences) - 8} участков." if len(differences) > 8 else ""
         confirm = QMessageBox.question(
-            self, "Пересчёт по текущей геометрии",
+            self,
+            "Пересчёт по текущей геометрии",
             f"Найдено {len(differences)} устаревших участков в "
             f"{len(line_ids)} кабельных линиях.\n\n"
             f"{samples}{remainder}\n\n"
@@ -1901,6 +1890,7 @@ class LinesWorkspace(QWidget):
             return
         try:
             from nl_project_2.persistence.migration import create_verified_backup
+
             database_name = str(self.cables._engine.url.database or "")
             path = Path(database_name)
             if not database_name or not path.is_file():
@@ -1908,8 +1898,7 @@ class LinesWorkspace(QWidget):
             preferred = Path(path.anchor) / "NLP_3_BACKUPS"
             backup_root = preferred if preferred.is_dir() else path.parent / "backups"
             folder = backup_root / (
-                "nlp32_length_recalculation_"
-                + datetime.now().strftime("%Y%m%dT%H%M%S%f")
+                "nlp32_length_recalculation_" + datetime.now().strftime("%Y%m%dT%H%M%S%f")
             )
             receipt = create_verified_backup(path, folder)
             self.cables.recalculate(
@@ -1919,7 +1908,8 @@ class LinesWorkspace(QWidget):
             remaining = self.cables.stale_length_report(self.project_id)
         except Exception as exc:
             QMessageBox.warning(
-                self, "Пересчёт не завершён",
+                self,
+                "Пересчёт не завершён",
                 f"{exc}\n\nСостояние проверьте по резервной копии, "
                 "если операция была частично выполнена.",
             )
@@ -1928,7 +1918,8 @@ class LinesWorkspace(QWidget):
         self.refresh()
         self.projectChanged.emit()
         QMessageBox.information(
-            self, "Расчёты обновлены",
+            self,
+            "Расчёты обновлены",
             f"Пересчитано {len(differences)} участков. "
             f"Расхождений осталось: {len(remaining)}.\n"
             f"Проверенная резервная копия: {receipt.path}",
