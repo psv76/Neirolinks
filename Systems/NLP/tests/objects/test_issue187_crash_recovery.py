@@ -56,9 +56,8 @@ def test_crash_recovery_never_charges_offline_hours(database, tmp_path):
         assert fresh.recover_abandoned_session(lock) is None
         fresh.switch_to(project)
     with database.engine.connect() as connection:
-        old_row = connection.execute(
-            select(work_session).where(work_session.c.id == recovered_id)
-        ).mappings().one()
+        statement = select(work_session).where(work_session.c.id == recovered_id)
+        old_row = connection.execute(statement).mappings().one()
         assert old_row["close_reason"] == "RECOVERY_STALE_SESSION"
         assert "unobserved interval was excluded" in old_row["recovery_reason"]
     assert fresh.summary(project).total_seconds == 90
@@ -76,9 +75,8 @@ def test_legacy_unclosed_period_is_recovered_at_start_not_restart(database, tmp_
     with DatabaseInstanceLock(tmp_path / "project.sqlite") as lock:
         recovered = fresh.recover_abandoned_session(lock)
     with database.engine.connect() as connection:
-        row = connection.execute(
-            select(work_session).where(work_session.c.id == recovered)
-        ).mappings().one()
+        statement = select(work_session).where(work_session.c.id == recovered)
+        row = connection.execute(statement).mappings().one()
     assert row["close_reason"] == "RECOVERY_STALE_SESSION"
     assert fresh.summary(project).total_seconds == 0
     assert row["stopped_at_utc"] is not None
