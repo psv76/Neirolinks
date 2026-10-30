@@ -124,6 +124,17 @@ class CableService:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
 
+    def conduit_physical_audit(self, project_id: str):
+        """Read-only Q03 audit of actual ordinary and BUS Conduit assignments.
+
+        A matching physical span is not authorization for a write. This method
+        deliberately does not normalize, repair or recalculate anything.
+        """
+        from .conduit_audit import load_conduit_membership_audit
+
+        with self._engine.connect() as connection:
+            return load_conduit_membership_audit(connection, project_id)
+
     def list_lines(self, project_id: str) -> list[dict]:
         with self._engine.connect() as connection:
             rows = connection.execute(
