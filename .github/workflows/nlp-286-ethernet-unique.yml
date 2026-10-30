@@ -1,0 +1,51 @@
+name: NLP 286 Ethernet duplicate ID gate
+
+on:
+  pull_request:
+    paths:
+      - 'Systems/NLP/src/nl_project_2/cad_contract/validator.py'
+      - 'Systems/NLP/tests/cad_sync/test_issue286_ethernet_duplicate_guard.py'
+      - '.github/workflows/nlp-286-ethernet-unique.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ethernet-unique:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: Systems/NLP
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install tests
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0
+          python -m pip install \
+            'SQLAlchemy==2.0.51' 'alembic==1.18.5' \
+            'pytest==9.1.1' 'pytest-qt==4.5.0' \
+            'PySide6==6.11.1' 'ruff==0.15.22'
+      - name: Lint affected files
+        run: |
+          python -m ruff check \
+            src/nl_project_2/cad_contract/validator.py \
+            tests/cad_sync/test_issue286_ethernet_duplicate_guard.py
+          python -m ruff format --check \
+            src/nl_project_2/cad_contract/validator.py \
+            tests/cad_sync/test_issue286_ethernet_duplicate_guard.py
+      - name: Ethernet duplicate and DWG import regression
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q \
+            tests/cad_sync/test_issue286_ethernet_duplicate_guard.py \
+            tests/cad_sync/test_issue286_ethernet_apply.py \
+            tests/cad_sync/test_sync_service.py \
+            tests/cad_contract/test_validator_numeric_layers.py
