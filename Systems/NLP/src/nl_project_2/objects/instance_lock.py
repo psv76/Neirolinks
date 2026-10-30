@@ -21,6 +21,10 @@ class DatabaseInstanceLock:
         self.path = database.parent / f".{database.name}.instance.lock"
         self._fd: int | None = None
 
+    @property
+    def held(self) -> bool:
+        return self._fd is not None
+
     def __enter__(self) -> DatabaseInstanceLock:
         self.acquire()
         return self
