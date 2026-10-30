@@ -32,11 +32,24 @@ def default_catalog_directory() -> Path:
 
 def load_payload(directory: str | Path) -> CatalogPayload:
     root = Path(directory).resolve()
+    manifest = json.loads((root / "catalog_manifest.json").read_text(encoding="utf-8"))
     raw = {
         name: (root / name).read_bytes() for name in ("equipment_passports.json", "products.json")
     }
+    # The approved 2026-10-27 catalog was hashed with Windows CRLF, while
+    # Git checks out its tracked JSON as LF. Restore the signed bytes only
+    # when the alternative matches the *existing* per-file manifest digest.
+    # No content edits or new release hash are authorized by this fallback.
+    for name, original in raw.items():
+        expected = manifest.get("files", {}).get(name)
+        if hashlib.sha256(original).hexdigest() == expected:
+            continue
+        if b"\r" not in original:
+            crlf = original.replace(b"\n", b"\r\n")
+            if hashlib.sha256(crlf).hexdigest() == expected:
+                raw[name] = crlf
     return CatalogPayload(
-        manifest=json.loads((root / "catalog_manifest.json").read_text(encoding="utf-8")),
+        manifest=manifest,
         passports=json.loads(raw["equipment_passports.json"].decode("utf-8-sig")),
         products=json.loads(raw["products.json"].decode("utf-8-sig")),
         raw_files=raw,
