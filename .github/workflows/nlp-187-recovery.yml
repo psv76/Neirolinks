@@ -44,6 +44,7 @@ jobs:
             src/nl_project_2/__main__.py \
             src/nl_project_2/structured_log.py \
             tests/objects/test_issue187_crash_recovery.py
+          python -m ruff format --diff tests/objects/test_issue187_crash_recovery.py || true
           python -m ruff format --check \
             src/nl_project_2/objects/instance_lock.py \
             src/nl_project_2/objects/time_tracking.py \
