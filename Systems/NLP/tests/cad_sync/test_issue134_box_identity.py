@@ -376,6 +376,7 @@ def test_physical_output_port_supports_cross_line_full_and_selective_import(data
         "kind": "FIELD_PORT",
         "reference": "902.003/K1",
         "label": "902.003/K1",
+        "endpoint_id": segment["source_endpoint_id"],
     }
 
 
