@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from nl_project_2.cables.route_commands import RouteConduitCommands, RouteMutationError
+from nl_project_2.cables.route_position_check import format_position_assessment
 
 from .lines_workspace import ContrastCellDelegate
 
@@ -812,7 +813,9 @@ class RoutesWorkspace(QWidget):
             else:
                 detailed.append(f"{kind}: {sid}")
         warning.setDetailedText("\n".join(detailed))
-        warning.setInformativeText("\n".join(plan.warnings))
+        warning.setInformativeText(
+            "\n".join((*plan.warnings, format_position_assessment(plan.position)))
+        )
         confirmed = QCheckBox("Подтверждаю общий физический участок по чертежу")
         warning.setCheckBox(confirmed)
         warning.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
@@ -824,8 +827,28 @@ class RoutesWorkspace(QWidget):
         if not confirmed.isChecked():
             QMessageBox.warning(self, "Требуется подтверждение", "Операция не выполнена")
             return
+        # A second *independent* yes/no decision is mandatory if any
+        # terminal position is unknown or exceeds the agreed tolerance.
+        position_approved = False
+        if plan.position.requires_exception:
+            decision = QMessageBox.question(
+                self,
+                "Дополнительное подтверждение объединения труб",
+                format_position_assessment(plan.position)
+                + "\n\nПодтверждаете, что кабели действительно проходят "
+                "в одной физической трубе?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if decision != QMessageBox.StandardButton.Yes:
+                return
+            position_approved = True
         try:
-            command.apply(plan, confirmed_same_physical_run=True)
+            command.apply(
+                plan,
+                confirmed_same_physical_run=True,
+                confirmed_position_exception=position_approved,
+            )
         except RouteMutationError as exc:
             QMessageBox.warning(self, "Операция отменена", str(exc))
             self.refresh()

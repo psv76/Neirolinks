@@ -214,7 +214,14 @@ def test_merge_mixed_cable_and_bus_membership_is_one_transaction(database, routi
         ("CABLE", cable_segments[1]),
         ("BUS", bsid),
     }
-    command.apply(plan, confirmed_same_physical_run=True)
+    assert plan.position.requires_exception
+    with pytest.raises(RouteMutationError):
+        command.apply(plan, confirmed_same_physical_run=True)
+    command.apply(
+        plan,
+        confirmed_same_physical_run=True,
+        confirmed_position_exception=True,
+    )
     with database.engine.connect() as conn:
         assert (
             conn.scalar(
@@ -256,3 +263,171 @@ def test_disagreeing_saved_lengths_become_unconfirmed_not_added(database, routin
         ).one()
         assert row.length_m_decimal is None
         assert row.path_json["length_source"] == "INCOMPLETE_SHARED"
+
+
+def _change_target_position(database, segment_id, *, x=None, y=None, height=None):
+    """Edit stored DWG evidence only in pytest's ephemeral database."""
+    from nl_project_2.persistence.schema import (
+        cable_point,
+        cable_point_field_device,
+        cable_topology_endpoint,
+        field_device,
+    )
+
+    with database.engine.begin() as conn:
+        target = conn.scalar(
+            select(cable_segment.c.target_endpoint_id).where(cable_segment.c.id == segment_id)
+        )
+        point_id = conn.scalar(
+            select(cable_topology_endpoint.c.cable_point_id).where(
+                cable_topology_endpoint.c.id == target
+            )
+        )
+        if x is not None or y is not None:
+            current = dict(
+                conn.scalar(select(cable_point.c.location_json).where(cable_point.c.id == point_id))
+            )
+            if x is not None:
+                current["x"] = x
+            if y is not None:
+                current["y"] = y
+            conn.execute(
+                update(cable_point)
+                .where(cable_point.c.id == point_id)
+                .values(location_json=current, row_version=cable_point.c.row_version + 1)
+            )
+        if height is not None:
+            device_id = conn.scalar(
+                select(cable_point_field_device.c.field_device_id).where(
+                    cable_point_field_device.c.cable_point_id == point_id
+                )
+            )
+            current = dict(
+                conn.scalar(
+                    select(field_device.c.normalized_fields_json).where(
+                        field_device.c.id == device_id
+                    )
+                )
+            )
+            current["MOUNT_HEIGHT"] = height
+            conn.execute(
+                update(field_device)
+                .where(field_device.c.id == device_id)
+                .values(
+                    normalized_fields_json=current,
+                    row_version=field_device.c.row_version + 1,
+                )
+            )
+
+
+def test_position_tolerance_exact_xy_one_metre_is_allowed(database, routing):
+    pid, _line, segments, assignment, _ = routing
+    first, second = (assignment[sid] for sid in segments)
+    plan = RouteConduitCommands(database.engine).preview_merge(pid, (first, second), first)
+    assert plan.position.point_count == 2
+    assert plan.position.max_xy_mm == 1000
+    assert plan.position.max_height_mm == 300
+    assert not plan.position.requires_exception
+
+
+def test_position_tolerance_xy_over_one_metre_requires_separate_ack(database, routing):
+    pid, _line, segments, assignment, _ = routing
+    first, second = (assignment[sid] for sid in segments)
+    _change_target_position(database, segments[1], x=2001)
+    cmd = RouteConduitCommands(database.engine)
+    plan = cmd.preview_merge(pid, (first, second), first)
+    assert plan.position.max_xy_mm == 1001
+    assert plan.position.requires_exception
+    assert any("XY" in r for r in plan.position.reasons)
+    with pytest.raises(RouteMutationError, match="отдельное"):
+        cmd.apply(plan, confirmed_same_physical_run=True)
+    with database.engine.connect() as conn:
+        assert (
+            conn.scalar(
+                select(conduit_segment_assignment.c.conduit_id).where(
+                    conduit_segment_assignment.c.cable_segment_id == segments[1]
+                )
+            )
+            == second
+        )
+    cmd.apply(
+        plan,
+        confirmed_same_physical_run=True,
+        confirmed_position_exception=True,
+    )
+    with database.engine.connect() as conn:
+        assert conn.scalar(select(conduit.c.lifecycle).where(conduit.c.id == second)) == "RETIRED"
+
+
+def test_position_tolerance_exact_two_metres_height_is_allowed(database, routing):
+    pid, _line, segments, assignment, _ = routing
+    first, second = (assignment[sid] for sid in segments)
+    _change_target_position(database, segments[0], height="0")
+    _change_target_position(database, segments[1], height="2000")
+    plan = RouteConduitCommands(database.engine).preview_merge(pid, (first, second), first)
+    assert plan.position.max_height_mm == 2000
+    assert not plan.position.requires_exception
+
+
+def test_position_tolerance_height_over_two_metres_requires_extra_ack(database, routing):
+    pid, _line, segments, assignment, _ = routing
+    first, second = (assignment[sid] for sid in segments)
+    _change_target_position(database, segments[0], height="0")
+    _change_target_position(database, segments[1], height="2001")
+    plan = RouteConduitCommands(database.engine).preview_merge(pid, (first, second), first)
+    assert plan.position.max_height_mm == 2001
+    assert plan.position.requires_exception
+
+
+def test_position_unknown_height_is_not_silently_accepted(database, routing):
+    pid, _line, segments, assignment, _ = routing
+    first, second = (assignment[sid] for sid in segments)
+    _change_target_position(database, segments[1], height="")
+    cmd = RouteConduitCommands(database.engine)
+    plan = cmd.preview_merge(pid, (first, second), first)
+    assert plan.position.requires_exception
+    assert plan.position.max_xy_mm is None
+    assert plan.position.max_height_mm is None
+    with pytest.raises(RouteMutationError):
+        cmd.apply(plan, confirmed_same_physical_run=True)
+
+
+def test_position_change_after_preview_invalidates_even_exception_confirmation(database, routing):
+    pid, _line, segments, assignment, _ = routing
+    first, second = (assignment[sid] for sid in segments)
+    cmd = RouteConduitCommands(database.engine)
+    plan = cmd.preview_merge(pid, (first, second), first)
+    _change_target_position(database, segments[1], x=3000)
+    with pytest.raises(RouteMutationError, match="измен"):
+        cmd.apply(
+            plan,
+            confirmed_same_physical_run=True,
+            confirmed_position_exception=True,
+        )
+    with database.engine.connect() as conn:
+        assert conn.scalar(select(conduit.c.lifecycle).where(conduit.c.id == second)) == "ACTIVE"
+
+
+def test_position_maximum_across_three_terminal_devices(database, monkeypatch):
+    from nl_project_2.cables.route_position_check import assess_terminal_positions
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[1] / "cables"))
+    from test_p0004_segment_recalculation import _graph, _project
+
+    _objects, pid, a, b, _ = _project(database)
+    _line, segments, _ = _graph(
+        database,
+        pid,
+        (a, b),
+        coords=[(-200, 0, 500), (0, 0, 500), (900, 0, 500), (1800, 0, 500)],
+        routes=[
+            (0, 1, "По потолку", "ПНД25"),
+            (1, 2, "По потолку", "ПНД25"),
+            (2, 3, "По потолку", "ПНД25"),
+        ],
+    )
+    with database.engine.connect() as conn:
+        assessment = assess_terminal_positions(conn, pid, [("CABLE", sid) for sid in segments])
+    assert assessment.point_count == 3
+    assert assessment.max_xy_mm == 1800
+    assert assessment.requires_exception
