@@ -1260,6 +1260,26 @@ class CadContractValidator:
 
     def _validate_batch_facts(self, facts: _BatchFacts, source_metadata) -> list[ValidationIssue]:
         issues: list[ValidationIssue] = []
+        # Bare 8xx identifiers represent one physical Ethernet/network cable.
+        # Unlike shared 1YY.ZZ socket point identifiers, different DWG blocks
+        # must never silently share the same complete 8xx CABLE_ID.  This was
+        # missing from the dotted-ID-only duplicate checks in point_rows.
+        for cable_id, handles in sorted(facts.identity_handles.items()):
+            if (
+                _BASE_CABLE_ID.fullmatch(cable_id)
+                and cable_id.startswith("8")
+                and len(set(handles)) > 1
+            ):
+                owners = tuple(sorted(set(handles)))
+                issues.append(
+                    self._issue(
+                        "DUPLICATE_ETHERNET_CABLE_ID",
+                        f"Ethernet CABLE_ID {cable_id} occurs on multiple DWG blocks: {owners}",
+                        handle=owners[0],
+                        field="CABLE_ID",
+                        related_handles=owners,
+                    )
+                )
         for cable_id, rows in sorted(facts.point_rows.items()):
             if len(rows) <= 1:
                 continue
