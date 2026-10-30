@@ -357,7 +357,10 @@ def test_object_breakdown_is_available_from_lines(database, qtbot, monkeypatch):
     assert inspected
 
 
-@pytest.mark.parametrize(("handle", "x", "expected"), [("B0", -1000, "10"), ("E1", 1500, "11")])
+# Moving B0 left by 1 m increases physical root distance by 1 m.
+# The 5%+10% route coefficients add 1.15 m to unrounded cable length:
+# 9.60 -> 10.75 m, so RoundUp(q=1 m) yields 11 m, not the stale 10 m.
+@pytest.mark.parametrize(("handle", "x", "expected"), [("B0", -1000, "11"), ("E1", 1500, "11")])
 def test_rescan_source_geometry_recalculates_downstream_dependents(database, handle, x, expected):
     _, pid, _, _, line_id, batch = journal_project(database)
     changed = replace(
@@ -371,9 +374,10 @@ def test_rescan_source_geometry_recalculates_downstream_dependents(database, han
     selected = {c.field_path for c in preview.changes if c.handle == handle and c.field == "X"}
     assert selected
     sync.apply_dwg_to_project(preview, selected_paths=selected, confirmed=True)
-    assert CableService(database.engine).effective_length(pid, line_id).effective_m == Decimal(
-        expected
-    )
+    result = CableService(database.engine).effective_length(pid, line_id)
+    assert result.effective_m == Decimal(expected)
+    if handle == "B0":
+        assert result.automatic_m == Decimal("10.75")
 
 
 def test_manual_length_does_not_change_physical_or_conduit_meters(database):
