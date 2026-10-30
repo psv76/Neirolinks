@@ -96,7 +96,11 @@ Owner project. Key from closed registry, typed value. Only settings affecting pr
 
 ### 4.5. `work_session`
 
-Owner project. Start/stop UTC, active/idle intervals, close/recovery reason. One active session per application instance. Recovery appends an explicit record and never silently rewrites elapsed history.
+Owner project. Start/stop UTC, active/idle intervals, close/recovery reason. At most one live NLP instance may open the same SQLite database: the application holds an operating-system byte lock on `.<database-name>.instance.lock` for its entire GUI lifetime. The lock file remains present; it is **the OS lock, not the file's existence**, that establishes ownership. A real second instance fails visibly without changing the database.
+
+While a work period is active, the GUI persists a heartbeat every **30 seconds** in `work_session.updated_at_utc` (and increases `row_version`). After a crash/reboot, the OS releases the exclusive database lock. Startup, while holding the new lock, closes any leftover foreign `work_session` at the **last persisted heartbeat/update, bounded by the session start and current UTC**; never at the time of relaunch. If an old pre-heartbeat period has no later recorded activity, it is conservatively closed at its recorded start (unverified time is **not charged**). A `RECOVERY_STALE_SESSION` close reason, `recovery_reason` text and split daily intervals make recovery auditable; history is not deleted. A system clock earlier than the recorded session start blocks recovery rather than inventing time. No SQLite schema/catalog release change is needed.
+
+A fatal startup error is logged to `fatal-startup.jsonl` and shown via a native Windows dialog even under hidden `pythonw.exe`. Controlled clean close closes the current work period, stops heartbeats and releases the OS lock. Application-level concurrency protection is mandatory before auto-recovery; standalone `WorkTimeService` clients without the lifetime lock may not independently infer that another instance is dead.
 
 ### 4.6. Local application profile
 
