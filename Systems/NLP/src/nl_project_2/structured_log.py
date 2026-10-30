@@ -21,6 +21,7 @@ def record_fatal_startup(error: Exception, paths: PathConfig) -> Path:
     )
     return target
 
+
 def show_fatal_startup(error: Exception, log_path: Path) -> None:
     """Report startup failures even when launched with invisible pythonw.exe.
 
@@ -40,9 +41,7 @@ def show_fatal_startup(error: Exception, log_path: Path) -> None:
         try:
             import ctypes
 
-            ctypes.windll.user32.MessageBoxW(
-                None, message, "NL Project — ошибка запуска", 0x00000010
-            )
+            ctypes.windll.user32.MessageBoxW(None, message, "NL Project — ошибка запуска", 0x00000010)
             return
         except Exception:
             pass
