@@ -1,0 +1,62 @@
+name: NLP 187 Crash recovery
+
+on:
+  pull_request:
+    paths:
+      - 'Systems/NLP/src/nl_project_2/objects/instance_lock.py'
+      - 'Systems/NLP/src/nl_project_2/objects/time_tracking.py'
+      - 'Systems/NLP/src/nl_project_2/app.py'
+      - 'Systems/NLP/src/nl_project_2/__main__.py'
+      - 'Systems/NLP/src/nl_project_2/structured_log.py'
+      - 'Systems/NLP/tests/objects/test_issue187_crash_recovery.py'
+      - '.github/workflows/nlp-187-recovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  crash-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: Systems/NLP
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install Python and Qt dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0
+          python -m pip install \
+            'SQLAlchemy==2.0.51' 'alembic==1.18.5' \
+            'pytest==9.1.1' 'pytest-qt==4.5.0' \
+            'PySide6==6.11.1' 'ruff==0.15.22'
+      - name: Lint scoped changes
+        run: |
+          python -m ruff check \
+            src/nl_project_2/objects/instance_lock.py \
+            src/nl_project_2/objects/time_tracking.py \
+            src/nl_project_2/app.py \
+            src/nl_project_2/__main__.py \
+            src/nl_project_2/structured_log.py \
+            tests/objects/test_issue187_crash_recovery.py
+          python -m ruff format --check \
+            src/nl_project_2/objects/instance_lock.py \
+            src/nl_project_2/objects/time_tracking.py \
+            src/nl_project_2/app.py \
+            src/nl_project_2/__main__.py \
+            src/nl_project_2/structured_log.py \
+            tests/objects/test_issue187_crash_recovery.py
+      - name: Crash, stale, single-instance and startup regression
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q \
+            tests/objects/test_issue187_crash_recovery.py \
+            tests/objects/test_work_time.py \
+            tests/test_app.py
