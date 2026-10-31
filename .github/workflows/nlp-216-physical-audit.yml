@@ -1,0 +1,68 @@
+name: NLP 216 Q03 read-only physical audit
+
+on:
+  pull_request:
+    paths:
+      - 'Systems/NLP/src/nl_project_2/cables/physical_conduit.py'
+      - 'Systems/NLP/src/nl_project_2/cables/physical_identity.py'
+      - 'Systems/NLP/src/nl_project_2/cables/physical_identity_repository.py'
+      - 'Systems/NLP/src/nl_project_2/cables/conduit_audit.py'
+      - 'Systems/NLP/tests/cables/test_physical_*.py'
+      - 'Systems/NLP/tests/cables/test_conduit_audit.py'
+      - '.github/workflows/nlp-216-physical-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-q03:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: Systems/NLP
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0
+          python -m pip install \
+            'SQLAlchemy==2.0.51' 'alembic==1.18.5' \
+            'pytest==9.1.1' 'pytest-qt==4.5.0' \
+            'PySide6==6.11.1' 'ruff==0.15.22'
+      - name: Validate read-only canonical identity source
+        run: |
+          python -m ruff check \
+            src/nl_project_2/cables/physical_conduit.py \
+            src/nl_project_2/cables/physical_identity.py \
+            src/nl_project_2/cables/physical_identity_repository.py \
+            src/nl_project_2/cables/conduit_audit.py \
+            tests/cables/test_physical_conduit.py \
+            tests/cables/test_physical_identity.py \
+            tests/cables/test_physical_identity_repository.py \
+            tests/cables/test_conduit_audit.py
+          python -m ruff format --check \
+            src/nl_project_2/cables/physical_conduit.py \
+            src/nl_project_2/cables/physical_identity.py \
+            src/nl_project_2/cables/physical_identity_repository.py \
+            src/nl_project_2/cables/conduit_audit.py \
+            tests/cables/test_physical_conduit.py \
+            tests/cables/test_physical_identity.py \
+            tests/cables/test_physical_identity_repository.py \
+            tests/cables/test_conduit_audit.py
+      - name: Canonical Q03 physical boundary regression
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -q \
+            tests/cables/test_physical_conduit.py \
+            tests/cables/test_physical_identity.py \
+            tests/cables/test_physical_identity_repository.py \
+            tests/cables/test_conduit_audit.py \
+            tests/integration/test_issue286_conduit_merge.py
