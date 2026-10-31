@@ -36,6 +36,7 @@ def owners(
             point_id: {
                 "id": point_id,
                 "point_kind": point_kind,
+                "migration_state": "CONFIRMED",
                 "logical_identity": "BOX.010",
             },
             uid(20): {"id": uid(20), "point_kind": "INTERNAL_SOURCE"},
