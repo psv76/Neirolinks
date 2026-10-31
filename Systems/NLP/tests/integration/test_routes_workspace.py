@@ -566,3 +566,27 @@ def test_extra_position_approval_is_explicit_and_distinct(qtbot, monkeypatch):
         "confirmed_same_physical_run": True,
         "confirmed_position_exception": True,
     }
+
+
+def test_q216_manual_conduit_length_button_only_for_one_selected_tube(qtbot):
+    """No manual length action is offered for a cable segment or a mixed selection."""
+    workspace = RoutesWorkspace(Cables(), Buses(), "p")
+    qtbot.addWidget(workspace)
+    workspace.refresh()
+    assert not workspace.length_button.isEnabled()
+    assert workspace.select_conduit("tube-1")
+    assert workspace.length_button.isEnabled()
+    workspace.toggle_conduit("tube-1")
+    first_segment = next(
+        row for row in range(workspace.model.rowCount())
+        if workspace.model.rows[row].identity == "CABLE:seg-1"
+    )
+    idx = workspace.model.index(first_segment, 0)
+    workspace.table.selectionModel().select(
+        idx,
+        QItemSelectionModel.SelectionFlag.ClearAndSelect
+        | QItemSelectionModel.SelectionFlag.Rows,
+    )
+    assert not workspace.length_button.isEnabled()
+    workspace.select_conduit("tube-2")
+    assert workspace.length_button.isEnabled()

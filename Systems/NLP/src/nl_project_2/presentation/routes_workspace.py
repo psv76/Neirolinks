@@ -29,6 +29,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from nl_project_2.cables.conduit_length_confirmation import (
+    ConduitLengthConfirmation,
+    ConduitLengthConfirmationError,
+)
 from nl_project_2.cables.route_commands import RouteConduitCommands, RouteMutationError
 from nl_project_2.cables.route_position_check import format_position_assessment
 
@@ -572,6 +576,14 @@ class RoutesWorkspace(QWidget):
         actions.addWidget(self.merge_button)
         actions.addWidget(self.move_button)
         actions.addWidget(self.remove_button)
+        self.length_button = QPushButton("Подтвердить длину трубы", self)
+        self.length_button.setObjectName("routesConfirmConduitLength")
+        self.length_button.setToolTip(
+            "Выберите одну физическую трубу и подтвердите её итоговую длину"
+        )
+        self.length_button.setEnabled(False)
+        actions.addWidget(self.length_button)
+        self.length_button.clicked.connect(self._confirm_conduit_length)
         self.merge_button.clicked.connect(self._merge_selected)
         self.move_button.clicked.connect(self._move_selected)
         actions.addStretch(1)
@@ -734,9 +746,77 @@ class RoutesWorkspace(QWidget):
         hidden = len(self._selected - visible)
         self.merge_button.setEnabled(active_tubes >= 2 and active_segments == 0)
         self.move_button.setEnabled(active_segments >= 1 and active_tubes == 0)
+        self.length_button.setEnabled(active_tubes == 1 and active_segments == 0)
         self.selection_info.setText(
             f"Выбрано: {segments} сегм. · {tubes} труб · скрыто выбранных: {hidden}"
         )
+
+    def _confirm_conduit_length(self) -> None:
+        """Operator enters and confirms the final length of ONE physical tube.
+
+        No automatic inference from cable G, point proximity or FRAME placement.
+        """
+        ids = self._visible_selected_keys()
+        if len(ids) != 1:
+            return
+        conduit_id = next(iter(ids))
+        if conduit_id.startswith(("CABLE:", "BUS:")):
+            return
+        command = ConduitLengthConfirmation(self.cables._engine)
+        try:
+            plan = command.preview(self.project_id, conduit_id)
+        except ConduitLengthConfirmationError as exc:
+            QMessageBox.warning(self, "Длина не подтверждена", str(exc))
+            return
+        current = plan.former_length_m or ""
+        length_text, ok = QInputDialog.getText(
+            self,
+            "Итоговая длина физической трубы",
+            f"Труба {plan.designation}. Введите ИТОГОВУЮ физическую длину трубы, м.\n"
+            "Не складывайте длины кабелей и не включайте их выводы:",
+            QLineEdit.EchoMode.Normal,
+            current,
+        )
+        if not ok:
+            return
+        note, ok = QInputDialog.getText(
+            self,
+            "Основание подтверждения",
+            "Укажите основание длины: измеренный физический маршрут, расчёт по плану:",
+        )
+        if not ok:
+            return
+        decision = QMessageBox(self)
+        decision.setWindowTitle("Подтверждение длины трубы")
+        decision.setIcon(QMessageBox.Icon.Warning)
+        decision.setText(
+            f"Труба: {plan.designation}\n"
+            f"Физических кабельных и BUS-сегментов: {len(plan.members)}\n"
+            f"Итоговая длина трубы: {length_text.strip()} м"
+        )
+        decision.setInformativeText(
+            "Запись относится только к одной физической трубе.\n"
+            "Индивидуальные длины кабелей и электрическая топология не меняются.\n"
+            "После сохранения автоматический пересчёт не заменит эту длину."
+        )
+        decision.setDetailedText("\n".join(f"{kind}: {sid}" for kind, sid, _ in plan.members))
+        agreed = QCheckBox("Подтверждаю итоговую длину этой физической трубы по проекту")
+        decision.setCheckBox(agreed)
+        decision.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        decision.setDefaultButton(QMessageBox.StandardButton.No)
+        if decision.exec() != QMessageBox.StandardButton.Yes or not agreed.isChecked():
+            return
+        try:
+            command.apply(
+                plan,
+                final_length_m=length_text.replace(",", "."),
+                justification=note,
+                confirmed_physical_length=True,
+            )
+        except ConduitLengthConfirmationError as exc:
+            QMessageBox.warning(self, "Длина не подтверждена", str(exc))
+            return
+        self.refresh()
 
     def _merge_selected(self) -> None:
         if self.snapshot is None:
