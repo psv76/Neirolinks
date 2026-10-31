@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from sqlalchemy import create_engine, event, func, select
 
 from nl_project_2.cables import CableService
@@ -13,10 +14,12 @@ from nl_project_2.persistence.schema import (
     board,
     cable_line,
     cable_point,
+    cable_point_field_device,
     cable_segment,
     cable_topology_endpoint,
     conduit,
     conduit_segment_assignment,
+    field_device,
     metadata,
     project,
 )
@@ -26,7 +29,10 @@ def uid(number: int) -> str:
     return f"00000000-0000-4000-8000-{number:012d}"
 
 
-def test_shared_box_with_different_line_local_endpoints_is_same_physical_interval():
+@pytest.mark.parametrize("point_kind", ["EL_BOX", "INSTALLATION_GROUP"])
+def test_shared_box_with_different_line_local_endpoints_is_same_physical_interval(
+    point_kind,
+):
     """Two lines can share cable_point.id while retaining their own endpoints."""
 
     engine = create_engine("sqlite+pysqlite:///:memory:")
@@ -96,7 +102,7 @@ def test_shared_box_with_different_line_local_endpoints_is_same_physical_interva
                 id=box_id,
                 project_id=project_id,
                 cable_line_id=uid(101),
-                point_kind="EL_BOX",
+                point_kind=point_kind,
                 ordinal=1,
                 logical_identity="BOX.010",
             )
@@ -111,6 +117,25 @@ def test_shared_box_with_different_line_local_endpoints_is_same_physical_interva
                 length_m_decimal="12",
             )
         )
+        if point_kind == "INSTALLATION_GROUP":
+            for index in (1, 2):
+                device_id = uid(600 + index)
+                connection.execute(
+                    field_device.insert().values(
+                        id=device_id,
+                        project_id=project_id,
+                        block_kind="BTN_IN_2",
+                        normalized_fields_json={"DEVICE_TYPE": "SWITCH"},
+                    )
+                )
+                connection.execute(
+                    cable_point_field_device.insert().values(
+                        id=uid(900 + index),
+                        project_id=project_id,
+                        cable_point_id=box_id,
+                        field_device_id=device_id,
+                    )
+                )
         for index in (1, 2):
             line_id = uid(100 + index)
             endpoint_id = uid(400 + index)
@@ -150,6 +175,7 @@ def test_shared_box_with_different_line_local_endpoints_is_same_physical_interva
         assert len(resolved) == 2
         assert all(s.complete for s in resolved)
         assert resolved[0].target.boundary.identity == box_id
+        assert resolved[0].target.boundary.kind == point_kind
         assert resolved[1].target.boundary.identity == box_id
         assert resolved[0].span.key() == resolved[1].span.key()
         assert resolved[0].source.boundary.identity == board_id
