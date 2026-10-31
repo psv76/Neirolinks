@@ -1578,6 +1578,22 @@ class DwgSyncService:
                 sample.normalized_attributes.get("BOARD", ""),
                 existing["board_id"] if existing else None,
             )
+            if board_id is None:
+                # Historical imported lines may retain a correct accepted BOARD
+                # label but lack their canonical board_id. A SELECTED DWG insert
+                # does not imply that its already-existing BOARD is also selected.
+                # Resolve only the accepted Project fact and only to one ACTIVE
+                # board in the same Project; never guess from coordinates or
+                # import an unselected DWG BOARD attribute.
+                accepted_board = str(facts.get("BOARD") or "").strip()
+                if accepted_board:
+                    board_id = uow.execute(
+                        select(board.c.id).where(
+                            board.c.project_id == project_id,
+                            board.c.designation == accepted_board,
+                            board.c.lifecycle == "ACTIVE",
+                        )
+                    ).scalar_one_or_none()
             if existing:
                 identifier = existing["id"]
                 uow.execute(
