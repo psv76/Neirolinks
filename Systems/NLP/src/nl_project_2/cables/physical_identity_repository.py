@@ -92,8 +92,9 @@ def load_physical_segment_resolutions(connection, project_id: str) -> tuple[Segm
             cable_point_field_device.c.field_device_id,
         ).where(cable_point_field_device.c.project_id == project_id)
     ).mappings():
-        if row["field_device_id"] in devices:
-            memberships[row["cable_point_id"]].append(row["field_device_id"])
+        # Preserve retired/cross-project member IDs too so the resolver can
+        # reject a partially active installation group, not silently shorten it.
+        memberships[row["cable_point_id"]].append(row["field_device_id"])
     owners = PhysicalOwnerIndex(
         board_ids=boards,
         resource_ids=resources,
