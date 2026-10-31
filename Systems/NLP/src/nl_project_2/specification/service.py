@@ -914,6 +914,73 @@ class SpecificationService:
             ),
         }
 
+    def preview_integrated_conduit_specification(self, project_id: str) -> dict:
+        """Q216 complete-spec dry run: one Conduit source, no procurement mutation.
+
+        Preserves all non-tube source values. A project revision race invalidates
+        the preview; non-publishability is unconditional until Q03/Q06 release.
+        """
+        from nl_project_2.persistence.schema import (
+            bus_segment_conduit_assignment,
+        )
+
+        from .integrated_conduit_cutover_preview import compose_integrated_conduit_cutover
+
+        with self._engine.connect() as connection:
+            rev_before = connection.execute(
+                select(project.c.project_revision).where(project.c.id == project_id)
+            ).scalar_one_or_none()
+        if rev_before is None:
+            raise SpecificationError("Project not found for physical Conduit preview")
+
+        context = self._read_context(project_id)
+        baseline = tuple(self._all_sources(project_id, context))
+        physical = self.preview_single_conduit_specification(project_id)
+        with self._engine.connect() as connection:
+            linked_bus = frozenset(
+                connection.execute(
+                    select(bus_segment_conduit_assignment.c.bus_segment_id)
+                    .join(
+                        conduit,
+                        conduit.c.id == bus_segment_conduit_assignment.c.conduit_id,
+                    )
+                    .where(
+                        bus_segment_conduit_assignment.c.project_id == project_id,
+                        conduit.c.project_id == project_id,
+                        conduit.c.lifecycle == "ACTIVE",
+                    )
+                ).scalars()
+            )
+            rev_after = connection.execute(
+                select(project.c.project_revision).where(project.c.id == project_id)
+            ).scalar_one_or_none()
+        if rev_before != rev_after:
+            raise SpecificationError("Project changed while preparing Conduit cutover preview")
+
+        result = compose_integrated_conduit_cutover(
+            baseline_sources=baseline,
+            replacement_conduits=physical["sources"],
+            decisions=physical["decisions"],
+            assigned_bus_segment_ids=linked_bus,
+        )
+        grouped, structural = group_sources(result.sources)
+        issues = structural + tuple(self._data_issues(result.sources)) + result.issues
+        return {
+            "preview_only": True,
+            "can_publish": False,
+            "project_revision": rev_before,
+            "sources": result.sources,
+            "baseline_sources": baseline,
+            "rows": grouped,
+            "issues": issues,
+            "conduit_decisions": physical["decisions"],
+            "blocked_conduit_ids": physical["blocked_conduit_ids"],
+            "orphan_bus_segment_ids": result.orphan_bus_source_ids,
+            "legacy_tube_source_count": result.legacy_tube_source_count,
+            "physical_conduit_source_count": result.replacement_conduit_source_count,
+            "neirolinks_total_preview": self._known_total(grouped, "NEIROLINKS"),
+        }
+
     def _led_sources(self, project_id: str, context: dict) -> list[SpecificationSource]:
         if self._automation is None:
             return []
