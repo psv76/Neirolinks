@@ -36,6 +36,7 @@ def owners(
             point_id: {
                 "id": point_id,
                 "point_kind": point_kind,
+                "migration_state": "CONFIRMED",
                 "logical_identity": "BOX.010",
             },
             uid(20): {"id": uid(20), "point_kind": "INTERNAL_SOURCE"},
@@ -120,7 +121,7 @@ def test_missing_board_and_ambiguous_device_group_fail_closed():
     line_a, endpoints, segment = cable_example(0)
     unresolved = resolve_cable_segment(segment, line=line_a, endpoints=endpoints, owners=idx)
     assert unresolved.span is None
-    assert "one confirmed physical owner" in unresolved.target.issue
+    assert "confirmed active physical members" in unresolved.target.issue
 
     missing_board = PhysicalOwnerIndex(
         board_ids=frozenset(),
@@ -216,3 +217,69 @@ def test_wrong_line_endpoint_is_not_resolved_by_matching_ids():
     result = resolve_cable_segment(segment, line=line, endpoints=endpoints, owners=idx)
     assert not result.complete
     assert "another line" in result.target.issue
+
+
+def test_confirmed_installation_group_is_one_physical_owner_not_a_frame():
+    from dataclasses import replace
+
+    second = uid(9)
+    base = owners(point_kind="INSTALLATION_GROUP", members=(DEVICE, second))
+    idx = replace(base, device_ids=frozenset({DEVICE, second}))
+    a, ae, sa = cable_example(0)
+    b, be, sb = cable_example(1)
+    first = resolve_cable_segment(sa, line=a, endpoints=ae, owners=idx)
+    second_result = resolve_cable_segment(sb, line=b, endpoints=be, owners=idx)
+    assert first.complete and second_result.complete
+    assert first.target.boundary.kind == "INSTALLATION_GROUP"
+    assert first.target.boundary.identity == BOX_POINT
+    assert second_result.target.boundary == first.target.boundary
+    assert first.span.key() == second_result.span.key()
+    assert sa["target_endpoint_id"] != sb["target_endpoint_id"]
+
+
+def test_installation_group_owner_is_stable_from_one_to_many_active_members():
+    from dataclasses import replace
+
+    single = owners(point_kind="INSTALLATION_GROUP", members=(DEVICE,))
+    multiple = replace(
+        single,
+        device_ids=frozenset({DEVICE, uid(9)}),
+        point_devices={BOX_POINT: (DEVICE, uid(9))},
+    )
+    line, ep, _seg = cable_example(0)
+    first = resolve_cable_endpoint(ep[uid(300)], line=line, owners=single)
+    second = resolve_cable_endpoint(ep[uid(300)], line=line, owners=multiple)
+    assert first.boundary == second.boundary
+    assert first.boundary.kind == "INSTALLATION_GROUP"
+
+
+def test_unconfirmed_or_partially_inactive_installation_group_fails_closed():
+    from dataclasses import replace
+
+    candidate = owners(point_kind="INSTALLATION_GROUP", members=(DEVICE, uid(9)))
+    line, ep, _ = cable_example(0)
+    incomplete = resolve_cable_endpoint(ep[uid(300)], line=line, owners=candidate)
+    assert incomplete.boundary is None
+
+    active = replace(candidate, device_ids=frozenset({DEVICE, uid(9)}))
+    point = dict(active.cable_points[BOX_POINT])
+    point["migration_state"] = "UNCONFIRMED"
+    stale = replace(active, cable_points={**active.cable_points, BOX_POINT: point})
+    unconfirmed = resolve_cable_endpoint(ep[uid(300)], line=line, owners=stale)
+    assert unconfirmed.boundary is None
+    assert "confirmed active physical members" in unconfirmed.issue
+
+    dup = replace(active, point_devices={BOX_POINT: (DEVICE, DEVICE)})
+    duplicated = resolve_cable_endpoint(ep[uid(300)], line=line, owners=dup)
+    assert duplicated.boundary is None
+
+
+def test_multiple_devices_at_device_point_remain_ambiguous_not_auto_grouped():
+    from dataclasses import replace
+
+    base = owners(point_kind="DEVICE_POINT", members=(DEVICE, uid(9)))
+    idx = replace(base, device_ids=frozenset({DEVICE, uid(9)}))
+    line, ep, _ = cable_example(0)
+    result = resolve_cable_endpoint(ep[uid(300)], line=line, owners=idx)
+    assert result.boundary is None
+    assert "one confirmed physical owner" in result.issue
