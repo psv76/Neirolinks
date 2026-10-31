@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Literal
+from uuid import UUID
 
 State = Literal["ENDPOINT_CANDIDATE", "BLOCKED"]
 
@@ -63,6 +64,23 @@ def _number(text: str) -> Decimal | None:
     return result if result.is_finite() else None
 
 
+def _canonical_uuid(value: str) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        return str(UUID(value)) == value
+    except (ValueError, AttributeError):
+        return False
+
+
+def _sha256(value: str) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(char in "0123456789abcdef" for char in value)
+    )
+
+
 def _inside(frame: FrameWitness, point: DeviceWitness) -> bool:
     values = tuple(
         _number(value)
@@ -101,7 +119,11 @@ def preview_shared_mounting_frame(
         issues.append("DWG_WITNESS_NOT_FRESH_AND_COMPLETE")
     if not common_tube_confirmed_by_engineer:
         issues.append("COMMON_PHYSICAL_TUBE_NOT_CONFIRMED")
-    if not frame.field_device_id or not frame.handle or not frame.dwg_fingerprint:
+    if (
+        not _canonical_uuid(frame.field_device_id)
+        or not frame.handle
+        or not _sha256(frame.dwg_fingerprint)
+    ):
         issues.append("FRAME_IDENTITY_MISSING")
     if frame.posts != 2:
         issues.append("NOT_TWO_POSITION_FRAME")
@@ -117,6 +139,8 @@ def preview_shared_mounting_frame(
         issues.append("FRAME_NOT_UNIQUE_IN_COMPLETE_INVENTORY")
     if any(f.dwg_fingerprint != frame.dwg_fingerprint for f in all_frames):
         issues.append("MIXED_FRAME_DWG_WITNESS")
+    if any(not _canonical_uuid(f.field_device_id) for f in all_frames):
+        issues.append("NONCANONICAL_FRAME_OWNER")
     if len(devices) == 2:
         if len({d.field_device_id for d in devices}) != 2 or len({d.handle for d in devices}) != 2:
             issues.append("DUPLICATE_DEVICE")
@@ -134,7 +158,13 @@ def preview_shared_mounting_frame(
         if any(h is None or h < 0 for h in heights) or heights[0] != heights[1]:
             issues.append("MOUNT_HEIGHT_NOT_SHARED")
         for d in devices:
-            if not d.field_device_id or not d.handle or not d.line_designation:
+            if not (
+                _canonical_uuid(d.field_device_id)
+                and _canonical_uuid(d.board_owner_id)
+                and _canonical_uuid(d.assigned_conduit_id)
+                and d.handle
+                and d.line_designation
+            ):
                 issues.append("DEVICE_IDENTITY_MISSING")
             if d.dwg_fingerprint != frame.dwg_fingerprint:
                 issues.append("DEVICE_DWG_WITNESS_DIFFERS")
