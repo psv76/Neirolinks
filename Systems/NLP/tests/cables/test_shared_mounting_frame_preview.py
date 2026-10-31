@@ -10,23 +10,50 @@ from nl_project_2.cables.shared_mounting_frame_preview import (
 
 DOC = "fresh-dwg-sha"
 FRAME = FrameWitness(
-    "frame-uuid", "AA82", DOC, "Дом_2", "Гостиная", 2,
-    "19173.767744", "11140.146291", "19553.767744", "11340.146291",
+    "frame-uuid",
+    "AA82",
+    DOC,
+    "Дом_2",
+    "Гостиная",
+    2,
+    "19173.767744",
+    "11140.146291",
+    "19553.767744",
+    "11340.146291",
 )
 FIRST = DeviceWitness(
-    "device-204", "AA88", DOC, "Дом_2", "Гостиная", "900",
-    "19373.767744", "11160.146291", "204", "board-20", "conduit-146",
+    "device-204",
+    "AA88",
+    DOC,
+    "Дом_2",
+    "Гостиная",
+    "900",
+    "19373.767744",
+    "11160.146291",
+    "204",
+    "board-20",
+    "conduit-146",
 )
 SECOND = DeviceWitness(
-    "device-205", "AA9A", DOC, "Дом_2", "Гостиная", "900",
-    "19193.767744", "11160.146291", "205", "board-20", "conduit-146",
+    "device-205",
+    "AA9A",
+    DOC,
+    "Дом_2",
+    "Гостиная",
+    "900",
+    "19193.767744",
+    "11160.146291",
+    "205",
+    "board-20",
+    "conduit-146",
 )
 
 
-def proof(*, frame=FRAME, devices=(FIRST, SECOND), all_frames=(FRAME,),
-          fresh=True, confirmed=True):
+def proof(*, frame=FRAME, devices=(FIRST, SECOND), all_frames=(FRAME,), fresh=True, confirmed=True):
     return preview_shared_mounting_frame(
-        frame=frame, devices=devices, all_frames=all_frames,
+        frame=frame,
+        devices=devices,
+        all_frames=all_frames,
         fresh_complete_dwg_witness=fresh,
         common_tube_confirmed_by_engineer=confirmed,
     )

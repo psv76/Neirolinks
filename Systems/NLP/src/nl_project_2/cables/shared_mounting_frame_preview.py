@@ -118,9 +118,7 @@ def preview_shared_mounting_frame(
     if any(f.dwg_fingerprint != frame.dwg_fingerprint for f in all_frames):
         issues.append("MIXED_FRAME_DWG_WITNESS")
     if len(devices) == 2:
-        if len({d.field_device_id for d in devices}) != 2 or len(
-            {d.handle for d in devices}
-        ) != 2:
+        if len({d.field_device_id for d in devices}) != 2 or len({d.handle for d in devices}) != 2:
             issues.append("DUPLICATE_DEVICE")
         if len({d.line_designation for d in devices}) != 2:
             issues.append("ELECTRICAL_LINE_IDENTITY_NOT_DISTINCT")
