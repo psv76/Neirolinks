@@ -877,7 +877,7 @@ class SpecificationService:
                         if product_id
                         else f"CONDUIT:{row['conduit_type']}:{diameter}"
                     ),
-                    row["product_name"] or f"????? {row['conduit_type']} ?{diameter} ??",
+                    row["product_name"] or f"Труба {row['conduit_type']} Ø{diameter} мм",
                     row["product_article"],
                     quantity,
                     "m",
