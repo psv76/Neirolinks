@@ -578,7 +578,9 @@ class RoutesWorkspace(QWidget):
         actions.addWidget(self.remove_button)
         self.length_button = QPushButton("Подтвердить длину трубы", self)
         self.length_button.setObjectName("routesConfirmConduitLength")
-        self.length_button.setToolTip("Выберите одну физическую трубу и подтвердите её итоговую длину")
+        self.length_button.setToolTip(
+            "Выберите одну физическую трубу и подтвердите её итоговую длину"
+        )
         self.length_button.setEnabled(False)
         actions.addWidget(self.length_button)
         self.length_button.clicked.connect(self._confirm_conduit_length)
@@ -797,14 +799,10 @@ class RoutesWorkspace(QWidget):
             "Индивидуальные длины кабелей и электрическая топология не меняются.\n"
             "После сохранения автоматический пересчёт не заменит эту длину."
         )
-        decision.setDetailedText(
-            "\n".join(f"{kind}: {sid}" for kind, sid, _ in plan.members)
-        )
+        decision.setDetailedText("\n".join(f"{kind}: {sid}" for kind, sid, _ in plan.members))
         agreed = QCheckBox("Подтверждаю итоговую длину этой физической трубы по проекту")
         decision.setCheckBox(agreed)
-        decision.setStandardButtons(
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
+        decision.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         decision.setDefaultButton(QMessageBox.StandardButton.No)
         if decision.exec() != QMessageBox.StandardButton.Yes or not agreed.isChecked():
             return

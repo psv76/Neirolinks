@@ -65,21 +65,33 @@ class ConduitLengthConfirmation:
         ).scalar_one_or_none()
         if revision is None:
             raise ConduitLengthConfirmationError("Проект не найден")
-        tube = uow.execute(
-            select(conduit).where(
-                conduit.c.id == conduit_id,
-                conduit.c.project_id == project_id,
-                conduit.c.lifecycle == "ACTIVE",
+        tube = (
+            uow.execute(
+                select(conduit).where(
+                    conduit.c.id == conduit_id,
+                    conduit.c.project_id == project_id,
+                    conduit.c.lifecycle == "ACTIVE",
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if tube is None:
             raise ConduitLengthConfirmationError("Активная труба не найдена")
         members: list[tuple[str, str, int]] = []
         for kind, assignment, segment, segment_column in (
-            ("CABLE", conduit_segment_assignment, cable_segment,
-             conduit_segment_assignment.c.cable_segment_id),
-            ("BUS", bus_segment_conduit_assignment, bus_segment,
-             bus_segment_conduit_assignment.c.bus_segment_id),
+            (
+                "CABLE",
+                conduit_segment_assignment,
+                cable_segment,
+                conduit_segment_assignment.c.cable_segment_id,
+            ),
+            (
+                "BUS",
+                bus_segment_conduit_assignment,
+                bus_segment,
+                bus_segment_conduit_assignment.c.bus_segment_id,
+            ),
         ):
             for sid, version, state, segment_project in uow.execute(
                 select(
@@ -117,9 +129,7 @@ class ConduitLengthConfirmation:
             members=tuple(sorted(members)),
         )
 
-    def preview(
-        self, project_id: str, conduit_id: str
-    ) -> ConduitLengthConfirmationPlan:
+    def preview(self, project_id: str, conduit_id: str) -> ConduitLengthConfirmationPlan:
         with UnitOfWork(self.engine) as uow:
             return self._plan(uow, project_id, conduit_id)
 
@@ -186,7 +196,5 @@ class ConduitLengthConfirmation:
                 )
             )
             if changed_revision.rowcount != 1:
-                raise ConduitLengthConfirmationError(
-                    "Ревизия проекта изменилась; запись отменена"
-                )
+                raise ConduitLengthConfirmationError("Ревизия проекта изменилась; запись отменена")
             uow.commit()

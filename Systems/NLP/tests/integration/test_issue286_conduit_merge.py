@@ -455,23 +455,24 @@ def test_confirm_shared_conduit_length_once_without_changing_electrical_ends(dat
     }
     with pytest.raises(ConduitLengthConfirmationError, match="подтверждение"):
         service.apply(
-            plan, final_length_m="16.5",
+            plan,
+            final_length_m="16.5",
             justification="Проверенный маршрут трубы по плану",
         )
     with database.engine.connect() as conn:
-        assert conn.scalar(
-            select(conduit.c.length_m_decimal).where(conduit.c.id == first)
-        ) is None
+        assert conn.scalar(select(conduit.c.length_m_decimal).where(conduit.c.id == first)) is None
         before = dict(
             conn.execute(
                 select(
                     conduit_segment_assignment.c.cable_segment_id,
                     conduit_segment_assignment.c.conduit_id,
                 )
-            )
+            ).all()
         )
         line_lengths_before = dict(
-            conn.execute(select(cable_segment.c.id, cable_segment.c.calculated_length_m_decimal))
+            conn.execute(
+                select(cable_segment.c.id, cable_segment.c.calculated_length_m_decimal)
+            ).all()
         )
         rev_before = conn.scalar(select(project.c.project_revision).where(project.c.id == pid))
     service.apply(
@@ -482,33 +483,44 @@ def test_confirm_shared_conduit_length_once_without_changing_electrical_ends(dat
     )
     with database.engine.connect() as conn:
         tube = conn.execute(
-            select(conduit.c.length_m_decimal, conduit.c.path_json)
-            .where(conduit.c.id == first)
+            select(conduit.c.length_m_decimal, conduit.c.path_json).where(conduit.c.id == first)
         ).one()
         assert tube.length_m_decimal == "16.5"
         assert tube.path_json["length_source"] == "USER_CONFIRMED"
         assert len(tube.path_json["manual_length_member_keys"]) == 2
-        assert dict(
-            conn.execute(
-                select(
-                    conduit_segment_assignment.c.cable_segment_id,
-                    conduit_segment_assignment.c.conduit_id,
-                )
+        assert (
+            dict(
+                conn.execute(
+                    select(
+                        conduit_segment_assignment.c.cable_segment_id,
+                        conduit_segment_assignment.c.conduit_id,
+                    )
+                ).all()
             )
-        ) == before
-        assert dict(
-            conn.execute(select(cable_segment.c.id, cable_segment.c.calculated_length_m_decimal))
-        ) == line_lengths_before
-        assert conn.scalar(select(project.c.project_revision).where(project.c.id == pid)) == rev_before + 1
+            == before
+        )
+        assert (
+            dict(
+                conn.execute(
+                    select(cable_segment.c.id, cable_segment.c.calculated_length_m_decimal)
+                ).all()
+            )
+            == line_lengths_before
+        )
+        assert (
+            conn.scalar(select(project.c.project_revision).where(project.c.id == pid))
+            == rev_before + 1
+        )
         assert conn.exec_driver_sql("PRAGMA foreign_key_check").all() == []
     cables.recalculate(project_id=pid, segment_ids=segments)
     with database.engine.connect() as conn:
-        assert conn.scalar(
-            select(conduit.c.length_m_decimal).where(conduit.c.id == first)
-        ) == "16.5"
+        assert (
+            conn.scalar(select(conduit.c.length_m_decimal).where(conduit.c.id == first)) == "16.5"
+        )
     with pytest.raises(ConduitLengthConfirmationError, match="изменились"):
         service.apply(
-            plan, final_length_m="17",
+            plan,
+            final_length_m="17",
             justification="Повтор устаревшего подтверждения",
             confirmed_physical_length=True,
         )
@@ -517,7 +529,8 @@ def test_confirm_shared_conduit_length_once_without_changing_electrical_ends(dat
 @pytest.mark.parametrize("bad", [None, "", "-1", "0", "NaN", "Infinity", "abc"])
 def test_manual_tube_length_rejects_invalid_values(database, routing, bad):
     from nl_project_2.cables.conduit_length_confirmation import (
-        ConduitLengthConfirmation, ConduitLengthConfirmationError,
+        ConduitLengthConfirmation,
+        ConduitLengthConfirmationError,
     )
 
     pid, _line, segments, assigned, _cables = routing
@@ -526,14 +539,17 @@ def test_manual_tube_length_rejects_invalid_values(database, routing, bad):
     plan = service.preview(pid, tube_id)
     with pytest.raises(ConduitLengthConfirmationError):
         service.apply(
-            plan, final_length_m=bad, justification="Сверено",
+            plan,
+            final_length_m=bad,
+            justification="Сверено",
             confirmed_physical_length=True,
         )
 
 
 def test_manual_length_is_rejected_after_stale_project_revision(database, routing):
     from nl_project_2.cables.conduit_length_confirmation import (
-        ConduitLengthConfirmation, ConduitLengthConfirmationError,
+        ConduitLengthConfirmation,
+        ConduitLengthConfirmationError,
     )
 
     pid, _line, segments, assigned, _cables = routing
@@ -548,18 +564,22 @@ def test_manual_length_is_rejected_after_stale_project_revision(database, routin
         )
     with pytest.raises(ConduitLengthConfirmationError, match="изменились"):
         service.apply(
-            plan, final_length_m="18", justification="Сверено",
+            plan,
+            final_length_m="18",
+            justification="Сверено",
             confirmed_physical_length=True,
         )
     with database.engine.connect() as conn:
-        assert conn.scalar(
-            select(conduit.c.path_json).where(conduit.c.id == tube_id)
-        )["length_source"] != "USER_CONFIRMED"
+        assert (
+            conn.scalar(select(conduit.c.path_json).where(conduit.c.id == tube_id))["length_source"]
+            != "USER_CONFIRMED"
+        )
 
 
 def test_manual_length_blocked_for_empty_tube(database, routing):
     from nl_project_2.cables.conduit_length_confirmation import (
-        ConduitLengthConfirmation, ConduitLengthConfirmationError,
+        ConduitLengthConfirmation,
+        ConduitLengthConfirmationError,
     )
     from nl_project_2.persistence.ids import new_id
 
@@ -568,9 +588,12 @@ def test_manual_length_blocked_for_empty_tube(database, routing):
     with database.engine.begin() as conn:
         conn.execute(
             conduit.insert().values(
-                id=tube_id, project_id=pid,
-                designation="999.ПНД25", conduit_number=999,
-                conduit_type="ПНД25", path_json={"origin": "AUTO_SEGMENT"},
+                id=tube_id,
+                project_id=pid,
+                designation="999.ПНД25",
+                conduit_number=999,
+                conduit_type="ПНД25",
+                path_json={"origin": "AUTO_SEGMENT"},
                 lifecycle="ACTIVE",
             )
         )
@@ -580,7 +603,8 @@ def test_manual_length_blocked_for_empty_tube(database, routing):
 
 def test_manual_length_requires_auditable_reason(database, routing):
     from nl_project_2.cables.conduit_length_confirmation import (
-        ConduitLengthConfirmation, ConduitLengthConfirmationError,
+        ConduitLengthConfirmation,
+        ConduitLengthConfirmationError,
     )
 
     pid, _line, segments, assigned, _cables = routing
@@ -589,6 +613,8 @@ def test_manual_length_requires_auditable_reason(database, routing):
     for note in ("", " " * 10, "x" * 501):
         with pytest.raises(ConduitLengthConfirmationError, match="основание"):
             service.apply(
-                plan, final_length_m="16", justification=note,
+                plan,
+                final_length_m="16",
+                justification=note,
                 confirmed_physical_length=True,
             )
