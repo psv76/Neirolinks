@@ -97,7 +97,20 @@ def resolve_cable_endpoint(
         # This is the persisted, possibly shared physical point UUID, *not*
         # point.logical_identity (BOX.010 is display/cable-source notation).
         return BoundaryResolution(PhysicalBoundary("EL_BOX", point_id))
-    if point_kind in {"DEVICE_POINT", "BUS_POINT", "INSTALLATION_GROUP"}:
+    if point_kind == "INSTALLATION_GROUP":
+        # The persisted cable_point UUID is the physical mounting-group owner.
+        # Its devices are separate electrical terminations, not separate tubes.
+        # Never use FRAME/coordinates/labels as a substitute for this owner.
+        members = tuple(owners.point_devices.get(point_id, ()))
+        if (
+            point.get("migration_state") != "CONFIRMED"
+            or not members
+            or len(set(members)) != len(members)
+            or any(device_id not in owners.device_ids for device_id in members)
+        ):
+            return _missing("INSTALLATION_GROUP: confirmed active physical members are missing")
+        return BoundaryResolution(PhysicalBoundary("INSTALLATION_GROUP", point_id))
+    if point_kind in {"DEVICE_POINT", "BUS_POINT"}:
         physical_owners = tuple(dict.fromkeys(owners.point_devices.get(point_id, ())))
         if len(physical_owners) != 1:
             return _missing("CABLE_POINT: device boundary must have one confirmed physical owner")
