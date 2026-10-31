@@ -815,6 +815,105 @@ class SpecificationService:
             )
         return output
 
+    def preview_single_conduit_specification(self, project_id: str) -> dict:
+        """Q216 shadow, one source per active physical Conduit, NOT procurement.
+
+        Existing build(), overrides, CSV/export and normal source navigation
+        are deliberately unchanged. No stored length or assignment is edited.
+        """
+        from nl_project_2.cables.bus_conduit_preview import (
+            load_bus_conduit_quantity_preview,
+        )
+        from nl_project_2.cables.conduit_audit import load_conduit_membership_audit
+
+        from .conduit_source_preview import plan_conduit_specification
+
+        context = self._read_context(project_id)
+        with self._engine.connect() as connection:
+            rows = tuple(
+                dict(row)
+                for row in connection.execute(
+                    select(
+                        conduit,
+                        product_definition.c.product_key,
+                        product_definition.c.name.label("product_name"),
+                        product_definition.c.article.label("product_article"),
+                    )
+                    .outerjoin(
+                        product_definition,
+                        product_definition.c.id == conduit.c.product_definition_id,
+                    )
+                    .where(conduit.c.project_id == project_id, conduit.c.lifecycle == "ACTIVE")
+                ).mappings()
+            )
+            audits = load_conduit_membership_audit(connection, project_id)
+            bus_previews = load_bus_conduit_quantity_preview(connection, project_id)
+        decisions = plan_conduit_specification(
+            conduits=rows, audits=audits, bus_previews=bus_previews
+        )
+        by_conduit = {row["id"]: row for row in rows}
+        sources: list[SpecificationSource] = []
+        for decision in decisions:
+            row = by_conduit[decision.conduit_id]
+            override = context["overrides"].get(("CONDUIT", row["id"]), {})
+            scope = _override_value(override, "supply_scope", row["supply_scope"] or "NEIROLINKS")
+            included = bool(_override_value(override, "included", True))
+            diameter = row["diameter_mm_decimal"] or _diameter_from_conduit_type(
+                row["conduit_type"]
+            )
+            product_id = row["product_definition_id"]
+            price, currency = context["product_prices"].get(product_id, (None, None))
+            quantity = (
+                _corrected_quantity(decision.quantity_m, override)
+                if decision.quantity_m is not None
+                else None
+            )
+            sources.append(
+                SpecificationSource(
+                    "CONDUIT",
+                    row["id"],
+                    (
+                        f"PRODUCT:{row['product_key']}"
+                        if product_id
+                        else f"CONDUIT:{row['conduit_type']}:{diameter}"
+                    ),
+                    row["product_name"] or f"????? {row['conduit_type']} ?{diameter} ??",
+                    row["product_article"],
+                    quantity,
+                    "m",
+                    scope,
+                    included,
+                    scope == "NEIROLINKS" and included,
+                    unit_price=price,
+                    currency=currency,
+                    note=_override_value(override, "note", None),
+                    trace=(
+                        f"Conduit {row['designation']}; Q216 shadow={decision.status}; "
+                        f"quantity={quantity} m; issues={','.join(decision.issues)}; "
+                        "NOT FOR PROCUREMENT"
+                    ),
+                )
+            )
+
+        projected = tuple(sources)
+        grouped, structural_issues = group_sources(projected)
+        baseline = tuple(
+            self._conduit_sources(project_id, context)
+            + self._bus_conduit_sources(project_id, context)
+        )
+        return {
+            "preview_only": True,
+            "can_publish": False,
+            "decisions": decisions,
+            "sources": projected,
+            "rows": grouped,
+            "issues": structural_issues,
+            "baseline_sources": baseline,
+            "blocked_conduit_ids": tuple(
+                item.conduit_id for item in decisions if item.status.startswith("BLOCKED_")
+            ),
+        }
+
     def _led_sources(self, project_id: str, context: dict) -> list[SpecificationSource]:
         if self._automation is None:
             return []
