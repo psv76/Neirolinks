@@ -114,7 +114,11 @@ def test_shared_tube_blocker_has_unknown_quantity_and_explicit_issue():
         ((source("BUS_SEGMENT_CONDUIT", "tube-1"),), (decision("tube-1", "10"),), "Only"),
         ((source("CONDUIT", "tube-1"),) * 2, (decision("tube-1", "10"),), "Duplicate"),
         ((source("CONDUIT", "tube-1"),), (decision("tube-2", "10"),), "cover"),
-        ((source("CONDUIT", "tube-1", "8"),), (decision("tube-1", None, "BLOCKED_UNRESOLVED"),), "Blocked"),
+        (
+            (source("CONDUIT", "tube-1", "8"),),
+            (decision("tube-1", None, "BLOCKED_UNRESOLVED"),),
+            "Blocked",
+        ),
     ],
 )
 def test_cutover_refuses_malformed_or_falsely_approved_sources(replacement, decisions, expected):

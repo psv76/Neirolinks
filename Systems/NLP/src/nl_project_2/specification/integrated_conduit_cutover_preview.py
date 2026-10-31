@@ -40,12 +40,10 @@ def compose_integrated_conduit_cutover(
     disappearance from the production specification.
     """
     legacy = tuple(
-        source for source in baseline_sources
-        if source.source_kind in _LEGACY_TUBE_KINDS
+        source for source in baseline_sources if source.source_kind in _LEGACY_TUBE_KINDS
     )
     others = tuple(
-        source for source in baseline_sources
-        if source.source_kind not in _LEGACY_TUBE_KINDS
+        source for source in baseline_sources if source.source_kind not in _LEGACY_TUBE_KINDS
     )
     if any(source.source_kind != "CONDUIT" for source in replacement_conduits):
         raise ValueError("Only physical Conduit sources may replace legacy tube sources")
@@ -65,9 +63,7 @@ def compose_integrated_conduit_cutover(
         if decision.status.startswith("BLOCKED_") and source.quantity is not None:
             raise ValueError("Blocked physical Conduit cannot enter a purchasing quantity")
 
-    old_bus = tuple(
-        source for source in legacy if source.source_kind == "BUS_SEGMENT_CONDUIT"
-    )
+    old_bus = tuple(source for source in legacy if source.source_kind == "BUS_SEGMENT_CONDUIT")
     old_bus_ids = [source.source_id for source in old_bus]
     if len(set(old_bus_ids)) != len(old_bus_ids):
         raise ValueError("Duplicate legacy BUS segment tube sources")
